@@ -1,0 +1,20 @@
+{
+  "practices": [
+    {
+      "id": "sas",
+      "title": "Tarot",
+      "folder": "sas/",
+      "stems": [
+        "sas7_Audio 1.wav",
+        "sas7_Bass.wav",
+        "sas7_Drums DI.wav",
+        "sas7_Guitar 1 #08.wav",
+        "sas7_Guitar 2.wav",
+        "sas7_Keys #08.wav",
+        "sas7_Vox 2 #08.wav",
+        "sas7_Vox 3 #08.wav",
+        "sas7_Warm Vocal #08.wav"
+      ]
+    }
+  ]
+}
