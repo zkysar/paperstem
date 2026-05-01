@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap">
 <script src="https://unpkg.com/wavesurfer.js@7"></script>
 <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="lib.js"></script>
 <!--
   How to run
   ----------
@@ -455,11 +456,15 @@ const PALETTE = [
   '#7d4e6b', '#a87a3f', '#594b76', '#9f4a4a',
 ];
 
+// fmt, mix, stripCommonPrefix, longestStemIdx come from lib.js (loaded above
+// as a classic script — its function declarations are visible here by name).
+
 // State -----------------------------------------------------------
 const stems = [];
 let practices = [];
 let activePracticeId = null;
 let duration = 0;
+let referenceIdx = 0;
 let isPlaying = false;
 let driftTimer = null;
 let focusedIdx = -1;
@@ -600,6 +605,8 @@ function teardownStems() {
   stemsEl.innerHTML = '';
   isPlaying = false;
   duration = 0;
+  referenceIdx = 0;
+  focusedIdx = -1;
   playBtn.textContent = '▶';
   playBtn.disabled = restartBtn.disabled = loopBtn.disabled = downloadBtn.disabled = true;
   loopStart = loopEnd = null;
@@ -657,6 +664,7 @@ async function loadStems(items, ctx) {
     (m, s) => Math.max(m, isFinite(s.audio.duration) ? s.audio.duration : 0),
     0
   );
+  referenceIdx = longestStemIdx(stems.map(s => s.audio.duration));
   metaEl.textContent = `${stems.length} stems · ${fmt(duration)}`;
   renderRuler(duration);
   resizeClips();
@@ -665,7 +673,9 @@ async function loadStems(items, ctx) {
   applyMixState();
 
   if (duration) {
-    playBtn.disabled = restartBtn.disabled = loopBtn.disabled = downloadBtn.disabled = false;
+    playBtn.disabled = restartBtn.disabled = downloadBtn.disabled = false;
+    // Loop button stays disabled until the user paints a region.
+    loopBtn.disabled = true;
     playheadEl.hidden = false;
     updatePlayhead(0);
     updateTimeDisplay(0);
@@ -765,32 +775,6 @@ function attachWaveform(stem, src) {
   ws.on('ready', () => { resizeClips(); measureWaveArea(); positionOverlays(); });
 }
 
-// Strip the longest common prefix and the file extension from each name.
-function stripCommonPrefix(names) {
-  if (!names.length) return [];
-  let prefix = names[0];
-  for (const n of names) {
-    while (n.indexOf(prefix) !== 0 && prefix.length) {
-      prefix = prefix.slice(0, -1);
-    }
-    if (!prefix) break;
-  }
-  return names.map(n =>
-    n.slice(prefix.length).replace(/\.[^.]+$/, '').trim() || n.replace(/\.[^.]+$/, '')
-  );
-}
-
-// Mix two hex colors. Used to derive the darkened progressColor.
-function mix(a, b, t) {
-  const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
-  const ar = (ah >> 16) & 255, ag = (ah >> 8) & 255, ab = ah & 255;
-  const br = (bh >> 16) & 255, bg = (bh >> 8) & 255, bb = bh & 255;
-  const r = Math.round(ar + (br - ar) * t);
-  const g = Math.round(ag + (bg - ag) * t);
-  const bl = Math.round(ab + (bb - ab) * t);
-  return '#' + ((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0');
-}
-
 // ----- Mix state (mute/solo/volume) -----
 function applyMixState() {
   const anySolo = stems.some(s => s.soloed);
@@ -879,7 +863,7 @@ function positionOverlays() {
     loopRegionEl.hidden = true;
   }
   // Playhead
-  const t = stems.length ? stems[0].audio.currentTime : 0;
+  const t = stems.length ? stems[referenceIdx].audio.currentTime : 0;
   updatePlayhead(t);
 }
 
@@ -989,6 +973,7 @@ function onDragEnd(e) {
     // Auto-enable loop when a fresh region is created.
     if (loopEnd - loopStart >= MIN_LOOP_SEC) {
       loopEnabled = true;
+      loopBtn.disabled = false;
       updateLoopButton();
       positionOverlays();
     } else {
@@ -1003,6 +988,7 @@ function clearLoop() {
   loopStart = loopEnd = null;
   loopEnabled = false;
   loopRegionEl.hidden = true;
+  loopBtn.disabled = true;
   updateLoopButton();
 }
 
@@ -1035,8 +1021,8 @@ async function togglePlay() {
     stopDriftLoop();
     return;
   }
-  // Align all stems to the playhead before starting.
-  const t = stems[0].audio.currentTime;
+  // Align all stems to the reference stem's playhead before starting.
+  const t = stems[referenceIdx].audio.currentTime;
   for (const s of stems) {
     try { s.audio.currentTime = t; } catch {}
   }
@@ -1056,7 +1042,7 @@ async function togglePlay() {
 // ----- Frame loop -----
 function uiTick() {
   if (isPlaying && stems.length) {
-    const t = stems[0].audio.currentTime;
+    const t = stems[referenceIdx].audio.currentTime;
     updatePlayhead(t);
     updateTimeDisplay(t);
 
@@ -1084,22 +1070,20 @@ function startDriftLoop() {
   stopDriftLoop();
   driftTimer = setInterval(() => {
     if (!isPlaying || stems.length < 2) return;
-    const ref = stems[0].audio.currentTime;
-    for (let i = 1; i < stems.length; i++) {
+    const ref = stems[referenceIdx].audio.currentTime;
+    for (let i = 0; i < stems.length; i++) {
+      if (i === referenceIdx) continue;
       const a = stems[i].audio;
+      // Stems shorter than the reference will plateau at their own duration —
+      // don't try to push them past it.
+      const cap = isFinite(a.duration) ? a.duration : Infinity;
+      if (ref > cap) continue;
       if (Math.abs(a.currentTime - ref) > DRIFT_THRESHOLD) a.currentTime = ref;
     }
   }, 2000);
 }
 function stopDriftLoop() {
   if (driftTimer) { clearInterval(driftTimer); driftTimer = null; }
-}
-
-function fmt(t) {
-  if (!isFinite(t) || t < 0) t = 0;
-  const m = Math.floor(t / 60);
-  const s = Math.floor(t % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
 }
 
 // ----- Keyboard -----
