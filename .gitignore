@@ -1,0 +1,6 @@
+.DS_Store
+
+# Bundled demo stems — too large for regular git.
+# If you want these versioned, use git-lfs or store them elsewhere.
+sas/
+.superpowers/

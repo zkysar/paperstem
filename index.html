@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Paperstem</title>
+<!-- WaveSurfer.js v7 (waveform per stem, bound to <audio> via the `media` option). CDN dependency — needs internet on first load. -->
+<script src="https://unpkg.com/wavesurfer.js@7"></script>
+<!--
+  How to run
+  ----------
+    The "Load folder" picker works from file:// in Chrome/Edge/Firefox,
+    but the "Use sas/ stems" shortcut (and any relative URLs) need a
+    server because browsers block file:// fetches. Easiest:
+
+        cd /Users/zachkysar/projects/paperstem
+        python3 -m http.server
+        # then open http://localhost:8000
+
+    No build step. Four load modes:
+      • Load folder         — pick any folder with the OS file picker.
+      • Use sas/ stems      — loads the bundled sas/ wavs by manifest.
+      • Use Drive manifest  — loads from drive-manifest.json (generated
+                              by scraping the public Drive folder's
+                              embeddedfolderview HTML; regenerate any
+                              time with `make-drive-manifest.sh`).
+      • Load URLs           — paste a newline-separated list of direct
+                              audio URLs (one per stem).
+
+    Each stem renders a waveform via WaveSurfer.js bound to its <audio>
+    element. Clicking a waveform seeks ALL stems together. Waveforms
+    require the audio to be decodable in the browser (fetch + CORS +
+    decodeAudioData). Local files and same-origin URLs work; cross-
+    origin URLs (e.g. Drive) typically fail the fetch and render no
+    waveform — playback still works because <audio> uses no-cors.
+
+  Google Drive folders
+  --------------------
+    A folder URL like
+      https://drive.google.com/drive/folders/<id>
+    cannot be enumerated from a static page — Drive does not expose
+    folder contents without OAuth + the Drive API, and even per-file
+    fetches typically hit CORS or virus-scan interstitials. For the
+    Drive folder shared with this player, do one of:
+      (a) Download the folder once (e.g. `gdown --folder <url>` or
+          right-click → Download in the Drive UI), then use "Load
+          folder", or
+      (b) Click "Load URLs" and paste direct download links, one per
+          line, in the form
+            https://drive.google.com/uc?export=download&id=<FILE_ID>
+          Small public files (<~50MB) usually stream; larger ones may
+          fail because Drive injects a confirmation page.
+
+  What to check
+  -------------
+    1. Load any of the three modes. Each file becomes a stem row with
+       the filename (or URL basename) as its label.
+    2. Press Play — all stems start together.
+    3. Drag the scrub bar mid-playback — every stem jumps to the new
+       position and stays aligned (sync after seek).
+    4. Mute one stem: only that stem silences. Un-mute restores it.
+    5. Solo one stem: every other stem silences. Solo a second stem:
+       both soloed stems play, others stay silent. Un-solo all: each
+       stem's prior user-mute state is restored (solo/mute logic).
+    6. Let it run a couple of minutes. The scrub bar advances and the
+       stems stay in sync — a soft re-sync runs every 2s and corrects
+       any element that has drifted more than 50ms (no drift check).
+-->
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; color: #222; }
+  h1 { margin: 0 0 12px; font-size: 1.4rem; }
+  .controls { display: flex; gap: 8px; align-items: center; margin: 12px 0; }
+  button { padding: 6px 12px; font-size: 0.95rem; cursor: pointer; background: #f4f4f4; border: 1px solid #bbb; border-radius: 4px; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.active { background: #333; color: #fff; border-color: #333; }
+  #scrub { flex: 1; }
+  .time { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.85rem; min-width: 96px; text-align: right; }
+  .stems { border-top: 1px solid #ddd; margin-top: 8px; }
+  .stem { display: grid; grid-template-columns: 180px 1fr auto auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; }
+  .stem .name { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stem .wave { height: 40px; min-width: 0; background: #fafafa; border: 1px solid #eee; border-radius: 3px; cursor: pointer; }
+  .stem button { min-width: 64px; }
+  .empty { color: #888; padding: 24px 0; text-align: center; }
+  .status { color: #888; font-size: 0.85rem; margin: 4px 0 0; min-height: 1em; }
+</style>
+</head>
+<body>
+  <h1>Paperstem</h1>
+
+  <div class="controls">
+    <input type="file" id="folder" webkitdirectory directory multiple hidden>
+    <button id="loadBtn">Load folder</button>
+    <button id="sasBtn">Use sas/ stems</button>
+    <button id="driveBtn">Use Drive manifest</button>
+    <button id="urlsBtn">Load URLs</button>
+    <button id="playBtn" disabled>Play</button>
+    <input type="range" id="scrub" min="0" max="0" step="0.01" value="0" disabled>
+    <span class="time" id="time">0:00 / 0:00</span>
+  </div>
+  <div class="status" id="status"></div>
+
+  <div class="stems" id="stems">
+    <div class="empty">No stems loaded.</div>
+  </div>
+
+<script>
+const AUDIO_EXT = /\.(mp3|wav|ogg|oga|flac|m4a|aac|webm|opus)$/i;
+const DRIFT_THRESHOLD = 0.05; // 50ms
+
+// Filenames bundled in ./sas/ — keep in sync with the directory.
+const SAS_MANIFEST = [
+  'sas7_Audio 1.wav',
+  'sas7_Bass.wav',
+  'sas7_Drums DI.wav',
+  'sas7_Guitar 1 #08.wav',
+  'sas7_Guitar 2.wav',
+  'sas7_Keys #08.wav',
+  'sas7_Vox 2 #08.wav',
+  'sas7_Vox 3 #08.wav',
+  'sas7_Warm Vocal #08.wav',
+];
+
+const stems = []; // { name, audio, userMuted, soloed, muteBtn, soloBtn, revoke? }
+let duration = 0;
+let isPlaying = false;
+let driftTimer = null;
+let scrubbing = false;
+
+const loadBtn  = document.getElementById('loadBtn');
+const sasBtn   = document.getElementById('sasBtn');
+const driveBtn = document.getElementById('driveBtn');
+const urlsBtn  = document.getElementById('urlsBtn');
+const folder   = document.getElementById('folder');
+const playBtn = document.getElementById('playBtn');
+const scrub   = document.getElementById('scrub');
+const timeEl  = document.getElementById('time');
+const stemsEl = document.getElementById('stems');
+const statusEl = document.getElementById('status');
+
+loadBtn.addEventListener('click', () => folder.click());
+folder.addEventListener('change', onFolderPicked);
+sasBtn.addEventListener('click', onUseSas);
+driveBtn.addEventListener('click', onUseDriveManifest);
+urlsBtn.addEventListener('click', onLoadUrls);
+playBtn.addEventListener('click', togglePlay);
+scrub.addEventListener('input', () => updateTimeDisplay(parseFloat(scrub.value)));
+scrub.addEventListener('change', onScrubChange);
+scrub.addEventListener('pointerdown', () => scrubbing = true);
+scrub.addEventListener('pointerup',   () => scrubbing = false);
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space' && !playBtn.disabled) { e.preventDefault(); togglePlay(); }
+});
+
+function fmt(t) {
+  if (!isFinite(t) || t < 0) t = 0;
+  const m = Math.floor(t / 60);
+  const s = Math.floor(t % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function onFolderPicked(e) {
+  const files = [...e.target.files].filter(f => AUDIO_EXT.test(f.name));
+  if (!files.length) {
+    teardownStems();
+    stemsEl.innerHTML = '<div class="empty">No audio files in that folder.</div>';
+    statusEl.textContent = '';
+    return;
+  }
+  files.sort((a, b) => a.name.localeCompare(b.name));
+  const items = files.map(f => {
+    const url = URL.createObjectURL(f);
+    return { name: f.name, src: url, revoke: () => URL.revokeObjectURL(url) };
+  });
+  loadStems(items);
+}
+
+function onUseSas() {
+  const items = SAS_MANIFEST.map(name => ({
+    name,
+    src: './sas/' + encodeURIComponent(name),
+  }));
+  if (location.protocol === 'file:') {
+    statusEl.textContent =
+      'Loading from sas/ over file:// will fail in Chrome. Run `python3 -m http.server` and reload at http://localhost:8000.';
+  }
+  loadStems(items);
+}
+
+async function onUseDriveManifest() {
+  if (location.protocol === 'file:') {
+    statusEl.textContent =
+      'Loading drive-manifest.json over file:// will fail in Chrome. Run `python3 -m http.server` and reload at http://localhost:8000.';
+    return;
+  }
+  try {
+    const res = await fetch('./drive-manifest.json');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const items = (data.stems || []).map(s => ({ name: s.name, src: s.url }));
+    if (!items.length) {
+      statusEl.textContent = 'drive-manifest.json had no stems.';
+      return;
+    }
+    statusEl.textContent = `Loading ${items.length} Drive stems — waveforms likely won't render (CORS) but playback may work for small files.`;
+    loadStems(items);
+  } catch (err) {
+    statusEl.textContent = `Failed to load drive-manifest.json: ${err.message}`;
+  }
+}
+
+function onLoadUrls() {
+  const raw = prompt(
+    'Paste one audio URL per line.\n\n' +
+    'For Google Drive files, use the form:\n' +
+    'https://drive.google.com/uc?export=download&id=FILE_ID'
+  );
+  if (!raw) return;
+  const urls = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  if (!urls.length) return;
+  const items = urls.map(u => {
+    let name = u;
+    try {
+      const path = new URL(u).pathname;
+      const last = decodeURIComponent(path.split('/').filter(Boolean).pop() || '');
+      if (last) name = last;
+    } catch {}
+    return { name, src: u };
+  });
+  loadStems(items);
+}
+
+function teardownStems() {
+  for (const s of stems) {
+    s.audio.pause();
+    if (s.wavesurfer) {
+      try { s.wavesurfer.destroy(); } catch {}
+    }
+    if (s.revoke) s.revoke();
+  }
+  stems.length = 0;
+  stemsEl.innerHTML = '';
+  isPlaying = false;
+  playBtn.textContent = 'Play';
+  playBtn.disabled = true;
+  scrub.disabled = true;
+  scrub.value = 0;
+  duration = 0;
+  updateTimeDisplay(0);
+  stopDriftLoop();
+}
+
+async function loadStems(items) {
+  teardownStems();
+  if (!items.length) return;
+  statusEl.textContent = `Loading ${items.length} stem${items.length > 1 ? 's' : ''}…`;
+
+  for (const it of items) {
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.src = it.src;
+    const stem = {
+      name: it.name, audio,
+      userMuted: false, soloed: false,
+      muteBtn: null, soloBtn: null, waveEl: null,
+      wavesurfer: null,
+      revoke: it.revoke,
+    };
+    stems.push(stem);
+    renderStem(stem);
+    attachWaveform(stem, it.src);
+  }
+
+  // Wait for metadata so we know the duration. Resolve on error too —
+  // a single bad URL shouldn't block the rest.
+  const errored = [];
+  await Promise.all(stems.map(s => new Promise(res => {
+    if (s.audio.readyState >= 1) return res();
+    s.audio.addEventListener('loadedmetadata', () => res(), { once: true });
+    s.audio.addEventListener('error', () => { errored.push(s.name); res(); }, { once: true });
+  })));
+
+  duration = stems.reduce((m, s) => Math.max(m, isFinite(s.audio.duration) ? s.audio.duration : 0), 0);
+  scrub.max = duration || 0;
+  scrub.value = 0;
+  scrub.disabled = !duration;
+  playBtn.disabled = !duration;
+  updateTimeDisplay(0);
+  applyMixState();
+
+  const okCount = stems.length - errored.length;
+  let msg = `${okCount} stem${okCount === 1 ? '' : 's'} loaded — duration ${fmt(duration)}`;
+  if (errored.length) msg += ` · failed: ${errored.join(', ')}`;
+  statusEl.textContent = msg;
+}
+
+function renderStem(stem) {
+  const row = document.createElement('div');
+  row.className = 'stem';
+  row.innerHTML = `
+    <div class="name" title="${stem.name}">${stem.name}</div>
+    <div class="wave"></div>
+    <button class="mute" type="button">Mute</button>
+    <button class="solo" type="button">Solo</button>
+  `;
+  stemsEl.appendChild(row);
+  stem.waveEl  = row.querySelector('.wave');
+  stem.muteBtn = row.querySelector('.mute');
+  stem.soloBtn = row.querySelector('.solo');
+  stem.muteBtn.addEventListener('click', () => { stem.userMuted = !stem.userMuted; applyMixState(); });
+  stem.soloBtn.addEventListener('click', () => { stem.soloed   = !stem.soloed;   applyMixState(); });
+}
+
+function attachWaveform(stem, src) {
+  if (typeof WaveSurfer !== 'function') return;
+  let ws;
+  try {
+    ws = WaveSurfer.create({
+      container: stem.waveEl,
+      media: stem.audio,
+      url: src,                // tells WS to fetch+decode for peaks; media handles playback
+      height: 40,
+      waveColor: '#bbb',
+      progressColor: '#333',
+      cursorColor: '#d33',
+      cursorWidth: 1,
+      normalize: true,
+      interact: true,
+    });
+  } catch (e) {
+    return;
+  }
+  stem.wavesurfer = ws;
+  // Clicking a waveform seeks every other stem to the same time.
+  ws.on('interaction', (newTime) => {
+    for (const o of stems) {
+      if (o.audio !== stem.audio) {
+        try { o.audio.currentTime = newTime; } catch {}
+      }
+    }
+    scrub.value = newTime;
+    updateTimeDisplay(newTime);
+  });
+  // Suppress decode errors — they're expected for cross-origin URLs and
+  // shouldn't block playback.
+  ws.on('error', () => {});
+}
+
+function applyMixState() {
+  const anySolo = stems.some(s => s.soloed);
+  for (const s of stems) {
+    // When any stem is soloed, only soloed stems play — others are silenced
+    // regardless of their user-mute state. When no stem is soloed, the
+    // user-mute state takes effect, so toggling solo off restores it.
+    s.audio.muted = anySolo ? !s.soloed : s.userMuted;
+    s.muteBtn.classList.toggle('active', s.userMuted);
+    s.soloBtn.classList.toggle('active', s.soloed);
+  }
+}
+
+async function togglePlay() {
+  if (!stems.length) return;
+  if (isPlaying) {
+    for (const s of stems) s.audio.pause();
+    isPlaying = false;
+    playBtn.textContent = 'Play';
+    stopDriftLoop();
+    return;
+  }
+  // Force every stem to the scrub position before starting so they begin aligned.
+  const t = parseFloat(scrub.value) || 0;
+  for (const s of stems) {
+    try { s.audio.currentTime = t; } catch {}
+  }
+  const results = await Promise.all(stems.map(s => s.audio.play().then(() => true).catch(err => err)));
+  const failed = results.filter(r => r !== true);
+  if (failed.length === stems.length) {
+    statusEl.textContent = 'Playback blocked — click the page once and try again.';
+    return;
+  }
+  isPlaying = true;
+  playBtn.textContent = 'Pause';
+  startDriftLoop();
+}
+
+function onScrubChange() {
+  const t = parseFloat(scrub.value) || 0;
+  for (const s of stems) {
+    try { s.audio.currentTime = t; } catch {}
+  }
+  updateTimeDisplay(t);
+}
+
+function updateTimeDisplay(t) {
+  timeEl.textContent = `${fmt(t)} / ${fmt(duration)}`;
+}
+
+function uiTick() {
+  if (isPlaying && stems.length) {
+    const ref = stems[0].audio.currentTime;
+    if (!scrubbing) {
+      scrub.value = ref;
+      updateTimeDisplay(ref);
+    }
+    if (duration && ref >= duration - 0.02) {
+      for (const s of stems) s.audio.pause();
+      isPlaying = false;
+      playBtn.textContent = 'Play';
+      stopDriftLoop();
+      scrub.value = 0;
+      for (const s of stems) { try { s.audio.currentTime = 0; } catch {} }
+      updateTimeDisplay(0);
+    }
+  }
+  requestAnimationFrame(uiTick);
+}
+requestAnimationFrame(uiTick);
+
+function startDriftLoop() {
+  stopDriftLoop();
+  driftTimer = setInterval(() => {
+    if (!isPlaying || stems.length < 2) return;
+    const ref = stems[0].audio.currentTime;
+    for (let i = 1; i < stems.length; i++) {
+      const a = stems[i].audio;
+      if (Math.abs(a.currentTime - ref) > DRIFT_THRESHOLD) a.currentTime = ref;
+    }
+  }, 2000);
+}
+function stopDriftLoop() {
+  if (driftTimer) { clearInterval(driftTimer); driftTimer = null; }
+}
+</script>
+</body>
+</html>
