@@ -2,8 +2,29 @@
   "name": "paperstem",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "DAW-style stem player for sharing rough mixes",
   "scripts": {
-    "test": "node --test tests/*.test.js"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "wavesurfer.js": "^7.10.5"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "happy-dom": "^20.0.6",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.10",
+    "vitest": "^4.0.18"
   }
 }

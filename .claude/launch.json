@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "paperstem",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8765"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--base=/"],
       "port": 8765
     }
   ]
