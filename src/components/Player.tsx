@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PlayerControls } from '../hooks/usePlayer';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
 import { fmt, pixelToTime } from '../lib/format';
@@ -83,15 +83,22 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
   }, []);
 
   // Wave area geometry: re-measured on each render so overlay positions
-  // (playhead, loop region) follow window resizes without explicit listeners.
+  // (playhead, loop region) follow size changes without explicit listeners.
   // The ruler is in the same grid column as the wave clips, so we use its
   // rect as the canonical x-axis.
   const [, forceRender] = useState(0);
   useEffect(() => {
-    const onResize = () => forceRender((n) => n + 1);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const reflow = () => forceRender((n) => n + 1);
+    window.addEventListener('resize', reflow);
+    return () => window.removeEventListener('resize', reflow);
   }, []);
+  // The first render after `railCollapsed` flips computes overlay positions
+  // against pre-commit DOM (old rail width). Re-measure synchronously after
+  // the new className is committed so the playhead/loop overlay snap to
+  // the new wave-area position rather than drifting to the previous spot.
+  useLayoutEffect(() => {
+    forceRender((n) => n + 1);
+  }, [railCollapsed]);
 
   function getWaveRect(): { left: number; width: number } {
     const stage = stageRef.current;
