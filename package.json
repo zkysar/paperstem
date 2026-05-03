@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "postbuild": "rm -rf dist/sas && printf '{\\n  \"practices\": []\\n}\\n' > dist/practices.json",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
