@@ -90,14 +90,14 @@ export function Track({
   const stemDuration = isFinite(stem.audio.duration) ? stem.audio.duration : durationRef;
   const widthPct = durationRef ? Math.max(1, Math.min(100, (stemDuration / durationRef) * 100)) : 100;
 
-  function handleMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     const target = e.target as HTMLElement;
     if (target.closest('.pill, .vol-slider, .clip')) return;
     onFocus(idx);
   }
 
   return (
-    <div className={'track' + (focused ? ' focused' : '')} onMouseDown={handleMouseDown}>
+    <div className={'track' + (focused ? ' focused' : '')} onPointerDown={handlePointerDown}>
       <div className="track-rail">
         <span className="swatch" style={{ background: stem.color }} />
         <div className="track-info">

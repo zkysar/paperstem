@@ -18,6 +18,7 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,6 +42,7 @@ export default function App() {
     const p = list.find((x) => x.id === id);
     if (!p) return;
     setActivePracticeId(id);
+    setDrawerOpen(false);
     const sources: StemSource[] = p.stems.map((name) => ({
       name,
       src: `${import.meta.env.BASE_URL}${p.folder}${encodeURIComponent(name)}`,
@@ -49,6 +51,7 @@ export default function App() {
   }
 
   function loadFolder(files: File[], folderName: string) {
+    setDrawerOpen(false);
     if (!files.length) {
       void player.load({ practiceId: null, title: folderName || 'Local folder', sources: [] });
       return;
@@ -80,17 +83,41 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      <Sidebar
-        practices={practices}
-        activePracticeId={activePracticeId}
-        loadError={loadError}
-        onSelect={(id) => selectPractice(id)}
-        onLoadFolder={loadFolder}
-      />
-      <ErrorBoundary>
-        <Player player={player} onDownloadAll={onDownloadAll} downloading={downloading} />
-      </ErrorBoundary>
-    </div>
+    <>
+      <header className="topbar">
+        <button
+          type="button"
+          className="menu-btn"
+          aria-label="Open practices menu"
+          aria-expanded={drawerOpen}
+          onClick={() => setDrawerOpen(true)}
+        >
+          ☰
+        </button>
+        <h1 className="brand">Paperstem</h1>
+        <span className="topbar-spacer" />
+      </header>
+      <div className="app">
+        <Sidebar
+          practices={practices}
+          activePracticeId={activePracticeId}
+          loadError={loadError}
+          drawerOpen={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          onSelect={(id) => selectPractice(id)}
+          onLoadFolder={loadFolder}
+        />
+        {drawerOpen && (
+          <div
+            className="scrim show"
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+        <ErrorBoundary>
+          <Player player={player} onDownloadAll={onDownloadAll} downloading={downloading} />
+        </ErrorBoundary>
+      </div>
+    </>
   );
 }

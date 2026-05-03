@@ -6,11 +6,21 @@ type Props = {
   practices: Practice[];
   activePracticeId: string | null;
   loadError: string | null;
+  drawerOpen: boolean;
+  onClose(): void;
   onSelect(id: string): void;
   onLoadFolder(files: File[], folderName: string): void;
 };
 
-export function Sidebar({ practices, activePracticeId, loadError, onSelect, onLoadFolder }: Props) {
+export function Sidebar({
+  practices,
+  activePracticeId,
+  loadError,
+  drawerOpen,
+  onClose,
+  onSelect,
+  onLoadFolder,
+}: Props) {
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   function handleFolderPicked(e: React.ChangeEvent<HTMLInputElement>) {
@@ -28,7 +38,15 @@ export function Sidebar({ practices, activePracticeId, loadError, onSelect, onLo
   }
 
   return (
-    <aside className="sidebar">
+    <aside className={'sidebar' + (drawerOpen ? ' open' : '')}>
+      <button
+        type="button"
+        className="sidebar-close"
+        aria-label="Close practices menu"
+        onClick={onClose}
+      >
+        ✕
+      </button>
       <h1 className="brand">Paperstem</h1>
       <div className="brand-tag">Practices</div>
       {loadError ? (

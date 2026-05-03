@@ -86,9 +86,10 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
   // when a drag begins.
   const dragRef = useRef<Drag | null>(null);
 
-  function startDrag(d: Drag) {
+  function startDrag(d: Drag, pointerId: number) {
     dragRef.current = d;
-    function onMove(e: MouseEvent) {
+    function onMove(e: PointerEvent) {
+      if (e.pointerId !== pointerId) return;
       const cur = dragRef.current;
       if (!cur) return;
       const dx = e.clientX - cur.originX;
@@ -126,11 +127,13 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
       cur.lastEnd = ne;
       player.setLoop(ns, ne);
     }
-    function onUp(e: MouseEvent) {
+    function onUp(e: PointerEvent) {
+      if (e.pointerId !== pointerId) return;
       const cur = dragRef.current;
       if (!cur) return;
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
       dragRef.current = null;
 
       if (!cur.didMove) {
@@ -147,28 +150,32 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
         }
       }
     }
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
   }
 
-  function onRulerMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+  function onRulerPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!duration) return;
     if (e.button !== 0) return;
     const t = xToTime(e.clientX);
-    startDrag({
-      mode: 'create',
-      originX: e.clientX,
-      originTime: t,
-      originStart: 0,
-      originEnd: 0,
-      didMove: false,
-      lastStart: null,
-      lastEnd: null,
-    });
+    startDrag(
+      {
+        mode: 'create',
+        originX: e.clientX,
+        originTime: t,
+        originStart: 0,
+        originEnd: 0,
+        didMove: false,
+        lastStart: null,
+        lastEnd: null,
+      },
+      e.pointerId,
+    );
     e.preventDefault();
   }
 
-  function onLoopMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+  function onLoopPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!duration || !loop) return;
     if (e.button !== 0) return;
     const target = e.target as HTMLElement;
@@ -178,16 +185,19 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
         ? 'resize-left'
         : 'resize-right'
       : 'move';
-    startDrag({
-      mode,
-      originX: e.clientX,
-      originTime: 0,
-      originStart: loop.start,
-      originEnd: loop.end,
-      didMove: false,
-      lastStart: null,
-      lastEnd: null,
-    });
+    startDrag(
+      {
+        mode,
+        originX: e.clientX,
+        originTime: 0,
+        originStart: loop.start,
+        originEnd: loop.end,
+        didMove: false,
+        lastStart: null,
+        lastEnd: null,
+      },
+      e.pointerId,
+    );
     e.stopPropagation();
     e.preventDefault();
   }
@@ -302,7 +312,7 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
       </div>
 
       <div className="stage" ref={stageRef}>
-        <Ruler duration={duration} onMouseDown={onRulerMouseDown} rulerRef={rulerRef} />
+        <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
         <div className="tracks" ref={tracksRef}>
           {!stems.length && <div className="empty">No practice loaded.</div>}
           {stems.map((stem, i) => (
@@ -327,7 +337,7 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
           enabled={!!loop?.enabled}
           leftPx={loopLeft}
           widthPx={loopWidth}
-          onMouseDown={onLoopMouseDown}
+          onPointerDown={onLoopPointerDown}
         />
         <Playhead visible={!!stems.length && !!duration} leftPx={playheadLeft} />
       </div>
