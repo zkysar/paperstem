@@ -468,22 +468,21 @@ kbd {
   line-height: 1.6;
 }
 
-/* ===== Tablet (≤960px): tighter rail ===== */
+/* ===== Tablet (≤960px): narrower outer sidebar; rail keeps its overlay
+   form regardless of viewport, since it doesn't steal wave width. ===== */
 @media (max-width: 960px) {
   :root {
     --side-w: 160px;
-    --rail-w: 140px;
-    --rail-gap: 10px;
   }
   .app { gap: 18px; padding: 20px; }
   .player-title { font-size: 1.55rem; }
 }
 
-/* ===== Phone (≤720px): single column + drawer ===== */
+/* ===== Phone (≤720px): outer sidebar becomes a drawer; the rail keeps
+   its full desktop layout but is hidden by default and toggled in via
+   the transport button. Touch sizes get bumped here. ===== */
 @media (max-width: 720px) {
   :root {
-    --rail-w: 140px;
-    --rail-gap: 8px;
     --tbtn-size: 40px;
   }
 
@@ -523,25 +522,11 @@ kbd {
 
   .transport { gap: 8px; padding: 12px 0; }
 
-  .track { height: 42px; }
-  .track-rail {
-    grid-template-columns: 4px 1fr auto;
-    gap: 6px;
-    padding: 2px 4px 2px 2px;
-  }
-  .track-name { font-size: 0.75rem; }
   .pill {
-    font-size: 0.6rem;
     min-width: 28px;
     min-height: 28px;
-    padding: 4px 6px;
   }
-  .ms-pills { gap: 3px; }
-  .vol-num { font-size: 0.58rem; min-width: 18px; }
 
-  .wave { height: 32px; }
-  .ruler { height: 24px; }
-  .ruler-label { font-size: 0.6rem; }
   /* Avoid label overlap: hide quarter ticks/labels on narrow screens */
   .ruler-label[data-pos="0.25"],
   .ruler-label[data-pos="0.75"],
@@ -556,10 +541,4 @@ kbd {
   .loop-handle.right { right: -8px; }
 
   .keys-hint { display: none; }
-}
-
-/* ===== Very narrow (≤380px): tighter rail, accessory still carries controls ===== */
-@media (max-width: 380px) {
-  :root { --rail-w: 124px; }
-  .track-name { font-size: 0.72rem; }
 }
