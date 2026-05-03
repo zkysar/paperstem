@@ -416,7 +416,9 @@ kbd {
   cursor: move;
   box-sizing: border-box;
   touch-action: none;
-  z-index: 3;
+  /* Above the rail (z 5) so the loop's borders + handles remain visible
+     and grabbable when the rail overlay covers the loop's start/end. */
+  z-index: 6;
 }
 .loop-region.disabled {
   background: rgba(193, 116, 70, 0.04);
@@ -469,7 +471,8 @@ kbd {
 }
 
 /* ===== Tablet (≤960px): narrower outer sidebar; rail keeps its overlay
-   form regardless of viewport, since it doesn't steal wave width. ===== */
+   form regardless of viewport — the wave element keeps its width even
+   when the rail visually covers part of it. ===== */
 @media (max-width: 960px) {
   :root {
     --side-w: 160px;
