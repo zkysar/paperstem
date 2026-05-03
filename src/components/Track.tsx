@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import type { LoadedStem } from '../data/types';
+import type { LoadedStem, WaveformNormalization } from '../data/types';
 import { mix } from '../lib/colors';
 
 type Props = {
@@ -9,6 +9,7 @@ type Props = {
   focused: boolean;
   effectiveMuted: boolean;
   durationRef: number; // total song length, for clip width
+  waveformNormalization: WaveformNormalization;
   onFocus(idx: number): void;
   onToggleMute(idx: number): void;
   onToggleSolo(idx: number): void;
@@ -22,6 +23,7 @@ export function Track({
   focused,
   effectiveMuted,
   durationRef,
+  waveformNormalization,
   onFocus,
   onToggleMute,
   onToggleSolo,
@@ -30,6 +32,9 @@ export function Track({
 }: Props) {
   const clipRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
+  // Read latest normalization in the create-effect without re-mounting on toggle.
+  const normRef = useRef(waveformNormalization);
+  normRef.current = waveformNormalization;
 
   // Attach WaveSurfer to the clip element. Re-creates when the audio element
   // changes (i.e. a new practice loads).
@@ -49,7 +54,7 @@ export function Track({
         barWidth: 2,
         barGap: 1,
         barRadius: 0,
-        normalize: true,
+        normalize: normRef.current === 'per-track',
         interact: true,
       });
     } catch {
@@ -69,6 +74,17 @@ export function Track({
       wsRef.current = null;
     };
   }, [stem.audio, stem.color, onSeek]);
+
+  // Toggle normalize on the existing instance — re-renders without re-decoding audio.
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws) return;
+    try {
+      ws.setOptions({ normalize: waveformNormalization === 'per-track' });
+    } catch {
+      // ignore
+    }
+  }, [waveformNormalization]);
 
   const stemDuration = isFinite(stem.audio.duration) ? stem.audio.duration : durationRef;
   const widthPct = durationRef ? Math.max(1, Math.min(100, (stemDuration / durationRef) * 100)) : 100;

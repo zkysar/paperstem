@@ -149,6 +149,8 @@ kbd {
 .tbtn:disabled { opacity: 0.4; cursor: default; }
 .tbtn.play { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .tbtn.loop.on { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+.tbtn.norm { font-size: 0.95rem; line-height: 1; }
+.tbtn.norm.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .tbtn:hover:not(:disabled) { transform: translateY(-1px); transition: transform 0.1s; }
 .ttime {
   font-family: ui-monospace, SFMono-Regular, monospace;

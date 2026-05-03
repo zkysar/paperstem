@@ -35,3 +35,22 @@ export function saveVolume(practiceId: string | null, stemName: string, v: numbe
     // localStorage unavailable (private mode, etc.) — silently skip.
   }
 }
+
+const WAVEFORM_NORM_KEY = 'paperstem:waveform-normalization';
+
+export function loadWaveformNormalization(): 'per-track' | 'global' {
+  try {
+    const v = localStorage.getItem(WAVEFORM_NORM_KEY);
+    return v === 'global' ? 'global' : 'per-track';
+  } catch {
+    return 'per-track';
+  }
+}
+
+export function saveWaveformNormalization(mode: 'per-track' | 'global'): void {
+  try {
+    localStorage.setItem(WAVEFORM_NORM_KEY, mode);
+  } catch {
+    // ignore
+  }
+}

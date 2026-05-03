@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import type { LoadContext, LoadedStem, PlayerState, StemSource } from '../data/types';
+import type {
+  LoadContext,
+  LoadedStem,
+  PlayerState,
+  StemSource,
+  WaveformNormalization,
+} from '../data/types';
 import { PALETTE } from '../lib/colors';
-import { loadVolume, saveVolume, stripCommonPrefix } from '../lib/audio';
+import {
+  loadVolume,
+  loadWaveformNormalization,
+  saveVolume,
+  saveWaveformNormalization,
+  stripCommonPrefix,
+} from '../lib/audio';
 import { fmt, longestStemIdx } from '../lib/format';
 
 const DRIFT_THRESHOLD = 0.05;
@@ -26,7 +38,8 @@ type Action =
   | { type: 'TOGGLE_SOLO'; idx: number }
   | { type: 'SET_VOLUME'; idx: number; vol: number }
   | { type: 'FOCUS'; idx: number }
-  | { type: 'SET_STATUS'; status: string };
+  | { type: 'SET_STATUS'; status: string }
+  | { type: 'SET_WAVEFORM_NORM'; mode: WaveformNormalization };
 
 const initialState: PlayerState = {
   practiceId: null,
@@ -38,12 +51,13 @@ const initialState: PlayerState = {
   focusedIdx: -1,
   loop: null,
   status: '',
+  waveformNormalization: loadWaveformNormalization(),
 };
 
 function reducer(state: PlayerState, action: Action): PlayerState {
   switch (action.type) {
     case 'TEARDOWN':
-      return { ...initialState };
+      return { ...initialState, waveformNormalization: state.waveformNormalization };
     case 'LOADED':
       return {
         ...state,
@@ -80,6 +94,8 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       return { ...state, focusedIdx: action.idx };
     case 'SET_STATUS':
       return { ...state, status: action.status };
+    case 'SET_WAVEFORM_NORM':
+      return { ...state, waveformNormalization: action.mode };
   }
 }
 
@@ -105,6 +121,8 @@ export type PlayerControls = {
   toggleLoopEnabled(): void;
   clearLoop(): void;
   focusStem(idx: number): void;
+  setWaveformNormalization(mode: WaveformNormalization): void;
+  toggleWaveformNormalization(): void;
 };
 
 export function usePlayer(): PlayerControls {
@@ -342,6 +360,18 @@ export function usePlayer(): PlayerControls {
     dispatch({ type: 'FOCUS', idx });
   }, []);
 
+  const setWaveformNormalization = useCallback((mode: WaveformNormalization) => {
+    saveWaveformNormalization(mode);
+    dispatch({ type: 'SET_WAVEFORM_NORM', mode });
+  }, []);
+
+  const toggleWaveformNormalization = useCallback(() => {
+    const next: WaveformNormalization =
+      stateRef.current.waveformNormalization === 'per-track' ? 'global' : 'per-track';
+    saveWaveformNormalization(next);
+    dispatch({ type: 'SET_WAVEFORM_NORM', mode: next });
+  }, []);
+
   return {
     state,
     currentTime,
@@ -357,6 +387,8 @@ export function usePlayer(): PlayerControls {
     toggleLoopEnabled,
     clearLoop,
     focusStem,
+    setWaveformNormalization,
+    toggleWaveformNormalization,
   };
 }
 

@@ -33,7 +33,8 @@ type Props = {
 
 export function Player({ player, onDownloadAll, downloading }: Props) {
   const { state, currentTime } = player;
-  const { stems, duration, loop, isPlaying, focusedIdx, status, title } = state;
+  const { stems, duration, loop, isPlaying, focusedIdx, status, title, waveformNormalization } =
+    state;
 
   const stageRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
@@ -244,6 +245,33 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
         >
           {downloading ? '…' : '⤓'}
         </button>
+        <button
+          type="button"
+          className={'tbtn norm' + (waveformNormalization === 'global' ? ' on' : '')}
+          title={
+            waveformNormalization === 'per-track'
+              ? 'Waveform scale: per-track (each row fills its waveform). Click for global.'
+              : 'Waveform scale: global (heights reflect relative loudness). Click for per-track.'
+          }
+          aria-pressed={waveformNormalization === 'global'}
+          onClick={() => player.toggleWaveformNormalization()}
+        >
+          {waveformNormalization === 'per-track' ? (
+            // Three equal bars — each row fills its waveform.
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <rect x="3" y="3" width="2" height="10" fill="currentColor" />
+              <rect x="7" y="3" width="2" height="10" fill="currentColor" />
+              <rect x="11" y="3" width="2" height="10" fill="currentColor" />
+            </svg>
+          ) : (
+            // Three bars of different heights — shared scale shows relative loudness.
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <rect x="3" y="3" width="2" height="10" fill="currentColor" />
+              <rect x="7" y="6" width="2" height="4" fill="currentColor" />
+              <rect x="11" y="4" width="2" height="8" fill="currentColor" />
+            </svg>
+          )}
+        </button>
         <span className="ttime">
           {fmt(currentTime)} / {fmt(duration)}
         </span>
@@ -261,6 +289,7 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
               focused={i === focusedIdx}
               effectiveMuted={anySolo ? !stem.soloed : stem.userMuted}
               durationRef={duration}
+              waveformNormalization={waveformNormalization}
               onFocus={player.focusStem}
               onToggleMute={player.toggleMute}
               onToggleSolo={player.toggleSolo}

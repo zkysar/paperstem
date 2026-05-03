@@ -23,6 +23,8 @@ export type LoopRegion = {
   enabled: boolean;
 };
 
+export type WaveformNormalization = 'per-track' | 'global';
+
 export type PlayerState = {
   practiceId: string | null;
   title: string;
@@ -33,6 +35,7 @@ export type PlayerState = {
   focusedIdx: number;
   loop: LoopRegion | null;
   status: string;
+  waveformNormalization: WaveformNormalization;
 };
 
 export type StemSource = {
