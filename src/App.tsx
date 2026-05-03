@@ -1,18 +1,31 @@
 import { useEffect, useState } from 'react';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Player } from './components/Player';
+import { Sidebar } from './components/Sidebar';
 import { StaticPracticesRepo } from './data/practices-repo';
-import type { Practice } from './data/types';
+import type { Practice, StemSource } from './data/types';
+import { useKeyboard } from './hooks/useKeyboard';
+import { usePlayer } from './hooks/usePlayer';
+import { downloadStemsAsZip } from './lib/download';
 
 const repo = new StaticPracticesRepo();
 
 export default function App() {
+  const player = usePlayer();
+  useKeyboard(player);
+
   const [practices, setPractices] = useState<Practice[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     repo.list().then(
       (list) => {
-        if (!cancelled) setPractices(list);
+        if (cancelled) return;
+        setPractices(list);
+        if (list.length > 0) selectPractice(list[0].id, list);
       },
       (err: Error) => {
         if (!cancelled) setLoadError(err.message);
@@ -21,46 +34,63 @@ export default function App() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  function selectPractice(id: string, list: Practice[] = practices) {
+    const p = list.find((x) => x.id === id);
+    if (!p) return;
+    setActivePracticeId(id);
+    const sources: StemSource[] = p.stems.map((name) => ({
+      name,
+      src: `${import.meta.env.BASE_URL}${p.folder}${encodeURIComponent(name)}`,
+    }));
+    void player.load({ practiceId: p.id, title: p.title, sources });
+  }
+
+  function loadFolder(files: File[], folderName: string) {
+    if (!files.length) {
+      void player.load({ practiceId: null, title: folderName || 'Local folder', sources: [] });
+      return;
+    }
+    const sources: StemSource[] = files.map((f) => {
+      const url = URL.createObjectURL(f);
+      return { name: f.name, src: url, revoke: () => URL.revokeObjectURL(url) };
+    });
+    setActivePracticeId(null);
+    void player.load({
+      practiceId: `local:${folderName}`,
+      title: folderName,
+      sources,
+    });
+  }
+
+  async function onDownloadAll() {
+    if (!player.state.stems.length) return;
+    setDownloading(true);
+    try {
+      const filename = `${activePracticeId || 'paperstem'}-stems.zip`;
+      await downloadStemsAsZip(player.state.stems, filename);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('Download failed:', msg);
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <div className="app">
-      <aside className="sidebar">
-        <h1 className="brand">Paperstem</h1>
-        <div className="brand-tag">Practices</div>
-        {loadError && (
-          <div className="empty" style={{ fontSize: '0.78rem' }}>
-            Could not load practices.json ({loadError}).
-          </div>
-        )}
-        {!loadError && (
-          <ul className="practice-list">
-            {practices.length === 0 && (
-              <li className="empty" style={{ fontSize: '0.78rem' }}>
-                Loading…
-              </li>
-            )}
-            {practices.map((p) => (
-              <li key={p.id} className="practice-item">
-                <span className="practice-title">{p.title}</span>
-                <span className="practice-meta">
-                  {p.folder.replace(/\/$/, '')} · {p.stems.length} stems
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </aside>
-
-      <main className="player">
-        <div className="player-header">
-          <div>
-            <div className="player-meta">Practice</div>
-            <div className="player-title">—</div>
-          </div>
-        </div>
-        <div className="empty">Select a practice from the sidebar.</div>
-      </main>
+      <Sidebar
+        practices={practices}
+        activePracticeId={activePracticeId}
+        loadError={loadError}
+        onSelect={(id) => selectPractice(id)}
+        onLoadFolder={loadFolder}
+      />
+      <ErrorBoundary>
+        <Player player={player} onDownloadAll={onDownloadAll} downloading={downloading} />
+      </ErrorBoundary>
     </div>
   );
 }

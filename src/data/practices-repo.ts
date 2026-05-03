@@ -8,7 +8,11 @@ export interface PracticesRepo {
 // so it's served at the site's base path. Future implementations of this
 // interface will hit a real backend; only this file changes.
 export class StaticPracticesRepo implements PracticesRepo {
-  constructor(private url = `${import.meta.env.BASE_URL}practices.json`) {}
+  private readonly url: string;
+
+  constructor(url = `${import.meta.env.BASE_URL}practices.json`) {
+    this.url = url;
+  }
 
   async list(): Promise<Practice[]> {
     const res = await fetch(this.url);
