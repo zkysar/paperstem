@@ -239,11 +239,11 @@ kbd {
 /* ===== Stage (ruler + tracks + overlays) ===== */
 .stage { position: relative; }
 
+/* The ruler and each track stretch to the full stage width. The rail
+   panel (track names, volume, M/S pills) is absolutely positioned ON TOP
+   of the wave's left edge so toggling it doesn't change the wave width. */
 .ruler-row, .track {
-  display: grid;
-  grid-template-columns: var(--rail-w) 1fr;
-  gap: var(--rail-gap);
-  align-items: center;
+  position: relative;
 }
 
 .ruler {
@@ -284,27 +284,32 @@ kbd {
   border-bottom: 1px solid var(--rule-2);
 }
 .track:last-child { border-bottom: none; }
-.track.focused .track-rail { background: var(--accent-tint-3); border-radius: 4px; }
+.track.focused .track-rail {
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--accent-tint), var(--accent-tint));
+  border-radius: 4px;
+}
 
 .track-rail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--rail-w);
+  z-index: 5;
+  background: var(--bg);
   display: grid;
   grid-template-columns: 6px 1fr auto;
   gap: 8px;
   align-items: center;
   padding: 4px 6px 4px 4px;
   min-width: 0;
+  box-shadow: 1px 0 0 var(--rule-2);
 }
 
-/* ===== Rail-collapsed state: hide all track controls, leave only swatches.
-   Toggled from the transport via the .rail-toggle button. ===== */
-.player.rail-collapsed { --rail-w: 14px; }
-.player.rail-collapsed .track-rail {
-  grid-template-columns: 6px;
-  gap: 0;
-  padding: 4px 0 4px 4px;
-}
-.player.rail-collapsed .track-info,
-.player.rail-collapsed .ms-pills { display: none; }
+/* ===== Rail-collapsed state: hide the rail entirely so the wave occupies
+   the full stage width. The toggle button (transport) brings it back. ===== */
+.player.rail-collapsed .track-rail { display: none; }
 /* Only surface the rail-collapse toggle when the viewport is narrow enough
    that the rail might genuinely steal too much room. On desktop there's
    plenty of space, so the button has no job. */
@@ -386,6 +391,7 @@ kbd {
   position: relative;
   height: 36px;
   min-width: 0;
+  width: 100%;
 }
 .clip {
   position: absolute;
@@ -410,6 +416,7 @@ kbd {
   cursor: move;
   box-sizing: border-box;
   touch-action: none;
+  z-index: 3;
 }
 .loop-region.disabled {
   background: rgba(193, 116, 70, 0.04);
@@ -440,7 +447,7 @@ kbd {
   width: 1px;
   background: var(--accent);
   pointer-events: none;
-  z-index: 5;
+  z-index: 10;
 }
 
 /* ===== Footer bits ===== */
