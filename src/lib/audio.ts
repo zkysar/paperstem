@@ -54,3 +54,22 @@ export function saveWaveformNormalization(mode: 'per-track' | 'global'): void {
     // ignore
   }
 }
+
+// Returns true only when the playhead just *crossed* loop.end during natural
+// playback. A user-driven seek to anywhere outside the region updates prevT,
+// so the next tick won't satisfy `prevT < loop.end - tail` and the wrap is
+// suppressed — preventing the "seek-bounce-back" stuck-loop bug.
+export function shouldLoopWrap(
+  t: number,
+  prevT: number,
+  loop: { start: number; end: number; enabled: boolean } | null,
+  tail: number,
+): boolean {
+  if (!loop || !loop.enabled) return false;
+  const threshold = loop.end - tail;
+  return t >= threshold && prevT < threshold;
+}
+
+export function shouldEndPlayback(t: number, duration: number, tail: number): boolean {
+  return duration > 0 && t >= duration - tail;
+}

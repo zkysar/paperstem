@@ -12,6 +12,8 @@ import {
   loadWaveformNormalization,
   saveVolume,
   saveWaveformNormalization,
+  shouldEndPlayback,
+  shouldLoopWrap,
   stripCommonPrefix,
 } from '../lib/audio';
 import { fmt, longestStemIdx } from '../lib/format';
@@ -134,6 +136,11 @@ export function usePlayer(): PlayerControls {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  // Last currentTime observed by the rAF tick. Used to gate the loop wrap so
+  // it only fires when playback CROSSES loop.end, not when an explicit seek
+  // jumps past it. Updated in seek() and after wraps too.
+  const lastTRef = useRef(0);
+
   // ---- Mute/solo/volume side effects ----
   useEffect(() => {
     const anySolo = state.stems.some((s) => s.soloed);
@@ -153,15 +160,20 @@ export function usePlayer(): PlayerControls {
         const ref = s.stems[s.referenceIdx]?.audio;
         if (ref) {
           const t = ref.currentTime;
+          const prevT = lastTRef.current;
           setCurrentTime(t);
-          if (s.loop?.enabled && t >= s.loop.end - LOOP_TAIL) {
-            seekAll(s.stems, s.loop.start);
-            setCurrentTime(s.loop.start);
-          } else if (s.duration && t >= s.duration - END_TAIL) {
+          if (shouldLoopWrap(t, prevT, s.loop, LOOP_TAIL)) {
+            seekAll(s.stems, s.loop!.start);
+            lastTRef.current = s.loop!.start;
+            setCurrentTime(s.loop!.start);
+          } else if (shouldEndPlayback(t, s.duration, END_TAIL)) {
             for (const stem of s.stems) stem.audio.pause();
             seekAll(s.stems, 0);
+            lastTRef.current = 0;
             setCurrentTime(0);
             dispatch({ type: 'SET_PLAYING', isPlaying: false });
+          } else {
+            lastTRef.current = t;
           }
         }
       }
@@ -218,6 +230,7 @@ export function usePlayer(): PlayerControls {
         // ignore
       }
     }
+    lastTRef.current = 0;
     if (!input.sources.length) {
       dispatch({ type: 'TEARDOWN' });
       return;
@@ -287,6 +300,9 @@ export function usePlayer(): PlayerControls {
   const pause = useCallback(() => {
     for (const s of stateRef.current.stems) s.audio.pause();
     dispatch({ type: 'SET_PLAYING', isPlaying: false });
+    // Mirror the dispatch into the ref so a re-entrant call within the same
+    // tick (before React renders) sees the new isPlaying value.
+    stateRef.current = { ...stateRef.current, isPlaying: false };
   }, []);
 
   const togglePlay = useCallback(async () => {
@@ -296,9 +312,16 @@ export function usePlayer(): PlayerControls {
       pause();
       return;
     }
+    // Optimistic: set isPlaying immediately so the button reflects intent
+    // and a re-entrant click sees the in-progress state and routes to pause
+    // instead of starting a second play() round. Mirror into stateRef so the
+    // same-tick re-entrant call sees the value before React renders.
+    dispatch({ type: 'SET_PLAYING', isPlaying: true });
+    stateRef.current = { ...stateRef.current, isPlaying: true };
     const refStem = s.stems[s.referenceIdx];
     const t = refStem?.audio.currentTime ?? 0;
     seekAll(s.stems, t);
+    lastTRef.current = t;
     const results = await Promise.all(
       s.stems.map((stem) =>
         stem.audio.play().then(
@@ -307,18 +330,33 @@ export function usePlayer(): PlayerControls {
         ),
       ),
     );
-    const successes = results.filter(Boolean).length;
-    if (successes === 0) {
-      dispatch({ type: 'SET_STATUS', status: 'Playback blocked — click the page once and try again.' });
+    // The user may have hit pause while we were awaiting play(). Honor that
+    // intent: stop any audio elements that did manage to start.
+    if (!stateRef.current.isPlaying) {
+      for (const stem of s.stems) {
+        try {
+          stem.audio.pause();
+        } catch {
+          // ignore
+        }
+      }
       return;
     }
-    dispatch({ type: 'SET_PLAYING', isPlaying: true });
+    if (results.every((ok) => !ok)) {
+      dispatch({ type: 'SET_PLAYING', isPlaying: false });
+      stateRef.current = { ...stateRef.current, isPlaying: false };
+      dispatch({
+        type: 'SET_STATUS',
+        status: 'Playback blocked — click the page once and try again.',
+      });
+    }
   }, [pause]);
 
   const seek = useCallback((t: number) => {
     const s = stateRef.current;
     const clamped = Math.max(0, Math.min(s.duration, t));
     seekAll(s.stems, clamped);
+    lastTRef.current = clamped;
     setCurrentTime(clamped);
   }, []);
 
