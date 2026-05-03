@@ -305,7 +305,13 @@ kbd {
 }
 .player.rail-collapsed .track-info,
 .player.rail-collapsed .ms-pills { display: none; }
-.tbtn.rail-toggle { font-size: 0.95rem; line-height: 1; }
+/* Only surface the rail-collapse toggle when the viewport is narrow enough
+   that the rail might genuinely steal too much room. On desktop there's
+   plenty of space, so the button has no job. */
+.tbtn.rail-toggle { display: none; font-size: 0.95rem; line-height: 1; }
+@media (max-width: 720px) {
+  .tbtn.rail-toggle { display: inline-flex; }
+}
 .swatch { width: 6px; height: 24px; border-radius: 2px; }
 .track-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .track-name {
