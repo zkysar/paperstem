@@ -123,13 +123,11 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
       dragRef.current = null;
 
       if (!cur.didMove) {
+        // A click (no drag) on the ruler or loop region always seeks the
+        // playhead. The loop region is not destroyed by a stray click — use
+        // Esc / the loop toggle to clear or disable it.
         const t = xToTime(e.clientX);
-        if (cur.mode === 'create') {
-          if (player.state.loop) player.clearLoop();
-          else player.seek(t);
-        } else {
-          player.seek(t);
-        }
+        player.seek(t);
       } else if (cur.mode === 'create') {
         if (cur.lastStart != null && cur.lastEnd != null && cur.lastEnd - cur.lastStart >= MIN_LOOP_SEC) {
           player.setLoopEnabled(true);
