@@ -15,6 +15,10 @@ export type LoadedStem = {
   userVolume: number;
   practiceId: string | null;
   revoke?: () => void;
+  // Per-track gain node in the Web Audio graph (source → gain → master → output).
+  // Null if Web Audio is unavailable or wiring failed; the player falls back to
+  // HTMLAudioElement.volume in that case.
+  gain: GainNode | null;
 };
 
 export type LoopRegion = {
@@ -36,6 +40,7 @@ export type PlayerState = {
   loop: LoopRegion | null;
   status: string;
   waveformNormalization: WaveformNormalization;
+  masterVolume: number;
 };
 
 export type StemSource = {

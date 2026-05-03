@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PlayerControls } from '../hooks/usePlayer';
+import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
 import { fmt, pixelToTime } from '../lib/format';
 import { LoopRegion } from './LoopRegion';
 import { Playhead } from './Playhead';
@@ -33,8 +34,17 @@ type Props = {
 
 export function Player({ player, onDownloadAll, downloading }: Props) {
   const { state, currentTime } = player;
-  const { stems, duration, loop, isPlaying, focusedIdx, status, title, waveformNormalization } =
-    state;
+  const {
+    stems,
+    duration,
+    loop,
+    isPlaying,
+    focusedIdx,
+    status,
+    title,
+    masterVolume,
+    waveformNormalization,
+  } = state;
 
   const stageRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
@@ -199,8 +209,24 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
           <div className="player-meta">Practice</div>
           <div className="player-title">{title}</div>
         </div>
-        <div className="player-meta">
-          {stems.length ? `${stems.length} stems · ${fmt(duration)}` : ''}
+        <div className="player-header-right">
+          <label className="master-vol" title={`Master ${masterVolume}% (${VOLUME_UNITY}% = unity, ${VOLUME_MAX}% = +12 dB)`}>
+            <span className="player-meta">Master</span>
+            <input
+              className={'vol-slider master' + (masterVolume > VOLUME_UNITY ? ' boosted' : '')}
+              type="range"
+              min={0}
+              max={VOLUME_MAX}
+              step={1}
+              value={masterVolume}
+              onChange={(e) => player.setMasterVolume(parseInt(e.target.value, 10))}
+              onDoubleClick={() => player.setMasterVolume(VOLUME_UNITY)}
+            />
+            <span className="vol-num master">{masterVolume}</span>
+          </label>
+          <div className="player-meta">
+            {stems.length ? `${stems.length} stems · ${fmt(duration)}` : ''}
+          </div>
         </div>
       </div>
 

@@ -4,8 +4,12 @@ import {
   AUDIO_EXT,
   loadVolume,
   saveVolume,
+  loadMasterVolume,
+  saveMasterVolume,
   shouldEndPlayback,
   shouldLoopWrap,
+  volumeToGain,
+  VOLUME_MAX,
 } from './audio';
 
 describe('stripCommonPrefix', () => {
@@ -59,9 +63,14 @@ describe('loadVolume / saveVolume', () => {
     expect(loadVolume('p1', 'stem.wav')).toBe(42);
   });
 
-  test('clamps stored values to 0..100', () => {
-    saveVolume('p1', 'stem.wav', 200);
-    expect(loadVolume('p1', 'stem.wav')).toBe(100);
+  test('preserves boosted values up to VOLUME_MAX', () => {
+    saveVolume('p1', 'stem.wav', 180);
+    expect(loadVolume('p1', 'stem.wav')).toBe(180);
+  });
+
+  test('clamps stored values above VOLUME_MAX', () => {
+    saveVolume('p1', 'stem.wav', 500);
+    expect(loadVolume('p1', 'stem.wav')).toBe(VOLUME_MAX);
   });
 
   test('skips save when practiceId is null', () => {
@@ -124,5 +133,60 @@ describe('shouldEndPlayback', () => {
 
   test('false when duration is zero (nothing loaded)', () => {
     expect(shouldEndPlayback(0, 0, tail)).toBe(false);
+  });
+});
+
+describe('volumeToGain', () => {
+  test('0 → silent', () => {
+    expect(volumeToGain(0)).toBe(0);
+  });
+
+  test('100 → unity', () => {
+    expect(volumeToGain(100)).toBe(1);
+  });
+
+  test('200 → 4x (+12 dB)', () => {
+    expect(volumeToGain(200)).toBe(4);
+  });
+
+  test('halfway between 0 and unity is linear', () => {
+    expect(volumeToGain(50)).toBeCloseTo(0.5, 6);
+  });
+
+  test('halfway between unity and max boosts to 2.5x', () => {
+    expect(volumeToGain(150)).toBeCloseTo(2.5, 6);
+  });
+
+  test('clamps negative input to 0', () => {
+    expect(volumeToGain(-20)).toBe(0);
+  });
+
+  test('clamps above-max input to 4', () => {
+    expect(volumeToGain(9999)).toBe(4);
+  });
+});
+
+describe('loadMasterVolume / saveMasterVolume', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  test('defaults to 100 (unity) when nothing is stored', () => {
+    expect(loadMasterVolume()).toBe(100);
+  });
+
+  test('round-trips a saved value', () => {
+    saveMasterVolume(140);
+    expect(loadMasterVolume()).toBe(140);
+  });
+
+  test('clamps stored value above VOLUME_MAX', () => {
+    saveMasterVolume(500);
+    expect(loadMasterVolume()).toBe(VOLUME_MAX);
+  });
+
+  test('clamps stored value below 0', () => {
+    localStorage.setItem('vol:master', '-50');
+    expect(loadMasterVolume()).toBe(0);
   });
 });

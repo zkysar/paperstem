@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import type { LoadedStem, WaveformNormalization } from '../data/types';
+import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
 import { mix } from '../lib/colors';
 
 type Props = {
@@ -105,13 +106,15 @@ export function Track({
           </span>
           <span className="vol-row">
             <input
-              className="vol-slider"
+              className={'vol-slider' + (stem.userVolume > VOLUME_UNITY ? ' boosted' : '')}
               type="range"
               min={0}
-              max={100}
+              max={VOLUME_MAX}
               step={1}
               value={stem.userVolume}
               onChange={(e) => onSetVolume(idx, parseInt(e.target.value, 10))}
+              title={`${stem.userVolume}% (${VOLUME_UNITY}% = unity, ${VOLUME_MAX}% = +12 dB)`}
+              onDoubleClick={() => onSetVolume(idx, VOLUME_UNITY)}
             />
             <span className="vol-num">{stem.userVolume}</span>
           </span>
