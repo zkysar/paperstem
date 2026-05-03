@@ -31,3 +31,4 @@ public/sas
 
 # Superpowers session artifacts
 .superpowers/
+.claude/worktrees/
