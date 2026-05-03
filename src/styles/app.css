@@ -127,6 +127,22 @@ kbd {
   line-height: 1.05;
   margin-top: 6px;
 }
+.player-header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.master-vol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vol-slider.master { width: 140px; min-width: 140px; }
+.vol-num.master { min-width: 28px; }
+.vol-slider.boosted { background: linear-gradient(to right, #e5dfd0 0 50%, var(--accent-tint-2) 50% 100%); }
+.vol-slider.boosted::-webkit-slider-thumb { background: var(--accent); }
+.vol-slider.boosted::-moz-range-thumb { background: var(--accent); }
 
 .transport {
   display: flex;

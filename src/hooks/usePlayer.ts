@@ -8,11 +8,14 @@ import type {
 } from '../data/types';
 import { PALETTE } from '../lib/colors';
 import {
+  loadMasterVolume,
   loadVolume,
   loadWaveformNormalization,
+  saveMasterVolume,
   saveVolume,
   saveWaveformNormalization,
   stripCommonPrefix,
+  volumeToGain,
 } from '../lib/audio';
 import { fmt, longestStemIdx } from '../lib/format';
 
@@ -37,6 +40,7 @@ type Action =
   | { type: 'TOGGLE_MUTE'; idx: number }
   | { type: 'TOGGLE_SOLO'; idx: number }
   | { type: 'SET_VOLUME'; idx: number; vol: number }
+  | { type: 'SET_MASTER_VOLUME'; vol: number }
   | { type: 'FOCUS'; idx: number }
   | { type: 'SET_STATUS'; status: string }
   | { type: 'SET_WAVEFORM_NORM'; mode: WaveformNormalization };
@@ -52,12 +56,17 @@ const initialState: PlayerState = {
   loop: null,
   status: '',
   waveformNormalization: loadWaveformNormalization(),
+  masterVolume: loadMasterVolume(),
 };
 
 function reducer(state: PlayerState, action: Action): PlayerState {
   switch (action.type) {
     case 'TEARDOWN':
-      return { ...initialState, waveformNormalization: state.waveformNormalization };
+      return {
+        ...initialState,
+        waveformNormalization: state.waveformNormalization,
+        masterVolume: state.masterVolume,
+      };
     case 'LOADED':
       return {
         ...state,
@@ -90,6 +99,8 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       return updateStem(state, action.idx, (s) => ({ ...s, soloed: !s.soloed }));
     case 'SET_VOLUME':
       return updateStem(state, action.idx, (s) => ({ ...s, userVolume: action.vol }));
+    case 'SET_MASTER_VOLUME':
+      return { ...state, masterVolume: action.vol };
     case 'FOCUS':
       return { ...state, focusedIdx: action.idx };
     case 'SET_STATUS':
@@ -114,6 +125,7 @@ export type PlayerControls = {
   pause(): void;
   seek(t: number): void;
   setVolume(idx: number, vol: number): void;
+  setMasterVolume(vol: number): void;
   toggleMute(idx: number): void;
   toggleSolo(idx: number): void;
   setLoop(start: number | null, end: number | null): void;
@@ -134,15 +146,59 @@ export function usePlayer(): PlayerControls {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // ---- Mute/solo/volume side effects ----
+  // Web Audio graph: a single AudioContext + master gain shared across loads.
+  // Per-track GainNodes live on each LoadedStem.
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const masterGainRef = useRef<GainNode | null>(null);
+
+  function ensureAudioGraph(): { ctx: AudioContext; master: GainNode } | null {
+    if (audioCtxRef.current && masterGainRef.current) {
+      return { ctx: audioCtxRef.current, master: masterGainRef.current };
+    }
+    const Ctor: typeof AudioContext | undefined =
+      typeof window === 'undefined'
+        ? undefined
+        : window.AudioContext ||
+          (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctor) return null;
+    try {
+      const ctx = new Ctor();
+      const master = ctx.createGain();
+      master.gain.value = volumeToGain(stateRef.current.masterVolume);
+      master.connect(ctx.destination);
+      audioCtxRef.current = ctx;
+      masterGainRef.current = master;
+      return { ctx, master };
+    } catch {
+      return null;
+    }
+  }
+
+  // ---- Mute/solo/volume side effects: drive per-track gain nodes. ----
+  // When Web Audio wiring is unavailable, fall back to HTMLAudioElement.volume
+  // (capped at 1.0 by the browser, so no boost — but at least everything stays
+  // audible in environments where MediaElementSource isn't supported).
   useEffect(() => {
     const anySolo = state.stems.some((s) => s.soloed);
     for (const s of state.stems) {
       const muted = anySolo ? !s.soloed : s.userMuted;
-      s.audio.muted = muted;
-      s.audio.volume = s.userVolume / 100;
+      const trackGain = volumeToGain(s.userVolume);
+      if (s.gain) {
+        s.gain.gain.value = muted ? 0 : trackGain;
+        s.audio.muted = false;
+        s.audio.volume = 1;
+      } else {
+        s.audio.muted = muted;
+        s.audio.volume = Math.min(1, trackGain);
+      }
     }
   }, [state.stems]);
+
+  // ---- Master volume side effect ----
+  useEffect(() => {
+    const master = masterGainRef.current;
+    if (master) master.gain.value = volumeToGain(state.masterVolume);
+  }, [state.masterVolume]);
 
   // ---- rAF: currentTime + loop wrap + end-of-song ----
   useEffect(() => {
@@ -198,10 +254,17 @@ export function usePlayer(): PlayerControls {
       for (const stem of s.stems) {
         try {
           stem.audio.pause();
+          stem.gain?.disconnect();
           stem.revoke?.();
         } catch {
           // ignore
         }
+      }
+      try {
+        masterGainRef.current?.disconnect();
+        void audioCtxRef.current?.close();
+      } catch {
+        // ignore
       }
     };
   }, []);
@@ -213,6 +276,7 @@ export function usePlayer(): PlayerControls {
     for (const s of prev) {
       try {
         s.audio.pause();
+        s.gain?.disconnect();
         s.revoke?.();
       } catch {
         // ignore
@@ -226,12 +290,29 @@ export function usePlayer(): PlayerControls {
     dispatch({ type: 'SET_STATUS', status: `Loading ${input.sources.length} stem${input.sources.length === 1 ? '' : 's'}…` });
 
     const displayNames = stripCommonPrefix(input.sources.map((it) => it.name));
+    const graph = ensureAudioGraph();
     const built: LoadedStem[] = input.sources.map((src, i) => {
       const audio = new Audio();
       audio.preload = 'auto';
       audio.src = src.src;
       const userVolume = loadVolume(ctx.practiceId, src.name);
-      audio.volume = userVolume / 100;
+      let gain: GainNode | null = null;
+      if (graph) {
+        try {
+          const source = graph.ctx.createMediaElementSource(audio);
+          gain = graph.ctx.createGain();
+          gain.gain.value = volumeToGain(userVolume);
+          source.connect(gain).connect(graph.master);
+          audio.volume = 1;
+        } catch {
+          // MediaElementSource creation can fail (e.g. element already wired
+          // somewhere). Fall through to native volume control.
+          gain = null;
+          audio.volume = Math.min(1, volumeToGain(userVolume));
+        }
+      } else {
+        audio.volume = Math.min(1, volumeToGain(userVolume));
+      }
       return {
         name: src.name,
         displayName: displayNames[i],
@@ -242,6 +323,7 @@ export function usePlayer(): PlayerControls {
         userVolume,
         practiceId: ctx.practiceId,
         revoke: src.revoke,
+        gain,
       };
     });
 
@@ -296,6 +378,16 @@ export function usePlayer(): PlayerControls {
       pause();
       return;
     }
+    // Browsers start AudioContexts suspended until a user gesture; togglePlay
+    // is always called from one, so this is the right place to resume.
+    const ctx = audioCtxRef.current;
+    if (ctx && ctx.state === 'suspended') {
+      try {
+        await ctx.resume();
+      } catch {
+        // ignore — playback will still attempt and surface its own error.
+      }
+    }
     const refStem = s.stems[s.referenceIdx];
     const t = refStem?.audio.currentTime ?? 0;
     seekAll(s.stems, t);
@@ -328,6 +420,11 @@ export function usePlayer(): PlayerControls {
     if (!stem) return;
     saveVolume(stem.practiceId, stem.name, vol);
     dispatch({ type: 'SET_VOLUME', idx, vol });
+  }, []);
+
+  const setMasterVolume = useCallback((vol: number) => {
+    saveMasterVolume(vol);
+    dispatch({ type: 'SET_MASTER_VOLUME', vol });
   }, []);
 
   const toggleMute = useCallback((idx: number) => {
@@ -380,6 +477,7 @@ export function usePlayer(): PlayerControls {
     pause,
     seek,
     setVolume,
+    setMasterVolume,
     toggleMute,
     toggleSolo,
     setLoop,
