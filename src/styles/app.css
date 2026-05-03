@@ -294,6 +294,18 @@ kbd {
   padding: 4px 6px 4px 4px;
   min-width: 0;
 }
+
+/* ===== Rail-collapsed state: hide all track controls, leave only swatches.
+   Toggled from the transport via the .rail-toggle button. ===== */
+.player.rail-collapsed { --rail-w: 14px; }
+.player.rail-collapsed .track-rail {
+  grid-template-columns: 6px;
+  gap: 0;
+  padding: 4px 0 4px 4px;
+}
+.player.rail-collapsed .track-info,
+.player.rail-collapsed .ms-pills { display: none; }
+.tbtn.rail-toggle { font-size: 0.95rem; line-height: 1; }
 .swatch { width: 6px; height: 24px; border-radius: 2px; }
 .track-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .track-name {
@@ -505,7 +517,6 @@ kbd {
     padding: 2px 4px 2px 2px;
   }
   .track-name { font-size: 0.75rem; }
-  .vol-num { display: none; }
   .pill {
     font-size: 0.6rem;
     min-width: 28px;
@@ -513,6 +524,7 @@ kbd {
     padding: 4px 6px;
   }
   .ms-pills { gap: 3px; }
+  .vol-num { font-size: 0.58rem; min-width: 18px; }
 
   .wave { height: 32px; }
   .ruler { height: 24px; }
@@ -533,8 +545,8 @@ kbd {
   .keys-hint { display: none; }
 }
 
-/* ===== Very narrow (≤380px): hide volume slider, keep M/S ===== */
+/* ===== Very narrow (≤380px): tighter rail, accessory still carries controls ===== */
 @media (max-width: 380px) {
-  :root { --rail-w: 116px; }
-  .vol-row { display: none; }
+  :root { --rail-w: 124px; }
+  .track-name { font-size: 0.72rem; }
 }

@@ -49,6 +49,7 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef<HTMLDivElement>(null);
+  const [railCollapsed, setRailCollapsed] = useState(false);
 
   // Wave area geometry: re-measured on each render so overlay positions
   // (playhead, loop region) follow window resizes without explicit listeners.
@@ -213,7 +214,7 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
   const anySolo = stems.some((s) => s.soloed);
 
   return (
-    <main className="player">
+    <main className={'player' + (railCollapsed ? ' rail-collapsed' : '')}>
       <div className="player-header">
         <div>
           <div className="player-meta">Practice</div>
@@ -305,6 +306,16 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
               <rect x="11" y="4" width="2" height="8" fill="currentColor" />
             </svg>
           )}
+        </button>
+        <button
+          type="button"
+          className={'tbtn rail-toggle' + (railCollapsed ? ' collapsed' : '')}
+          title={railCollapsed ? 'Show track controls' : 'Hide track controls'}
+          aria-label={railCollapsed ? 'Show track controls' : 'Hide track controls'}
+          aria-pressed={railCollapsed}
+          onClick={() => setRailCollapsed((v) => !v)}
+        >
+          {railCollapsed ? '◨' : '◧'}
         </button>
         <span className="ttime">
           {fmt(currentTime)} / {fmt(duration)}

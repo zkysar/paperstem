@@ -99,7 +99,7 @@ export function Track({
   return (
     <div className={'track' + (focused ? ' focused' : '')} onPointerDown={handlePointerDown}>
       <div className="track-rail">
-        <span className="swatch" style={{ background: stem.color }} />
+        <span className="swatch" style={{ background: stem.color }} title={stem.displayName} />
         <div className="track-info">
           <span className="track-name" title={stem.displayName}>
             {stem.displayName}
@@ -114,6 +114,7 @@ export function Track({
               value={stem.userVolume}
               onChange={(e) => onSetVolume(idx, parseInt(e.target.value, 10))}
               title={`${stem.userVolume}% (${VOLUME_UNITY}% = unity, ${VOLUME_MAX}% = +12 dB)`}
+              aria-label={`${stem.displayName} volume`}
               onDoubleClick={() => onSetVolume(idx, VOLUME_UNITY)}
             />
             <span className="vol-num">{stem.userVolume}</span>
