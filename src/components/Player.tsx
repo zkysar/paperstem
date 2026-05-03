@@ -49,7 +49,38 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef<HTMLDivElement>(null);
-  const [railCollapsed, setRailCollapsed] = useState(false);
+
+  // The rail (track names + volume sliders + M/S pills) auto-collapses on
+  // narrow viewports so the waveform takes the full width. The manual
+  // toggle in the transport overrides this until the viewport next crosses
+  // the breakpoint, at which point we follow the new default again.
+  const [railCollapsed, setRailCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 720px)').matches;
+  });
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 720px)');
+    let last = mql.matches;
+    const update = () => {
+      const next = window.matchMedia('(max-width: 720px)').matches;
+      if (next !== last) {
+        last = next;
+        setRailCollapsed(next);
+      }
+    };
+    mql.addEventListener('change', update);
+    window.addEventListener('resize', update);
+    // matchMedia 'change' and window 'resize' aren't reliably dispatched
+    // by every embed environment (e.g. CDP-driven viewport overrides);
+    // ResizeObserver on the root element catches those cases.
+    const ro = new ResizeObserver(update);
+    ro.observe(document.documentElement);
+    return () => {
+      mql.removeEventListener('change', update);
+      window.removeEventListener('resize', update);
+      ro.disconnect();
+    };
+  }, []);
 
   // Wave area geometry: re-measured on each render so overlay positions
   // (playhead, loop region) follow window resizes without explicit listeners.
