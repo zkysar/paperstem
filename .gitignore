@@ -32,3 +32,11 @@ public/sas
 # Superpowers session artifacts
 .superpowers/
 .claude/worktrees/
+.claude/*.lock
+
+# Phase 1 server
+dev.sqlite
+dev.sqlite-*
+.env.local
+dist/server
+dist/client

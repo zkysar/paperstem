@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Sign in to Paperstem</title>
+  <style>
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #fbf9f4;
+      color: #2a2723;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      max-width: 420px;
+      width: 100%;
+      background: #fff;
+      border: 1px solid #ece6d8;
+      border-radius: 8px;
+      padding: 32px;
+      text-align: center;
+    }
+    h1 { font-size: 1.4rem; margin: 0 0 12px; }
+    p { color: #5a5247; line-height: 1.5; margin: 0 0 24px; font-size: 0.95rem; }
+    button {
+      display: inline-block;
+      background: #1f6feb;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.6; cursor: default; }
+    .error { color: #b1502a; margin-top: 16px; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Sign in to Paperstem</h1>
+    <p>Click the button below to finish signing in.</p>
+    <button id="go" type="button">Sign in</button>
+    <div id="err" class="error" hidden></div>
+  </div>
+  <script>
+    const token = "{{TOKEN}}";
+    const btn = document.getElementById('go');
+    const err = document.getElementById('err');
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      err.hidden = true;
+      try {
+        const res = await fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+          credentials: 'include',
+        });
+        if (res.ok) {
+          window.location.href = '/';
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        err.textContent = data.error === 'invalid_or_expired'
+          ? 'This sign-in link is invalid or has expired. Request a new one.'
+          : data.error === 'already_authenticated'
+            ? 'You are already signed in.'
+            : 'Sign-in failed. Please try again.';
+        err.hidden = false;
+        btn.disabled = false;
+      } catch (e) {
+        err.textContent = 'Network error. Please try again.';
+        err.hidden = false;
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
