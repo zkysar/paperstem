@@ -103,17 +103,25 @@ function publicHashPassthrough(): Plugin {
   };
 }
 
-// https://vite.dev/config/
 export default defineConfig({
-  // Pages serves the site under /paperstem/. Override locally with `--base=/` if needed.
-  base: '/paperstem/',
+  root: 'src/client',
+  publicDir: '../../public',
+  base: '/',
   plugins: [react(), publicHashPassthrough()],
+  build: {
+    outDir: '../../dist/client',
+    emptyOutDir: true,
+  },
   server: {
-    port: 8765,
+    port: 5173,
+    proxy: {
+      '/api': 'http://localhost:8787',
+      '/auth': 'http://localhost:8787',
+    },
   },
   test: {
     environment: 'happy-dom',
     globals: false,
-    setupFiles: ['./src/test-setup.ts'],
+    setupFiles: ['./test-setup.ts'],
   },
 });
