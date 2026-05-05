@@ -8,6 +8,7 @@ import { handleAuthVerify } from './auth/verify.js';
 import { handleAuthLogout } from './auth/logout.js';
 import { handleMe } from './auth/me.js';
 import { sessionMiddleware, type AuthVariables } from './auth/middleware.js';
+import { handleListBands, handleGetBand } from './bands.js';
 import { registerStatic } from './static.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -24,6 +25,8 @@ app.post('/api/auth/request', handleAuthRequest);
 app.post('/api/auth/verify', handleAuthVerify);
 app.post('/api/auth/logout', handleAuthLogout);
 app.get('/api/me', handleMe);
+app.get('/api/bands', handleListBands);
+app.get('/api/bands/:id', handleGetBand);
 
 app.get('/auth/callback', (c) => {
   const token = c.req.query('token') ?? '';
