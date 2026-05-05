@@ -32,6 +32,7 @@ public/sas
 # Superpowers session artifacts
 .superpowers/
 .claude/worktrees/
+.claude/*.lock
 
 # Phase 1 server
 dev.sqlite
