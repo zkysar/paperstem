@@ -550,3 +550,116 @@ kbd {
 
   .keys-hint { display: none; }
 }
+
+/* ===== Login screen ===== */
+.login-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  padding: 32px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+.login-card .brand { margin-bottom: 4px; }
+.login-card .brand-tag { margin-bottom: 24px; }
+.login-form { display: flex; flex-direction: column; gap: 8px; }
+.login-label {
+  font-size: 0.66rem;
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.login-input {
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 10px 12px;
+  border: 1px solid #d8cfbb;
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--ink);
+  outline: none;
+}
+.login-input:focus { border-color: var(--accent); }
+.login-submit {
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: var(--ink);
+  color: var(--bg);
+  border: 1px solid var(--ink);
+  border-radius: 5px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.login-submit:disabled { opacity: 0.5; cursor: default; }
+.login-error {
+  margin-top: 8px;
+  color: #b1502a;
+  font-size: 0.82rem;
+}
+.login-msg {
+  font-size: 0.92rem;
+  color: var(--ink-2);
+  line-height: 1.5;
+  margin: 0 0 16px;
+}
+.login-link {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.82rem;
+  padding: 4px 0;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.login-link:hover { color: var(--ink); }
+
+/* ===== Topbar logout ===== */
+.logout-btn {
+  background: none;
+  border: 1px solid var(--rule);
+  color: var(--ink-2);
+  font-size: 0.78rem;
+  padding: 6px 10px;
+  border-radius: 5px;
+  min-height: 36px;
+}
+.logout-btn:hover { background: var(--accent-tint); }
+@media (min-width: 721px) {
+  .topbar .logout-btn { display: none; }
+}
+
+/* ===== Sidebar user info / sign-out ===== */
+.sidebar-user {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sidebar-user-email {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  word-break: break-all;
+}
+.sidebar-user button {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+  padding: 6px 0;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.sidebar-user button:hover { color: var(--ink); }

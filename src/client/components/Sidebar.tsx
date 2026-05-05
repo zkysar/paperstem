@@ -7,9 +7,11 @@ type Props = {
   activePracticeId: string | null;
   loadError: string | null;
   drawerOpen: boolean;
+  userEmail: string;
   onClose(): void;
   onSelect(id: string): void;
   onLoadFolder(files: File[], folderName: string): void;
+  onLogout(): void;
 };
 
 export function Sidebar({
@@ -17,9 +19,11 @@ export function Sidebar({
   activePracticeId,
   loadError,
   drawerOpen,
+  userEmail,
   onClose,
   onSelect,
   onLoadFolder,
+  onLogout,
 }: Props) {
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,6 +93,12 @@ export function Sidebar({
         <button type="button" onClick={() => folderInputRef.current?.click()}>
           Load local folder…
         </button>
+        <div className="sidebar-user">
+          <span className="sidebar-user-email">{userEmail}</span>
+          <button type="button" onClick={onLogout}>
+            Sign out
+          </button>
+        </div>
       </div>
     </aside>
   );

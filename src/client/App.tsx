@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { LoginScreen } from './auth/LoginScreen';
+import { useSession } from './auth/useSession';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Player } from './components/Player';
 import { Sidebar } from './components/Sidebar';
@@ -7,10 +9,18 @@ import type { Practice, StemSource } from './data/types';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
 import { downloadStemsAsZip } from './lib/download';
+import type { User } from '../shared/types';
 
 const repo = new StaticPracticesRepo();
 
 export default function App() {
+  const { user, loading, logout } = useSession();
+  if (loading) return null;
+  if (!user) return <LoginScreen />;
+  return <PaperstemApp user={user} onLogout={logout} />;
+}
+
+function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) {
   const player = usePlayer();
   useKeyboard(player);
 
@@ -96,6 +106,9 @@ export default function App() {
         </button>
         <h1 className="brand">Paperstem</h1>
         <span className="topbar-spacer" />
+        <button type="button" className="logout-btn" onClick={onLogout}>
+          Sign out
+        </button>
       </header>
       <div className="app">
         <Sidebar
@@ -103,9 +116,11 @@ export default function App() {
           activePracticeId={activePracticeId}
           loadError={loadError}
           drawerOpen={drawerOpen}
+          userEmail={user.email}
           onClose={() => setDrawerOpen(false)}
           onSelect={(id) => selectPractice(id)}
           onLoadFolder={loadFolder}
+          onLogout={onLogout}
         />
         {drawerOpen && (
           <div
