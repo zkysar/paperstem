@@ -15,7 +15,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "add-user": "tsx bin/add-user.ts"
+    "add-user": "tsx bin/add-user.ts",
+    "onboard-band": "scripts/onboard-band.sh"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
