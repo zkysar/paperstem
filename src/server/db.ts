@@ -35,6 +35,30 @@ export type SessionRow = {
   created_at: number;
 };
 
+export type BandRow = {
+  id: string;
+  name: string;
+  drive_folder_id: string;
+  owner_user_id: string;
+  created_at: number;
+  last_snapshot_at: number | null;
+  last_backup_at: number | null;
+};
+
+export type MembershipRow = {
+  band_id: string;
+  user_id: string;
+  role: 'owner' | 'member';
+  created_at: number;
+};
+
+export type BandMemberRow = {
+  id: string;
+  email: string;
+  display_name: string | null;
+  role: 'owner' | 'member';
+};
+
 export const stmts = {
   findUserByEmail: db.prepare<[string], UserRow>(
     'SELECT * FROM users WHERE email = ?',
@@ -78,4 +102,35 @@ export const stmts = {
       WHERE s.id = ?`,
   ),
   deleteSession: db.prepare<[string]>('DELETE FROM sessions WHERE id = ?'),
+  findBandById: db.prepare<[string], BandRow>(
+    'SELECT * FROM bands WHERE id = ?',
+  ),
+  findBandsForUser: db.prepare<[string], BandRow & { role: 'owner' | 'member' }>(
+    `SELECT b.*, m.role
+       FROM bands b
+       JOIN memberships m ON m.band_id = b.id
+      WHERE m.user_id = ?
+      ORDER BY b.name`,
+  ),
+  findMembershipsForBand: db.prepare<[string], BandMemberRow>(
+    `SELECT u.id, u.email, u.display_name, m.role
+       FROM memberships m
+       JOIN users u ON u.id = m.user_id
+      WHERE m.band_id = ?
+      ORDER BY m.role DESC, u.email`,
+  ),
+  findMembership: db.prepare<[string, string], MembershipRow>(
+    'SELECT * FROM memberships WHERE band_id = ? AND user_id = ?',
+  ),
+  insertBand: db.prepare<[string, string, string, string, number]>(
+    `INSERT INTO bands (id, name, drive_folder_id, owner_user_id, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  ),
+  insertMembership: db.prepare<[string, string, 'owner' | 'member', number]>(
+    `INSERT INTO memberships (band_id, user_id, role, created_at)
+     VALUES (?, ?, ?, ?)`,
+  ),
+  findBandByNameAndOwner: db.prepare<[string, string], BandRow>(
+    'SELECT * FROM bands WHERE name = ? AND owner_user_id = ?',
+  ),
 };
