@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.gitignore
+.env.local
+dev.sqlite
+dev.sqlite-wal
+dev.sqlite-shm
+public/sas
+sas
+.DS_Store
+.vscode
+.idea
+*.log
