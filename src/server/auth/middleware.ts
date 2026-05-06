@@ -36,7 +36,12 @@ export const sessionMiddleware: MiddlewareHandler<{ Variables: AuthVariables }> 
 export function requireUser(c: Context<{ Variables: AuthVariables }>): User {
   const user = c.get('user');
   if (!user) {
-    throw new HTTPException(401, { message: 'unauthenticated' });
+    throw new HTTPException(401, {
+      res: new Response(JSON.stringify({ error: 'unauthenticated' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    });
   }
   return user;
 }
