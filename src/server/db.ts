@@ -148,6 +148,13 @@ export const stmts = {
   findMembership: db.prepare<[string, string], MembershipRow>(
     'SELECT * FROM memberships WHERE band_id = ? AND user_id = ?',
   ),
+  findOwnerMembership: db.prepare<[string, string], { one: number }>(
+    `SELECT 1 AS one FROM memberships
+      WHERE band_id = ? AND user_id = ? AND role = 'owner'`,
+  ),
+  countStemsForPractice: db.prepare<[string], { c: number }>(
+    'SELECT COUNT(*) AS c FROM stems WHERE practice_id = ?',
+  ),
   insertBand: db.prepare<[string, string, string, string, number]>(
     `INSERT INTO bands (id, name, drive_folder_id, owner_user_id, created_at)
      VALUES (?, ?, ?, ?, ?)`,

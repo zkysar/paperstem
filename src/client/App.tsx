@@ -5,12 +5,15 @@ import { useSession } from './auth/useSession';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Player } from './components/Player';
 import { Sidebar } from './components/Sidebar';
+import { UploadDrawer } from './components/UploadDrawer';
 import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
 import type { Practice, StemSource } from './data/types';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
 import { downloadStemsAsZip } from './lib/download';
 import type { User } from '../shared/types';
+
+const UPLOAD_MIN_VIEWPORT_PX = 720;
 
 export default function App() {
   const { user, loading, logout } = useSession();
@@ -24,7 +27,8 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   useKeyboard(player);
 
   const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
-  const activeBandId = bands[0]?.id ?? null;
+  const activeBand = bands[0] ?? null;
+  const activeBandId = activeBand?.id ?? null;
   const repo = useMemo<PracticesRepo | null>(
     () => (activeBandId ? new HttpPracticesRepo(activeBandId) : null),
     [activeBandId],
@@ -35,6 +39,24 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [isWide, setIsWide] = useState(() =>
+    typeof window === 'undefined'
+      ? false
+      : window.matchMedia(`(min-width: ${UPLOAD_MIN_VIEWPORT_PX + 1}px)`).matches,
+  );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia(`(min-width: ${UPLOAD_MIN_VIEWPORT_PX + 1}px)`);
+    const update = () => setIsWide(mql.matches);
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
+
+  const showUploadButton =
+    isWide && activeBand !== null && activeBand.role === 'owner';
 
   useEffect(() => {
     if (!repo) {
@@ -56,6 +78,25 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
       cancelled = true;
     };
   }, [repo]);
+
+  async function refreshPractices(): Promise<Practice[]> {
+    if (!repo) return [];
+    const list = await repo.list();
+    setPractices(list);
+    setLoadError(null);
+    return list;
+  }
+
+  async function handleUploaded(practiceId: string) {
+    setUploadOpen(false);
+    try {
+      await refreshPractices();
+      await selectPractice(practiceId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLoadError(msg);
+    }
+  }
 
   async function selectPractice(id: string) {
     if (!repo) return;
@@ -158,11 +199,21 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
           loadError={loadError}
           drawerOpen={drawerOpen}
           userEmail={user.email}
+          showUpload={showUploadButton}
           onClose={() => setDrawerOpen(false)}
           onSelect={(id) => void selectPractice(id)}
           onLoadFolder={loadFolder}
+          onUploadClick={() => setUploadOpen(true)}
           onLogout={onLogout}
         />
+        {showUploadButton && activeBandId && (
+          <UploadDrawer
+            bandId={activeBandId}
+            open={uploadOpen}
+            onClose={() => setUploadOpen(false)}
+            onUploaded={(id) => void handleUploaded(id)}
+          />
+        )}
         {drawerOpen && (
           <div
             className="scrim show"

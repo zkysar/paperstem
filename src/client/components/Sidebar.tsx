@@ -8,9 +8,11 @@ type Props = {
   loadError: string | null;
   drawerOpen: boolean;
   userEmail: string;
+  showUpload: boolean;
   onClose(): void;
   onSelect(id: string): void;
   onLoadFolder(files: File[], folderName: string): void;
+  onUploadClick(): void;
   onLogout(): void;
 };
 
@@ -20,9 +22,11 @@ export function Sidebar({
   loadError,
   drawerOpen,
   userEmail,
+  showUpload,
   onClose,
   onSelect,
   onLoadFolder,
+  onUploadClick,
   onLogout,
 }: Props) {
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -97,6 +101,11 @@ export function Sidebar({
         <button type="button" onClick={() => folderInputRef.current?.click()}>
           Load local folder…
         </button>
+        {showUpload && (
+          <button type="button" onClick={onUploadClick}>
+            Upload practice…
+          </button>
+        )}
         <div className="sidebar-user">
           <span className="sidebar-user-email">{userEmail}</span>
           <button type="button" onClick={onLogout}>

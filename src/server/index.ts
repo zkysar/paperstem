@@ -9,7 +9,12 @@ import { handleAuthLogout } from './auth/logout.js';
 import { handleMe } from './auth/me.js';
 import { sessionMiddleware, type AuthVariables } from './auth/middleware.js';
 import { handleListBands, handleGetBand } from './bands.js';
-import { handleListPractices, handleGetPractice } from './practices.js';
+import {
+  handleCreatePractice,
+  handleCreateStem,
+  handleGetPractice,
+  handleListPractices,
+} from './practices.js';
 import { handleGetAudio } from './audio.js';
 import { registerStatic } from './static.js';
 
@@ -31,6 +36,8 @@ app.get('/api/bands', handleListBands);
 app.get('/api/bands/:id', handleGetBand);
 app.get('/api/practices', handleListPractices);
 app.get('/api/practices/:id', handleGetPractice);
+app.post('/api/practices', handleCreatePractice);
+app.post('/api/practices/:id/stems', handleCreateStem);
 app.get('/api/audio/:stem_id', handleGetAudio);
 
 app.get('/auth/callback', (c) => {

@@ -21,8 +21,10 @@
     "backfill-band-folder": "scripts/backfill-band-folder.sh"
   },
   "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "@hono/node-server": "^1.13.7",
     "better-sqlite3": "^11.6.0",
+    "busboy": "^1.6.0",
     "hono": "^4.6.13",
     "jszip": "^3.10.1",
     "nodemailer": "^6.9.16",
@@ -33,6 +35,7 @@
   "devDependencies": {
     "@testing-library/react": "^16.3.0",
     "@types/better-sqlite3": "^7.6.12",
+    "@types/busboy": "^1.5.4",
     "@types/node": "^22.10.2",
     "@types/nodemailer": "^6.4.17",
     "@types/react": "^19.2.14",

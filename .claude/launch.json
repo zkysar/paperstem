@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "paperstem",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev", "--", "--base=/"],
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--base=/", "--port=8765", "--strictPort"],
       "port": 8765
     }
   ]
