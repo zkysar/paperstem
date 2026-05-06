@@ -29,3 +29,17 @@ export type BandMember = {
   display_name: string | null;
   role: BandRole;
 };
+
+export type Annotation = {
+  id: string;
+  practice_id: string;
+  user_id: string;
+  user_email: string;
+  user_display_name: string | null;
+  start_ms: number;
+  end_ms: number | null;
+  body: string;
+  starred: boolean;
+  created_at: number;
+  updated_at: number;
+};

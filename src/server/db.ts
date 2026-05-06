@@ -85,6 +85,23 @@ export type StemRow = {
 
 export type StemWithBandRow = StemRow & { band_id: string };
 
+export type AnnotationRow = {
+  id: string;
+  practice_id: string;
+  user_id: string;
+  start_ms: number;
+  end_ms: number | null;
+  body: string;
+  starred: number;
+  created_at: number;
+  updated_at: number;
+};
+
+export type AnnotationJoinedRow = AnnotationRow & {
+  user_email: string;
+  user_display_name: string | null;
+};
+
 export const stmts = {
   findUserByEmail: db.prepare<[string], UserRow>(
     'SELECT * FROM users WHERE email = ?',
@@ -214,5 +231,52 @@ export const stmts = {
     `INSERT INTO stems
        (id, practice_id, name, position, drive_file_id, duration_ms, size_bytes)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ),
+  findAnnotationsForPractice: db.prepare<[string], AnnotationJoinedRow>(
+    `SELECT a.id, a.practice_id, a.user_id, a.start_ms, a.end_ms, a.body,
+            a.starred, a.created_at, a.updated_at,
+            u.email AS user_email, u.display_name AS user_display_name
+       FROM annotations a
+       JOIN users u ON u.id = a.user_id
+      WHERE a.practice_id = ?
+      ORDER BY a.start_ms ASC, a.created_at ASC`,
+  ),
+  findAnnotationById: db.prepare<[string], AnnotationRow>(
+    'SELECT * FROM annotations WHERE id = ?',
+  ),
+  findAnnotationByIdJoined: db.prepare<[string], AnnotationJoinedRow>(
+    `SELECT a.id, a.practice_id, a.user_id, a.start_ms, a.end_ms, a.body,
+            a.starred, a.created_at, a.updated_at,
+            u.email AS user_email, u.display_name AS user_display_name
+       FROM annotations a
+       JOIN users u ON u.id = a.user_id
+      WHERE a.id = ?`,
+  ),
+  insertAnnotation: db.prepare<
+    [
+      string,
+      string,
+      string,
+      number,
+      number | null,
+      string,
+      number,
+      number,
+      number,
+    ]
+  >(
+    `INSERT INTO annotations
+       (id, practice_id, user_id, start_ms, end_ms, body, starred, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ),
+  updateAnnotation: db.prepare<
+    [number, number | null, string, number, number, string]
+  >(
+    `UPDATE annotations
+        SET start_ms = ?, end_ms = ?, body = ?, starred = ?, updated_at = ?
+      WHERE id = ?`,
+  ),
+  deleteAnnotation: db.prepare<[string]>(
+    'DELETE FROM annotations WHERE id = ?',
   ),
 };

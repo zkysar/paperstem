@@ -66,3 +66,17 @@ CREATE TABLE IF NOT EXISTS stems (
   size_bytes    INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_stems_practice ON stems(practice_id, position);
+
+CREATE TABLE IF NOT EXISTS annotations (
+  id           TEXT PRIMARY KEY,
+  practice_id  TEXT NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
+  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  start_ms     INTEGER NOT NULL,
+  end_ms       INTEGER,
+  body         TEXT NOT NULL,
+  starred      INTEGER NOT NULL DEFAULT 0,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_annotations_practice_user ON annotations(practice_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_annotations_practice_start ON annotations(practice_id, start_ms);
