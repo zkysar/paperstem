@@ -72,9 +72,13 @@ export function Sidebar({
                 onClick={() => onSelect(p.id)}
               >
                 <span className="practice-title">{p.title}</span>
-                <span className="practice-meta">
-                  {p.folder.replace(/\/$/, '')} · {p.stems.length} stems
-                </span>
+                {(p.folder || p.stems.length > 0) && (
+                  <span className="practice-meta">
+                    {p.folder
+                      ? `${p.folder.replace(/\/$/, '')} · ${p.stems.length} stems`
+                      : `${p.stems.length} stems`}
+                  </span>
+                )}
               </button>
             </li>
           ))}

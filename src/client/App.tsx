@@ -1,17 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { LoginScreen } from './auth/LoginScreen';
+import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Player } from './components/Player';
 import { Sidebar } from './components/Sidebar';
-import { StaticPracticesRepo } from './data/practices-repo';
+import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
 import type { Practice, StemSource } from './data/types';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
 import { downloadStemsAsZip } from './lib/download';
 import type { User } from '../shared/types';
-
-const repo = new StaticPracticesRepo();
 
 export default function App() {
   const { user, loading, logout } = useSession();
@@ -24,6 +23,13 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   const player = usePlayer();
   useKeyboard(player);
 
+  const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
+  const activeBandId = bands[0]?.id ?? null;
+  const repo = useMemo<PracticesRepo | null>(
+    () => (activeBandId ? new HttpPracticesRepo(activeBandId) : null),
+    [activeBandId],
+  );
+
   const [practices, setPractices] = useState<Practice[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
@@ -31,12 +37,16 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
+    if (!repo) {
+      setPractices([]);
+      return;
+    }
     let cancelled = false;
     repo.list().then(
       (list) => {
         if (cancelled) return;
         setPractices(list);
-        if (list.length > 0) selectPractice(list[0].id, list);
+        setLoadError(null);
       },
       (err: Error) => {
         if (!cancelled) setLoadError(err.message);
@@ -45,19 +55,28 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [repo]);
 
-  function selectPractice(id: string, list: Practice[] = practices) {
-    const p = list.find((x) => x.id === id);
-    if (!p) return;
+  async function selectPractice(id: string) {
+    if (!repo) return;
     setActivePracticeId(id);
     setDrawerOpen(false);
-    const sources: StemSource[] = p.stems.map((name) => ({
-      name,
-      src: `${import.meta.env.BASE_URL}${p.folder}${encodeURIComponent(name)}`,
-    }));
-    void player.load({ practiceId: p.id, title: p.title, sources });
+    try {
+      const detail = await repo.getById(id);
+      setPractices((prev) => prev.map((p) => (p.id === detail.id ? detail : p)));
+      const sources: StemSource[] = detail.stems.map((stemId) => ({
+        name: stemId,
+        src: `/api/audio/${encodeURIComponent(stemId)}`,
+      }));
+      void player.load({
+        practiceId: detail.id,
+        title: detail.title,
+        sources,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLoadError(msg);
+    }
   }
 
   function loadFolder(files: File[], folderName: string) {
@@ -92,6 +111,28 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     }
   }
 
+  if (bandsLoading) return null;
+
+  if (!bandsLoading && bands.length === 0) {
+    return (
+      <>
+        <header className="topbar">
+          <h1 className="brand">Paperstem</h1>
+          <span className="topbar-spacer" />
+          <button type="button" className="logout-btn" onClick={onLogout}>
+            Sign out
+          </button>
+        </header>
+        <div className="app">
+          <main className="empty-state">
+            <p>You're not in any bands yet. Ask your band's owner to add you.</p>
+            {bandsError && <p className="error">Could not load bands ({bandsError}).</p>}
+          </main>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <header className="topbar">
@@ -118,7 +159,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
           drawerOpen={drawerOpen}
           userEmail={user.email}
           onClose={() => setDrawerOpen(false)}
-          onSelect={(id) => selectPractice(id)}
+          onSelect={(id) => void selectPractice(id)}
           onLoadFolder={loadFolder}
           onLogout={onLogout}
         />

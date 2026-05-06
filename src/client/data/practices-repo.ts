@@ -1,23 +1,55 @@
-import type { Practice } from './types';
+import type {
+  Practice,
+  PracticeDetail,
+  PracticeSummary,
+  StemSummary,
+} from './types';
 
 export interface PracticesRepo {
   list(): Promise<Practice[]>;
+  getById(id: string): Promise<Practice>;
 }
 
-// Reads ./practices.json relative to the deployed app. The file is in public/
-// so it's served at the site's base path. Future implementations of this
-// interface will hit a real backend; only this file changes.
-export class StaticPracticesRepo implements PracticesRepo {
-  private readonly url: string;
+function summaryToPractice(p: PracticeSummary): Practice {
+  return {
+    id: p.id,
+    title: p.name,
+    folder: '',
+    stems: [],
+  };
+}
 
-  constructor(url = `${import.meta.env.BASE_URL}practices.json`) {
-    this.url = url;
-  }
+function detailToPractice(detail: PracticeDetail, stems: StemSummary[]): Practice {
+  return {
+    id: detail.id,
+    title: detail.name,
+    folder: '',
+    stems: stems.map((s) => s.id),
+  };
+}
+
+export class HttpPracticesRepo implements PracticesRepo {
+  constructor(private readonly bandId: string) {}
 
   async list(): Promise<Practice[]> {
-    const res = await fetch(this.url);
+    const res = await fetch(
+      `/api/practices?band_id=${encodeURIComponent(this.bandId)}`,
+      { credentials: 'include' },
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = (await res.json()) as { practices?: Practice[] };
-    return data.practices ?? [];
+    const data = (await res.json()) as { practices: PracticeSummary[] };
+    return data.practices.map(summaryToPractice);
+  }
+
+  async getById(id: string): Promise<Practice> {
+    const res = await fetch(`/api/practices/${encodeURIComponent(id)}`, {
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = (await res.json()) as {
+      practice: PracticeDetail;
+      stems: StemSummary[];
+    };
+    return detailToPractice(data.practice, data.stems);
   }
 }

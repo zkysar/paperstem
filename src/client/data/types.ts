@@ -5,6 +5,38 @@ export type Practice = {
   stems: string[];
 };
 
+export type PracticeSummary = {
+  id: string;
+  name: string;
+  recorded_on: string | null;
+  bpm: number | null;
+  reference_stem: string | null;
+  created_at: number;
+  updated_at: number;
+};
+
+export type StemSummary = {
+  id: string;
+  name: string;
+  position: number;
+  duration_ms: number | null;
+  size_bytes: number | null;
+};
+
+export type PracticeDetail = {
+  id: string;
+  band_id: string;
+  name: string;
+  recorded_on: string | null;
+  drive_folder_id: string;
+  bpm: number | null;
+  reference_stem: string | null;
+  notes: string | null;
+  created_at: number;
+  created_by: string;
+  updated_at: number;
+};
+
 export type LoadedStem = {
   name: string;
   displayName: string;
