@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AUDIO_EXT } from '../lib/audio';
+import { compressToMp3 } from '../lib/audio-compress';
 
 const MAX_NAME_LENGTH = 200;
 const MAX_STEM_BYTES = 100 * 1024 * 1024;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-type UploadStatus = 'pending' | 'uploading' | 'done' | 'failed';
+type UploadStatus = 'pending' | 'compressing' | 'uploading' | 'done' | 'failed';
 
 type FileEntry = {
   file: File;
@@ -119,14 +120,6 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
     const all = Array.from(e.target.files ?? []);
     const audio = all.filter((f) => AUDIO_EXT.test(f.name));
     audio.sort((a, b) => a.name.localeCompare(b.name));
-    const oversized = audio.find((f) => f.size > MAX_STEM_BYTES);
-    if (oversized) {
-      setTopError(
-        `${oversized.name} exceeds 100MB; split or compress before uploading.`,
-      );
-      setFiles([]);
-      return;
-    }
     setTopError(null);
     setFiles(
       audio.map((file) => ({
@@ -190,9 +183,32 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
     for (let i = 0; i < files.length; i++) {
       const entry = files[i];
       if (entry.status === 'done') continue;
+
+      let toUpload = entry.file;
+      if (toUpload.size > MAX_STEM_BYTES) {
+        updateFile(i, { status: 'compressing', progress: 0, error: null });
+        try {
+          toUpload = await compressToMp3(toUpload, (frac) => {
+            updateFile(i, { progress: frac });
+          });
+          updateFile(i, { file: toUpload, progress: 1 });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          updateFile(i, { status: 'failed', error: `compression_failed: ${msg}` });
+          continue;
+        }
+        if (toUpload.size > MAX_STEM_BYTES) {
+          updateFile(i, {
+            status: 'failed',
+            error: 'still_over_100mb_after_compression',
+          });
+          continue;
+        }
+      }
+
       updateFile(i, { status: 'uploading', progress: 0, error: null });
       try {
-        await uploadStem(practiceId, entry.file, i + 1, (frac) => {
+        await uploadStem(practiceId, toUpload, i + 1, (frac) => {
           updateFile(i, { progress: frac });
         });
         updateFile(i, { status: 'done', progress: 1, error: null });
@@ -317,8 +333,10 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
                   <progress value={f.progress} max={1} />
                   <span className="upload-file-status">
                     {f.status === 'pending' && 'pending'}
+                    {f.status === 'compressing' &&
+                      `compressing ${Math.round(f.progress * 100)}%`}
                     {f.status === 'uploading' &&
-                      `${Math.round(f.progress * 100)}%`}
+                      `uploading ${Math.round(f.progress * 100)}%`}
                     {f.status === 'done' && 'done'}
                     {f.status === 'failed' && (
                       <>
