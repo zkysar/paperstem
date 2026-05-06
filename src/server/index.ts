@@ -16,6 +16,12 @@ import {
   handleListPractices,
 } from './practices.js';
 import { handleGetAudio } from './audio.js';
+import {
+  handleCreateAnnotation,
+  handleDeleteAnnotation,
+  handleListAnnotations,
+  handlePatchAnnotation,
+} from './annotations.js';
 import { registerStatic } from './static.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -39,6 +45,10 @@ app.get('/api/practices/:id', handleGetPractice);
 app.post('/api/practices', handleCreatePractice);
 app.post('/api/practices/:id/stems', handleCreateStem);
 app.get('/api/audio/:stem_id', handleGetAudio);
+app.get('/api/practices/:id/annotations', handleListAnnotations);
+app.post('/api/practices/:id/annotations', handleCreateAnnotation);
+app.patch('/api/annotations/:id', handlePatchAnnotation);
+app.delete('/api/annotations/:id', handleDeleteAnnotation);
 
 app.get('/auth/callback', (c) => {
   const token = c.req.query('token') ?? '';

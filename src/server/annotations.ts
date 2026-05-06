@@ -1,0 +1,218 @@
+import { randomUUID } from 'node:crypto';
+import type { Context } from 'hono';
+import { stmts, type AnnotationJoinedRow } from './db.js';
+import { requireUser, type AuthVariables } from './auth/middleware.js';
+import type { Annotation } from '../shared/types.js';
+
+const MAX_BODY_LENGTH = 32768;
+
+function toApiAnnotation(row: AnnotationJoinedRow): Annotation {
+  return {
+    id: row.id,
+    practice_id: row.practice_id,
+    user_id: row.user_id,
+    user_email: row.user_email,
+    user_display_name: row.user_display_name,
+    start_ms: row.start_ms,
+    end_ms: row.end_ms,
+    body: row.body,
+    starred: row.starred === 1,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function validateStartEnd(
+  start_ms: unknown,
+  end_ms: unknown,
+): { ok: true; start: number; end: number | null } | { ok: false } {
+  if (typeof start_ms !== 'number' || !Number.isFinite(start_ms)) return { ok: false };
+  if (!Number.isInteger(start_ms) || start_ms < 0) return { ok: false };
+  let end: number | null;
+  if (end_ms === null || end_ms === undefined) {
+    end = null;
+  } else if (typeof end_ms !== 'number' || !Number.isFinite(end_ms)) {
+    return { ok: false };
+  } else if (!Number.isInteger(end_ms) || end_ms <= start_ms) {
+    return { ok: false };
+  } else {
+    end = end_ms;
+  }
+  return { ok: true, start: start_ms, end };
+}
+
+function validateBody(body: unknown): string | null {
+  if (typeof body !== 'string') return null;
+  if (body.length < 1 || body.length > MAX_BODY_LENGTH) return null;
+  return body;
+}
+
+export function handleListAnnotations(
+  c: Context<{ Variables: AuthVariables }>,
+): Response {
+  const user = requireUser(c);
+  const practiceId = c.req.param('id') ?? '';
+  if (!practiceId) return c.json({ error: 'not_found' }, 404);
+
+  const practice = stmts.findPracticeById.get(practiceId);
+  if (!practice) return c.json({ error: 'not_found' }, 404);
+  if (!stmts.findMembership.get(practice.band_id, user.id)) {
+    return c.json({ error: 'not_found' }, 404);
+  }
+
+  const rows = stmts.findAnnotationsForPractice.all(practiceId);
+  return c.json({ annotations: rows.map(toApiAnnotation) });
+}
+
+type CreateAnnotationBody = {
+  start_ms?: unknown;
+  end_ms?: unknown;
+  body?: unknown;
+  starred?: unknown;
+};
+
+export async function handleCreateAnnotation(
+  c: Context<{ Variables: AuthVariables }>,
+): Promise<Response> {
+  const user = requireUser(c);
+  const practiceId = c.req.param('id') ?? '';
+  if (!practiceId) return c.json({ error: 'not_found' }, 404);
+
+  const practice = stmts.findPracticeById.get(practiceId);
+  if (!practice) return c.json({ error: 'not_found' }, 404);
+  if (!stmts.findMembership.get(practice.band_id, user.id)) {
+    return c.json({ error: 'not_found' }, 404);
+  }
+
+  let body: CreateAnnotationBody;
+  try {
+    body = (await c.req.json()) as CreateAnnotationBody;
+  } catch {
+    return c.json({ error: 'invalid_json' }, 400);
+  }
+
+  const range = validateStartEnd(body.start_ms, body.end_ms ?? null);
+  if (!range.ok) return c.json({ error: 'invalid_input' }, 400);
+
+  const text = validateBody(body.body);
+  if (text === null) return c.json({ error: 'invalid_input' }, 400);
+
+  const starred = body.starred === true ? 1 : 0;
+
+  const id = randomUUID();
+  const now = Math.floor(Date.now() / 1000);
+  stmts.insertAnnotation.run(
+    id,
+    practiceId,
+    user.id,
+    range.start,
+    range.end,
+    text,
+    starred,
+    now,
+    now,
+  );
+
+  const row = stmts.findAnnotationByIdJoined.get(id);
+  if (!row) return c.json({ error: 'server_error' }, 500);
+  return c.json({ annotation: toApiAnnotation(row) }, 201);
+}
+
+type PatchAnnotationBody = {
+  start_ms?: unknown;
+  end_ms?: unknown;
+  body?: unknown;
+  starred?: unknown;
+};
+
+export async function handlePatchAnnotation(
+  c: Context<{ Variables: AuthVariables }>,
+): Promise<Response> {
+  const user = requireUser(c);
+  const id = c.req.param('id') ?? '';
+  if (!id) return c.json({ error: 'not_found' }, 404);
+
+  const existing = stmts.findAnnotationById.get(id);
+  if (!existing) return c.json({ error: 'not_found' }, 404);
+
+  const practice = stmts.findPracticeById.get(existing.practice_id);
+  if (!practice) return c.json({ error: 'not_found' }, 404);
+  if (!stmts.findMembership.get(practice.band_id, user.id)) {
+    return c.json({ error: 'not_found' }, 404);
+  }
+  if (existing.user_id !== user.id) {
+    return c.json({ error: 'forbidden' }, 403);
+  }
+
+  let patch: PatchAnnotationBody;
+  try {
+    patch = (await c.req.json()) as PatchAnnotationBody;
+  } catch {
+    return c.json({ error: 'invalid_json' }, 400);
+  }
+
+  const nextStartRaw =
+    patch.start_ms === undefined ? existing.start_ms : patch.start_ms;
+  const nextEndRaw =
+    patch.end_ms === undefined ? existing.end_ms : patch.end_ms;
+
+  const range = validateStartEnd(nextStartRaw, nextEndRaw);
+  if (!range.ok) return c.json({ error: 'invalid_input' }, 400);
+
+  let nextBody: string;
+  if (patch.body === undefined) {
+    nextBody = existing.body;
+  } else {
+    const text = validateBody(patch.body);
+    if (text === null) return c.json({ error: 'invalid_input' }, 400);
+    nextBody = text;
+  }
+
+  let nextStarred: number;
+  if (patch.starred === undefined) {
+    nextStarred = existing.starred;
+  } else if (typeof patch.starred !== 'boolean') {
+    return c.json({ error: 'invalid_input' }, 400);
+  } else {
+    nextStarred = patch.starred ? 1 : 0;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  stmts.updateAnnotation.run(
+    range.start,
+    range.end,
+    nextBody,
+    nextStarred,
+    now,
+    id,
+  );
+
+  const row = stmts.findAnnotationByIdJoined.get(id);
+  if (!row) return c.json({ error: 'server_error' }, 500);
+  return c.json({ annotation: toApiAnnotation(row) });
+}
+
+export function handleDeleteAnnotation(
+  c: Context<{ Variables: AuthVariables }>,
+): Response {
+  const user = requireUser(c);
+  const id = c.req.param('id') ?? '';
+  if (!id) return c.json({ error: 'not_found' }, 404);
+
+  const existing = stmts.findAnnotationById.get(id);
+  if (!existing) return c.json({ error: 'not_found' }, 404);
+
+  const practice = stmts.findPracticeById.get(existing.practice_id);
+  if (!practice) return c.json({ error: 'not_found' }, 404);
+  if (!stmts.findMembership.get(practice.band_id, user.id)) {
+    return c.json({ error: 'not_found' }, 404);
+  }
+  if (existing.user_id !== user.id) {
+    return c.json({ error: 'forbidden' }, 403);
+  }
+
+  stmts.deleteAnnotation.run(id);
+  return c.body(null, 204);
+}
+
+export const _internal = { validateStartEnd, validateBody };
