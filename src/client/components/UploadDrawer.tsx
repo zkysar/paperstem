@@ -75,7 +75,6 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(defaultPracticeName());
   const [recordedOn, setRecordedOn] = useState(todayIso());
-  const [bpm, setBpm] = useState('');
   const [referenceStem, setReferenceStem] = useState('');
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -85,7 +84,6 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
     if (!open) {
       setName(defaultPracticeName());
       setRecordedOn(todayIso());
-      setBpm('');
       setReferenceStem('');
       setFiles([]);
       setSubmitting(false);
@@ -97,20 +95,13 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
   const trimmedName = name.trim();
   const nameValid = trimmedName.length > 0 && trimmedName.length <= MAX_NAME_LENGTH;
   const dateValid = recordedOn === '' || ISO_DATE_RE.test(recordedOn);
-  const bpmValid =
-    bpm === '' ||
-    (() => {
-      const n = Number(bpm);
-      return Number.isInteger(n) && n >= 1 && n <= 300;
-    })();
 
   const validation = useMemo(() => {
     if (!nameValid) return 'Practice name is required (≤ 200 chars).';
     if (!dateValid) return 'Date must be YYYY-MM-DD.';
-    if (!bpmValid) return 'BPM must be an integer 1–300.';
     if (files.length === 0) return 'Pick a folder of audio files.';
     return null;
-  }, [nameValid, dateValid, bpmValid, files.length]);
+  }, [nameValid, dateValid, files.length]);
 
   const canSubmit = !submitting && validation === null;
   const allDone =
@@ -149,7 +140,6 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
       name: trimmedName,
     };
     if (recordedOn) practiceBody.recorded_on = recordedOn;
-    if (bpm !== '') practiceBody.bpm = Number(bpm);
     if (referenceStem) practiceBody.reference_stem = referenceStem;
 
     let practiceId: string;
@@ -275,19 +265,6 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
               type="date"
               value={recordedOn}
               onChange={(e) => setRecordedOn(e.target.value)}
-              disabled={submitting}
-            />
-          </label>
-
-          <label className="upload-field">
-            <span>BPM (optional)</span>
-            <input
-              type="number"
-              min={1}
-              max={300}
-              step={1}
-              value={bpm}
-              onChange={(e) => setBpm(e.target.value)}
               disabled={submitting}
             />
           </label>
