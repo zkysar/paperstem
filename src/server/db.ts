@@ -59,6 +59,32 @@ export type BandMemberRow = {
   role: 'owner' | 'member';
 };
 
+export type PracticeRow = {
+  id: string;
+  band_id: string;
+  name: string;
+  recorded_on: string | null;
+  drive_folder_id: string;
+  bpm: number | null;
+  reference_stem: string | null;
+  notes: string | null;
+  created_at: number;
+  created_by: string;
+  updated_at: number;
+};
+
+export type StemRow = {
+  id: string;
+  practice_id: string;
+  name: string;
+  position: number;
+  drive_file_id: string;
+  duration_ms: number | null;
+  size_bytes: number | null;
+};
+
+export type StemWithBandRow = StemRow & { band_id: string };
+
 export const stmts = {
   findUserByEmail: db.prepare<[string], UserRow>(
     'SELECT * FROM users WHERE email = ?',
@@ -132,5 +158,54 @@ export const stmts = {
   ),
   findBandByNameAndOwner: db.prepare<[string, string], BandRow>(
     'SELECT * FROM bands WHERE name = ? AND owner_user_id = ?',
+  ),
+  updateBandDriveFolder: db.prepare<[string, string]>(
+    'UPDATE bands SET drive_folder_id = ? WHERE id = ?',
+  ),
+  findPracticeById: db.prepare<[string], PracticeRow>(
+    'SELECT * FROM practices WHERE id = ?',
+  ),
+  findPracticesForBand: db.prepare<[string], PracticeRow>(
+    `SELECT * FROM practices
+      WHERE band_id = ?
+      ORDER BY recorded_on DESC, created_at DESC`,
+  ),
+  findStemsForPractice: db.prepare<[string], StemRow>(
+    'SELECT * FROM stems WHERE practice_id = ? ORDER BY position',
+  ),
+  findStemById: db.prepare<[string], StemRow>(
+    'SELECT * FROM stems WHERE id = ?',
+  ),
+  findStemWithBandId: db.prepare<[string], StemWithBandRow>(
+    `SELECT s.*, p.band_id
+       FROM stems s
+       JOIN practices p ON p.id = s.practice_id
+      WHERE s.id = ?`,
+  ),
+  insertPractice: db.prepare<
+    [
+      string,
+      string,
+      string,
+      string | null,
+      string,
+      number | null,
+      string | null,
+      string | null,
+      number,
+      string,
+      number,
+    ]
+  >(
+    `INSERT INTO practices
+       (id, band_id, name, recorded_on, drive_folder_id, bpm, reference_stem, notes, created_at, created_by, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ),
+  insertStem: db.prepare<
+    [string, string, string, number, string, number | null, number | null]
+  >(
+    `INSERT INTO stems
+       (id, practice_id, name, position, drive_file_id, duration_ms, size_bytes)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ),
 };

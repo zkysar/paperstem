@@ -40,3 +40,29 @@ CREATE TABLE IF NOT EXISTS memberships (
 );
 
 CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id);
+
+CREATE TABLE IF NOT EXISTS practices (
+  id              TEXT PRIMARY KEY,
+  band_id         TEXT NOT NULL REFERENCES bands(id) ON DELETE CASCADE,
+  name            TEXT NOT NULL,
+  recorded_on     TEXT,
+  drive_folder_id TEXT NOT NULL,
+  bpm             INTEGER,
+  reference_stem  TEXT,
+  notes           TEXT,
+  created_at      INTEGER NOT NULL,
+  created_by      TEXT NOT NULL REFERENCES users(id),
+  updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_practices_band_recorded ON practices(band_id, recorded_on DESC);
+
+CREATE TABLE IF NOT EXISTS stems (
+  id            TEXT PRIMARY KEY,
+  practice_id   TEXT NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
+  name          TEXT NOT NULL,
+  position      INTEGER NOT NULL,
+  drive_file_id TEXT NOT NULL,
+  duration_ms   INTEGER,
+  size_bytes    INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_stems_practice ON stems(practice_id, position);
