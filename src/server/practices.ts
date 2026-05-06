@@ -353,8 +353,7 @@ export async function handleCreateStem(
   const stemName = ext ? parsed.filename.slice(0, -ext.length) : parsed.filename;
 
   const position =
-    parsed.position ??
-    (stmts.countStemsForPractice.get(practiceId)?.c ?? 0) + 1;
+    parsed.position ?? (stmts.countStemsForPractice.get(practiceId)?.c ?? 0);
 
   const stemId = randomUUID();
   stmts.insertStem.run(
