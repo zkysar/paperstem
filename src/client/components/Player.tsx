@@ -224,11 +224,7 @@ export function Player({
   function onRulerPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!duration) return;
     if (e.button !== 0) return;
-    if (annotationCreateMode) {
-      startAnnotationDrag(e.clientX, e.pointerId);
-      e.preventDefault();
-      return;
-    }
+    if (annotationCreateMode) return;
     const t = xToTime(e.clientX);
     startDrag(
       {
@@ -500,6 +496,18 @@ export function Player({
       )}
 
       <div className="stage" ref={stageRef}>
+        {annotationCreateMode && duration > 0 && (
+          <div
+            className="annotation-create-overlay"
+            style={{ left: `${wr.left}px`, width: `${wr.width}px` }}
+            onPointerDown={(e) => {
+              if (e.button !== 0) return;
+              startAnnotationDrag(e.clientX, e.pointerId);
+              e.preventDefault();
+            }}
+            aria-label="Click for point annotation, drag for region"
+          />
+        )}
         <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
         <div className="tracks" ref={tracksRef}>
           {!stems.length && <div className="empty">No practice loaded.</div>}
