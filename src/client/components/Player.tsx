@@ -33,7 +33,8 @@ type Props = {
   onDownloadAll(): void;
   downloading: boolean;
   annotations: Annotation[];
-  selfUserId: string;
+  userColorMap: Map<string, string>;
+  markersVisible: boolean;
   annotationsOpen: boolean;
   onToggleAnnotations(): void;
   annotationCreateMode: boolean;
@@ -48,7 +49,8 @@ export function Player({
   onDownloadAll,
   downloading,
   annotations,
-  selfUserId,
+  userColorMap,
+  markersVisible,
   annotationsOpen,
   onToggleAnnotations,
   annotationCreateMode,
@@ -461,6 +463,21 @@ export function Player({
         </span>
       </div>
 
+      {annotationCreateMode && (
+        <div className="annotation-mode-banner" role="status">
+          <span className="annotation-mode-dot" aria-hidden="true" />
+          <strong>Annotation mode</strong> &middot; click the timeline for a
+          point, drag for a region &middot; <kbd>Esc</kbd> or click + to cancel
+          <button
+            type="button"
+            className="annotation-mode-cancel"
+            onClick={onToggleAnnotationCreate}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       <div className="stage" ref={stageRef}>
         <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
         <div className="tracks" ref={tracksRef}>
@@ -492,7 +509,8 @@ export function Player({
         <AnnotationMarkers
           annotations={annotations}
           duration={duration}
-          selfUserId={selfUserId}
+          userColorMap={userColorMap}
+          visible={markersVisible}
           waveLeftPx={wr.left}
           waveWidthPx={wr.width}
           onSelect={onAnnotationSelected}

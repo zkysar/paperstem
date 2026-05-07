@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import type { Annotation } from '../../shared/types';
-import { colorForAnnotationAuthor } from '../lib/colors';
+import { SELF_ANNOTATION_COLOR } from '../lib/colors';
 
 type Props = {
   annotations: Annotation[];
   duration: number;
-  selfUserId: string;
+  userColorMap: Map<string, string>;
+  visible: boolean;
   waveLeftPx: number;
   waveWidthPx: number;
   onSelect(annotation: Annotation): void;
@@ -22,7 +23,8 @@ function bodyPreview(body: string): string {
 export function AnnotationMarkers({
   annotations,
   duration,
-  selfUserId,
+  userColorMap,
+  visible,
   waveLeftPx,
   waveWidthPx,
   onSelect,
@@ -30,10 +32,11 @@ export function AnnotationMarkers({
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   const markers = useMemo(() => {
+    if (!visible) return [];
     if (!duration || !waveWidthPx) return [];
     const durationMs = duration * 1000;
     return annotations.map((a) => {
-      const color = colorForAnnotationAuthor(a.user_id, selfUserId);
+      const color = userColorMap.get(a.user_id) ?? SELF_ANNOTATION_COLOR;
       const startFrac = Math.max(0, Math.min(1, a.start_ms / durationMs));
       const left = waveLeftPx + startFrac * waveWidthPx;
       if (a.end_ms === null) {
@@ -43,7 +46,7 @@ export function AnnotationMarkers({
       const width = Math.max(2, (endFrac - startFrac) * waveWidthPx);
       return { ann: a, color, left, width, isRegion: true };
     });
-  }, [annotations, duration, selfUserId, waveLeftPx, waveWidthPx]);
+  }, [annotations, duration, userColorMap, visible, waveLeftPx, waveWidthPx]);
 
   if (!markers.length) return null;
 

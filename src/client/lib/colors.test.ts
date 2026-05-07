@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import {
   ANNOTATION_PALETTE,
   SELF_ANNOTATION_COLOR,
+  buildUserColorMap,
   colorForAnnotationAuthor,
   mix,
   paletteIndexForUserId,
@@ -66,5 +67,49 @@ describe('colorForAnnotationAuthor', () => {
       colors.add(colorForAnnotationAuthor(`u-${i}`, 'me'));
     }
     expect(colors.size).toBeGreaterThan(1);
+  });
+});
+
+describe('buildUserColorMap', () => {
+  test('self maps to SELF color', () => {
+    const m = buildUserColorMap(['me', 'a'], 'me');
+    expect(m.get('me')).toBe(SELF_ANNOTATION_COLOR);
+  });
+
+  test('distinct non-self users get distinct palette colors up to palette size', () => {
+    const ids = ['u-a', 'u-b', 'u-c', 'u-d', 'u-e', 'u-f'];
+    const m = buildUserColorMap(ids, 'me');
+    const colors = ids.map((id) => m.get(id));
+    expect(new Set(colors).size).toBe(Math.min(ids.length, ANNOTATION_PALETTE.length));
+  });
+
+  test('order is stable across iteration order changes', () => {
+    const a = buildUserColorMap(['c', 'a', 'b'], 'me');
+    const b = buildUserColorMap(['b', 'c', 'a'], 'me');
+    expect(a.get('a')).toBe(b.get('a'));
+    expect(a.get('b')).toBe(b.get('b'));
+    expect(a.get('c')).toBe(b.get('c'));
+  });
+
+  test('handles real Paper Straw user_ids without collision', () => {
+    const m = buildUserColorMap(
+      [
+        '299ac971-45be-4cf2-b309-dfd32fbab2da',
+        '82e490ff-790f-443f-b3a1-ea87e7eb166f',
+        'df86cea3-17f5-45b0-826e-0a8f5527b196',
+        '644dc61c-946d-48e1-b2bb-d344c2fb1d97',
+        '4518df3f-ae9c-41aa-922f-e2e8272384f7',
+        'ee6ecda7-15e0-4c21-a818-e06311e743f0',
+      ],
+      '299ac971-45be-4cf2-b309-dfd32fbab2da',
+    );
+    const non_self = [
+      m.get('82e490ff-790f-443f-b3a1-ea87e7eb166f'),
+      m.get('df86cea3-17f5-45b0-826e-0a8f5527b196'),
+      m.get('644dc61c-946d-48e1-b2bb-d344c2fb1d97'),
+      m.get('4518df3f-ae9c-41aa-922f-e2e8272384f7'),
+      m.get('ee6ecda7-15e0-4c21-a818-e06311e743f0'),
+    ];
+    expect(new Set(non_self).size).toBe(5);
   });
 });

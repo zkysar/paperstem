@@ -15,6 +15,7 @@ import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
 import type { Practice, StemSource } from './data/types';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
+import { buildUserColorMap } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
 import type { Annotation, User } from '../shared/types';
 
@@ -48,10 +49,25 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const [annotationCreateMode, setAnnotationCreateMode] = useState(false);
+  const [markersVisible, setMarkersVisible] = useState(true);
   const [pendingDraft, setPendingDraft] = useState<AnnotationDraft | null>(null);
   const [highlightAnnotationId, setHighlightAnnotationId] = useState<
     string | null
   >(null);
+
+  const userColorMap = useMemo(
+    () => buildUserColorMap(annotations.map((a) => a.user_id), user.id),
+    [annotations, user.id],
+  );
+
+  useEffect(() => {
+    if (!annotationCreateMode) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setAnnotationCreateMode(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [annotationCreateMode]);
   const [isWide, setIsWide] = useState(() =>
     typeof window === 'undefined'
       ? false
@@ -274,7 +290,8 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
             onDownloadAll={onDownloadAll}
             downloading={downloading}
             annotations={annotations}
-            selfUserId={user.id}
+            userColorMap={userColorMap}
+            markersVisible={markersVisible}
             annotationsOpen={annotationsOpen}
             onToggleAnnotations={() => setAnnotationsOpen((v) => !v)}
             annotationCreateMode={annotationCreateMode}
@@ -283,15 +300,17 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
             }
             onAnnotationCreated={handleAnnotationCreated}
             onAnnotationSelected={handleAnnotationSelected}
-            canCreateAnnotations={isWide && activePracticeId !== null}
+            canCreateAnnotations={activePracticeId !== null}
           />
         </ErrorBoundary>
         <AnnotationsDrawer
           open={annotationsOpen}
           practiceId={activePracticeId}
           selfUserId={user.id}
-          canEdit={isWide && activePracticeId !== null}
+          canEdit={activePracticeId !== null}
           annotations={annotations}
+          userColorMap={userColorMap}
+          markersVisible={markersVisible}
           pendingDraft={pendingDraft}
           highlightId={highlightAnnotationId}
           onClose={() => {
@@ -301,6 +320,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
           onSeek={(seconds) => player.seek(seconds)}
           onAnnotationsChange={setAnnotations}
           onDraftCancel={() => setPendingDraft(null)}
+          onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}
         />
       </div>
     </>

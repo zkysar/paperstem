@@ -41,6 +41,29 @@ export function colorForAnnotationAuthor(
   ];
 }
 
+// Build a stable user_id → color map from the current set of annotation
+// authors. Self gets the brand accent. Non-self authors are sorted by
+// user_id and assigned palette colors by rank, guaranteeing distinct hues
+// for up to ANNOTATION_PALETTE.length unique non-self authors. Beyond that
+// the palette wraps and collisions become possible — acceptable at band
+// scale (max ~6 members per design doc).
+export function buildUserColorMap(
+  userIds: Iterable<string>,
+  selfUserId: string,
+): Map<string, string> {
+  const out = new Map<string, string>();
+  out.set(selfUserId, SELF_ANNOTATION_COLOR);
+  const seen = new Set<string>();
+  for (const id of userIds) {
+    if (id !== selfUserId) seen.add(id);
+  }
+  const sorted = [...seen].sort();
+  for (let i = 0; i < sorted.length; i++) {
+    out.set(sorted[i], ANNOTATION_PALETTE[i % ANNOTATION_PALETTE.length]);
+  }
+  return out;
+}
+
 // Mix two #rrggbb hex colors. t=0 returns a, t=1 returns b.
 export function mix(a: string, b: string, t: number): string {
   const ah = parseInt(a.slice(1), 16);

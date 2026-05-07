@@ -5,7 +5,7 @@ import {
   deleteAnnotation,
   patchAnnotation,
 } from '../data/annotations-repo';
-import { colorForAnnotationAuthor } from '../lib/colors';
+import { SELF_ANNOTATION_COLOR } from '../lib/colors';
 import { fmt } from '../lib/format';
 
 type Props = {
@@ -14,12 +14,15 @@ type Props = {
   selfUserId: string;
   canEdit: boolean;
   annotations: Annotation[];
+  userColorMap: Map<string, string>;
+  markersVisible: boolean;
   pendingDraft: AnnotationDraft | null;
   highlightId: string | null;
   onClose(): void;
   onSeek(seconds: number): void;
   onAnnotationsChange(next: Annotation[]): void;
   onDraftCancel(): void;
+  onToggleMarkersVisible(): void;
 };
 
 export type AnnotationDraft = {
@@ -43,12 +46,15 @@ export function AnnotationsDrawer({
   selfUserId,
   canEdit,
   annotations,
+  userColorMap,
+  markersVisible,
   pendingDraft,
   highlightId,
   onClose,
   onSeek,
   onAnnotationsChange,
   onDraftCancel,
+  onToggleMarkersVisible,
 }: Props) {
   const [draftBody, setDraftBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -146,6 +152,14 @@ export function AnnotationsDrawer({
     <aside className="annotations-drawer" aria-label="Annotations">
       <div className="annotations-drawer-header">
         <h2>Annotations</h2>
+        <label className="annotations-markers-toggle" title="Show markers on the timeline">
+          <input
+            type="checkbox"
+            checked={markersVisible}
+            onChange={onToggleMarkersVisible}
+          />
+          <span>Show on timeline</span>
+        </label>
         <button
           type="button"
           className="annotations-drawer-close"
@@ -205,7 +219,7 @@ export function AnnotationsDrawer({
 
       <ul className="annotations-list">
         {annotations.map((a) => {
-          const color = colorForAnnotationAuthor(a.user_id, selfUserId);
+          const color = userColorMap.get(a.user_id) ?? SELF_ANNOTATION_COLOR;
           const isOwn = a.user_id === selfUserId;
           const isHighlighted = a.id === highlightId;
           const isEditing = editingId === a.id;
