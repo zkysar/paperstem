@@ -184,6 +184,18 @@ kbd {
   margin-top: 6px;
   word-break: break-word;
 }
+.drive-link {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule);
+}
+.drive-link:hover {
+  color: var(--ink, currentColor);
+  border-bottom-color: currentColor;
+}
 .player-header-right {
   display: flex;
   flex-direction: column;
