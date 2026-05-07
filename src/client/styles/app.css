@@ -891,6 +891,45 @@ kbd {
 }
 .annotations-markers-toggle input { margin: 0; }
 
+.annotation-drag-preview {
+  position: absolute;
+  top: 0;
+  height: 22px;
+  background: var(--accent);
+  opacity: 0.32;
+  border-left: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+  pointer-events: none;
+  z-index: 8;
+}
+
+.annotation-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.annotation-kind.region { font-size: 1rem; line-height: 1; }
+
+.annotation-loop {
+  background: transparent;
+  border: 1px solid var(--ink-muted, #999);
+  color: var(--ink, #333);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.annotation-loop:hover {
+  background: var(--accent);
+  color: var(--paper);
+  border-color: var(--accent);
+}
+
 .annotation-marker {
   position: absolute;
   pointer-events: auto;

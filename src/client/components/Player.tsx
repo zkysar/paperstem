@@ -246,23 +246,30 @@ export function Player({
     e.preventDefault();
   }
 
+  const [annotationDragPreview, setAnnotationDragPreview] = useState<
+    { start: number; end: number } | null
+  >(null);
+
   function startAnnotationDrag(originX: number, pointerId: number) {
     const originTime = xToTime(originX);
     let didMove = false;
     let lastStart = originTime;
     let lastEnd = originTime;
+    setAnnotationDragPreview({ start: originTime, end: originTime });
     function onMove(e: PointerEvent) {
       if (e.pointerId !== pointerId) return;
       if (Math.abs(e.clientX - originX) > DRAG_THRESHOLD_PX) didMove = true;
       const t = xToTime(e.clientX);
       lastStart = Math.min(originTime, t);
       lastEnd = Math.max(originTime, t);
+      setAnnotationDragPreview({ start: lastStart, end: lastEnd });
     }
     function onUp(e: PointerEvent) {
       if (e.pointerId !== pointerId) return;
       document.removeEventListener('pointermove', onMove);
       document.removeEventListener('pointerup', onUp);
       document.removeEventListener('pointercancel', onUp);
+      setAnnotationDragPreview(null);
       const startMs = Math.round((didMove ? lastStart : originTime) * 1000);
       const endMs = didMove
         ? Math.max(startMs + 1, Math.round(lastEnd * 1000))
@@ -273,6 +280,20 @@ export function Player({
     document.addEventListener('pointerup', onUp);
     document.addEventListener('pointercancel', onUp);
   }
+
+  const annotationPreviewLeft =
+    annotationDragPreview && duration
+      ? wr.left + (annotationDragPreview.start / duration) * wr.width
+      : 0;
+  const annotationPreviewWidth =
+    annotationDragPreview && duration
+      ? Math.max(
+          2,
+          ((annotationDragPreview.end - annotationDragPreview.start) /
+            duration) *
+            wr.width,
+        )
+      : 0;
 
   function onLoopPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!duration || !loop) return;
@@ -515,6 +536,16 @@ export function Player({
           waveWidthPx={wr.width}
           onSelect={onAnnotationSelected}
         />
+        {annotationDragPreview && (
+          <div
+            className="annotation-drag-preview"
+            style={{
+              left: `${annotationPreviewLeft}px`,
+              width: `${annotationPreviewWidth}px`,
+            }}
+            aria-hidden="true"
+          />
+        )}
         <Playhead visible={!!stems.length && !!duration} leftPx={playheadLeft} />
       </div>
 

@@ -177,6 +177,18 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     [player],
   );
 
+  const handleLoopAnnotation = useCallback(
+    (annotation: Annotation) => {
+      if (annotation.end_ms === null) return;
+      const start = annotation.start_ms / 1000;
+      const end = annotation.end_ms / 1000;
+      player.setLoop(start, end);
+      player.setLoopEnabled(true);
+      player.seek(start);
+    },
+    [player],
+  );
+
   function loadFolder(files: File[], folderName: string) {
     setDrawerOpen(false);
     if (!files.length) {
@@ -321,6 +333,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
           onAnnotationsChange={setAnnotations}
           onDraftCancel={() => setPendingDraft(null)}
           onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}
+          onLoopAnnotation={handleLoopAnnotation}
         />
       </div>
     </>

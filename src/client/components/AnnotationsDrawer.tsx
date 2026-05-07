@@ -23,7 +23,18 @@ type Props = {
   onAnnotationsChange(next: Annotation[]): void;
   onDraftCancel(): void;
   onToggleMarkersVisible(): void;
+  onLoopAnnotation(annotation: Annotation): void;
 };
+
+const IS_MAC =
+  typeof navigator !== 'undefined' &&
+  navigator.platform.toUpperCase().includes('MAC');
+const SUBMIT_HINT = IS_MAC ? '⌘↵' : 'Ctrl+↵';
+
+function isSubmitShortcut(e: React.KeyboardEvent<HTMLTextAreaElement>): boolean {
+  if (e.key !== 'Enter') return false;
+  return IS_MAC ? e.metaKey : e.ctrlKey;
+}
 
 export type AnnotationDraft = {
   start_ms: number;
@@ -55,6 +66,7 @@ export function AnnotationsDrawer({
   onAnnotationsChange,
   onDraftCancel,
   onToggleMarkersVisible,
+  onLoopAnnotation,
 }: Props) {
   const [draftBody, setDraftBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -190,6 +202,12 @@ export function AnnotationsDrawer({
             value={draftBody}
             placeholder="Write a note…"
             onChange={(e) => setDraftBody(e.target.value)}
+            onKeyDown={(e) => {
+              if (isSubmitShortcut(e) && draftBody.trim().length > 0 && !submitting) {
+                e.preventDefault();
+                void handleSaveDraft();
+              }
+            }}
             disabled={submitting}
             rows={3}
           />
@@ -207,7 +225,7 @@ export function AnnotationsDrawer({
               onClick={() => void handleSaveDraft()}
               disabled={submitting || draftBody.trim().length === 0}
             >
-              {submitting ? 'Saving…' : 'Save'}
+              {submitting ? 'Saving…' : `Save (${SUBMIT_HINT})`}
             </button>
           </div>
         </div>
@@ -239,6 +257,16 @@ export function AnnotationsDrawer({
               }}
             >
               <div className="annotation-row-header">
+                <span
+                  className={
+                    'annotation-kind ' + (a.end_ms === null ? 'point' : 'region')
+                  }
+                  style={{ color }}
+                  aria-label={a.end_ms === null ? 'point annotation' : 'region annotation'}
+                  title={a.end_ms === null ? 'Point annotation' : 'Region annotation'}
+                >
+                  {a.end_ms === null ? '●' : '▭'}
+                </span>
                 <span className="annotation-time">{formatRange(a)}</span>
                 <span
                   className="annotation-author"
@@ -247,6 +275,20 @@ export function AnnotationsDrawer({
                 >
                   {authorLabel(a)}
                 </span>
+                {a.end_ms !== null && (
+                  <button
+                    type="button"
+                    className="annotation-loop"
+                    aria-label="Loop this region"
+                    title="Loop this region"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onLoopAnnotation(a);
+                    }}
+                  >
+                    ⟲
+                  </button>
+                )}
                 {canEdit && (
                   <button
                     type="button"
@@ -271,6 +313,12 @@ export function AnnotationsDrawer({
                     autoFocus
                     value={editBody}
                     onChange={(e) => setEditBody(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (isSubmitShortcut(e) && editBody.trim().length > 0) {
+                        e.preventDefault();
+                        void saveEdit(a);
+                      }
+                    }}
                     rows={3}
                   />
                   <div className="annotation-draft-actions">
@@ -283,7 +331,7 @@ export function AnnotationsDrawer({
                       disabled={editBody.trim().length === 0}
                       onClick={() => void saveEdit(a)}
                     >
-                      Save
+                      {`Save (${SUBMIT_HINT})`}
                     </button>
                   </div>
                 </div>
