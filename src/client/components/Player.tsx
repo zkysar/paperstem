@@ -42,6 +42,7 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
     focusedIdx,
     status,
     title,
+    driveFolderId,
     masterVolume,
     waveformNormalization,
   } = state;
@@ -257,6 +258,16 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
         <div>
           <div className="player-meta">Practice</div>
           <div className="player-title">{title}</div>
+          {driveFolderId ? (
+            <a
+              className="drive-link"
+              href={`https://drive.google.com/drive/folders/${encodeURIComponent(driveFolderId)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open in Drive ↗
+            </a>
+          ) : null}
         </div>
         <div className="player-header-right">
           <label className="master-vol" title={`Master ${masterVolume}% (${VOLUME_UNITY}% = unity, ${VOLUME_MAX}% = +12 dB)`}>

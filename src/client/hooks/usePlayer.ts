@@ -34,6 +34,7 @@ type Action =
       referenceIdx: number;
       practiceId: string | null;
       title: string;
+      driveFolderId: string | null;
       status: string;
     }
   | { type: 'SET_PLAYING'; isPlaying: boolean }
@@ -50,6 +51,7 @@ type Action =
 const initialState: PlayerState = {
   practiceId: null,
   title: '—',
+  driveFolderId: null,
   stems: [],
   duration: 0,
   referenceIdx: 0,
@@ -74,6 +76,7 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         ...state,
         practiceId: action.practiceId,
         title: action.title,
+        driveFolderId: action.driveFolderId,
         stems: action.stems,
         duration: action.duration,
         referenceIdx: action.referenceIdx,
@@ -122,7 +125,12 @@ function updateStem(state: PlayerState, idx: number, fn: (s: LoadedStem) => Load
 export type PlayerControls = {
   state: PlayerState;
   currentTime: number;
-  load(input: { practiceId: string | null; title: string; sources: StemSource[] }): Promise<void>;
+  load(input: {
+    practiceId: string | null;
+    title: string;
+    driveFolderId: string | null;
+    sources: StemSource[];
+  }): Promise<void>;
   togglePlay(): Promise<void>;
   pause(): void;
   seek(t: number): void;
@@ -375,6 +383,7 @@ export function usePlayer(): PlayerControls {
       referenceIdx,
       practiceId: input.practiceId,
       title: input.title,
+      driveFolderId: input.driveFolderId,
       status,
     });
   }, []);

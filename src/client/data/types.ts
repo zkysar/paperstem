@@ -3,6 +3,7 @@ export type Practice = {
   title: string;
   folder: string;
   stems: string[];
+  driveFolderId: string | null;
 };
 
 export type PracticeSummary = {
@@ -64,6 +65,7 @@ export type WaveformNormalization = 'per-track' | 'global';
 export type PlayerState = {
   practiceId: string | null;
   title: string;
+  driveFolderId: string | null;
   stems: LoadedStem[];
   duration: number;
   referenceIdx: number;

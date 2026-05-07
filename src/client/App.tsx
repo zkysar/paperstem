@@ -112,6 +112,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
       void player.load({
         practiceId: detail.id,
         title: detail.title,
+        driveFolderId: detail.driveFolderId,
         sources,
       });
     } catch (err) {
@@ -123,7 +124,12 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   function loadFolder(files: File[], folderName: string) {
     setDrawerOpen(false);
     if (!files.length) {
-      void player.load({ practiceId: null, title: folderName || 'Local folder', sources: [] });
+      void player.load({
+        practiceId: null,
+        title: folderName || 'Local folder',
+        driveFolderId: null,
+        sources: [],
+      });
       return;
     }
     const sources: StemSource[] = files.map((f) => {
@@ -134,6 +140,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     void player.load({
       practiceId: `local:${folderName}`,
       title: folderName,
+      driveFolderId: null,
       sources,
     });
   }
