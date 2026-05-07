@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { Annotation } from '../../shared/types';
 import type { PlayerControls } from '../hooks/usePlayer';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
 import { fmt, pixelToTime } from '../lib/format';
+import { AnnotationMarkers } from './AnnotationMarkers';
 import { LoopRegion } from './LoopRegion';
 import { Playhead } from './Playhead';
 import { Ruler } from './Ruler';
@@ -30,9 +32,31 @@ type Props = {
   player: PlayerControls;
   onDownloadAll(): void;
   downloading: boolean;
+  annotations: Annotation[];
+  selfUserId: string;
+  annotationsOpen: boolean;
+  onToggleAnnotations(): void;
+  annotationCreateMode: boolean;
+  onToggleAnnotationCreate(): void;
+  onAnnotationCreated(start_ms: number, end_ms: number | null): void;
+  onAnnotationSelected(annotation: Annotation): void;
+  canCreateAnnotations: boolean;
 };
 
-export function Player({ player, onDownloadAll, downloading }: Props) {
+export function Player({
+  player,
+  onDownloadAll,
+  downloading,
+  annotations,
+  selfUserId,
+  annotationsOpen,
+  onToggleAnnotations,
+  annotationCreateMode,
+  onToggleAnnotationCreate,
+  onAnnotationCreated,
+  onAnnotationSelected,
+  canCreateAnnotations,
+}: Props) {
   const { state, currentTime } = player;
   const {
     stems,
@@ -197,6 +221,11 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
   function onRulerPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!duration) return;
     if (e.button !== 0) return;
+    if (annotationCreateMode) {
+      startAnnotationDrag(e.clientX, e.pointerId);
+      e.preventDefault();
+      return;
+    }
     const t = xToTime(e.clientX);
     startDrag(
       {
@@ -212,6 +241,34 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
       e.pointerId,
     );
     e.preventDefault();
+  }
+
+  function startAnnotationDrag(originX: number, pointerId: number) {
+    const originTime = xToTime(originX);
+    let didMove = false;
+    let lastStart = originTime;
+    let lastEnd = originTime;
+    function onMove(e: PointerEvent) {
+      if (e.pointerId !== pointerId) return;
+      if (Math.abs(e.clientX - originX) > DRAG_THRESHOLD_PX) didMove = true;
+      const t = xToTime(e.clientX);
+      lastStart = Math.min(originTime, t);
+      lastEnd = Math.max(originTime, t);
+    }
+    function onUp(e: PointerEvent) {
+      if (e.pointerId !== pointerId) return;
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      const startMs = Math.round((didMove ? lastStart : originTime) * 1000);
+      const endMs = didMove
+        ? Math.max(startMs + 1, Math.round(lastEnd * 1000))
+        : null;
+      onAnnotationCreated(startMs, endMs);
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
   }
 
   function onLoopPointerDown(e: React.PointerEvent<HTMLDivElement>) {
@@ -252,7 +309,13 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
   const anySolo = stems.some((s) => s.soloed);
 
   return (
-    <main className={'player' + (railCollapsed ? ' rail-collapsed' : '')}>
+    <main
+      className={
+        'player' +
+        (railCollapsed ? ' rail-collapsed' : '') +
+        (annotationCreateMode ? ' annotating' : '')
+      }
+    >
       <div className="player-header">
         <div>
           <div className="player-meta">Practice</div>
@@ -355,6 +418,33 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
         >
           {railCollapsed ? '◨' : '◧'}
         </button>
+        {canCreateAnnotations && (
+          <button
+            type="button"
+            className={
+              'tbtn annotation-add' + (annotationCreateMode ? ' on' : '')
+            }
+            title={
+              annotationCreateMode
+                ? 'Click ruler for point, drag for region. Click again to cancel.'
+                : 'Add annotation: click ruler for point, drag for region'
+            }
+            aria-pressed={annotationCreateMode}
+            disabled={!stems.length}
+            onClick={onToggleAnnotationCreate}
+          >
+            +
+          </button>
+        )}
+        <button
+          type="button"
+          className={'tbtn annotations-toggle' + (annotationsOpen ? ' on' : '')}
+          title="Toggle annotations panel"
+          aria-pressed={annotationsOpen}
+          onClick={onToggleAnnotations}
+        >
+          ✎
+        </button>
         <span className="ttime">
           {fmt(currentTime)} / {fmt(duration)}
         </span>
@@ -387,6 +477,14 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
           leftPx={loopLeft}
           widthPx={loopWidth}
           onPointerDown={onLoopPointerDown}
+        />
+        <AnnotationMarkers
+          annotations={annotations}
+          duration={duration}
+          selfUserId={selfUserId}
+          waveLeftPx={wr.left}
+          waveWidthPx={wr.width}
+          onSelect={onAnnotationSelected}
         />
         <Playhead visible={!!stems.length && !!duration} leftPx={playheadLeft} />
       </div>

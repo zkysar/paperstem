@@ -1,17 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LoginScreen } from './auth/LoginScreen';
 import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
+import {
+  AnnotationsDrawer,
+  type AnnotationDraft,
+} from './components/AnnotationsDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Player } from './components/Player';
 import { Sidebar } from './components/Sidebar';
 import { UploadDrawer } from './components/UploadDrawer';
+import { listAnnotations } from './data/annotations-repo';
 import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
 import type { Practice, StemSource } from './data/types';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
 import { downloadStemsAsZip } from './lib/download';
-import type { User } from '../shared/types';
+import type { Annotation, User } from '../shared/types';
 
 const UPLOAD_MIN_VIEWPORT_PX = 720;
 
@@ -40,6 +45,13 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   const [downloading, setDownloading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [annotationsOpen, setAnnotationsOpen] = useState(false);
+  const [annotationCreateMode, setAnnotationCreateMode] = useState(false);
+  const [pendingDraft, setPendingDraft] = useState<AnnotationDraft | null>(null);
+  const [highlightAnnotationId, setHighlightAnnotationId] = useState<
+    string | null
+  >(null);
   const [isWide, setIsWide] = useState(() =>
     typeof window === 'undefined'
       ? false
@@ -102,6 +114,10 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     if (!repo) return;
     setActivePracticeId(id);
     setDrawerOpen(false);
+    setAnnotations([]);
+    setPendingDraft(null);
+    setAnnotationCreateMode(false);
+    setHighlightAnnotationId(null);
     try {
       const detail = await repo.getById(id);
       setPractices((prev) => prev.map((p) => (p.id === detail.id ? detail : p)));
@@ -114,11 +130,35 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
         title: detail.title,
         sources,
       });
+      try {
+        const list = await listAnnotations(id);
+        setAnnotations(list);
+      } catch (err) {
+        console.error('Failed to load annotations:', err);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setLoadError(msg);
     }
   }
+
+  const handleAnnotationCreated = useCallback(
+    (start_ms: number, end_ms: number | null) => {
+      setAnnotationCreateMode(false);
+      setAnnotationsOpen(true);
+      setPendingDraft({ start_ms, end_ms });
+    },
+    [],
+  );
+
+  const handleAnnotationSelected = useCallback(
+    (annotation: Annotation) => {
+      player.seek(annotation.start_ms / 1000);
+      setAnnotationsOpen(true);
+      setHighlightAnnotationId(annotation.id);
+    },
+    [player],
+  );
 
   function loadFolder(files: File[], folderName: string) {
     setDrawerOpen(false);
@@ -222,8 +262,39 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
           />
         )}
         <ErrorBoundary>
-          <Player player={player} onDownloadAll={onDownloadAll} downloading={downloading} />
+          <Player
+            player={player}
+            onDownloadAll={onDownloadAll}
+            downloading={downloading}
+            annotations={annotations}
+            selfUserId={user.id}
+            annotationsOpen={annotationsOpen}
+            onToggleAnnotations={() => setAnnotationsOpen((v) => !v)}
+            annotationCreateMode={annotationCreateMode}
+            onToggleAnnotationCreate={() =>
+              setAnnotationCreateMode((v) => !v)
+            }
+            onAnnotationCreated={handleAnnotationCreated}
+            onAnnotationSelected={handleAnnotationSelected}
+            canCreateAnnotations={isWide && activePracticeId !== null}
+          />
         </ErrorBoundary>
+        <AnnotationsDrawer
+          open={annotationsOpen}
+          practiceId={activePracticeId}
+          selfUserId={user.id}
+          canEdit={isWide && activePracticeId !== null}
+          annotations={annotations}
+          pendingDraft={pendingDraft}
+          highlightId={highlightAnnotationId}
+          onClose={() => {
+            setAnnotationsOpen(false);
+            setPendingDraft(null);
+          }}
+          onSeek={(seconds) => player.seek(seconds)}
+          onAnnotationsChange={setAnnotations}
+          onDraftCancel={() => setPendingDraft(null)}
+        />
       </div>
     </>
   );
