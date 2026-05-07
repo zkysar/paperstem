@@ -148,6 +148,22 @@ export const stmts = {
   findBandById: db.prepare<[string], BandRow>(
     'SELECT * FROM bands WHERE id = ?',
   ),
+  findAllBands: db.prepare<[], BandRow>(
+    'SELECT * FROM bands ORDER BY name',
+  ),
+  setBandLastSnapshotAt: db.prepare<[number, string]>(
+    'UPDATE bands SET last_snapshot_at = ? WHERE id = ?',
+  ),
+  setBandLastBackupAt: db.prepare<[number, string]>(
+    'UPDATE bands SET last_backup_at = ? WHERE id = ?',
+  ),
+  findOwnedBandsForUser: db.prepare<[string], BandRow>(
+    `SELECT b.*
+       FROM bands b
+       JOIN memberships m ON m.band_id = b.id
+      WHERE m.user_id = ? AND m.role = 'owner'
+      ORDER BY b.name`,
+  ),
   findBandsForUser: db.prepare<[string], BandRow & { role: 'owner' | 'member' }>(
     `SELECT b.*, m.role
        FROM bands b

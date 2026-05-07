@@ -163,6 +163,97 @@ export async function findFolderByName(
   return { id: data.files[0].id };
 }
 
+export async function findFileByName(
+  name: string,
+  parentId: string,
+): Promise<{ id: string } | null> {
+  const token = await getAccessToken();
+  const escapedName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  const q =
+    `name = '${escapedName}' ` +
+    `and '${parentId}' in parents ` +
+    `and mimeType != 'application/vnd.google-apps.folder' ` +
+    `and trashed = false`;
+  const url =
+    `${FILES_BASE}?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=10`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw await driveError(res, `findFileByName(${name})`);
+  const data = (await res.json()) as { files: { id: string; name: string }[] };
+  if (data.files.length === 0) return null;
+  if (data.files.length > 1) {
+    throw new Error(
+      `drive: findFileByName(${name}) found ${data.files.length} matches in parent ${parentId}; ` +
+        `clean up duplicates manually before retrying`,
+    );
+  }
+  return { id: data.files[0].id };
+}
+
+export async function listFolder(
+  parentFolderId: string,
+): Promise<{ id: string; name: string }[]> {
+  const token = await getAccessToken();
+  const q = `'${parentFolderId}' in parents and trashed = false`;
+  const all: { id: string; name: string }[] = [];
+  let pageToken: string | undefined;
+  do {
+    const params = new URLSearchParams({
+      q,
+      fields: 'nextPageToken,files(id,name)',
+      pageSize: '1000',
+    });
+    if (pageToken) params.set('pageToken', pageToken);
+    const url = `${FILES_BASE}?${params.toString()}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw await driveError(res, `listFolder(${parentFolderId})`);
+    const data = (await res.json()) as {
+      nextPageToken?: string;
+      files: { id: string; name: string }[];
+    };
+    all.push(...data.files);
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+  return all;
+}
+
+export async function deleteFile(fileId: string): Promise<void> {
+  const token = await getAccessToken();
+  const res = await fetch(`${FILES_BASE}/${encodeURIComponent(fileId)}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok && res.status !== 404) {
+    throw await driveError(res, `deleteFile(${fileId})`);
+  }
+}
+
+export async function updateFile(
+  fileId: string,
+  mimeType: string,
+  body: Buffer,
+): Promise<{ id: string; size: number }> {
+  const token = await getAccessToken();
+  const url =
+    `${UPLOAD_BASE}/${encodeURIComponent(fileId)}` +
+    `?uploadType=media&fields=id,size`;
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': mimeType,
+      'Content-Length': String(body.length),
+    },
+    body,
+  });
+  if (!res.ok) throw await driveError(res, `updateFile(${fileId})`);
+  const data = (await res.json()) as { id: string; size?: string };
+  return { id: data.id, size: data.size ? Number(data.size) : body.length };
+}
+
 export async function uploadFile(
   parentFolderId: string,
   name: string,
