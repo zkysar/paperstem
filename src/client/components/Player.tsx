@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { Annotation } from '../../shared/types';
 import type { PlayerControls } from '../hooks/usePlayer';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
 import { fmt, pixelToTime } from '../lib/format';
+import { AnnotationMarkers } from './AnnotationMarkers';
 import { LoopRegion } from './LoopRegion';
 import { Playhead } from './Playhead';
 import { Ruler } from './Ruler';
@@ -30,9 +32,35 @@ type Props = {
   player: PlayerControls;
   onDownloadAll(): void;
   downloading: boolean;
+  annotations: Annotation[];
+  userColorMap: Map<string, string>;
+  markersVisible: boolean;
+  annotationsOpen: boolean;
+  onToggleAnnotations(): void;
+  annotationCreateMode: boolean;
+  onToggleAnnotationCreate(): void;
+  onAnnotationCreated(start_ms: number, end_ms: number | null): void;
+  onAnnotationSelected(annotation: Annotation): void;
+  canCreateAnnotations: boolean;
+  pendingDraft: { start_ms: number; end_ms: number | null } | null;
 };
 
-export function Player({ player, onDownloadAll, downloading }: Props) {
+export function Player({
+  player,
+  onDownloadAll,
+  downloading,
+  annotations,
+  userColorMap,
+  markersVisible,
+  annotationsOpen,
+  onToggleAnnotations,
+  annotationCreateMode,
+  onToggleAnnotationCreate,
+  onAnnotationCreated,
+  onAnnotationSelected,
+  canCreateAnnotations,
+  pendingDraft,
+}: Props) {
   const { state, currentTime } = player;
   const {
     stems,
@@ -198,6 +226,7 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
   function onRulerPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!duration) return;
     if (e.button !== 0) return;
+    if (annotationCreateMode) return;
     const t = xToTime(e.clientX);
     startDrag(
       {
@@ -214,6 +243,42 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
     );
     e.preventDefault();
   }
+
+  const [annotationDragPreview, setAnnotationDragPreview] = useState<
+    { start: number; end: number } | null
+  >(null);
+
+  function startAnnotationDrag(originX: number, pointerId: number) {
+    const originTime = xToTime(originX);
+    let didMove = false;
+    let lastStart = originTime;
+    let lastEnd = originTime;
+    setAnnotationDragPreview({ start: originTime, end: originTime });
+    function onMove(e: PointerEvent) {
+      if (e.pointerId !== pointerId) return;
+      if (Math.abs(e.clientX - originX) > DRAG_THRESHOLD_PX) didMove = true;
+      const t = xToTime(e.clientX);
+      lastStart = Math.min(originTime, t);
+      lastEnd = Math.max(originTime, t);
+      setAnnotationDragPreview({ start: lastStart, end: lastEnd });
+    }
+    function onUp(e: PointerEvent) {
+      if (e.pointerId !== pointerId) return;
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      document.removeEventListener('pointercancel', onUp);
+      setAnnotationDragPreview(null);
+      const startMs = Math.round((didMove ? lastStart : originTime) * 1000);
+      const endMs = didMove
+        ? Math.max(startMs + 1, Math.round(lastEnd * 1000))
+        : null;
+      onAnnotationCreated(startMs, endMs);
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+    document.addEventListener('pointercancel', onUp);
+  }
+
 
   function onLoopPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!duration || !loop) return;
@@ -248,12 +313,45 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
     : 0;
   const loopLeft = loop && duration ? wr.left + (loop.start / duration) * wr.width : 0;
   const loopWidth = loop && duration ? ((loop.end - loop.start) / duration) * wr.width : 0;
+  const previewSource = (() => {
+    if (!duration) return null;
+    if (annotationDragPreview) {
+      return {
+        startMs: annotationDragPreview.start * 1000,
+        endMs: annotationDragPreview.end * 1000,
+        isPoint: false,
+      };
+    }
+    if (pendingDraft) {
+      return {
+        startMs: pendingDraft.start_ms,
+        endMs: pendingDraft.end_ms ?? pendingDraft.start_ms,
+        isPoint: pendingDraft.end_ms === null,
+      };
+    }
+    return null;
+  })();
+  const previewLeft = previewSource && duration
+    ? wr.left + (previewSource.startMs / 1000 / duration) * wr.width
+    : 0;
+  const previewWidth = previewSource && duration
+    ? Math.max(
+        previewSource.isPoint ? 3 : 2,
+        ((previewSource.endMs - previewSource.startMs) / 1000 / duration) * wr.width,
+      )
+    : 0;
 
   // Effective mute: if any stem is soloed, non-soloed are muted.
   const anySolo = stems.some((s) => s.soloed);
 
   return (
-    <main className={'player' + (railCollapsed ? ' rail-collapsed' : '')}>
+    <main
+      className={
+        'player' +
+        (railCollapsed ? ' rail-collapsed' : '') +
+        (annotationCreateMode ? ' annotating' : '')
+      }
+    >
       <div className="player-header">
         <div>
           <div className="player-meta">Practice</div>
@@ -366,12 +464,51 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
         >
           {railCollapsed ? '◨' : '◧'}
         </button>
+        {canCreateAnnotations && (
+          <button
+            type="button"
+            className={
+              'tbtn annotation-add' + (annotationCreateMode ? ' on' : '')
+            }
+            title={
+              annotationCreateMode
+                ? 'Click ruler for point, drag for region. Click again to cancel.'
+                : 'Add annotation: click ruler for point, drag for region'
+            }
+            aria-pressed={annotationCreateMode}
+            disabled={!stems.length}
+            onClick={onToggleAnnotationCreate}
+          >
+            +
+          </button>
+        )}
+        <button
+          type="button"
+          className={'tbtn annotations-toggle' + (annotationsOpen ? ' on' : '')}
+          title="Toggle annotations panel"
+          aria-pressed={annotationsOpen}
+          onClick={onToggleAnnotations}
+        >
+          ✎
+        </button>
         <span className="ttime">
           {fmt(currentTime)} / {fmt(duration)}
         </span>
       </div>
 
       <div className="stage" ref={stageRef}>
+        {annotationCreateMode && duration > 0 && (
+          <div
+            className="annotation-create-overlay"
+            style={{ left: `${wr.left}px`, width: `${wr.width}px` }}
+            onPointerDown={(e) => {
+              if (e.button !== 0) return;
+              startAnnotationDrag(e.clientX, e.pointerId);
+              e.preventDefault();
+            }}
+            aria-label="Click for point annotation, drag for region"
+          />
+        )}
         <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
         <div className="tracks" ref={tracksRef}>
           {!stems.length && <div className="empty">No practice loaded.</div>}
@@ -399,8 +536,46 @@ export function Player({ player, onDownloadAll, downloading }: Props) {
           widthPx={loopWidth}
           onPointerDown={onLoopPointerDown}
         />
+        <AnnotationMarkers
+          annotations={annotations}
+          duration={duration}
+          userColorMap={userColorMap}
+          visible={markersVisible}
+          waveLeftPx={wr.left}
+          waveWidthPx={wr.width}
+          onSelect={onAnnotationSelected}
+        />
+        {previewSource && (
+          <div
+            className={
+              'annotation-drag-preview' +
+              (previewSource.isPoint ? ' point' : '') +
+              (annotationDragPreview ? ' dragging' : ' pending')
+            }
+            style={{
+              left: `${previewLeft}px`,
+              width: `${previewWidth}px`,
+            }}
+            aria-hidden="true"
+          />
+        )}
         <Playhead visible={!!stems.length && !!duration} leftPx={playheadLeft} />
       </div>
+
+      {annotationCreateMode && (
+        <div className="annotation-mode-banner" role="status">
+          <span className="annotation-mode-dot" aria-hidden="true" />
+          <strong>Annotation mode</strong> &middot; click the timeline for a
+          point, drag for a region &middot; <kbd>Esc</kbd> or click + to cancel
+          <button
+            type="button"
+            className="annotation-mode-cancel"
+            onClick={onToggleAnnotationCreate}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       <div className="status">{status}</div>
 

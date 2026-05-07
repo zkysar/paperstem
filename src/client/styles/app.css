@@ -815,3 +815,381 @@ kbd {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ===== Annotations ===== */
+.tbtn.annotations-toggle.on,
+.tbtn.annotation-add.on {
+  background: var(--accent);
+  color: var(--paper);
+  border-color: var(--accent);
+}
+
+.player.annotating .ruler { cursor: crosshair; }
+
+/* In create mode, fade the existing timeline so the new annotation
+   draws focus, and lock out interactions on the playhead, loop region,
+   and existing markers — the overlay catches all pointer events. */
+.player.annotating .ruler,
+.player.annotating .tracks {
+  opacity: 0.5;
+}
+.player.annotating .playhead,
+.player.annotating .loop-region,
+.player.annotating .annotation-marker {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+.annotation-create-overlay {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  cursor: crosshair;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  border-right: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  z-index: 9;
+  touch-action: none;
+}
+
+.annotation-mode-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  margin: 12px 16px 4px;
+  background: var(--accent);
+  color: var(--paper);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  animation: annotation-mode-pulse 1.6s ease-in-out infinite;
+}
+.annotation-mode-banner kbd {
+  background: rgba(255,255,255,0.18);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+.annotation-mode-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--paper);
+  flex-shrink: 0;
+  animation: annotation-mode-blink 1s ease-in-out infinite;
+}
+.annotation-mode-cancel {
+  margin-left: auto;
+  background: rgba(255,255,255,0.15);
+  color: var(--paper);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 4px;
+  padding: 3px 10px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.annotation-mode-cancel:hover { background: rgba(255,255,255,0.25); }
+@keyframes annotation-mode-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+@keyframes annotation-mode-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); }
+  50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+
+.annotations-markers-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--ink-muted, #666);
+  cursor: pointer;
+  user-select: none;
+  margin-right: 8px;
+}
+.annotations-markers-toggle input { margin: 0; }
+
+.annotation-drag-preview {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  border-left: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+  pointer-events: none;
+  z-index: 11;
+}
+.annotation-drag-preview.pending {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-left-style: dashed;
+  border-right-style: dashed;
+  animation: annotation-pending-pulse 1.6s ease-in-out infinite;
+}
+.annotation-drag-preview.point {
+  background: var(--accent);
+  border: none;
+  width: 3px;
+}
+.annotation-drag-preview.point.pending {
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+@keyframes annotation-pending-pulse {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 0.55; }
+}
+
+.annotation-kind {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+.annotation-kind.region { font-size: 1rem; line-height: 1; }
+
+.annotation-loop {
+  background: transparent;
+  border: 1px solid var(--ink-muted, #999);
+  color: var(--ink, #333);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.annotation-loop:hover {
+  background: var(--accent);
+  color: var(--paper);
+  border-color: var(--accent);
+}
+
+.annotation-marker {
+  position: absolute;
+  pointer-events: auto;
+  z-index: 7;
+}
+.annotation-marker.point {
+  top: 0;
+  height: 22px;
+  width: 3px;
+  border-radius: 1px;
+  cursor: pointer;
+}
+.annotation-marker.point.hovered {
+  width: 5px;
+  margin-left: -1px;
+}
+.annotation-marker.region {
+  top: 0;
+  height: 22px;
+  opacity: 0.3;
+  border-top: 2px solid currentColor;
+  cursor: pointer;
+}
+.annotation-marker.region.hovered {
+  opacity: 0.5;
+}
+
+.annotations-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 360px;
+  background: var(--paper);
+  border-left: 1px solid var(--rule);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.06);
+}
+.annotations-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--rule);
+}
+.annotations-drawer-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.annotations-drawer-close {
+  background: transparent;
+  border: none;
+  font-size: 1rem;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.annotations-drawer-close:hover { color: var(--ink); }
+
+.annotations-error {
+  margin: 12px 16px 0;
+  background: rgba(193, 70, 70, 0.08);
+  border: 1px solid rgba(193, 70, 70, 0.32);
+  color: #8a3030;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+}
+
+.annotations-empty {
+  color: var(--muted);
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 0.85rem;
+}
+
+.annotation-draft {
+  margin: 12px 16px;
+  padding: 10px 12px;
+  background: var(--accent-tint-3);
+  border: 1px solid var(--accent-tint-2);
+  border-radius: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.annotation-draft-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+.annotation-draft textarea,
+.annotation-edit textarea {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+}
+.annotation-draft textarea:focus,
+.annotation-edit textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.annotation-draft-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.annotation-draft-actions button {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 5px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+}
+.annotation-draft-actions .annotation-save {
+  background: var(--accent);
+  color: var(--paper);
+  border-color: var(--accent);
+}
+.annotation-draft-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.annotations-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+}
+.annotation-row {
+  border-left: 3px solid var(--accent);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--rule-2);
+  cursor: pointer;
+  transition: background-color 0.12s ease-out;
+}
+.annotation-row:hover { background: var(--accent-tint-3); }
+.annotation-row.highlighted { background: var(--accent-tint); }
+
+.annotation-row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.annotation-time {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.74rem;
+  color: var(--muted-2);
+}
+.annotation-author {
+  font-size: 0.78rem;
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.annotation-star {
+  background: transparent;
+  border: none;
+  font-size: 0.95rem;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.annotation-star.starred { color: var(--accent); }
+
+.annotation-body {
+  font-size: 0.85rem;
+  color: var(--ink);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.annotation-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.annotation-row-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+.annotation-icon-btn {
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 8px;
+}
+.annotation-icon-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+@media (max-width: 720px) {
+  .annotations-drawer {
+    width: 100%;
+    max-width: 100%;
+  }
+}

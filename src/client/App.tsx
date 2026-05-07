@@ -1,17 +1,23 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { LoginScreen } from './auth/LoginScreen';
 import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
+import {
+  AnnotationsDrawer,
+  type AnnotationDraft,
+} from './components/AnnotationsDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Player } from './components/Player';
 import { Sidebar } from './components/Sidebar';
 import { UploadDrawer } from './components/UploadDrawer';
+import { listAnnotations } from './data/annotations-repo';
 import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
 import type { Practice, StemSource } from './data/types';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
+import { buildUserColorMap } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
-import type { User } from '../shared/types';
+import type { Annotation, User } from '../shared/types';
 
 const UPLOAD_MIN_VIEWPORT_PX = 720;
 
@@ -40,6 +46,28 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   const [downloading, setDownloading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [annotationsOpen, setAnnotationsOpen] = useState(false);
+  const [annotationCreateMode, setAnnotationCreateMode] = useState(false);
+  const [markersVisible, setMarkersVisible] = useState(true);
+  const [pendingDraft, setPendingDraft] = useState<AnnotationDraft | null>(null);
+  const [highlightAnnotationId, setHighlightAnnotationId] = useState<
+    string | null
+  >(null);
+
+  const userColorMap = useMemo(
+    () => buildUserColorMap(annotations.map((a) => a.user_id), user.id),
+    [annotations, user.id],
+  );
+
+  useEffect(() => {
+    if (!annotationCreateMode) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setAnnotationCreateMode(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [annotationCreateMode]);
   const [isWide, setIsWide] = useState(() =>
     typeof window === 'undefined'
       ? false
@@ -102,6 +130,10 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     if (!repo) return;
     setActivePracticeId(id);
     setDrawerOpen(false);
+    setAnnotations([]);
+    setPendingDraft(null);
+    setAnnotationCreateMode(false);
+    setHighlightAnnotationId(null);
     try {
       const detail = await repo.getById(id);
       setPractices((prev) => prev.map((p) => (p.id === detail.id ? detail : p)));
@@ -115,11 +147,47 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
         driveFolderId: detail.driveFolderId,
         sources,
       });
+      try {
+        const list = await listAnnotations(id);
+        setAnnotations(list);
+      } catch (err) {
+        console.error('Failed to load annotations:', err);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setLoadError(msg);
     }
   }
+
+  const handleAnnotationCreated = useCallback(
+    (start_ms: number, end_ms: number | null) => {
+      setAnnotationCreateMode(false);
+      setAnnotationsOpen(true);
+      setPendingDraft({ start_ms, end_ms });
+    },
+    [],
+  );
+
+  const handleAnnotationSelected = useCallback(
+    (annotation: Annotation) => {
+      player.seek(annotation.start_ms / 1000);
+      setAnnotationsOpen(true);
+      setHighlightAnnotationId(annotation.id);
+    },
+    [player],
+  );
+
+  const handleLoopAnnotation = useCallback(
+    (annotation: Annotation) => {
+      if (annotation.end_ms === null) return;
+      const start = annotation.start_ms / 1000;
+      const end = annotation.end_ms / 1000;
+      player.setLoop(start, end);
+      player.setLoopEnabled(true);
+      player.seek(start);
+    },
+    [player],
+  );
 
   function loadFolder(files: File[], folderName: string) {
     setDrawerOpen(false);
@@ -229,8 +297,45 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
           />
         )}
         <ErrorBoundary>
-          <Player player={player} onDownloadAll={onDownloadAll} downloading={downloading} />
+          <Player
+            player={player}
+            onDownloadAll={onDownloadAll}
+            downloading={downloading}
+            annotations={annotations}
+            userColorMap={userColorMap}
+            markersVisible={markersVisible}
+            annotationsOpen={annotationsOpen}
+            onToggleAnnotations={() => setAnnotationsOpen((v) => !v)}
+            annotationCreateMode={annotationCreateMode}
+            onToggleAnnotationCreate={() =>
+              setAnnotationCreateMode((v) => !v)
+            }
+            onAnnotationCreated={handleAnnotationCreated}
+            onAnnotationSelected={handleAnnotationSelected}
+            canCreateAnnotations={activePracticeId !== null}
+            pendingDraft={pendingDraft}
+          />
         </ErrorBoundary>
+        <AnnotationsDrawer
+          open={annotationsOpen}
+          practiceId={activePracticeId}
+          selfUserId={user.id}
+          canEdit={activePracticeId !== null}
+          annotations={annotations}
+          userColorMap={userColorMap}
+          markersVisible={markersVisible}
+          pendingDraft={pendingDraft}
+          highlightId={highlightAnnotationId}
+          onClose={() => {
+            setAnnotationsOpen(false);
+            setPendingDraft(null);
+          }}
+          onSeek={(seconds) => player.seek(seconds)}
+          onAnnotationsChange={setAnnotations}
+          onDraftCancel={() => setPendingDraft(null)}
+          onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}
+          onLoopAnnotation={handleLoopAnnotation}
+        />
       </div>
     </>
   );
