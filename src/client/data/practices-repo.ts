@@ -16,7 +16,7 @@ function summaryToPractice(p: PracticeSummary): Practice {
     title: p.name,
     folder: '',
     stems: [],
-    driveFolderId: null,
+    driveFolderId: p.drive_folder_id,
   };
 }
 

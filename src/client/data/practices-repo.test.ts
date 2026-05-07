@@ -58,6 +58,31 @@ describe('HttpPracticesRepo.list', () => {
     const url = fetchSpy.mock.calls[0][0];
     expect(url).toBe('/api/practices?band_id=band%2Fwith%20spaces');
   });
+
+  it('parses drive_folder_id into driveFolderId', async () => {
+    fetchSpy.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          practices: [
+            {
+              id: 'p1',
+              name: 'Practice One',
+              recorded_on: '2026-05-01',
+              bpm: null,
+              reference_stem: null,
+              drive_folder_id: 'drive-xyz',
+              created_at: 0,
+              updated_at: 0,
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    const repo = new HttpPracticesRepo('band-abc');
+    const list = await repo.list();
+    expect(list[0]).toMatchObject({ id: 'p1', driveFolderId: 'drive-xyz' });
+  });
 });
 
 describe('HttpPracticesRepo.getById', () => {
