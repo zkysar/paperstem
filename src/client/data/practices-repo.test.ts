@@ -92,5 +92,6 @@ describe('HttpPracticesRepo.getById', () => {
     expect(p.id).toBe('p1');
     expect(p.title).toBe('Practice One');
     expect(p.stems).toEqual(['s1', 's2']);
+    expect(p.driveFolderId).toBe('drv');
   });
 });
