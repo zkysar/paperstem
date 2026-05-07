@@ -908,6 +908,24 @@ kbd {
   pointer-events: none;
   z-index: 11;
 }
+.annotation-drag-preview.pending {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-left-style: dashed;
+  border-right-style: dashed;
+  animation: annotation-pending-pulse 1.6s ease-in-out infinite;
+}
+.annotation-drag-preview.point {
+  background: var(--accent);
+  border: none;
+  width: 3px;
+}
+.annotation-drag-preview.point.pending {
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+@keyframes annotation-pending-pulse {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 0.55; }
+}
 
 .annotation-kind {
   display: inline-flex;

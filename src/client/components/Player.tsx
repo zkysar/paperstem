@@ -42,6 +42,7 @@ type Props = {
   onAnnotationCreated(start_ms: number, end_ms: number | null): void;
   onAnnotationSelected(annotation: Annotation): void;
   canCreateAnnotations: boolean;
+  pendingDraft: { start_ms: number; end_ms: number | null } | null;
 };
 
 export function Player({
@@ -58,6 +59,7 @@ export function Player({
   onAnnotationCreated,
   onAnnotationSelected,
   canCreateAnnotations,
+  pendingDraft,
 }: Props) {
   const { state, currentTime } = player;
   const {
@@ -311,19 +313,33 @@ export function Player({
     : 0;
   const loopLeft = loop && duration ? wr.left + (loop.start / duration) * wr.width : 0;
   const loopWidth = loop && duration ? ((loop.end - loop.start) / duration) * wr.width : 0;
-  const annotationPreviewLeft =
-    annotationDragPreview && duration
-      ? wr.left + (annotationDragPreview.start / duration) * wr.width
-      : 0;
-  const annotationPreviewWidth =
-    annotationDragPreview && duration
-      ? Math.max(
-          2,
-          ((annotationDragPreview.end - annotationDragPreview.start) /
-            duration) *
-            wr.width,
-        )
-      : 0;
+  const previewSource = (() => {
+    if (!duration) return null;
+    if (annotationDragPreview) {
+      return {
+        startMs: annotationDragPreview.start * 1000,
+        endMs: annotationDragPreview.end * 1000,
+        isPoint: false,
+      };
+    }
+    if (pendingDraft) {
+      return {
+        startMs: pendingDraft.start_ms,
+        endMs: pendingDraft.end_ms ?? pendingDraft.start_ms,
+        isPoint: pendingDraft.end_ms === null,
+      };
+    }
+    return null;
+  })();
+  const previewLeft = previewSource && duration
+    ? wr.left + (previewSource.startMs / 1000 / duration) * wr.width
+    : 0;
+  const previewWidth = previewSource && duration
+    ? Math.max(
+        previewSource.isPoint ? 3 : 2,
+        ((previewSource.endMs - previewSource.startMs) / 1000 / duration) * wr.width,
+      )
+    : 0;
 
   // Effective mute: if any stem is soloed, non-soloed are muted.
   const anySolo = stems.some((s) => s.soloed);
@@ -544,12 +560,16 @@ export function Player({
           waveWidthPx={wr.width}
           onSelect={onAnnotationSelected}
         />
-        {annotationDragPreview && (
+        {previewSource && (
           <div
-            className="annotation-drag-preview"
+            className={
+              'annotation-drag-preview' +
+              (previewSource.isPoint ? ' point' : '') +
+              (annotationDragPreview ? ' dragging' : ' pending')
+            }
             style={{
-              left: `${annotationPreviewLeft}px`,
-              width: `${annotationPreviewWidth}px`,
+              left: `${previewLeft}px`,
+              width: `${previewWidth}px`,
             }}
             aria-hidden="true"
           />

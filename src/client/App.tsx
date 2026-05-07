@@ -313,6 +313,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
             onAnnotationCreated={handleAnnotationCreated}
             onAnnotationSelected={handleAnnotationSelected}
             canCreateAnnotations={activePracticeId !== null}
+            pendingDraft={pendingDraft}
           />
         </ErrorBoundary>
         <AnnotationsDrawer
