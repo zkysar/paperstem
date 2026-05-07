@@ -281,19 +281,6 @@ export function Player({
     document.addEventListener('pointercancel', onUp);
   }
 
-  const annotationPreviewLeft =
-    annotationDragPreview && duration
-      ? wr.left + (annotationDragPreview.start / duration) * wr.width
-      : 0;
-  const annotationPreviewWidth =
-    annotationDragPreview && duration
-      ? Math.max(
-          2,
-          ((annotationDragPreview.end - annotationDragPreview.start) /
-            duration) *
-            wr.width,
-        )
-      : 0;
 
   function onLoopPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (!duration || !loop) return;
@@ -328,6 +315,19 @@ export function Player({
     : 0;
   const loopLeft = loop && duration ? wr.left + (loop.start / duration) * wr.width : 0;
   const loopWidth = loop && duration ? ((loop.end - loop.start) / duration) * wr.width : 0;
+  const annotationPreviewLeft =
+    annotationDragPreview && duration
+      ? wr.left + (annotationDragPreview.start / duration) * wr.width
+      : 0;
+  const annotationPreviewWidth =
+    annotationDragPreview && duration
+      ? Math.max(
+          2,
+          ((annotationDragPreview.end - annotationDragPreview.start) /
+            duration) *
+            wr.width,
+        )
+      : 0;
 
   // Effective mute: if any stem is soloed, non-soloed are muted.
   const anySolo = stems.some((s) => s.soloed);
