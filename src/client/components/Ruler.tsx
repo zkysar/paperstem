@@ -14,6 +14,7 @@ export function Ruler({ duration, onPointerDown, rulerRef }: Props) {
   const ref = rulerRef ?? localRef;
   return (
     <div className="ruler-row">
+      <div className="ruler-rail-spacer" aria-hidden="true" />
       <div className="ruler" ref={ref} onPointerDown={onPointerDown}>
         {TICK_PCTS.map((p, i) => {
           const style: React.CSSProperties =
