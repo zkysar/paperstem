@@ -496,21 +496,6 @@ export function Player({
         </span>
       </div>
 
-      {annotationCreateMode && (
-        <div className="annotation-mode-banner" role="status">
-          <span className="annotation-mode-dot" aria-hidden="true" />
-          <strong>Annotation mode</strong> &middot; click the timeline for a
-          point, drag for a region &middot; <kbd>Esc</kbd> or click + to cancel
-          <button
-            type="button"
-            className="annotation-mode-cancel"
-            onClick={onToggleAnnotationCreate}
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
       <div className="stage" ref={stageRef}>
         {annotationCreateMode && duration > 0 && (
           <div
@@ -576,6 +561,21 @@ export function Player({
         )}
         <Playhead visible={!!stems.length && !!duration} leftPx={playheadLeft} />
       </div>
+
+      {annotationCreateMode && (
+        <div className="annotation-mode-banner" role="status">
+          <span className="annotation-mode-dot" aria-hidden="true" />
+          <strong>Annotation mode</strong> &middot; click the timeline for a
+          point, drag for a region &middot; <kbd>Esc</kbd> or click + to cancel
+          <button
+            type="button"
+            className="annotation-mode-cancel"
+            onClick={onToggleAnnotationCreate}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
       <div className="status">{status}</div>
 

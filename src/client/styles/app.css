@@ -826,6 +826,20 @@ kbd {
 
 .player.annotating .ruler { cursor: crosshair; }
 
+/* In create mode, fade the existing timeline so the new annotation
+   draws focus, and lock out interactions on the playhead, loop region,
+   and existing markers — the overlay catches all pointer events. */
+.player.annotating .ruler,
+.player.annotating .tracks {
+  opacity: 0.5;
+}
+.player.annotating .playhead,
+.player.annotating .loop-region,
+.player.annotating .annotation-marker {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
 .annotation-create-overlay {
   position: absolute;
   top: 0;
@@ -843,7 +857,7 @@ kbd {
   align-items: center;
   gap: 8px;
   padding: 8px 14px;
-  margin: 8px 16px 0;
+  margin: 12px 16px 4px;
   background: var(--accent);
   color: var(--paper);
   border-radius: 6px;
