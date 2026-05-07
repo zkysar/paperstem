@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import type { Annotation } from '../../shared/types';
 import { SELF_ANNOTATION_COLOR } from '../lib/colors';
 
@@ -10,6 +10,8 @@ type Props = {
   waveLeftPx: number;
   waveWidthPx: number;
   onSelect(annotation: Annotation): void;
+  hoveredId: string | null;
+  onHover(id: string | null): void;
 };
 
 const TOOLTIP_BODY_LIMIT = 80;
@@ -28,9 +30,9 @@ export function AnnotationMarkers({
   waveLeftPx,
   waveWidthPx,
   onSelect,
+  hoveredId,
+  onHover,
 }: Props) {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-
   const markers = useMemo(() => {
     if (!visible) return [];
     if (!duration || !waveWidthPx) return [];
@@ -69,10 +71,10 @@ export function AnnotationMarkers({
                 backgroundColor: m.color,
               }}
               title={tooltip}
-              onPointerEnter={() => setHoveredId(m.ann.id)}
-              onPointerLeave={() =>
-                setHoveredId((cur) => (cur === m.ann.id ? null : cur))
-              }
+              onPointerEnter={() => onHover(m.ann.id)}
+              onPointerLeave={() => {
+                if (hoveredId === m.ann.id) onHover(null);
+              }}
               onPointerDown={(e) => {
                 e.stopPropagation();
                 onSelect(m.ann);
@@ -92,10 +94,10 @@ export function AnnotationMarkers({
               backgroundColor: m.color,
             }}
             title={tooltip}
-            onPointerEnter={() => setHoveredId(m.ann.id)}
-            onPointerLeave={() =>
-              setHoveredId((cur) => (cur === m.ann.id ? null : cur))
-            }
+            onPointerEnter={() => onHover(m.ann.id)}
+            onPointerLeave={() => {
+              if (hoveredId === m.ann.id) onHover(null);
+            }}
             onPointerDown={(e) => {
               e.stopPropagation();
               onSelect(m.ann);

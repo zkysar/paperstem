@@ -43,6 +43,8 @@ type Props = {
   onAnnotationSelected(annotation: Annotation): void;
   canCreateAnnotations: boolean;
   pendingDraft: { start_ms: number; end_ms: number | null } | null;
+  hoveredAnnotationId: string | null;
+  onHoverAnnotation(id: string | null): void;
 };
 
 export function Player({
@@ -60,6 +62,8 @@ export function Player({
   onAnnotationSelected,
   canCreateAnnotations,
   pendingDraft,
+  hoveredAnnotationId,
+  onHoverAnnotation,
 }: Props) {
   const { state, currentTime } = player;
   const {
@@ -544,6 +548,8 @@ export function Player({
           waveLeftPx={wr.left}
           waveWidthPx={wr.width}
           onSelect={onAnnotationSelected}
+          hoveredId={hoveredAnnotationId}
+          onHover={onHoverAnnotation}
         />
         {previewSource && (
           <div

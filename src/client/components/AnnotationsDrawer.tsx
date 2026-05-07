@@ -18,12 +18,14 @@ type Props = {
   markersVisible: boolean;
   pendingDraft: AnnotationDraft | null;
   highlightId: string | null;
+  hoveredId: string | null;
   onClose(): void;
   onSeek(seconds: number): void;
   onAnnotationsChange(next: Annotation[]): void;
   onDraftCancel(): void;
   onToggleMarkersVisible(): void;
   onLoopAnnotation(annotation: Annotation): void;
+  onHoverAnnotation(id: string | null): void;
 };
 
 const IS_MAC =
@@ -61,12 +63,14 @@ export function AnnotationsDrawer({
   markersVisible,
   pendingDraft,
   highlightId,
+  hoveredId: _hoveredId,
   onClose,
   onSeek,
   onAnnotationsChange,
   onDraftCancel,
   onToggleMarkersVisible,
   onLoopAnnotation,
+  onHoverAnnotation: _onHoverAnnotation,
 }: Props) {
   const [draftBody, setDraftBody] = useState('');
   const [submitting, setSubmitting] = useState(false);

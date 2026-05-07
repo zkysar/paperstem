@@ -54,6 +54,9 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   const [highlightAnnotationId, setHighlightAnnotationId] = useState<
     string | null
   >(null);
+  const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(
+    null,
+  );
 
   const userColorMap = useMemo(
     () => buildUserColorMap(annotations.map((a) => a.user_id), user.id),
@@ -314,6 +317,8 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
             onAnnotationSelected={handleAnnotationSelected}
             canCreateAnnotations={activePracticeId !== null}
             pendingDraft={pendingDraft}
+            hoveredAnnotationId={hoveredAnnotationId}
+            onHoverAnnotation={setHoveredAnnotationId}
           />
         </ErrorBoundary>
         <AnnotationsDrawer
@@ -326,6 +331,8 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
           markersVisible={markersVisible}
           pendingDraft={pendingDraft}
           highlightId={highlightAnnotationId}
+          hoveredId={hoveredAnnotationId}
+          onHoverAnnotation={setHoveredAnnotationId}
           onClose={() => {
             setAnnotationsOpen(false);
             setPendingDraft(null);
