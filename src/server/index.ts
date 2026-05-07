@@ -22,6 +22,8 @@ import {
   handleListAnnotations,
   handlePatchAnnotation,
 } from './annotations.js';
+import { handleSnapshotsHealth } from './health.js';
+import { startScheduler } from './jobs/scheduler.js';
 import { registerStatic } from './static.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -49,6 +51,7 @@ app.get('/api/practices/:id/annotations', handleListAnnotations);
 app.post('/api/practices/:id/annotations', handleCreateAnnotation);
 app.patch('/api/annotations/:id', handlePatchAnnotation);
 app.delete('/api/annotations/:id', handleDeleteAnnotation);
+app.get('/api/health/snapshots', handleSnapshotsHealth);
 
 app.get('/auth/callback', (c) => {
   const token = c.req.query('token') ?? '';
@@ -66,3 +69,7 @@ const port = Number(process.env.PORT ?? 8787);
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`paperstem server listening on http://localhost:${info.port}`);
 });
+
+if (!process.env.PAPERSTEM_DISABLE_SCHEDULER) {
+  startScheduler();
+}

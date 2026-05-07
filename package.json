@@ -18,7 +18,8 @@
     "add-user": "tsx bin/add-user.ts",
     "onboard-band": "scripts/onboard-band.sh",
     "seed-practice": "scripts/seed-practice.sh",
-    "backfill-band-folder": "scripts/backfill-band-folder.sh"
+    "backfill-band-folder": "scripts/backfill-band-folder.sh",
+    "run-job": "scripts/run-job.sh"
   },
   "dependencies": {
     "@breezystack/lamejs": "^1.2.7",
