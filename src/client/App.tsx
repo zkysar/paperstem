@@ -30,7 +30,7 @@ export default function App() {
 
 function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) {
   const player = usePlayer();
-  useKeyboard(player);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
   const activeBand = bands[0] ?? null;
@@ -57,6 +57,20 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(
     null,
   );
+
+  useKeyboard({
+    player,
+    pickerOpen,
+    annotationsOpen,
+    annotationCreateMode,
+    onTogglePicker: () => setPickerOpen((v) => !v),
+    onClosePicker: () => setPickerOpen(false),
+    onCloseRail: () => setAnnotationsOpen(false),
+    onCancelCreate: () => {
+      setAnnotationCreateMode(false);
+      setPendingDraft(null);
+    },
+  });
 
   const userColorMap = useMemo(
     () => buildUserColorMap(annotations.map((a) => a.user_id), user.id),
