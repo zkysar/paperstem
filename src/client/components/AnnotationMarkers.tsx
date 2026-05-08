@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type Dispatch, type SetStateAction } from 'react';
 import type { Annotation } from '../../shared/types';
 import { SELF_ANNOTATION_COLOR } from '../lib/colors';
 
@@ -11,7 +11,7 @@ type Props = {
   waveWidthPx: number;
   onSelect(annotation: Annotation): void;
   hoveredId: string | null;
-  onHover(id: string | null): void;
+  onHover: Dispatch<SetStateAction<string | null>>;
 };
 
 const TOOLTIP_BODY_LIMIT = 80;
@@ -72,9 +72,9 @@ export function AnnotationMarkers({
               }}
               title={tooltip}
               onPointerEnter={() => onHover(m.ann.id)}
-              onPointerLeave={() => {
-                if (hoveredId === m.ann.id) onHover(null);
-              }}
+              onPointerLeave={() =>
+                onHover((cur) => (cur === m.ann.id ? null : cur))
+              }
               onPointerDown={(e) => {
                 e.stopPropagation();
                 onSelect(m.ann);
@@ -95,9 +95,9 @@ export function AnnotationMarkers({
             }}
             title={tooltip}
             onPointerEnter={() => onHover(m.ann.id)}
-            onPointerLeave={() => {
-              if (hoveredId === m.ann.id) onHover(null);
-            }}
+            onPointerLeave={() =>
+              onHover((cur) => (cur === m.ann.id ? null : cur))
+            }
             onPointerDown={(e) => {
               e.stopPropagation();
               onSelect(m.ann);

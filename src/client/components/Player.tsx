@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import type { Annotation } from '../../shared/types';
 import type { PlayerControls } from '../hooks/usePlayer';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
@@ -44,7 +51,7 @@ type Props = {
   canCreateAnnotations: boolean;
   pendingDraft: { start_ms: number; end_ms: number | null } | null;
   hoveredAnnotationId: string | null;
-  onHoverAnnotation(id: string | null): void;
+  onHoverAnnotation: Dispatch<SetStateAction<string | null>>;
 };
 
 export function Player({

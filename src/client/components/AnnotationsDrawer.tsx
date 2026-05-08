@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import type { Annotation } from '../../shared/types';
 import {
   createAnnotation,
@@ -25,7 +25,7 @@ type Props = {
   onDraftCancel(): void;
   onToggleMarkersVisible(): void;
   onLoopAnnotation(annotation: Annotation): void;
-  onHoverAnnotation(id: string | null): void;
+  onHoverAnnotation: Dispatch<SetStateAction<string | null>>;
 };
 
 const IS_MAC =
