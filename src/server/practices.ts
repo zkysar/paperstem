@@ -4,7 +4,13 @@ import type { Context } from 'hono';
 import busboy from 'busboy';
 import { stmts } from './db.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
-import { createFolder, renameDriveItem, uploadFile } from './drive.js';
+import {
+  createFolder,
+  renameDriveItem,
+  trashDriveItem,
+  untrashDriveItem,
+  uploadFile,
+} from './drive.js';
 
 const MAX_NAME_LENGTH = 200;
 const MAX_STEM_BYTES = 100 * 1024 * 1024;
@@ -125,6 +131,59 @@ export async function handleRenamePractice(
   }
 
   return c.json({ ok: true, name });
+}
+
+export async function handleDeletePractice(
+  c: Context<{ Variables: AuthVariables }>,
+): Promise<Response> {
+  const user = requireUser(c);
+  const id = c.req.param('id') ?? '';
+  if (!id) return c.json({ error: 'not_found' }, 404);
+
+  const practice = stmts.findPracticeById.get(id);
+  if (!practice) return c.json({ error: 'not_found' }, 404);
+
+  const membership = stmts.findMembership.get(practice.band_id, user.id);
+  if (!membership) return c.json({ error: 'not_found' }, 404);
+
+  const now = Math.floor(Date.now() / 1000);
+  stmts.softDeletePractice.run(now, user.id, id);
+
+  try {
+    await trashDriveItem(practice.drive_folder_id);
+  } catch (err) {
+    console.warn('[practices] drive trash failed; DB updated', { id, err });
+  }
+
+  return c.json({ ok: true });
+}
+
+export async function handleRestorePractice(
+  c: Context<{ Variables: AuthVariables }>,
+): Promise<Response> {
+  const user = requireUser(c);
+  const id = c.req.param('id') ?? '';
+  if (!id) return c.json({ error: 'not_found' }, 404);
+
+  const practice = stmts.findPracticeAnyState.get(id);
+  if (!practice) return c.json({ error: 'not_found' }, 404);
+
+  const membership = stmts.findMembership.get(practice.band_id, user.id);
+  if (!membership) return c.json({ error: 'not_found' }, 404);
+
+  if (practice.deleted_reason === 'drive_missing') {
+    return c.json({ error: 'drive_missing' }, 409);
+  }
+
+  stmts.restorePractice.run(id);
+
+  try {
+    await untrashDriveItem(practice.drive_folder_id);
+  } catch (err) {
+    console.warn('[practices] drive untrash failed; DB updated', { id, err });
+  }
+
+  return c.json({ ok: true });
 }
 
 type CreatePracticeBody = {

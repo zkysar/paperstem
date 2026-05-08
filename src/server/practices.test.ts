@@ -38,6 +38,8 @@ beforeAll(async () => {
   app.get('/api/practices', practicesMod.handleListPractices);
   app.get('/api/practices/:id', practicesMod.handleGetPractice);
   app.patch('/api/practices/:id', practicesMod.handleRenamePractice);
+  app.delete('/api/practices/:id', practicesMod.handleDeletePractice);
+  app.post('/api/practices/:id/restore', practicesMod.handleRestorePractice);
 });
 
 afterAll(() => {
@@ -370,5 +372,183 @@ describe('PATCH /api/practices/:id', () => {
       .prepare('SELECT name FROM practices WHERE id = ?')
       .get(pid) as { name: string };
     expect(row.name).toBe('original');
+  });
+});
+
+describe('DELETE /api/practices/:id', () => {
+  function tokenResponse(): Response {
+    return new Response(
+      JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  it('soft-deletes the practice and trashes the Drive folder', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const pid = insertPractice(bandId, owner, 'p1', '2026-05-01');
+    const sid = createSession(owner);
+
+    const captured: { url: string; method: string; body: unknown }[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = typeof input === 'string' ? input : (input as Request).url;
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return tokenResponse();
+      }
+      const method = (init?.method ?? 'GET').toUpperCase();
+      let parsedBody: unknown = undefined;
+      if (init?.body && typeof init.body === 'string') {
+        try {
+          parsedBody = JSON.parse(init.body);
+        } catch {
+          parsedBody = init.body;
+        }
+      }
+      captured.push({ url, method, body: parsedBody });
+      return new Response('{}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/practices/${pid}`, {
+        method: 'DELETE',
+        headers: { Cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(200);
+
+    const driveCalls = captured.filter((c) => c.method === 'PATCH');
+    expect(driveCalls.length).toBe(1);
+    expect(driveCalls[0]!.body).toEqual({ trashed: true });
+
+    expect(dbMod.stmts.findPracticeById.get(pid)).toBeUndefined();
+    const row = dbMod.stmts.findPracticeAnyState.get(pid)!;
+    expect(row.deleted_at).toBeGreaterThan(0);
+    expect(row.deleted_by).toBe(owner);
+    expect(row.deleted_reason).toBe('user');
+  });
+
+  it('rejects non-members with 404', async () => {
+    const owner = createUser('owner@example.com');
+    const stranger = createUser('stranger@example.com');
+    const bandId = createBand('Alpha', owner);
+    const pid = insertPractice(bandId, owner, 'p1', '2026-05-01');
+    const sid = createSession(stranger);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/practices/${pid}`, {
+        method: 'DELETE',
+        headers: { Cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(404);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const row = dbMod.stmts.findPracticeAnyState.get(pid)!;
+    expect(row.deleted_at).toBeNull();
+  });
+});
+
+describe('POST /api/practices/:id/restore', () => {
+  function tokenResponse(): Response {
+    return new Response(
+      JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  it('restores soft-deleted practice and untrashes Drive folder', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const pid = insertPractice(bandId, owner, 'p1', '2026-05-01');
+    const now = Math.floor(Date.now() / 1000);
+    dbMod.stmts.softDeletePractice.run(now, owner, pid);
+    const sid = createSession(owner);
+
+    const captured: { url: string; method: string; body: unknown }[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = typeof input === 'string' ? input : (input as Request).url;
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return tokenResponse();
+      }
+      const method = (init?.method ?? 'GET').toUpperCase();
+      let parsedBody: unknown = undefined;
+      if (init?.body && typeof init.body === 'string') {
+        try {
+          parsedBody = JSON.parse(init.body);
+        } catch {
+          parsedBody = init.body;
+        }
+      }
+      captured.push({ url, method, body: parsedBody });
+      return new Response('{}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/practices/${pid}/restore`, {
+        method: 'POST',
+        headers: { Cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(200);
+
+    const driveCalls = captured.filter((c) => c.method === 'PATCH');
+    expect(driveCalls.length).toBe(1);
+    expect(driveCalls[0]!.body).toEqual({ trashed: false });
+
+    const row = dbMod.stmts.findPracticeById.get(pid)!;
+    expect(row).toBeDefined();
+    expect(row.deleted_at).toBeNull();
+  });
+
+  it('returns 409 for ghost rows (drive_missing)', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const pid = insertPractice(bandId, owner, 'p1', '2026-05-01');
+    const now = Math.floor(Date.now() / 1000);
+    dbMod.stmts.markPracticeGhost.run(now, pid);
+    const sid = createSession(owner);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/practices/${pid}/restore`, {
+        method: 'POST',
+        headers: { Cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const row = dbMod.stmts.findPracticeAnyState.get(pid)!;
+    expect(row.deleted_reason).toBe('drive_missing');
+  });
+
+  it('rejects non-members with 404', async () => {
+    const owner = createUser('owner@example.com');
+    const stranger = createUser('stranger@example.com');
+    const bandId = createBand('Alpha', owner);
+    const pid = insertPractice(bandId, owner, 'p1', '2026-05-01');
+    const now = Math.floor(Date.now() / 1000);
+    dbMod.stmts.softDeletePractice.run(now, owner, pid);
+    const sid = createSession(stranger);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/practices/${pid}/restore`, {
+        method: 'POST',
+        headers: { Cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(404);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
