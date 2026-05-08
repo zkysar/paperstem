@@ -11,8 +11,33 @@ export const db = new Database(databasePath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+migrateLegacyPracticesTable(db);
+
 const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf8');
 db.exec(schema);
+
+// Renames the pre-rebrand `practices` table (and `practice_id` columns on
+// `stems` / `annotations`) to the DAW-style `projects` / `project_id` names.
+// Idempotent: runs only when the legacy table is present and the new one
+// is not. Old indexes are dropped here; the schema.sql below recreates the
+// new ones via CREATE INDEX IF NOT EXISTS.
+export function migrateLegacyPracticesTable(d: Database.Database): void {
+  const sel = d.prepare<[string], { name: string }>(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+  );
+  if (!sel.get('practices')) return;
+  if (sel.get('projects')) return;
+  console.log('[db] migrating legacy practices table -> projects');
+  d.exec(`
+    DROP INDEX IF EXISTS idx_practices_band_recorded;
+    DROP INDEX IF EXISTS idx_stems_practice;
+    DROP INDEX IF EXISTS idx_annotations_practice_user;
+    DROP INDEX IF EXISTS idx_annotations_practice_start;
+    ALTER TABLE practices RENAME TO projects;
+    ALTER TABLE stems RENAME COLUMN practice_id TO project_id;
+    ALTER TABLE annotations RENAME COLUMN practice_id TO project_id;
+  `);
+}
 
 export type UserRow = {
   id: string;
