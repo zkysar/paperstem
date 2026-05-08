@@ -319,6 +319,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
             pendingDraft={pendingDraft}
             hoveredAnnotationId={hoveredAnnotationId}
             onHoverAnnotation={setHoveredAnnotationId}
+            onLoopAnnotation={handleLoopAnnotation}
           />
         </ErrorBoundary>
         <AnnotationsDrawer

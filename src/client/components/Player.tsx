@@ -52,6 +52,7 @@ type Props = {
   pendingDraft: { start_ms: number; end_ms: number | null } | null;
   hoveredAnnotationId: string | null;
   onHoverAnnotation: Dispatch<SetStateAction<string | null>>;
+  onLoopAnnotation(annotation: Annotation): void;
 };
 
 export function Player({
@@ -71,6 +72,7 @@ export function Player({
   pendingDraft,
   hoveredAnnotationId,
   onHoverAnnotation,
+  onLoopAnnotation,
 }: Props) {
   const { state, currentTime } = player;
   const {
@@ -557,6 +559,8 @@ export function Player({
           onSelect={onAnnotationSelected}
           hoveredId={hoveredAnnotationId}
           onHover={onHoverAnnotation}
+          onLoopAnnotation={onLoopAnnotation}
+          createMode={annotationCreateMode}
         />
         {previewSource && (
           <div

@@ -1198,3 +1198,43 @@ kbd {
     max-width: 100%;
   }
 }
+
+/* ===== AnnotationHoverCard ===== */
+.annotation-hover-card {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.10);
+  padding: 9px 11px 10px;
+  width: 240px;
+  font-size: 0.78rem;
+}
+.annotation-hover-card .ahc-loop {
+  pointer-events: auto;
+}
+.annotation-hover-card .ahc-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.annotation-hover-card .ahc-avatar {
+  width: 18px; height: 18px; border-radius: 50%;
+  color: #fff; font-size: 0.6rem; font-weight: 600;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.annotation-hover-card .ahc-author { font-weight: 600; }
+.annotation-hover-card .ahc-time {
+  font-size: 0.68rem; color: var(--ink-2);
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  background: var(--accent-tint-3); padding: 1px 5px; border-radius: 3px;
+  margin-left: auto;
+}
+.annotation-hover-card .ahc-loop {
+  background: transparent; border: none; padding: 0 0 0 4px; cursor: pointer;
+  color: var(--ink-2); font: inherit;
+}
+.annotation-hover-card .ahc-body { line-height: 1.35; }
