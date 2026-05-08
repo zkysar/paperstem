@@ -84,19 +84,23 @@ export function Player({
   const tracksRef = useRef<HTMLDivElement>(null);
 
   // Wave area geometry: re-measured on each render so overlay positions
-  // (playhead, loop region) follow size changes without explicit listeners.
-  // The ruler is in the same grid column as the wave clips, so we use its
-  // rect as the canonical x-axis.
+  // (playhead, loop region, annotation markers) follow size changes. A
+  // ResizeObserver on the stage catches every layout source — window resize,
+  // the track-name rail collapsing, the annotations rail opening (which
+  // shrinks the player via the .app-body grid), etc. — without needing each
+  // parent state to be threaded in as a prop.
   const [, forceRender] = useState(0);
   useEffect(() => {
-    const reflow = () => forceRender((n) => n + 1);
-    window.addEventListener('resize', reflow);
-    return () => window.removeEventListener('resize', reflow);
+    const stage = stageRef.current;
+    if (!stage) return;
+    const ro = new ResizeObserver(() => forceRender((n) => n + 1));
+    ro.observe(stage);
+    return () => ro.disconnect();
   }, []);
-  // The first render after `railCollapsed` flips computes overlay positions
-  // against pre-commit DOM (old rail width). Re-measure synchronously after
-  // the new className is committed so the playhead/loop overlay snap to
-  // the new wave-area position rather than drifting to the previous spot.
+  // ResizeObserver fires async after layout, so the first render under a new
+  // `railCollapsed` className still uses pre-commit DOM. Re-measure
+  // synchronously so the overlay snaps in place rather than drifting for one
+  // frame after the toggle.
   useLayoutEffect(() => {
     forceRender((n) => n + 1);
   }, [railCollapsed]);
