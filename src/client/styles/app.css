@@ -1468,3 +1468,33 @@ kbd {
   overflow-y: auto;
   min-height: 280px;
 }
+.fp-row {
+  display: grid;
+  grid-template-columns: 1fr 110px 100px 50px 32px;
+  gap: 12px;
+  align-items: center;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--rule-2);
+  text-align: left;
+  font: inherit; font-size: 0.82rem;
+}
+.fp-row.fp-row-head {
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--rule);
+}
+.fp-row-data {
+  background: transparent; border: none; cursor: pointer; width: 100%;
+}
+.fp-row-data:hover { background: var(--accent-tint); }
+.fp-row-data.active { background: var(--accent-tint-2); }
+.fp-name { font-weight: 600; }
+.fp-meta { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.7rem; color: var(--muted); }
+.fp-thumb {
+  height: 18px;
+  background: linear-gradient(to bottom, transparent 25%, var(--accent-tint-2) 25%, var(--accent-tint-2) 75%, transparent 75%);
+  border-radius: 2px;
+}
+.fp-row-end { display: flex; align-items: center; justify-content: center; }

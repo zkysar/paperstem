@@ -129,7 +129,9 @@ export function FilePicker({
   );
 }
 
-function FilePickerBody(_props: {
+function FilePickerBody({
+  search, practices, activePracticeId, onSelect,
+}: {
   tab: Tab;
   search: string;
   loading: boolean;
@@ -141,5 +143,41 @@ function FilePickerBody(_props: {
   onUploadClick(): void;
   onRetry(): void;
 }) {
-  return <div className="fp-body" />;
+  const filtered = practices.filter((p) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase();
+    return (
+      p.title.toLowerCase().includes(q) ||
+      (p.folder ?? '').toLowerCase().includes(q)
+    );
+  });
+  // Default sort: name desc (matches existing date-coded titles)
+  const rows = [...filtered].sort((a, b) => b.title.localeCompare(a.title));
+
+  return (
+    <div className="fp-body">
+      <div className="fp-row fp-row-head" role="row">
+        <span>Name</span>
+        <span>Waveform</span>
+        <span>Date</span>
+        <span>Stems</span>
+        <span></span>
+      </div>
+      {rows.map((p) => (
+        <button
+          key={p.id}
+          type="button"
+          data-testid={`fp-row-${p.id}`}
+          className={'fp-row fp-row-data' + (p.id === activePracticeId ? ' active' : '')}
+          onClick={() => onSelect(p.id)}
+        >
+          <span className="fp-name">{p.title}</span>
+          <span className="fp-thumb" aria-hidden="true" />
+          <span className="fp-meta">{p.folder ?? ''}</span>
+          <span className="fp-meta">{p.stems.length}</span>
+          <span className="fp-row-end" />
+        </button>
+      ))}
+    </div>
+  );
 }

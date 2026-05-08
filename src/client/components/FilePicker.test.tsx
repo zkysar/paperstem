@@ -53,4 +53,39 @@ describe('FilePicker', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  const fixturePractices: Practice[] = [
+    { id: 'p1', title: 'Practice 2026-04-28', folder: '2026/04', stems: ['a','b','c'], driveFolderId: 'd1' },
+    { id: 'p2', title: 'Practice 2026-04-21', folder: '2026/04', stems: ['a','b'], driveFolderId: 'd2' },
+    { id: 'p3', title: 'Practice 2026-03-31', folder: '2026/03', stems: ['a'], driveFolderId: null },
+  ];
+
+  it('renders one row per practice', () => {
+    render(<FilePicker {...baseProps} practices={fixturePractices} />);
+    expect(screen.getByText('Practice 2026-04-28')).not.toBeNull();
+    expect(screen.getByText('Practice 2026-04-21')).not.toBeNull();
+    expect(screen.getByText('Practice 2026-03-31')).not.toBeNull();
+  });
+
+  it('filters by search query (title)', async () => {
+    const user = userEvent.setup();
+    render(<FilePicker {...baseProps} practices={fixturePractices} />);
+    await user.type(screen.getByPlaceholderText('Search practices'), '04-28');
+    expect(screen.getByText('Practice 2026-04-28')).not.toBeNull();
+    expect(screen.queryByText('Practice 2026-04-21')).toBeNull();
+  });
+
+  it('clicking a row calls onSelect with practice id', async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    render(<FilePicker {...baseProps} practices={fixturePractices} onSelect={onSelect} />);
+    await user.click(screen.getByText('Practice 2026-04-28'));
+    expect(onSelect).toHaveBeenCalledWith('p1');
+  });
+
+  it('marks active row with active class', () => {
+    render(<FilePicker {...baseProps} practices={fixturePractices} activePracticeId="p2" />);
+    const row = screen.getByTestId('fp-row-p2');
+    expect(row.className).toContain('active');
+  });
 });
