@@ -205,10 +205,13 @@ export const stmts = {
   findPracticeById: db.prepare<[string], PracticeRow>(
     'SELECT * FROM practices WHERE id = ?',
   ),
-  findPracticesForBand: db.prepare<[string], PracticeRow>(
-    `SELECT * FROM practices
-      WHERE band_id = ?
-      ORDER BY recorded_on DESC, created_at DESC`,
+  findPracticesForBand: db.prepare<[string], PracticeRow & { stem_count: number }>(
+    `SELECT p.*, COUNT(s.id) AS stem_count
+       FROM practices p
+       LEFT JOIN stems s ON s.practice_id = p.id
+      WHERE p.band_id = ?
+      GROUP BY p.id
+      ORDER BY p.recorded_on DESC, p.created_at DESC`,
   ),
   findStemsForPractice: db.prepare<[string], StemRow>(
     'SELECT * FROM stems WHERE practice_id = ? ORDER BY position',
