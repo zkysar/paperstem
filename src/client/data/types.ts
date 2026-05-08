@@ -1,4 +1,4 @@
-export type Practice = {
+export type Project = {
   id: string;
   title: string;
   folder: string;
@@ -6,7 +6,7 @@ export type Practice = {
   driveFolderId: string | null;
 };
 
-export type PracticeSummary = {
+export type ProjectSummary = {
   id: string;
   name: string;
   recorded_on: string | null;
@@ -24,7 +24,7 @@ export type StemSummary = {
   size_bytes: number | null;
 };
 
-export type PracticeDetail = {
+export type ProjectDetail = {
   id: string;
   band_id: string;
   name: string;
@@ -46,7 +46,7 @@ export type LoadedStem = {
   userMuted: boolean;
   soloed: boolean;
   userVolume: number;
-  practiceId: string | null;
+  projectId: string | null;
   revoke?: () => void;
   // Per-track gain node in the Web Audio graph (source → gain → master → output).
   // Null if Web Audio is unavailable or wiring failed; the player falls back to
@@ -63,7 +63,7 @@ export type LoopRegion = {
 export type WaveformNormalization = 'per-track' | 'global';
 
 export type PlayerState = {
-  practiceId: string | null;
+  projectId: string | null;
   title: string;
   driveFolderId: string | null;
   stems: LoadedStem[];
@@ -84,6 +84,6 @@ export type StemSource = {
 };
 
 export type LoadContext = {
-  practiceId: string | null;
+  projectId: string | null;
   title: string;
 };

@@ -10,7 +10,7 @@ A DAW-style stem player for sharing rough mixes with bandmates.
 - **Backend**: Hono on Node, SQLite-on-volume (`src/server/`)
 - **Audio**: stems live in Google Drive (OAuth-as-me); the server streams them via a Range-supported `/api/audio/:id` proxy
 - **Auth**: magic link via Gmail SMTP, `__Host-` session cookie, 30-day expiry
-- **Backups**: daily per-practice annotation snapshot to Drive, weekly per-band SQLite dump (8-week retention)
+- **Backups**: daily per-project annotation snapshot to Drive, weekly per-band SQLite dump (8-week retention)
 - **Hosting**: a single always-on Fly.io machine in `sjc`, ~$3/mo
 
 See `~/projects/plans/2026-05-04-paperstem-deployment-design.md` for the full design.
@@ -50,4 +50,4 @@ The Fly machine builds the Docker image remotely on linux/amd64. Secrets (`GMAIL
 
 ## History
 
-Originally hosted on GitHub Pages as a static demo with a JSON-backed practice list and gitignored audio. Migrated to Fly.io with the React + Hono + SQLite + Drive architecture above; GH Pages decommissioned in Phase 7.
+Originally hosted on GitHub Pages as a static demo with a JSON-backed project list and gitignored audio. Migrated to Fly.io with the React + Hono + SQLite + Drive architecture above; GH Pages decommissioned in Phase 7.

@@ -11,8 +11,8 @@ import { Player } from './components/Player';
 import { Sidebar } from './components/Sidebar';
 import { UploadDrawer } from './components/UploadDrawer';
 import { listAnnotations } from './data/annotations-repo';
-import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
-import type { Practice, StemSource } from './data/types';
+import { HttpProjectsRepo, type ProjectsRepo } from './data/projects-repo';
+import type { Project, StemSource } from './data/types';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
 import { buildUserColorMap } from './lib/colors';
@@ -35,14 +35,14 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
   const activeBand = bands[0] ?? null;
   const activeBandId = activeBand?.id ?? null;
-  const repo = useMemo<PracticesRepo | null>(
-    () => (activeBandId ? new HttpPracticesRepo(activeBandId) : null),
+  const repo = useMemo<ProjectsRepo | null>(
+    () => (activeBandId ? new HttpProjectsRepo(activeBandId) : null),
     [activeBandId],
   );
 
-  const [practices, setPractices] = useState<Practice[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -88,14 +88,14 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
 
   useEffect(() => {
     if (!repo) {
-      setPractices([]);
+      setProjects([]);
       return;
     }
     let cancelled = false;
     repo.list().then(
       (list) => {
         if (cancelled) return;
-        setPractices(list);
+        setProjects(list);
         setLoadError(null);
       },
       (err: Error) => {
@@ -107,28 +107,28 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     };
   }, [repo]);
 
-  async function refreshPractices(): Promise<Practice[]> {
+  async function refreshProjects(): Promise<Project[]> {
     if (!repo) return [];
     const list = await repo.list();
-    setPractices(list);
+    setProjects(list);
     setLoadError(null);
     return list;
   }
 
-  async function handleUploaded(practiceId: string) {
+  async function handleUploaded(projectId: string) {
     setUploadOpen(false);
     try {
-      await refreshPractices();
-      await selectPractice(practiceId);
+      await refreshProjects();
+      await selectProject(projectId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setLoadError(msg);
     }
   }
 
-  async function selectPractice(id: string) {
+  async function selectProject(id: string) {
     if (!repo) return;
-    setActivePracticeId(id);
+    setActiveProjectId(id);
     setDrawerOpen(false);
     setAnnotations([]);
     setPendingDraft(null);
@@ -136,13 +136,13 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     setHighlightAnnotationId(null);
     try {
       const detail = await repo.getById(id);
-      setPractices((prev) => prev.map((p) => (p.id === detail.id ? detail : p)));
+      setProjects((prev) => prev.map((p) => (p.id === detail.id ? detail : p)));
       const sources: StemSource[] = detail.stems.map((stemId) => ({
         name: stemId,
         src: `/api/audio/${encodeURIComponent(stemId)}`,
       }));
       void player.load({
-        practiceId: detail.id,
+        projectId: detail.id,
         title: detail.title,
         driveFolderId: detail.driveFolderId,
         sources,
@@ -193,7 +193,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     setDrawerOpen(false);
     if (!files.length) {
       void player.load({
-        practiceId: null,
+        projectId: null,
         title: folderName || 'Local folder',
         driveFolderId: null,
         sources: [],
@@ -204,9 +204,9 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
       const url = URL.createObjectURL(f);
       return { name: f.name, src: url, revoke: () => URL.revokeObjectURL(url) };
     });
-    setActivePracticeId(null);
+    setActiveProjectId(null);
     void player.load({
-      practiceId: `local:${folderName}`,
+      projectId: `local:${folderName}`,
       title: folderName,
       driveFolderId: null,
       sources,
@@ -217,7 +217,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     if (!player.state.stems.length) return;
     setDownloading(true);
     try {
-      const filename = `${activePracticeId || 'paperstem'}-stems.zip`;
+      const filename = `${activeProjectId || 'paperstem'}-stems.zip`;
       await downloadStemsAsZip(player.state.stems, filename);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -255,7 +255,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
         <button
           type="button"
           className="menu-btn"
-          aria-label="Open practices menu"
+          aria-label="Open projects menu"
           aria-expanded={drawerOpen}
           onClick={() => setDrawerOpen(true)}
         >
@@ -269,14 +269,14 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
       </header>
       <div className="app">
         <Sidebar
-          practices={practices}
-          activePracticeId={activePracticeId}
+          projects={projects}
+          activeProjectId={activeProjectId}
           loadError={loadError}
           drawerOpen={drawerOpen}
           userEmail={user.email}
           showUpload={showUploadButton}
           onClose={() => setDrawerOpen(false)}
-          onSelect={(id) => void selectPractice(id)}
+          onSelect={(id) => void selectProject(id)}
           onLoadFolder={loadFolder}
           onUploadClick={() => setUploadOpen(true)}
           onLogout={onLogout}
@@ -312,15 +312,15 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
             }
             onAnnotationCreated={handleAnnotationCreated}
             onAnnotationSelected={handleAnnotationSelected}
-            canCreateAnnotations={activePracticeId !== null}
+            canCreateAnnotations={activeProjectId !== null}
             pendingDraft={pendingDraft}
           />
         </ErrorBoundary>
         <AnnotationsDrawer
           open={annotationsOpen}
-          practiceId={activePracticeId}
+          projectId={activeProjectId}
           selfUserId={user.id}
-          canEdit={activePracticeId !== null}
+          canEdit={activeProjectId !== null}
           annotations={annotations}
           userColorMap={userColorMap}
           markersVisible={markersVisible}

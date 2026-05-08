@@ -354,7 +354,7 @@ export function Player({
     >
       <div className="player-header">
         <div>
-          <div className="player-meta">Practice</div>
+          <div className="player-meta">Project</div>
           <div className="player-title">{title}</div>
           {driveFolderId ? (
             <a
@@ -511,10 +511,10 @@ export function Player({
         )}
         <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
         <div className="tracks" ref={tracksRef}>
-          {!stems.length && <div className="empty">No practice loaded.</div>}
+          {!stems.length && <div className="empty">No project loaded.</div>}
           {stems.map((stem, i) => (
             <Track
-              key={`${stem.practiceId ?? 'local'}-${stem.name}`}
+              key={`${stem.projectId ?? 'local'}-${stem.name}`}
               stem={stem}
               idx={i}
               focused={i === focusedIdx}

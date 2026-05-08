@@ -10,11 +10,11 @@ import { handleMe } from './auth/me.js';
 import { sessionMiddleware, type AuthVariables } from './auth/middleware.js';
 import { handleListBands, handleGetBand } from './bands.js';
 import {
-  handleCreatePractice,
+  handleCreateProject,
   handleCreateStem,
-  handleGetPractice,
-  handleListPractices,
-} from './practices.js';
+  handleGetProject,
+  handleListProjects,
+} from './projects.js';
 import { handleGetAudio } from './audio.js';
 import {
   handleCreateAnnotation,
@@ -42,13 +42,13 @@ app.post('/api/auth/logout', handleAuthLogout);
 app.get('/api/me', handleMe);
 app.get('/api/bands', handleListBands);
 app.get('/api/bands/:id', handleGetBand);
-app.get('/api/practices', handleListPractices);
-app.get('/api/practices/:id', handleGetPractice);
-app.post('/api/practices', handleCreatePractice);
-app.post('/api/practices/:id/stems', handleCreateStem);
+app.get('/api/projects', handleListProjects);
+app.get('/api/projects/:id', handleGetProject);
+app.post('/api/projects', handleCreateProject);
+app.post('/api/projects/:id/stems', handleCreateStem);
 app.get('/api/audio/:stem_id', handleGetAudio);
-app.get('/api/practices/:id/annotations', handleListAnnotations);
-app.post('/api/practices/:id/annotations', handleCreateAnnotation);
+app.get('/api/projects/:id/annotations', handleListAnnotations);
+app.post('/api/projects/:id/annotations', handleCreateAnnotation);
 app.patch('/api/annotations/:id', handlePatchAnnotation);
 app.delete('/api/annotations/:id', handleDeleteAnnotation);
 app.get('/api/health/snapshots', handleSnapshotsHealth);

@@ -10,7 +10,7 @@ import { fmt } from '../lib/format';
 
 type Props = {
   open: boolean;
-  practiceId: string | null;
+  projectId: string | null;
   selfUserId: string;
   canEdit: boolean;
   annotations: Annotation[];
@@ -53,7 +53,7 @@ function authorLabel(a: Annotation): string {
 
 export function AnnotationsDrawer({
   open,
-  practiceId,
+  projectId,
   selfUserId,
   canEdit,
   annotations,
@@ -84,13 +84,13 @@ export function AnnotationsDrawer({
   if (!open) return null;
 
   async function handleSaveDraft() {
-    if (!practiceId || !pendingDraft) return;
+    if (!projectId || !pendingDraft) return;
     const text = draftBody.trim();
     if (!text) return;
     setSubmitting(true);
     setError(null);
     try {
-      const created = await createAnnotation(practiceId, {
+      const created = await createAnnotation(projectId, {
         start_ms: pendingDraft.start_ms,
         end_ms: pendingDraft.end_ms,
         body: text,

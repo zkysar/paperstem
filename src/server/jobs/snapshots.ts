@@ -1,4 +1,4 @@
-import { stmts, type BandRow, type PracticeRow } from '../db.js';
+import { stmts, type BandRow, type ProjectRow } from '../db.js';
 import {
   findFileByName,
   updateFile,
@@ -13,7 +13,7 @@ export type SnapshotMeta = {
   schema_version: number;
   snapshot_at: number;
   band: { id: string; name: string };
-  practice: {
+  project: {
     id: string;
     name: string;
     recorded_on: string | null;
@@ -45,20 +45,20 @@ export type SnapshotMeta = {
   }[];
 };
 
-export function buildPracticeMeta(
+export function buildProjectMeta(
   band: BandRow,
-  practice: PracticeRow,
+  project: ProjectRow,
   nowSec: number,
 ): SnapshotMeta {
-  const stems = stmts.findStemsForPractice.all(practice.id).map((s) => ({
+  const stems = stmts.findStemsForProject.all(project.id).map((s) => ({
     id: s.id,
     name: s.name,
     position: s.position,
     duration_ms: s.duration_ms,
     size_bytes: s.size_bytes,
   }));
-  const annotations = stmts.findAnnotationsForPractice
-    .all(practice.id)
+  const annotations = stmts.findAnnotationsForProject
+    .all(project.id)
     .map((a) => ({
       id: a.id,
       user_id: a.user_id,
@@ -75,16 +75,16 @@ export function buildPracticeMeta(
     schema_version: SCHEMA_VERSION,
     snapshot_at: nowSec,
     band: { id: band.id, name: band.name },
-    practice: {
-      id: practice.id,
-      name: practice.name,
-      recorded_on: practice.recorded_on,
-      bpm: practice.bpm,
-      reference_stem: practice.reference_stem,
-      notes: practice.notes,
-      created_at: practice.created_at,
-      updated_at: practice.updated_at,
-      created_by: practice.created_by,
+    project: {
+      id: project.id,
+      name: project.name,
+      recorded_on: project.recorded_on,
+      bpm: project.bpm,
+      reference_stem: project.reference_stem,
+      notes: project.notes,
+      created_at: project.created_at,
+      updated_at: project.updated_at,
+      created_by: project.created_by,
     },
     stems,
     annotations,
@@ -92,15 +92,15 @@ export function buildPracticeMeta(
 }
 
 async function writeMetaFile(
-  practiceFolderId: string,
+  projectFolderId: string,
   body: Buffer,
 ): Promise<void> {
-  const existing = await findFileByName(META_FILENAME, practiceFolderId);
+  const existing = await findFileByName(META_FILENAME, projectFolderId);
   if (existing) {
     await updateFile(existing.id, META_MIME, body);
     return;
   }
-  await uploadFile(practiceFolderId, META_FILENAME, META_MIME, body);
+  await uploadFile(projectFolderId, META_FILENAME, META_MIME, body);
 }
 
 let runInFlight: Promise<void> | null = null;
@@ -110,18 +110,18 @@ export async function runSnapshotsNow(): Promise<void> {
   runInFlight = (async () => {
     const bands = stmts.findAllBands.all();
     for (const band of bands) {
-      const practices = stmts.findPracticesForBand.all(band.id);
+      const projects = stmts.findProjectsForBand.all(band.id);
       let updated = 0;
-      for (const practice of practices) {
+      for (const project of projects) {
         try {
           const nowSec = Math.floor(Date.now() / 1000);
-          const meta = buildPracticeMeta(band, practice, nowSec);
+          const meta = buildProjectMeta(band, project, nowSec);
           const body = Buffer.from(JSON.stringify(meta, null, 2), 'utf8');
-          await writeMetaFile(practice.drive_folder_id, body);
+          await writeMetaFile(project.drive_folder_id, body);
           updated += 1;
         } catch (err) {
           console.error(
-            `[snapshots] band=${band.id} practice=${practice.id} failed:`,
+            `[snapshots] band=${band.id} project=${project.id} failed:`,
             err,
           );
         }
@@ -131,7 +131,7 @@ export async function runSnapshotsNow(): Promise<void> {
         band.id,
       );
       console.log(
-        `[snapshots] band=${band.id} practices=${practices.length} updated=${updated}`,
+        `[snapshots] band=${band.id} projects=${projects.length} updated=${updated}`,
       );
     }
   })().finally(() => {

@@ -24,10 +24,10 @@ async function readError(res: Response): Promise<string> {
 }
 
 export async function listAnnotations(
-  practiceId: string,
+  projectId: string,
 ): Promise<Annotation[]> {
   const res = await fetch(
-    `/api/practices/${encodeURIComponent(practiceId)}/annotations`,
+    `/api/projects/${encodeURIComponent(projectId)}/annotations`,
     { credentials: 'include' },
   );
   if (!res.ok) throw new Error(await readError(res));
@@ -36,11 +36,11 @@ export async function listAnnotations(
 }
 
 export async function createAnnotation(
-  practiceId: string,
+  projectId: string,
   input: CreateAnnotationInput,
 ): Promise<Annotation> {
   const res = await fetch(
-    `/api/practices/${encodeURIComponent(practiceId)}/annotations`,
+    `/api/projects/${encodeURIComponent(projectId)}/annotations`,
     {
       method: 'POST',
       credentials: 'include',

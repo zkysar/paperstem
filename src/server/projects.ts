@@ -32,7 +32,7 @@ function inferAudioMime(filename: string, declared: string | undefined): string 
   return null;
 }
 
-export function handleListPractices(
+export function handleListProjects(
   c: Context<{ Variables: AuthVariables }>,
 ): Response {
   const user = requireUser(c);
@@ -42,8 +42,8 @@ export function handleListPractices(
   const membership = stmts.findMembership.get(bandId, user.id);
   if (!membership) return c.json({ error: 'not_found' }, 404);
 
-  const rows = stmts.findPracticesForBand.all(bandId);
-  const practices = rows.map((p) => ({
+  const rows = stmts.findProjectsForBand.all(bandId);
+  const projects = rows.map((p) => ({
     id: p.id,
     name: p.name,
     recorded_on: p.recorded_on,
@@ -52,23 +52,23 @@ export function handleListPractices(
     created_at: p.created_at,
     updated_at: p.updated_at,
   }));
-  return c.json({ practices });
+  return c.json({ projects });
 }
 
-export function handleGetPractice(
+export function handleGetProject(
   c: Context<{ Variables: AuthVariables }>,
 ): Response {
   const user = requireUser(c);
   const id = c.req.param('id') ?? '';
   if (!id) return c.json({ error: 'not_found' }, 404);
 
-  const practice = stmts.findPracticeById.get(id);
-  if (!practice) return c.json({ error: 'not_found' }, 404);
+  const project = stmts.findProjectById.get(id);
+  if (!project) return c.json({ error: 'not_found' }, 404);
 
-  const membership = stmts.findMembership.get(practice.band_id, user.id);
+  const membership = stmts.findMembership.get(project.band_id, user.id);
   if (!membership) return c.json({ error: 'not_found' }, 404);
 
-  const stems = stmts.findStemsForPractice.all(id).map((s) => ({
+  const stems = stmts.findStemsForProject.all(id).map((s) => ({
     id: s.id,
     name: s.name,
     position: s.position,
@@ -77,24 +77,24 @@ export function handleGetPractice(
   }));
 
   return c.json({
-    practice: {
-      id: practice.id,
-      band_id: practice.band_id,
-      name: practice.name,
-      recorded_on: practice.recorded_on,
-      drive_folder_id: practice.drive_folder_id,
-      bpm: practice.bpm,
-      reference_stem: practice.reference_stem,
-      notes: practice.notes,
-      created_at: practice.created_at,
-      created_by: practice.created_by,
-      updated_at: practice.updated_at,
+    project: {
+      id: project.id,
+      band_id: project.band_id,
+      name: project.name,
+      recorded_on: project.recorded_on,
+      drive_folder_id: project.drive_folder_id,
+      bpm: project.bpm,
+      reference_stem: project.reference_stem,
+      notes: project.notes,
+      created_at: project.created_at,
+      created_by: project.created_by,
+      updated_at: project.updated_at,
     },
     stems,
   });
 }
 
-type CreatePracticeBody = {
+type CreateProjectBody = {
   band_id?: unknown;
   name?: unknown;
   recorded_on?: unknown;
@@ -102,14 +102,14 @@ type CreatePracticeBody = {
   reference_stem?: unknown;
 };
 
-export async function handleCreatePractice(
+export async function handleCreateProject(
   c: Context<{ Variables: AuthVariables }>,
 ): Promise<Response> {
   const user = requireUser(c);
 
-  let body: CreatePracticeBody;
+  let body: CreateProjectBody;
   try {
-    body = (await c.req.json()) as CreatePracticeBody;
+    body = (await c.req.json()) as CreateProjectBody;
   } catch {
     return c.json({ error: 'invalid_json' }, 400);
   }
@@ -155,22 +155,22 @@ export async function handleCreatePractice(
     return c.json({ error: 'band_not_provisioned' }, 409);
   }
 
-  let practiceFolder: { id: string };
+  let projectFolder: { id: string };
   try {
-    practiceFolder = await createFolder(rawName, band.drive_folder_id);
+    projectFolder = await createFolder(rawName, band.drive_folder_id);
   } catch (err) {
-    console.error('[practices] createFolder failed', err);
+    console.error('[projects] createFolder failed', err);
     return c.json({ error: 'upstream_error' }, 502);
   }
 
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  stmts.insertPractice.run(
+  stmts.insertProject.run(
     id,
     bandId,
     rawName,
     recordedOn,
-    practiceFolder.id,
+    projectFolder.id,
     bpm,
     referenceStem,
     null,
@@ -181,12 +181,12 @@ export async function handleCreatePractice(
 
   return c.json(
     {
-      practice: {
+      project: {
         id,
         band_id: bandId,
         name: rawName,
         recorded_on: recordedOn,
-        drive_folder_id: practiceFolder.id,
+        drive_folder_id: projectFolder.id,
         bpm,
         reference_stem: referenceStem,
         notes: null,
@@ -299,13 +299,13 @@ export async function handleCreateStem(
   c: Context<{ Variables: AuthVariables }>,
 ): Promise<Response> {
   const user = requireUser(c);
-  const practiceId = c.req.param('id') ?? '';
-  if (!practiceId) return c.json({ error: 'not_found' }, 404);
+  const projectId = c.req.param('id') ?? '';
+  if (!projectId) return c.json({ error: 'not_found' }, 404);
 
-  const practice = stmts.findPracticeById.get(practiceId);
-  if (!practice) return c.json({ error: 'not_found' }, 404);
+  const project = stmts.findProjectById.get(projectId);
+  if (!project) return c.json({ error: 'not_found' }, 404);
 
-  if (!stmts.findOwnerMembership.get(practice.band_id, user.id)) {
+  if (!stmts.findOwnerMembership.get(project.band_id, user.id)) {
     return c.json({ error: 'forbidden' }, 403);
   }
 
@@ -326,20 +326,20 @@ export async function handleCreateStem(
     if (err instanceof MultipartError) {
       return c.json({ error: err.code }, err.status);
     }
-    console.error('[practices] multipart parse failed', err);
+    console.error('[projects] multipart parse failed', err);
     return c.json({ error: 'invalid_multipart' }, 400);
   }
 
   let uploaded: { id: string; size: number };
   try {
     uploaded = await uploadFile(
-      practice.drive_folder_id,
+      project.drive_folder_id,
       parsed.filename,
       parsed.mime,
       parsed.body,
     );
   } catch (err) {
-    console.error('[practices] uploadFile failed', err);
+    console.error('[projects] uploadFile failed', err);
     void parsed.done.catch(() => {});
     return c.json({ error: 'upstream_error' }, 502);
   }
@@ -353,12 +353,12 @@ export async function handleCreateStem(
   const stemName = ext ? parsed.filename.slice(0, -ext.length) : parsed.filename;
 
   const position =
-    parsed.position ?? (stmts.countStemsForPractice.get(practiceId)?.c ?? 0);
+    parsed.position ?? (stmts.countStemsForProject.get(projectId)?.c ?? 0);
 
   const stemId = randomUUID();
   stmts.insertStem.run(
     stemId,
-    practiceId,
+    projectId,
     stemName,
     position,
     uploaded.id,
@@ -370,7 +370,7 @@ export async function handleCreateStem(
     {
       stem: {
         id: stemId,
-        practice_id: practiceId,
+        project_id: projectId,
         name: stemName,
         position,
         duration_ms: null,

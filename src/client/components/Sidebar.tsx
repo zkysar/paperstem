@@ -1,10 +1,10 @@
 import { useRef } from 'react';
-import type { Practice } from '../data/types';
+import type { Project } from '../data/types';
 import { AUDIO_EXT } from '../lib/audio';
 
 type Props = {
-  practices: Practice[];
-  activePracticeId: string | null;
+  projects: Project[];
+  activeProjectId: string | null;
   loadError: string | null;
   drawerOpen: boolean;
   userEmail: string;
@@ -17,8 +17,8 @@ type Props = {
 };
 
 export function Sidebar({
-  practices,
-  activePracticeId,
+  projects,
+  activeProjectId,
   loadError,
   drawerOpen,
   userEmail,
@@ -50,34 +50,34 @@ export function Sidebar({
       <button
         type="button"
         className="sidebar-close"
-        aria-label="Close practices menu"
+        aria-label="Close projects menu"
         onClick={onClose}
       >
         ✕
       </button>
       <h1 className="brand">Paperstem</h1>
-      <div className="brand-tag">Practices</div>
+      <div className="brand-tag">Projects</div>
       {loadError ? (
         <div className="empty" style={{ fontSize: '0.78rem' }}>
-          Could not load practices.json ({loadError}). Use “Load local folder…” to load stems manually.
+          Could not load projects.json ({loadError}). Use “Load local folder…” to load stems manually.
         </div>
       ) : (
-        <ul className="practice-list">
-          {practices.length === 0 && (
+        <ul className="project-list">
+          {projects.length === 0 && (
             <li className="empty" style={{ fontSize: '0.78rem' }}>
-              No practices yet.
+              No projects yet.
             </li>
           )}
-          {practices.map((p) => (
+          {projects.map((p) => (
             <li key={p.id}>
               <button
                 type="button"
-                className={'practice-item' + (p.id === activePracticeId ? ' active' : '')}
+                className={'project-item' + (p.id === activeProjectId ? ' active' : '')}
                 onClick={() => onSelect(p.id)}
               >
-                <span className="practice-title">{p.title}</span>
+                <span className="project-title">{p.title}</span>
                 {(p.folder || p.stems.length > 0) && (
-                  <span className="practice-meta">
+                  <span className="project-meta">
                     {p.folder
                       ? `${p.folder.replace(/\/$/, '')} · ${p.stems.length} stems`
                       : `${p.stems.length} stems`}
@@ -103,7 +103,7 @@ export function Sidebar({
         </button>
         {showUpload && (
           <button type="button" onClick={onUploadClick}>
-            Upload practice…
+            Upload project…
           </button>
         )}
         <div className="sidebar-user">

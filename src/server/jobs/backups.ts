@@ -94,14 +94,14 @@ export function buildBandDump(bandId: string): Buffer {
       insertMembership.run(m.band_id, m.user_id, m.role, m.created_at);
     }
 
-    const practices = stmts.findPracticesForBand.all(bandId);
-    const insertPractice = dump.prepare(
-      `INSERT INTO practices
+    const projects = stmts.findProjectsForBand.all(bandId);
+    const insertProject = dump.prepare(
+      `INSERT INTO projects
          (id, band_id, name, recorded_on, drive_folder_id, bpm, reference_stem, notes, created_at, created_by, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
-    for (const p of practices) {
-      insertPractice.run(
+    for (const p of projects) {
+      insertProject.run(
         p.id,
         p.band_id,
         p.name,
@@ -117,15 +117,15 @@ export function buildBandDump(bandId: string): Buffer {
     }
 
     const insertStem = dump.prepare(
-      `INSERT INTO stems (id, practice_id, name, position, drive_file_id, duration_ms, size_bytes)
+      `INSERT INTO stems (id, project_id, name, position, drive_file_id, duration_ms, size_bytes)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
     );
-    for (const p of practices) {
-      const stems = stmts.findStemsForPractice.all(p.id);
+    for (const p of projects) {
+      const stems = stmts.findStemsForProject.all(p.id);
       for (const s of stems) {
         insertStem.run(
           s.id,
-          s.practice_id,
+          s.project_id,
           s.name,
           s.position,
           s.drive_file_id,
@@ -137,15 +137,15 @@ export function buildBandDump(bandId: string): Buffer {
 
     const insertAnnotation = dump.prepare(
       `INSERT INTO annotations
-         (id, practice_id, user_id, start_ms, end_ms, body, starred, created_at, updated_at)
+         (id, project_id, user_id, start_ms, end_ms, body, starred, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
-    for (const p of practices) {
-      const annotations = stmts.findAnnotationsForPractice.all(p.id);
+    for (const p of projects) {
+      const annotations = stmts.findAnnotationsForProject.all(p.id);
       for (const a of annotations) {
         insertAnnotation.run(
           a.id,
-          a.practice_id,
+          a.project_id,
           a.user_id,
           a.start_ms,
           a.end_ms,

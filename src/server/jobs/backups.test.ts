@@ -31,7 +31,7 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM practices; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
 }
 
@@ -58,15 +58,15 @@ function addMember(bandId: string, userId: string) {
   );
 }
 
-function insertPractice(bandId: string, userId: string, name: string): string {
+function insertProject(bandId: string, userId: string, name: string): string {
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  dbMod.stmts.insertPractice.run(
+  dbMod.stmts.insertProject.run(
     id,
     bandId,
     name,
     null,
-    'practice-folder',
+    'project-folder',
     null,
     null,
     null,
@@ -77,16 +77,16 @@ function insertPractice(bandId: string, userId: string, name: string): string {
   return id;
 }
 
-function insertStem(practiceId: string, position: number, name: string): string {
+function insertStem(projectId: string, position: number, name: string): string {
   const id = randomUUID();
-  dbMod.stmts.insertStem.run(id, practiceId, name, position, 'drive-file', 1000, 100);
+  dbMod.stmts.insertStem.run(id, projectId, name, position, 'drive-file', 1000, 100);
   return id;
 }
 
-function insertAnnotation(practiceId: string, userId: string): string {
+function insertAnnotation(projectId: string, userId: string): string {
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  dbMod.stmts.insertAnnotation.run(id, practiceId, userId, 0, null, 'note', 0, now, now);
+  dbMod.stmts.insertAnnotation.run(id, projectId, userId, 0, null, 'note', 0, now, now);
   return id;
 }
 
@@ -98,7 +98,7 @@ describe('buildBandDump', () => {
   it('emits a sqlite buffer that opens cleanly with empty magic_links and sessions', () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const pid = insertPractice(bandId, owner, 'practice-1');
+    const pid = insertProject(bandId, owner, 'project-1');
     insertStem(pid, 0, 'drums');
     insertAnnotation(pid, owner);
 
@@ -116,7 +116,7 @@ describe('buildBandDump', () => {
       expect(tables).toContain('magic_links');
       expect(tables).toContain('sessions');
       expect(tables).toContain('bands');
-      expect(tables).toContain('practices');
+      expect(tables).toContain('projects');
 
       const mlCount = dump
         .prepare<[], { c: number }>('SELECT COUNT(*) AS c FROM magic_links')
@@ -131,10 +131,10 @@ describe('buildBandDump', () => {
         .prepare<[], { c: number }>('SELECT COUNT(*) AS c FROM bands')
         .get();
       expect(bandCount?.c).toBe(1);
-      const practiceCount = dump
-        .prepare<[], { c: number }>('SELECT COUNT(*) AS c FROM practices')
+      const projectCount = dump
+        .prepare<[], { c: number }>('SELECT COUNT(*) AS c FROM projects')
         .get();
-      expect(practiceCount?.c).toBe(1);
+      expect(projectCount?.c).toBe(1);
       const stemCount = dump
         .prepare<[], { c: number }>('SELECT COUNT(*) AS c FROM stems')
         .get();
@@ -153,26 +153,26 @@ describe('buildBandDump', () => {
     const ownerB = createUser('b@example.com');
     const bandA = createBand('A', ownerA);
     const bandB = createBand('B', ownerB);
-    const pA = insertPractice(bandA, ownerA, 'pa');
-    const pB = insertPractice(bandB, ownerB, 'pb');
+    const pA = insertProject(bandA, ownerA, 'pa');
+    const pB = insertProject(bandB, ownerB, 'pb');
     insertStem(pA, 0, 'a-stem');
     insertStem(pB, 0, 'b-stem');
 
     const buf = backupsMod.buildBandDump(bandA);
     const dump = new Database(buf);
     try {
-      const practices = dump
-        .prepare<[], { id: string; band_id: string }>('SELECT id, band_id FROM practices')
+      const projects = dump
+        .prepare<[], { id: string; band_id: string }>('SELECT id, band_id FROM projects')
         .all();
-      expect(practices).toHaveLength(1);
-      expect(practices[0].id).toBe(pA);
-      expect(practices[0].band_id).toBe(bandA);
+      expect(projects).toHaveLength(1);
+      expect(projects[0].id).toBe(pA);
+      expect(projects[0].band_id).toBe(bandA);
 
       const stems = dump
-        .prepare<[], { practice_id: string }>('SELECT practice_id FROM stems')
+        .prepare<[], { project_id: string }>('SELECT project_id FROM stems')
         .all();
       expect(stems).toHaveLength(1);
-      expect(stems[0].practice_id).toBe(pA);
+      expect(stems[0].project_id).toBe(pA);
       expect(pB).not.toBe(pA);
     } finally {
       dump.close();

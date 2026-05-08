@@ -29,8 +29,8 @@ beforeAll(async () => {
   const { Hono } = await import('hono');
   app = new Hono();
   app.use('*', middlewareMod.sessionMiddleware);
-  app.get('/api/practices/:id/annotations', annotationsMod.handleListAnnotations);
-  app.post('/api/practices/:id/annotations', annotationsMod.handleCreateAnnotation);
+  app.get('/api/projects/:id/annotations', annotationsMod.handleListAnnotations);
+  app.post('/api/projects/:id/annotations', annotationsMod.handleCreateAnnotation);
   app.patch('/api/annotations/:id', annotationsMod.handlePatchAnnotation);
   app.delete('/api/annotations/:id', annotationsMod.handleDeleteAnnotation);
 });
@@ -41,7 +41,7 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM practices; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
 }
 
@@ -68,15 +68,15 @@ function addMember(bandId: string, userId: string) {
   );
 }
 
-function insertPractice(bandId: string, userId: string): string {
+function insertProject(bandId: string, userId: string): string {
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  dbMod.stmts.insertPractice.run(
+  dbMod.stmts.insertProject.run(
     id,
     bandId,
     'p1',
     null,
-    'practice-folder',
+    'project-folder',
     null,
     null,
     null,
@@ -99,7 +99,7 @@ function cookie(sid: string): string {
 }
 
 function insertAnnotation(
-  practiceId: string,
+  projectId: string,
   userId: string,
   startMs: number,
   endMs: number | null = null,
@@ -110,7 +110,7 @@ function insertAnnotation(
   const now = Math.floor(Date.now() / 1000);
   dbMod.stmts.insertAnnotation.run(
     id,
-    practiceId,
+    projectId,
     userId,
     startMs,
     endMs,
@@ -126,10 +126,10 @@ beforeEach(() => {
   reset();
 });
 
-describe('GET /api/practices/:id/annotations', () => {
+describe('GET /api/projects/:id/annotations', () => {
   it('returns 401 unauthenticated', async () => {
     const res = await app.fetch(
-      new Request('http://x/api/practices/anything/annotations'),
+      new Request('http://x/api/projects/anything/annotations'),
     );
     expect(res.status).toBe(401);
   });
@@ -138,23 +138,23 @@ describe('GET /api/practices/:id/annotations', () => {
     const owner = createUser('o@x.com');
     const stranger = createUser('s@x.com');
     const bandId = createBand(owner);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     insertAnnotation(pid, owner, 0);
 
     const sid = createSession(stranger);
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${pid}/annotations`, {
+      new Request(`http://x/api/projects/${pid}/annotations`, {
         headers: { cookie: cookie(sid) },
       }),
     );
     expect(res.status).toBe(404);
   });
 
-  it('returns 404 for missing practice', async () => {
+  it('returns 404 for missing project', async () => {
     const u = createUser('u@x.com');
     const sid = createSession(u);
     const res = await app.fetch(
-      new Request('http://x/api/practices/nonexistent/annotations', {
+      new Request('http://x/api/projects/nonexistent/annotations', {
         headers: { cookie: cookie(sid) },
       }),
     );
@@ -166,13 +166,13 @@ describe('GET /api/practices/:id/annotations', () => {
     const member = createUser('m@x.com', null);
     const bandId = createBand(owner);
     addMember(bandId, member);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     insertAnnotation(pid, owner, 5000, null, 'b');
     insertAnnotation(pid, member, 1000, 2500, 'a');
 
     const sid = createSession(member);
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${pid}/annotations`, {
+      new Request(`http://x/api/projects/${pid}/annotations`, {
         headers: { cookie: cookie(sid) },
       }),
     );
@@ -198,10 +198,10 @@ describe('GET /api/practices/:id/annotations', () => {
   });
 });
 
-describe('POST /api/practices/:id/annotations', () => {
+describe('POST /api/projects/:id/annotations', () => {
   it('rejects unauthenticated', async () => {
     const res = await app.fetch(
-      new Request('http://x/api/practices/x/annotations', {
+      new Request('http://x/api/projects/x/annotations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ start_ms: 0, body: 'hi' }),
@@ -214,11 +214,11 @@ describe('POST /api/practices/:id/annotations', () => {
     const owner = createUser('o@x.com');
     const stranger = createUser('s@x.com');
     const bandId = createBand(owner);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
 
     const sid = createSession(stranger);
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${pid}/annotations`, {
+      new Request(`http://x/api/projects/${pid}/annotations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', cookie: cookie(sid) },
         body: JSON.stringify({ start_ms: 0, body: 'x' }),
@@ -230,11 +230,11 @@ describe('POST /api/practices/:id/annotations', () => {
   it('inserts an annotation, stamps user_id, returns joined row', async () => {
     const owner = createUser('o@x.com', 'Owner');
     const bandId = createBand(owner);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     const sid = createSession(owner);
 
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${pid}/annotations`, {
+      new Request(`http://x/api/projects/${pid}/annotations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', cookie: cookie(sid) },
         body: JSON.stringify({
@@ -270,10 +270,10 @@ describe('POST /api/practices/:id/annotations', () => {
   it('rejects negative start_ms', async () => {
     const owner = createUser('o@x.com');
     const bandId = createBand(owner);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     const sid = createSession(owner);
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${pid}/annotations`, {
+      new Request(`http://x/api/projects/${pid}/annotations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', cookie: cookie(sid) },
         body: JSON.stringify({ start_ms: -1, body: 'x' }),
@@ -285,10 +285,10 @@ describe('POST /api/practices/:id/annotations', () => {
   it('rejects end_ms <= start_ms', async () => {
     const owner = createUser('o@x.com');
     const bandId = createBand(owner);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     const sid = createSession(owner);
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${pid}/annotations`, {
+      new Request(`http://x/api/projects/${pid}/annotations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', cookie: cookie(sid) },
         body: JSON.stringify({ start_ms: 1000, end_ms: 1000, body: 'x' }),
@@ -300,10 +300,10 @@ describe('POST /api/practices/:id/annotations', () => {
   it('rejects empty body', async () => {
     const owner = createUser('o@x.com');
     const bandId = createBand(owner);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     const sid = createSession(owner);
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${pid}/annotations`, {
+      new Request(`http://x/api/projects/${pid}/annotations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', cookie: cookie(sid) },
         body: JSON.stringify({ start_ms: 0, body: '' }),
@@ -315,11 +315,11 @@ describe('POST /api/practices/:id/annotations', () => {
   it('rejects body over 32KB', async () => {
     const owner = createUser('o@x.com');
     const bandId = createBand(owner);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     const sid = createSession(owner);
     const tooLong = 'a'.repeat(32769);
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${pid}/annotations`, {
+      new Request(`http://x/api/projects/${pid}/annotations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', cookie: cookie(sid) },
         body: JSON.stringify({ start_ms: 0, body: tooLong }),
@@ -334,7 +334,7 @@ describe('PATCH /api/annotations/:id', () => {
     const owner = createUser('o@x.com');
     const stranger = createUser('s@x.com');
     const bandId = createBand(owner);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     const aid = insertAnnotation(pid, owner, 0);
 
     const sid = createSession(stranger);
@@ -353,7 +353,7 @@ describe('PATCH /api/annotations/:id', () => {
     const member = createUser('m@x.com');
     const bandId = createBand(owner);
     addMember(bandId, member);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     const aid = insertAnnotation(pid, owner, 0);
 
     const sid = createSession(member);
@@ -370,7 +370,7 @@ describe('PATCH /api/annotations/:id', () => {
   it('applies a partial update and bumps updated_at', async () => {
     const owner = createUser('o@x.com');
     const bandId = createBand(owner);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     const aid = insertAnnotation(pid, owner, 1000, 2000, 'orig', 0);
     const before = dbMod.stmts.findAnnotationById.get(aid)!;
 
@@ -404,7 +404,7 @@ describe('PATCH /api/annotations/:id', () => {
   it('rejects invalid range on patch', async () => {
     const owner = createUser('o@x.com');
     const bandId = createBand(owner);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     const aid = insertAnnotation(pid, owner, 1000, 2000);
 
     const sid = createSession(owner);
@@ -424,7 +424,7 @@ describe('DELETE /api/annotations/:id', () => {
     const owner = createUser('o@x.com');
     const stranger = createUser('s@x.com');
     const bandId = createBand(owner);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     const aid = insertAnnotation(pid, owner, 0);
 
     const sid = createSession(stranger);
@@ -442,7 +442,7 @@ describe('DELETE /api/annotations/:id', () => {
     const member = createUser('m@x.com');
     const bandId = createBand(owner);
     addMember(bandId, member);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     const aid = insertAnnotation(pid, owner, 0);
 
     const sid = createSession(member);
@@ -458,7 +458,7 @@ describe('DELETE /api/annotations/:id', () => {
   it('deletes the annotation and returns 204', async () => {
     const owner = createUser('o@x.com');
     const bandId = createBand(owner);
-    const pid = insertPractice(bandId, owner);
+    const pid = insertProject(bandId, owner);
     const aid = insertAnnotation(pid, owner, 0);
 
     const sid = createSession(owner);

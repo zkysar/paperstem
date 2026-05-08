@@ -14,13 +14,13 @@ process.env.GOOGLE_CLIENT_SECRET = 'csec';
 process.env.GOOGLE_REFRESH_TOKEN = 'rtok';
 
 type DbModule = typeof import('./db.js');
-type PracticesModule = typeof import('./practices.js');
+type ProjectsModule = typeof import('./projects.js');
 type DriveModule = typeof import('./drive.js');
 type MiddlewareModule = typeof import('./auth/middleware.js');
 type CookieModule = typeof import('./auth/cookie.js');
 
 let dbMod: DbModule;
-let practicesMod: PracticesModule;
+let projectsMod: ProjectsModule;
 let driveMod: DriveModule;
 let middlewareMod: MiddlewareModule;
 let cookieMod: CookieModule;
@@ -28,15 +28,15 @@ let app: import('hono').Hono;
 
 beforeAll(async () => {
   dbMod = await import('./db.js');
-  practicesMod = await import('./practices.js');
+  projectsMod = await import('./projects.js');
   driveMod = await import('./drive.js');
   middlewareMod = await import('./auth/middleware.js');
   cookieMod = await import('./auth/cookie.js');
   const { Hono } = await import('hono');
   app = new Hono();
   app.use('*', middlewareMod.sessionMiddleware);
-  app.post('/api/practices', practicesMod.handleCreatePractice);
-  app.post('/api/practices/:id/stems', practicesMod.handleCreateStem);
+  app.post('/api/projects', projectsMod.handleCreateProject);
+  app.post('/api/projects/:id/stems', projectsMod.handleCreateStem);
 });
 
 afterAll(() => {
@@ -45,7 +45,7 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM stems; DELETE FROM practices; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
   driveMod._resetTokenCacheForTests();
   vi.restoreAllMocks();
@@ -74,15 +74,15 @@ function addMember(bandId: string, userId: string): void {
   );
 }
 
-function createPractice(bandId: string, ownerId: string): string {
+function createProject(bandId: string, ownerId: string): string {
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  dbMod.stmts.insertPractice.run(
+  dbMod.stmts.insertProject.run(
     id,
     bandId,
     'p1',
     null,
-    'practice-folder-x',
+    'project-folder-x',
     null,
     null,
     null,
@@ -109,7 +109,7 @@ function mockDriveSuccess(opts: {
   fileId?: string;
   observedFileSize?: { bytes: number };
 }) {
-  const folderId = opts.folderId ?? 'practice-folder-new';
+  const folderId = opts.folderId ?? 'project-folder-new';
   const fileId = opts.fileId ?? 'drive-file-new';
   const seenFileSize = opts.observedFileSize;
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -197,10 +197,10 @@ beforeEach(() => {
   reset();
 });
 
-describe('POST /api/practices owner-only auth', () => {
+describe('POST /api/projects owner-only auth', () => {
   it('401 unauthenticated', async () => {
     const res = await app.fetch(
-      new Request('http://x/api/practices', {
+      new Request('http://x/api/projects', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ band_id: 'x', name: 'p1' }),
@@ -217,7 +217,7 @@ describe('POST /api/practices owner-only auth', () => {
 
     const sid = createSession(member);
     const res = await app.fetch(
-      new Request('http://x/api/practices', {
+      new Request('http://x/api/projects', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -236,7 +236,7 @@ describe('POST /api/practices owner-only auth', () => {
 
     const sid = createSession(stranger);
     const res = await app.fetch(
-      new Request('http://x/api/practices', {
+      new Request('http://x/api/projects', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -251,11 +251,11 @@ describe('POST /api/practices owner-only auth', () => {
   it('201 for owner; creates Drive folder and inserts row', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    mockDriveSuccess({ folderId: 'practice-folder-abc' });
+    mockDriveSuccess({ folderId: 'project-folder-abc' });
 
     const sid = createSession(owner);
     const res = await app.fetch(
-      new Request('http://x/api/practices', {
+      new Request('http://x/api/projects', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -263,7 +263,7 @@ describe('POST /api/practices owner-only auth', () => {
         },
         body: JSON.stringify({
           band_id: bandId,
-          name: 'practice-2026-05-04',
+          name: 'project-2026-05-04',
           recorded_on: '2026-05-04',
           bpm: 120,
         }),
@@ -271,7 +271,7 @@ describe('POST /api/practices owner-only auth', () => {
     );
     expect(res.status).toBe(201);
     const data = (await res.json()) as {
-      practice: {
+      project: {
         id: string;
         band_id: string;
         drive_folder_id: string;
@@ -281,14 +281,14 @@ describe('POST /api/practices owner-only auth', () => {
         notes: string | null;
       };
     };
-    expect(data.practice.band_id).toBe(bandId);
-    expect(data.practice.drive_folder_id).toBe('practice-folder-abc');
-    expect(data.practice.name).toBe('practice-2026-05-04');
-    expect(data.practice.bpm).toBe(120);
-    expect(data.practice.recorded_on).toBe('2026-05-04');
-    expect(data.practice.notes).toBe(null);
+    expect(data.project.band_id).toBe(bandId);
+    expect(data.project.drive_folder_id).toBe('project-folder-abc');
+    expect(data.project.name).toBe('project-2026-05-04');
+    expect(data.project.bpm).toBe(120);
+    expect(data.project.recorded_on).toBe('2026-05-04');
+    expect(data.project.notes).toBe(null);
 
-    const row = dbMod.stmts.findPracticeById.get(data.practice.id);
+    const row = dbMod.stmts.findProjectById.get(data.project.id);
     expect(row?.band_id).toBe(bandId);
   });
 
@@ -297,7 +297,7 @@ describe('POST /api/practices owner-only auth', () => {
     const bandId = createBand('Alpha', owner);
     const sid = createSession(owner);
     const res = await app.fetch(
-      new Request('http://x/api/practices', {
+      new Request('http://x/api/projects', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -318,7 +318,7 @@ describe('POST /api/practices owner-only auth', () => {
     const bandId = createBand('Alpha', owner);
     const sid = createSession(owner);
     const res = await app.fetch(
-      new Request('http://x/api/practices', {
+      new Request('http://x/api/projects', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -335,7 +335,7 @@ describe('POST /api/practices owner-only auth', () => {
     const bandId = createBand('Alpha', owner, 'PENDING_drive');
     const sid = createSession(owner);
     const res = await app.fetch(
-      new Request('http://x/api/practices', {
+      new Request('http://x/api/projects', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -350,13 +350,13 @@ describe('POST /api/practices owner-only auth', () => {
   });
 });
 
-describe('POST /api/practices/:id/stems', () => {
+describe('POST /api/projects/:id/stems', () => {
   it('403 for member (not owner)', async () => {
     const owner = createUser('owner@example.com');
     const member = createUser('member@example.com');
     const bandId = createBand('Alpha', owner);
     addMember(bandId, member);
-    const practiceId = createPractice(bandId, owner);
+    const projectId = createProject(bandId, owner);
 
     const sid = createSession(member);
     const { contentType, body } = buildMultipart(
@@ -369,7 +369,7 @@ describe('POST /api/practices/:id/stems', () => {
       },
     );
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${practiceId}/stems`, {
+      new Request(`http://x/api/projects/${projectId}/stems`, {
         method: 'POST',
         headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
         body,
@@ -378,7 +378,7 @@ describe('POST /api/practices/:id/stems', () => {
     expect(res.status).toBe(403);
   });
 
-  it('404 for missing practice', async () => {
+  it('404 for missing project', async () => {
     const owner = createUser('owner@example.com');
     const sid = createSession(owner);
     const { contentType, body } = buildMultipart([], {
@@ -388,7 +388,7 @@ describe('POST /api/practices/:id/stems', () => {
       body: Buffer.from('hello'),
     });
     const res = await app.fetch(
-      new Request('http://x/api/practices/no-such/stems', {
+      new Request('http://x/api/projects/no-such/stems', {
         method: 'POST',
         headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
         body,
@@ -400,7 +400,7 @@ describe('POST /api/practices/:id/stems', () => {
   it('400 missing_file when no file part', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const practiceId = createPractice(bandId, owner);
+    const projectId = createProject(bandId, owner);
     const sid = createSession(owner);
 
     const boundary = '----paperstem-test-empty';
@@ -408,7 +408,7 @@ describe('POST /api/practices/:id/stems', () => {
       `--${boundary}\r\nContent-Disposition: form-data; name="position"\r\n\r\n1\r\n--${boundary}--\r\n`,
     );
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${practiceId}/stems`, {
+      new Request(`http://x/api/projects/${projectId}/stems`, {
         method: 'POST',
         headers: {
           'content-type': `multipart/form-data; boundary=${boundary}`,
@@ -425,7 +425,7 @@ describe('POST /api/practices/:id/stems', () => {
   it('415 unsupported mime', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const practiceId = createPractice(bandId, owner);
+    const projectId = createProject(bandId, owner);
     const sid = createSession(owner);
 
     const { contentType, body } = buildMultipart([], {
@@ -435,7 +435,7 @@ describe('POST /api/practices/:id/stems', () => {
       body: Buffer.from('hello'),
     });
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${practiceId}/stems`, {
+      new Request(`http://x/api/projects/${projectId}/stems`, {
         method: 'POST',
         headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
         body,
@@ -447,7 +447,7 @@ describe('POST /api/practices/:id/stems', () => {
   it('happy path: extracts filename, mime, content; inserts stem row', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const practiceId = createPractice(bandId, owner);
+    const projectId = createProject(bandId, owner);
     const sid = createSession(owner);
 
     const observed = { bytes: 0 };
@@ -464,7 +464,7 @@ describe('POST /api/practices/:id/stems', () => {
       },
     );
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${practiceId}/stems`, {
+      new Request(`http://x/api/projects/${projectId}/stems`, {
         method: 'POST',
         headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
         body,
@@ -474,13 +474,13 @@ describe('POST /api/practices/:id/stems', () => {
     const data = (await res.json()) as {
       stem: {
         id: string;
-        practice_id: string;
+        project_id: string;
         name: string;
         position: number;
         size_bytes: number | null;
       };
     };
-    expect(data.stem.practice_id).toBe(practiceId);
+    expect(data.stem.project_id).toBe(projectId);
     expect(data.stem.name).toBe('drums');
     expect(data.stem.position).toBe(7);
     // Drive saw exactly the file bytes, not the multipart envelope
@@ -497,7 +497,7 @@ describe('POST /api/practices/:id/stems', () => {
   it('413 when file exceeds 100MB', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const practiceId = createPractice(bandId, owner);
+    const projectId = createProject(bandId, owner);
     const sid = createSession(owner);
 
     mockDriveSuccess({});
@@ -516,7 +516,7 @@ describe('POST /api/practices/:id/stems', () => {
       body: fileBody,
     });
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${practiceId}/stems`, {
+      new Request(`http://x/api/projects/${projectId}/stems`, {
         method: 'POST',
         headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
         body,
@@ -528,7 +528,7 @@ describe('POST /api/practices/:id/stems', () => {
   it('streaming: 50MB upload reaches Drive without buffering the body', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const practiceId = createPractice(bandId, owner);
+    const projectId = createProject(bandId, owner);
     const sid = createSession(owner);
 
     let bodyKind: 'buffer' | 'stream' | 'unknown' = 'unknown';
@@ -579,7 +579,7 @@ describe('POST /api/practices/:id/stems', () => {
     });
 
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${practiceId}/stems`, {
+      new Request(`http://x/api/projects/${projectId}/stems`, {
         method: 'POST',
         headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
         body,
@@ -593,7 +593,7 @@ describe('POST /api/practices/:id/stems', () => {
   it('502 upstream_error if Drive upload fails', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const practiceId = createPractice(bandId, owner);
+    const projectId = createProject(bandId, owner);
     const sid = createSession(owner);
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -615,7 +615,7 @@ describe('POST /api/practices/:id/stems', () => {
       body: Buffer.from('hi'),
     });
     const res = await app.fetch(
-      new Request(`http://x/api/practices/${practiceId}/stems`, {
+      new Request(`http://x/api/projects/${projectId}/stems`, {
         method: 'POST',
         headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
         body,

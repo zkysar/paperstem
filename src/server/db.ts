@@ -59,7 +59,7 @@ export type BandMemberRow = {
   role: 'owner' | 'member';
 };
 
-export type PracticeRow = {
+export type ProjectRow = {
   id: string;
   band_id: string;
   name: string;
@@ -75,7 +75,7 @@ export type PracticeRow = {
 
 export type StemRow = {
   id: string;
-  practice_id: string;
+  project_id: string;
   name: string;
   position: number;
   drive_file_id: string;
@@ -87,7 +87,7 @@ export type StemWithBandRow = StemRow & { band_id: string };
 
 export type AnnotationRow = {
   id: string;
-  practice_id: string;
+  project_id: string;
   user_id: string;
   start_ms: number;
   end_ms: number | null;
@@ -185,8 +185,8 @@ export const stmts = {
     `SELECT 1 AS one FROM memberships
       WHERE band_id = ? AND user_id = ? AND role = 'owner'`,
   ),
-  countStemsForPractice: db.prepare<[string], { c: number }>(
-    'SELECT COUNT(*) AS c FROM stems WHERE practice_id = ?',
+  countStemsForProject: db.prepare<[string], { c: number }>(
+    'SELECT COUNT(*) AS c FROM stems WHERE project_id = ?',
   ),
   insertBand: db.prepare<[string, string, string, string, number]>(
     `INSERT INTO bands (id, name, drive_folder_id, owner_user_id, created_at)
@@ -202,16 +202,16 @@ export const stmts = {
   updateBandDriveFolder: db.prepare<[string, string]>(
     'UPDATE bands SET drive_folder_id = ? WHERE id = ?',
   ),
-  findPracticeById: db.prepare<[string], PracticeRow>(
-    'SELECT * FROM practices WHERE id = ?',
+  findProjectById: db.prepare<[string], ProjectRow>(
+    'SELECT * FROM projects WHERE id = ?',
   ),
-  findPracticesForBand: db.prepare<[string], PracticeRow>(
-    `SELECT * FROM practices
+  findProjectsForBand: db.prepare<[string], ProjectRow>(
+    `SELECT * FROM projects
       WHERE band_id = ?
       ORDER BY recorded_on DESC, created_at DESC`,
   ),
-  findStemsForPractice: db.prepare<[string], StemRow>(
-    'SELECT * FROM stems WHERE practice_id = ? ORDER BY position',
+  findStemsForProject: db.prepare<[string], StemRow>(
+    'SELECT * FROM stems WHERE project_id = ? ORDER BY position',
   ),
   findStemById: db.prepare<[string], StemRow>(
     'SELECT * FROM stems WHERE id = ?',
@@ -219,10 +219,10 @@ export const stmts = {
   findStemWithBandId: db.prepare<[string], StemWithBandRow>(
     `SELECT s.*, p.band_id
        FROM stems s
-       JOIN practices p ON p.id = s.practice_id
+       JOIN projects p ON p.id = s.project_id
       WHERE s.id = ?`,
   ),
-  insertPractice: db.prepare<
+  insertProject: db.prepare<
     [
       string,
       string,
@@ -237,7 +237,7 @@ export const stmts = {
       number,
     ]
   >(
-    `INSERT INTO practices
+    `INSERT INTO projects
        (id, band_id, name, recorded_on, drive_folder_id, bpm, reference_stem, notes, created_at, created_by, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ),
@@ -245,23 +245,23 @@ export const stmts = {
     [string, string, string, number, string, number | null, number | null]
   >(
     `INSERT INTO stems
-       (id, practice_id, name, position, drive_file_id, duration_ms, size_bytes)
+       (id, project_id, name, position, drive_file_id, duration_ms, size_bytes)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   ),
-  findAnnotationsForPractice: db.prepare<[string], AnnotationJoinedRow>(
-    `SELECT a.id, a.practice_id, a.user_id, a.start_ms, a.end_ms, a.body,
+  findAnnotationsForProject: db.prepare<[string], AnnotationJoinedRow>(
+    `SELECT a.id, a.project_id, a.user_id, a.start_ms, a.end_ms, a.body,
             a.starred, a.created_at, a.updated_at,
             u.email AS user_email, u.display_name AS user_display_name
        FROM annotations a
        JOIN users u ON u.id = a.user_id
-      WHERE a.practice_id = ?
+      WHERE a.project_id = ?
       ORDER BY a.start_ms ASC, a.created_at ASC`,
   ),
   findAnnotationById: db.prepare<[string], AnnotationRow>(
     'SELECT * FROM annotations WHERE id = ?',
   ),
   findAnnotationByIdJoined: db.prepare<[string], AnnotationJoinedRow>(
-    `SELECT a.id, a.practice_id, a.user_id, a.start_ms, a.end_ms, a.body,
+    `SELECT a.id, a.project_id, a.user_id, a.start_ms, a.end_ms, a.body,
             a.starred, a.created_at, a.updated_at,
             u.email AS user_email, u.display_name AS user_display_name
        FROM annotations a
@@ -282,7 +282,7 @@ export const stmts = {
     ]
   >(
     `INSERT INTO annotations
-       (id, practice_id, user_id, start_ms, end_ms, body, starred, created_at, updated_at)
+       (id, project_id, user_id, start_ms, end_ms, body, starred, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ),
   updateAnnotation: db.prepare<
