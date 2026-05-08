@@ -44,9 +44,18 @@ DATABASE_PATH=/Users/zachkysar/projects/paperstem/dev.sqlite ...
 
 The session cookie survives a server restart because sessions are DB-backed.
 
+### Skipping the magic-link flow in dev
+
+Set `PAPERSTEM_DEV_AUTO_LOGIN=<email>` and the launcher prints a `Dev login:` URL
+under the UI/API lines. Hitting `${UI}/api/auth/dev-login` mints a session for
+that email (creating the user if missing) and 302s to `/`. The route is only
+registered when `NODE_ENV !== 'production'` and the env var is set.
+
 ## Local-folder Drive backend (dev)
 
-Setting `PAPERSTEM_LOCAL_DRIVE_ROOT` swaps Google Drive for a local directory — every Drive op (`createFolder`, `uploadFile`, `getDriveFile`, `listFolder`, `find*`, `deleteFile`, `updateFile`) reads/writes under that root. IDs become `local:<base64url(relpath)>`. HTTP Range is honored, so audio seeking works.
+`npm run dev` defaults `PAPERSTEM_LOCAL_DRIVE_ROOT` to `${cwd}/drive-dev` (and `mkdir -p`s it) so dev never touches real Google Drive by accident. The launcher prints `Drive: local folder ...` in its header. To opt back into real Drive — e.g. when reproducing a Drive-specific bug — explicitly set the var to empty: `PAPERSTEM_LOCAL_DRIVE_ROOT= npm run dev` (header will show `Drive: GOOGLE`).
+
+When set, every Drive op (`createFolder`, `uploadFile`, `getDriveFile`, `listFolder`, `find*`, `deleteFile`, `updateFile`) reads/writes under that root. IDs become `local:<base64url(relpath)>`. HTTP Range is honored, so audio seeking works.
 
 After setting the env var for a fresh DB (or one whose bands have placeholder/`PENDING_*` `drive_folder_id` values):
 
