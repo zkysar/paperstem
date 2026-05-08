@@ -47,8 +47,6 @@ export function handleListPractices(
     id: p.id,
     name: p.name,
     recorded_on: p.recorded_on,
-    bpm: p.bpm,
-    reference_stem: p.reference_stem,
     drive_folder_id: p.drive_folder_id,
     created_at: p.created_at,
     updated_at: p.updated_at,
@@ -84,8 +82,6 @@ export function handleGetPractice(
       name: practice.name,
       recorded_on: practice.recorded_on,
       drive_folder_id: practice.drive_folder_id,
-      bpm: practice.bpm,
-      reference_stem: practice.reference_stem,
       notes: practice.notes,
       created_at: practice.created_at,
       created_by: practice.created_by,
@@ -99,8 +95,6 @@ type CreatePracticeBody = {
   band_id?: unknown;
   name?: unknown;
   recorded_on?: unknown;
-  bpm?: unknown;
-  reference_stem?: unknown;
 };
 
 export async function handleCreatePractice(
@@ -130,23 +124,6 @@ export async function handleCreatePractice(
     recordedOn = body.recorded_on;
   }
 
-  let bpm: number | null = null;
-  if (body.bpm != null && body.bpm !== '') {
-    const n = typeof body.bpm === 'number' ? body.bpm : Number(body.bpm);
-    if (!Number.isInteger(n) || n < 1 || n > 300) {
-      return c.json({ error: 'invalid_input' }, 400);
-    }
-    bpm = n;
-  }
-
-  let referenceStem: string | null = null;
-  if (body.reference_stem != null && body.reference_stem !== '') {
-    if (typeof body.reference_stem !== 'string') {
-      return c.json({ error: 'invalid_input' }, 400);
-    }
-    referenceStem = body.reference_stem.trim() || null;
-  }
-
   if (!stmts.findOwnerMembership.get(bandId, user.id)) {
     return c.json({ error: 'forbidden' }, 403);
   }
@@ -172,8 +149,6 @@ export async function handleCreatePractice(
     rawName,
     recordedOn,
     practiceFolder.id,
-    bpm,
-    referenceStem,
     null,
     now,
     user.id,
@@ -188,8 +163,6 @@ export async function handleCreatePractice(
         name: rawName,
         recorded_on: recordedOn,
         drive_folder_id: practiceFolder.id,
-        bpm,
-        reference_stem: referenceStem,
         notes: null,
         created_at: now,
         created_by: user.id,

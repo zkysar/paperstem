@@ -78,8 +78,6 @@ function createPracticeAndStem(bandId: string, ownerId: string): {
     null,
     'practice-folder',
     null,
-    null,
-    null,
     now,
     ownerId,
     now,

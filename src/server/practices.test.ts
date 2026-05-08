@@ -83,8 +83,6 @@ function insertPractice(
     recordedOn,
     'practice-folder',
     null,
-    null,
-    null,
     now,
     ownerId,
     now,

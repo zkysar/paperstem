@@ -12,6 +12,39 @@ db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
 const schema = readFileSync(join(__dirname, 'schema.sql'), 'utf8');
+
+// Idempotent migrations for existing databases. Each block is a no-op once applied.
+// These run before the schema exec so partial indexes referencing the new columns
+// don't fail against a pre-existing table that lacks them.
+function tableExists(table: string): boolean {
+  const row = db
+    .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name=?`)
+    .get(table) as { name: string } | undefined;
+  return !!row;
+}
+function columnExists(table: string, col: string): boolean {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  return rows.some((r) => r.name === col);
+}
+
+if (tableExists('practices')) {
+  if (columnExists('practices', 'bpm')) {
+    db.exec('ALTER TABLE practices DROP COLUMN bpm');
+  }
+  if (columnExists('practices', 'reference_stem')) {
+    db.exec('ALTER TABLE practices DROP COLUMN reference_stem');
+  }
+}
+for (const col of ['deleted_at', 'deleted_by', 'deleted_reason']) {
+  const type = col === 'deleted_at' ? 'INTEGER' : 'TEXT';
+  if (tableExists('practices') && !columnExists('practices', col)) {
+    db.exec(`ALTER TABLE practices ADD COLUMN ${col} ${type}`);
+  }
+  if (tableExists('stems') && !columnExists('stems', col)) {
+    db.exec(`ALTER TABLE stems ADD COLUMN ${col} ${type}`);
+  }
+}
+
 db.exec(schema);
 
 export type UserRow = {
@@ -65,8 +98,6 @@ export type PracticeRow = {
   name: string;
   recorded_on: string | null;
   drive_folder_id: string;
-  bpm: number | null;
-  reference_stem: string | null;
   notes: string | null;
   created_at: number;
   created_by: string;
@@ -223,23 +254,11 @@ export const stmts = {
       WHERE s.id = ?`,
   ),
   insertPractice: db.prepare<
-    [
-      string,
-      string,
-      string,
-      string | null,
-      string,
-      number | null,
-      string | null,
-      string | null,
-      number,
-      string,
-      number,
-    ]
+    [string, string, string, string | null, string, string | null, number, string, number]
   >(
     `INSERT INTO practices
-       (id, band_id, name, recorded_on, drive_folder_id, bpm, reference_stem, notes, created_at, created_by, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, band_id, name, recorded_on, drive_folder_id, notes, created_at, created_by, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ),
   insertStem: db.prepare<
     [string, string, string, number, string, number | null, number | null]

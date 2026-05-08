@@ -97,8 +97,8 @@ export function buildBandDump(bandId: string): Buffer {
     const practices = stmts.findPracticesForBand.all(bandId);
     const insertPractice = dump.prepare(
       `INSERT INTO practices
-         (id, band_id, name, recorded_on, drive_folder_id, bpm, reference_stem, notes, created_at, created_by, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, band_id, name, recorded_on, drive_folder_id, notes, created_at, created_by, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const p of practices) {
       insertPractice.run(
@@ -107,8 +107,6 @@ export function buildBandDump(bandId: string): Buffer {
         p.name,
         p.recorded_on,
         p.drive_folder_id,
-        p.bpm,
-        p.reference_stem,
         p.notes,
         p.created_at,
         p.created_by,

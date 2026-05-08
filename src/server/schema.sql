@@ -47,25 +47,33 @@ CREATE TABLE IF NOT EXISTS practices (
   name            TEXT NOT NULL,
   recorded_on     TEXT,
   drive_folder_id TEXT NOT NULL,
-  bpm             INTEGER,
-  reference_stem  TEXT,
   notes           TEXT,
   created_at      INTEGER NOT NULL,
   created_by      TEXT NOT NULL REFERENCES users(id),
-  updated_at      INTEGER NOT NULL
+  updated_at      INTEGER NOT NULL,
+  deleted_at      INTEGER,
+  deleted_by      TEXT REFERENCES users(id),
+  deleted_reason  TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_practices_band_recorded ON practices(band_id, recorded_on DESC);
+CREATE INDEX IF NOT EXISTS idx_practices_band_recorded_live
+  ON practices(band_id, recorded_on DESC) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS stems (
-  id            TEXT PRIMARY KEY,
-  practice_id   TEXT NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
-  name          TEXT NOT NULL,
-  position      INTEGER NOT NULL,
-  drive_file_id TEXT NOT NULL,
-  duration_ms   INTEGER,
-  size_bytes    INTEGER
+  id             TEXT PRIMARY KEY,
+  practice_id    TEXT NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
+  name           TEXT NOT NULL,
+  position       INTEGER NOT NULL,
+  drive_file_id  TEXT NOT NULL,
+  duration_ms    INTEGER,
+  size_bytes     INTEGER,
+  deleted_at     INTEGER,
+  deleted_by     TEXT REFERENCES users(id),
+  deleted_reason TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_stems_practice ON stems(practice_id, position);
+CREATE INDEX IF NOT EXISTS idx_stems_practice_live
+  ON stems(practice_id, position) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS annotations (
   id           TEXT PRIMARY KEY,

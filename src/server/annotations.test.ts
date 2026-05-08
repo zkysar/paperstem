@@ -78,8 +78,6 @@ function insertPractice(bandId: string, userId: string): string {
     null,
     'practice-folder',
     null,
-    null,
-    null,
     now,
     userId,
     now,
