@@ -6,50 +6,33 @@ Notes for Claude — kept terse. Read [README.md](README.md) for product context
 
 Two-process app. **Hono server** ([src/server/](src/server/)) on default port `8787` serves the API and, in prod, the built client. Storage: **SQLite** at `./dev.sqlite` (path overridable via `DATABASE_PATH`), audio in **Google Drive** (or a local folder in dev — see below). **Vite + React** ([src/client/](src/client/)) on default port `5173`, proxies `/api/*` and `/auth/callback` to the API. Magic-link auth → DB-backed sessions in a cookie. Tests: `vitest`, split into client + server projects.
 
-## Running locally — single checkout
+## Running locally
 
 ```bash
-# terminal 1
-GMAIL_USER=… GMAIL_APP_PASSWORD=… npx tsx watch src/server/index.ts
-
-# terminal 2
-npx vite
+npm run dev
 ```
 
-Open http://localhost:5173. `GMAIL_*` are required at server boot even if you don't intend to send mail; placeholders are fine if you already have a session cookie.
+That's it. The launcher ([bin/dev.ts](bin/dev.ts)) picks two free ports from the OS, wires them through env, and spawns both the API server and Vite. **Each invocation gets fresh random ports**, so multiple worktrees can run side-by-side without collision and without a port-offset convention to remember. The first lines of output are:
 
-## Running in a worktree alongside the main checkout
-
-The default ports (`5173` Vite, `8787` API) belong to the main checkout. **Never reuse them from a worktree** — pick a unique offset and stick to it for that worktree's lifetime.
-
-Both ports are env-driven:
-
-| Var | Default | What it does |
-|---|---|---|
-| `PORT` | `8787` | Hono API listen port |
-| `PAPERSTEM_VITE_PORT` | `5173` | Vite dev server port |
-| `PAPERSTEM_API_PORT` | `8787` | Where Vite's `/api` and `/auth/callback` proxy points |
-
-`PAPERSTEM_API_PORT` must match `PORT` — otherwise the UI talks to the wrong server.
-
-Recipe for a second checkout:
-
-```bash
-# pick a unique offset, e.g. +1
-PORT=8788 \
-PAPERSTEM_VITE_PORT=5174 \
-PAPERSTEM_API_PORT=8788 \
-DATABASE_PATH=$(pwd)/dev.sqlite \
-PAPERSTEM_LOCAL_DRIVE_ROOT=$(pwd)/drive-dev \
-GMAIL_USER=x GMAIL_APP_PASSWORD=x \
-npx tsx watch src/server/index.ts
+```
+  paperstem dev
+    UI:  http://localhost:58679
+    API: http://localhost:58678
 ```
 
-```bash
-PAPERSTEM_VITE_PORT=5174 PAPERSTEM_API_PORT=8788 npx vite
-```
+Open the UI URL the launcher prints. Don't hardcode `5173` or `8787` in your head — read the printed URLs each time.
 
-Open http://localhost:5174. Convention: use `+1` for the first worktree, `+2` for the second, etc. **Verify with `lsof -i :<port>` before starting** — port collisions silently fail in confusing ways (Vite picks the next free port and the proxy aims at the wrong API).
+`with-secrets.sh` runs in front of the launcher and pulls `GMAIL_*` / `GOOGLE_*` from macOS Keychain, so secrets never live in env files or shell history.
+
+The relevant env knobs (set automatically by the launcher; only override if you want a fixed port):
+
+| Var | What it does |
+|---|---|
+| `PORT` | Hono API listen port |
+| `PAPERSTEM_VITE_PORT` | Vite dev server port |
+| `PAPERSTEM_API_PORT` | Where Vite's `/api` and `/auth/callback` proxy points (must match `PORT`) |
+
+`npm run dev:client` and `npm run dev:server` are still available for running one process in isolation.
 
 ### Sharing state with the main checkout
 

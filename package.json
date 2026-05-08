@@ -5,7 +5,8 @@
   "type": "module",
   "description": "DAW-style stem player for sharing rough mixes",
   "scripts": {
-    "dev": "vite",
+    "dev": "scripts/dev.sh",
+    "dev:client": "vite",
     "dev:server": "scripts/dev-server.sh",
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build",
