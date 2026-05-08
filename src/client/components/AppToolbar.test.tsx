@@ -18,6 +18,7 @@ const baseProps = {
   markersVisible: true,
   railCollapsed: false,
   showRailToggle: false, // wide widths default
+  isWide: true,
   onSeek: vi.fn(),
   onTogglePlay: vi.fn(),
   onToggleLoopEnabled: vi.fn(),
@@ -73,5 +74,18 @@ describe('AppToolbar', () => {
     render(<AppToolbar {...baseProps} onToggleAnnotationCreate={onToggle} />);
     await user.click(screen.getByLabelText('Add annotation'));
     expect(onToggle).toHaveBeenCalledOnce();
+  });
+
+  it('uses popover on narrow widths', () => {
+    render(<AppToolbar {...baseProps} isWide={false} />);
+    expect(screen.getByLabelText('Master volume')).not.toBeNull();
+    expect(screen.queryByLabelText('Master volume slider')).toBeNull();
+  });
+
+  it('clicking the volume button opens the popover', async () => {
+    const user = userEvent.setup();
+    render(<AppToolbar {...baseProps} isWide={false} />);
+    await user.click(screen.getByLabelText('Master volume'));
+    expect(screen.getByLabelText('Master volume slider')).not.toBeNull();
   });
 });

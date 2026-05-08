@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { fmt } from '../lib/format';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
 
@@ -16,6 +17,7 @@ type Props = {
   markersVisible: boolean;
   railCollapsed: boolean;
   showRailToggle: boolean;
+  isWide: boolean;
   onSeek(t: number): void;
   onTogglePlay(): void;
   onToggleLoopEnabled(): void;
@@ -32,7 +34,7 @@ export function AppToolbar(props: Props) {
     hasPractice, isPlaying, hasLoop, loopEnabled, downloading,
     waveformNormalization, masterVolume, currentTime, duration,
     annotationCreateMode, canCreateAnnotations, markersVisible,
-    railCollapsed, showRailToggle,
+    railCollapsed, showRailToggle, isWide,
     onSeek, onTogglePlay, onToggleLoopEnabled, onDownloadAll,
     onToggleWaveformNormalization, onToggleAnnotationCreate,
     onToggleMarkersVisible, onSetMasterVolume, onToggleRailCollapsed,
@@ -91,23 +93,79 @@ export function AppToolbar(props: Props) {
 
       <span className="atb-divider" />
 
-      <label className="atb-master">
-        <span className="atb-master-label">Master</span>
-        <input
-          type="range"
-          className={'atb-master-slider' + (masterVolume > VOLUME_UNITY ? ' boosted' : '')}
-          min={0} max={VOLUME_MAX} step={1}
-          value={masterVolume}
-          onChange={(e) => onSetMasterVolume(parseInt(e.target.value, 10))}
-          onDoubleClick={() => onSetMasterVolume(VOLUME_UNITY)}
-          aria-label="Master volume"
+      {isWide ? (
+        <label className="atb-master">
+          <span className="atb-master-label">Master</span>
+          <input
+            type="range"
+            className={'atb-master-slider' + (masterVolume > VOLUME_UNITY ? ' boosted' : '')}
+            min={0} max={VOLUME_MAX} step={1}
+            value={masterVolume}
+            onChange={(e) => onSetMasterVolume(parseInt(e.target.value, 10))}
+            onDoubleClick={() => onSetMasterVolume(VOLUME_UNITY)}
+            aria-label="Master volume"
+          />
+          <span className="atb-master-num">{masterVolume}</span>
+        </label>
+      ) : (
+        <MasterVolumePopover
+          masterVolume={masterVolume}
+          onSetMasterVolume={onSetMasterVolume}
         />
-        <span className="atb-master-num">{masterVolume}</span>
-      </label>
+      )}
 
       <span className="atb-time">
         {fmt(currentTime)} / {fmt(duration)}
       </span>
+    </div>
+  );
+}
+
+function MasterVolumePopover({
+  masterVolume,
+  onSetMasterVolume,
+}: {
+  masterVolume: number;
+  onSetMasterVolume(v: number): void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+  return (
+    <div className="atb-master-pop-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className={'atb-btn' + (masterVolume > VOLUME_UNITY ? ' boosted' : '')}
+        aria-label="Master volume"
+        aria-pressed={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        ♪
+      </button>
+      {open && (
+        <div className="atb-master-pop">
+          <span className="atb-master-pop-label">Master Volume</span>
+          <div className="atb-master-pop-row">
+            <input
+              type="range"
+              className={masterVolume > VOLUME_UNITY ? 'boosted' : undefined}
+              min={0} max={VOLUME_MAX} step={1}
+              value={masterVolume}
+              onChange={(e) => onSetMasterVolume(parseInt(e.target.value, 10))}
+              onDoubleClick={() => onSetMasterVolume(VOLUME_UNITY)}
+              aria-label="Master volume slider"
+            />
+            <span className="atb-master-pop-num">{masterVolume}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

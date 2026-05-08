@@ -101,6 +101,7 @@ export function FilePicker({
           <button
             type="button"
             role="tab"
+            data-tab="local"
             aria-selected={tab === 'local'}
             className={'fp-tab' + (tab === 'local' ? ' active' : '')}
             onClick={() => {
@@ -124,6 +125,11 @@ export function FilePicker({
           onUploadClick={onUploadClick}
           onRetry={onRetry}
         />
+        {showUpload && (
+          <div className="fp-upload-bottom">
+            <button type="button" onClick={onUploadClick}>+ Upload practice</button>
+          </div>
+        )}
       </div>
     </>
   );

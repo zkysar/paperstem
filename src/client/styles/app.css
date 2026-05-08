@@ -1233,6 +1233,14 @@ kbd {
     width: 100%;
     max-width: 100%;
   }
+  .app-body.rail-open {
+    grid-template-columns: 1fr;
+  }
+  .annotations-rail {
+    position: fixed; inset: 0;
+    z-index: 35;
+    border-left: none;
+  }
 }
 
 /* ===== AnnotationHoverCard ===== */
@@ -1576,4 +1584,93 @@ kbd {
 @keyframes fp-shimmer {
   from { background-position: 200% 0; }
   to { background-position: -200% 0; }
+}
+
+/* ===== AppHeader narrow ===== */
+@media (max-width: 720px) {
+  .ah-brand { display: none; }
+  .ah-divider { display: none; }
+  .ah-title-label { display: none; }
+  .ah-meta { display: none; }
+}
+
+/* ===== AppToolbar master-volume popover (narrow) ===== */
+.atb-master-pop-wrap { position: relative; }
+.atb-master-pop {
+  position: absolute; top: 100%; right: 0;
+  margin-top: 6px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.10);
+  padding: 10px 12px;
+  width: 200px;
+  z-index: 30;
+}
+.atb-master-pop-label {
+  font-size: 0.6rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.atb-master-pop-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.atb-master-pop-row input[type=range] { flex: 1; }
+.atb-master-pop-row input[type=range].boosted::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, #e5dfd0 0 50%, var(--accent-tint-2) 50% 100%);
+}
+.atb-master-pop-row input[type=range].boosted::-moz-range-track {
+  background: linear-gradient(to right, #e5dfd0 0 50%, var(--accent-tint-2) 50% 100%);
+}
+.atb-master-pop-num {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.72rem;
+}
+
+/* ===== FilePicker narrow ===== */
+@media (max-width: 720px) {
+  .filepicker {
+    top: 0; left: 0;
+    transform: none;
+    width: 100vw; height: 100vh; max-height: 100vh;
+    border-radius: 0; border: none;
+  }
+  .filepicker-scrim { display: none; }
+  .fp-header { flex-wrap: wrap; }
+  .fp-header .fp-search { order: 99; flex: 1 1 100%; margin-top: 8px; }
+  .fp-header .fp-upload-btn { display: none; }
+}
+.fp-upload-bottom { display: none; }
+@media (max-width: 720px) {
+  .fp-upload-bottom {
+    display: block;
+    border-top: 1px solid var(--rule);
+    padding: 12px 16px;
+  }
+  .fp-upload-bottom button {
+    width: 100%;
+    background: var(--ink); color: var(--paper);
+    border: none; border-radius: 5px;
+    padding: 12px; font: inherit; font-size: 0.85rem;
+  }
+  .fp-tab[data-tab="local"] {
+    font-size: 0;
+  }
+  .fp-tab[data-tab="local"]::before {
+    content: 'Local';
+    font-size: 0.78rem;
+  }
+}
+
+/* ===== Track narrow: name + M/S above each waveform ===== */
+@media (max-width: 720px) {
+  .track {
+    height: auto;
+  }
+  .track-rail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+  }
+  .track-rail .vol-row { display: none; }
 }
