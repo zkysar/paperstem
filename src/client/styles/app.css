@@ -1498,3 +1498,31 @@ kbd {
   border-radius: 2px;
 }
 .fp-row-end { display: flex; align-items: center; justify-content: center; }
+.fp-state {
+  padding: 36px 16px;
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.fp-state-msg { color: var(--muted); font-size: 0.85rem; }
+.fp-state-secondary { color: var(--muted); font-size: 0.72rem; }
+.fp-state-action {
+  background: var(--ink); color: var(--paper);
+  border: none; border-radius: 5px;
+  padding: 8px 14px; font: inherit; font-size: 0.78rem;
+  cursor: pointer;
+}
+.fp-row-skeleton { pointer-events: none; }
+.fp-skel {
+  background: linear-gradient(90deg, var(--rule-2) 0%, var(--rule) 50%, var(--rule-2) 100%);
+  background-size: 200% 100%;
+  animation: fp-shimmer 1.4s infinite;
+  border-radius: 3px;
+  height: 12px;
+}
+.fp-skel-name { width: 70%; }
+.fp-skel-thumb { width: 100%; height: 18px; }
+.fp-skel-meta { width: 50%; }
+@keyframes fp-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}

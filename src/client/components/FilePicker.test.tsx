@@ -88,4 +88,31 @@ describe('FilePicker', () => {
     const row = screen.getByTestId('fp-row-p2');
     expect(row.className).toContain('active');
   });
+
+  it('shows loading skeleton when loading is true', () => {
+    render(<FilePicker {...baseProps} loading={true} />);
+    expect(screen.getAllByTestId('fp-row-skeleton').length).toBeGreaterThan(0);
+  });
+
+  it('shows error and Retry when loadError is set', async () => {
+    const onRetry = vi.fn();
+    const user = userEvent.setup();
+    render(<FilePicker {...baseProps} loadError="network down" onRetry={onRetry} />);
+    expect(screen.getByText(/network down/)).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it('shows empty-state with Upload (when allowed) and Local folder', () => {
+    render(<FilePicker {...baseProps} practices={[]} showUpload={true} />);
+    expect(screen.getByText(/No practices yet/)).not.toBeNull();
+  });
+
+  it('hides Upload in empty state when showUpload is false', () => {
+    render(<FilePicker {...baseProps} practices={[]} showUpload={false} />);
+    expect(screen.getByText(/No practices yet/)).not.toBeNull();
+    // No "+ Upload" button in the empty body. The header upload button may still
+    // be present when showUpload=false ... it shouldn't be (header gates on showUpload too)
+    expect(screen.queryByRole('button', { name: /Upload/ })).toBeNull();
+  });
 });

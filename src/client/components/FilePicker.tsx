@@ -130,7 +130,8 @@ export function FilePicker({
 }
 
 function FilePickerBody({
-  search, practices, activePracticeId, onSelect,
+  search, practices, activePracticeId, loading, loadError, showUpload,
+  onSelect, onUploadClick, onRetry,
 }: {
   tab: Tab;
   search: string;
@@ -143,6 +144,47 @@ function FilePickerBody({
   onUploadClick(): void;
   onRetry(): void;
 }) {
+  if (loadError) {
+    return (
+      <div className="fp-body fp-state">
+        <p className="fp-state-msg">Couldn't load practices ({loadError}).</p>
+        <button type="button" className="fp-state-action" onClick={onRetry}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+  if (loading) {
+    return (
+      <div className="fp-body">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} data-testid="fp-row-skeleton" className="fp-row fp-row-skeleton">
+            <span className="fp-skel fp-skel-name" />
+            <span className="fp-skel fp-skel-thumb" />
+            <span className="fp-skel fp-skel-meta" />
+            <span className="fp-skel fp-skel-meta" />
+            <span></span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (practices.length === 0) {
+    return (
+      <div className="fp-body fp-state">
+        <p className="fp-state-msg">No practices yet.</p>
+        {showUpload && (
+          <button type="button" className="fp-state-action" onClick={onUploadClick}>
+            + Upload practice
+          </button>
+        )}
+        <p className="fp-state-secondary">
+          Or use the “Local folder…” tab to play stems off your disk.
+        </p>
+      </div>
+    );
+  }
+
   const filtered = practices.filter((p) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
