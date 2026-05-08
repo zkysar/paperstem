@@ -1,20 +1,38 @@
 #!/usr/bin/env bash
 # Blocks `git push` when the build or tests fail. Same checks as CI.
+# Also blocks direct pushes to main — work must land through a PR.
 # Bypass with `git push --no-verify` for emergencies.
 
 set -e
 
-# Skip when only deleting refs (every local-oid is the zero-hash).
-deleting=true
-while read -r _local_ref local_oid _remote_ref _remote_oid; do
+# Read all push refs once; we need to inspect them for both "deleting only"
+# and "pushing to main" checks.
+refs=()
+while read -r local_ref local_oid remote_ref remote_oid; do
   [[ -z "$local_oid" ]] && continue
+  refs+=("$local_ref $local_oid $remote_ref $remote_oid")
+done
+
+deleting=true
+pushing_to_main=false
+for line in "${refs[@]}"; do
+  read -r _local_ref local_oid remote_ref _remote_oid <<<"$line"
   if [[ "$local_oid" != "0000000000000000000000000000000000000000" ]]; then
     deleting=false
+  fi
+  if [[ "$remote_ref" == "refs/heads/main" ]]; then
+    pushing_to_main=true
   fi
 done
 
 if $deleting; then
   exit 0
+fi
+
+if $pushing_to_main; then
+  echo "pre-push: refusing direct push to main — open a PR instead." >&2
+  echo "         (bypass with --no-verify if you really mean it)" >&2
+  exit 1
 fi
 
 cd "$(git rev-parse --show-toplevel)"
