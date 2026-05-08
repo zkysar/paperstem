@@ -102,6 +102,9 @@ export type PracticeRow = {
   created_at: number;
   created_by: string;
   updated_at: number;
+  deleted_at: number | null;
+  deleted_by: string | null;
+  deleted_reason: string | null;
 };
 
 export type StemRow = {
@@ -112,6 +115,9 @@ export type StemRow = {
   drive_file_id: string;
   duration_ms: number | null;
   size_bytes: number | null;
+  deleted_at: number | null;
+  deleted_by: string | null;
+  deleted_reason: string | null;
 };
 
 export type StemWithBandRow = StemRow & { band_id: string };
@@ -217,7 +223,7 @@ export const stmts = {
       WHERE band_id = ? AND user_id = ? AND role = 'owner'`,
   ),
   countStemsForPractice: db.prepare<[string], { c: number }>(
-    'SELECT COUNT(*) AS c FROM stems WHERE practice_id = ?',
+    'SELECT COUNT(*) AS c FROM stems WHERE practice_id = ? AND deleted_at IS NULL',
   ),
   insertBand: db.prepare<[string, string, string, string, number]>(
     `INSERT INTO bands (id, name, drive_folder_id, owner_user_id, created_at)
@@ -234,24 +240,31 @@ export const stmts = {
     'UPDATE bands SET drive_folder_id = ? WHERE id = ?',
   ),
   findPracticeById: db.prepare<[string], PracticeRow>(
-    'SELECT * FROM practices WHERE id = ?',
+    'SELECT * FROM practices WHERE id = ? AND deleted_at IS NULL',
   ),
   findPracticesForBand: db.prepare<[string], PracticeRow>(
     `SELECT * FROM practices
-      WHERE band_id = ?
+      WHERE band_id = ? AND deleted_at IS NULL
       ORDER BY recorded_on DESC, created_at DESC`,
   ),
   findStemsForPractice: db.prepare<[string], StemRow>(
-    'SELECT * FROM stems WHERE practice_id = ? ORDER BY position',
+    `SELECT s.* FROM stems s
+       JOIN practices p ON p.id = s.practice_id
+      WHERE s.practice_id = ?
+        AND s.deleted_at IS NULL
+        AND p.deleted_at IS NULL
+      ORDER BY s.position`,
   ),
   findStemById: db.prepare<[string], StemRow>(
-    'SELECT * FROM stems WHERE id = ?',
+    'SELECT * FROM stems WHERE id = ? AND deleted_at IS NULL',
   ),
   findStemWithBandId: db.prepare<[string], StemWithBandRow>(
     `SELECT s.*, p.band_id
        FROM stems s
        JOIN practices p ON p.id = s.practice_id
-      WHERE s.id = ?`,
+      WHERE s.id = ?
+        AND s.deleted_at IS NULL
+        AND p.deleted_at IS NULL`,
   ),
   insertPractice: db.prepare<
     [string, string, string, string | null, string, string | null, number, string, number]
@@ -313,5 +326,81 @@ export const stmts = {
   ),
   deleteAnnotation: db.prepare<[string]>(
     'DELETE FROM annotations WHERE id = ?',
+  ),
+  renamePractice: db.prepare<[string, number, string]>(
+    `UPDATE practices SET name = ?, updated_at = ?
+      WHERE id = ? AND deleted_at IS NULL`,
+  ),
+  softDeletePractice: db.prepare<[number, string, string]>(
+    `UPDATE practices
+        SET deleted_at = ?, deleted_by = ?, deleted_reason = 'user'
+      WHERE id = ? AND deleted_at IS NULL`,
+  ),
+  markPracticeGhost: db.prepare<[number, string]>(
+    `UPDATE practices
+        SET deleted_at = ?, deleted_by = NULL, deleted_reason = 'drive_missing'
+      WHERE id = ? AND deleted_at IS NULL`,
+  ),
+  restorePractice: db.prepare<[string]>(
+    `UPDATE practices
+        SET deleted_at = NULL, deleted_by = NULL, deleted_reason = NULL
+      WHERE id = ? AND deleted_reason != 'drive_missing'`,
+  ),
+  findPracticeAnyState: db.prepare<[string], PracticeRow>(
+    'SELECT * FROM practices WHERE id = ?',
+  ),
+  findTrashedPracticesForBand: db.prepare<
+    [string],
+    PracticeRow & { deleted_by_email: string | null }
+  >(
+    `SELECT p.*, u.email AS deleted_by_email
+       FROM practices p
+       LEFT JOIN users u ON u.id = p.deleted_by
+      WHERE p.band_id = ? AND p.deleted_at IS NOT NULL
+      ORDER BY p.deleted_at DESC`,
+  ),
+  purgePracticesForBand: db.prepare<[string, number]>(
+    'DELETE FROM practices WHERE band_id = ? AND deleted_at IS NOT NULL AND deleted_at < ?',
+  ),
+  renameStem: db.prepare<[string, string]>(
+    `UPDATE stems SET name = ?
+      WHERE id = ? AND deleted_at IS NULL`,
+  ),
+  softDeleteStem: db.prepare<[number, string, string]>(
+    `UPDATE stems
+        SET deleted_at = ?, deleted_by = ?, deleted_reason = 'user'
+      WHERE id = ? AND deleted_at IS NULL`,
+  ),
+  markStemGhost: db.prepare<[number, string]>(
+    `UPDATE stems
+        SET deleted_at = ?, deleted_by = NULL, deleted_reason = 'drive_missing'
+      WHERE id = ? AND deleted_at IS NULL`,
+  ),
+  restoreStem: db.prepare<[string]>(
+    `UPDATE stems
+        SET deleted_at = NULL, deleted_by = NULL, deleted_reason = NULL
+      WHERE id = ? AND deleted_reason != 'drive_missing'`,
+  ),
+  findStemAnyState: db.prepare<[string], StemRow & { band_id: string }>(
+    `SELECT s.*, p.band_id
+       FROM stems s
+       JOIN practices p ON p.id = s.practice_id
+      WHERE s.id = ?`,
+  ),
+  findTrashedStemsForBand: db.prepare<
+    [string],
+    StemRow & { deleted_by_email: string | null; practice_name: string }
+  >(
+    `SELECT s.*, u.email AS deleted_by_email, p.name AS practice_name
+       FROM stems s
+       JOIN practices p ON p.id = s.practice_id
+       LEFT JOIN users u ON u.id = s.deleted_by
+      WHERE p.band_id = ? AND s.deleted_at IS NOT NULL
+      ORDER BY s.deleted_at DESC`,
+  ),
+  purgeStemsForBand: db.prepare<[string, number]>(
+    `DELETE FROM stems
+      WHERE practice_id IN (SELECT id FROM practices WHERE band_id = ?)
+        AND deleted_at IS NOT NULL AND deleted_at < ?`,
   ),
 };
