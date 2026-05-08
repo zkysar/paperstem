@@ -1,8 +1,116 @@
+import { Buffer } from 'node:buffer';
+import {
+  createReadStream,
+  createWriteStream,
+} from 'node:fs';
+import {
+  mkdir,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
+import { extname, join, resolve, sep } from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const FILES_BASE = 'https://www.googleapis.com/drive/v3/files';
 const UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3/files';
 const REFRESH_SKEW_SECONDS = 30;
 const RESUMABLE_THRESHOLD = 5 * 1024 * 1024;
+
+const LOCAL_ROOT_ENV = 'PAPERSTEM_LOCAL_DRIVE_ROOT';
+const LOCAL_ID_PREFIX = 'local:';
+export const LOCAL_ROOT_ID = `${LOCAL_ID_PREFIX}`;
+
+function localRoot(): string | null {
+  const v = process.env[LOCAL_ROOT_ENV];
+  return v && v.trim() ? resolve(v) : null;
+}
+
+function encodeLocalId(rel: string): string {
+  return LOCAL_ID_PREFIX + Buffer.from(rel, 'utf8').toString('base64url');
+}
+
+function decodeLocalId(id: string): string {
+  if (!id.startsWith(LOCAL_ID_PREFIX)) {
+    throw new Error(`drive(local): expected '${LOCAL_ID_PREFIX}' id, got ${id}`);
+  }
+  return Buffer.from(id.slice(LOCAL_ID_PREFIX.length), 'base64url').toString('utf8');
+}
+
+function sanitizeSegment(segment: string): string {
+  if (
+    !segment ||
+    segment === '.' ||
+    segment === '..' ||
+    segment.includes('/') ||
+    segment.includes('\\') ||
+    segment.includes('\0')
+  ) {
+    throw new Error(`drive(local): invalid path segment: ${JSON.stringify(segment)}`);
+  }
+  return segment;
+}
+
+function localPathFromRel(root: string, rel: string): string {
+  if (rel === '') return root;
+  rel.split('/').forEach(sanitizeSegment);
+  const abs = resolve(join(root, rel));
+  if (abs !== root && !abs.startsWith(root + sep)) {
+    throw new Error(`drive(local): path escapes root: ${rel}`);
+  }
+  return abs;
+}
+
+function relFromParentId(parentId: string | undefined | 'root'): string {
+  if (!parentId || parentId === 'root') return '';
+  return decodeLocalId(parentId);
+}
+
+const LOCAL_AUDIO_MIME: Record<string, string> = {
+  '.wav': 'audio/wav',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+  '.oga': 'audio/ogg',
+  '.opus': 'audio/opus',
+  '.flac': 'audio/flac',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.webm': 'audio/webm',
+};
+
+function guessLocalMime(filename: string): string {
+  const ext = extname(filename).toLowerCase();
+  return LOCAL_AUDIO_MIME[ext] ?? 'application/octet-stream';
+}
+
+function parseLocalRange(
+  header: string | undefined,
+  size: number,
+): { start: number; end: number } | null {
+  if (!header) return null;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!m) return null;
+  const [, startStr, endStr] = m;
+  let start: number;
+  let end: number;
+  if (startStr === '' && endStr !== '') {
+    const n = Number(endStr);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    start = Math.max(0, size - n);
+    end = size - 1;
+  } else if (startStr !== '') {
+    start = Number(startStr);
+    end = endStr === '' ? size - 1 : Number(endStr);
+  } else {
+    return null;
+  }
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  if (start < 0 || end >= size || start > end) return null;
+  return { start, end };
+}
 
 type CachedToken = { token: string; expiresAt: number };
 
@@ -78,6 +186,8 @@ export async function getDriveFile(
   fileId: string,
   range?: string,
 ): Promise<{ status: number; headers: Headers; body: ReadableStream<Uint8Array> }> {
+  const root = localRoot();
+  if (root) return getLocalFile(root, fileId, range);
   const token = await getAccessToken();
   const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
   if (range) headers.Range = range;
@@ -92,10 +202,54 @@ export async function getDriveFile(
   return { status: res.status, headers: res.headers, body: res.body };
 }
 
+async function getLocalFile(
+  root: string,
+  fileId: string,
+  range?: string,
+): Promise<{ status: number; headers: Headers; body: ReadableStream<Uint8Array> }> {
+  const rel = decodeLocalId(fileId);
+  const abs = localPathFromRel(root, rel);
+  const s = await stat(abs);
+  if (!s.isFile()) {
+    throw new Error(`drive(local): not a file: ${rel}`);
+  }
+  const total = s.size;
+  const headers = new Headers();
+  headers.set('Content-Type', guessLocalMime(abs));
+  headers.set('Accept-Ranges', 'bytes');
+  const r = parseLocalRange(range, total);
+  if (r) {
+    const stream = createReadStream(abs, { start: r.start, end: r.end });
+    const length = r.end - r.start + 1;
+    headers.set('Content-Length', String(length));
+    headers.set('Content-Range', `bytes ${r.start}-${r.end}/${total}`);
+    return {
+      status: 206,
+      headers,
+      body: Readable.toWeb(stream) as ReadableStream<Uint8Array>,
+    };
+  }
+  headers.set('Content-Length', String(total));
+  return {
+    status: 200,
+    headers,
+    body: Readable.toWeb(createReadStream(abs)) as ReadableStream<Uint8Array>,
+  };
+}
+
 export async function createFolder(
   name: string,
   parentId?: string,
 ): Promise<{ id: string }> {
+  const root = localRoot();
+  if (root) {
+    sanitizeSegment(name);
+    const parentRel = relFromParentId(parentId);
+    const childRel = parentRel === '' ? name : `${parentRel}/${name}`;
+    const abs = localPathFromRel(root, childRel);
+    await mkdir(abs, { recursive: true });
+    return { id: encodeLocalId(childRel) };
+  }
   const token = await getAccessToken();
   const metadata: { name: string; mimeType: string; parents?: string[] } = {
     name,
@@ -120,6 +274,7 @@ export async function shareFolder(
   email: string,
   role: 'reader' | 'writer' | 'owner',
 ): Promise<void> {
+  if (localRoot()) return;
   const token = await getAccessToken();
   const url =
     `${FILES_BASE}/${encodeURIComponent(folderId)}/permissions` +
@@ -139,6 +294,8 @@ export async function findFolderByName(
   name: string,
   parentId: string | 'root',
 ): Promise<{ id: string } | null> {
+  const root = localRoot();
+  if (root) return findLocalEntry(root, name, parentId, 'folder');
   const token = await getAccessToken();
   const escapedName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const q =
@@ -167,6 +324,8 @@ export async function findFileByName(
   name: string,
   parentId: string,
 ): Promise<{ id: string } | null> {
+  const root = localRoot();
+  if (root) return findLocalEntry(root, name, parentId, 'file');
   const token = await getAccessToken();
   const escapedName = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   const q =
@@ -194,6 +353,8 @@ export async function findFileByName(
 export async function listFolder(
   parentFolderId: string,
 ): Promise<{ id: string; name: string }[]> {
+  const root = localRoot();
+  if (root) return listLocalFolder(root, parentFolderId);
   const token = await getAccessToken();
   const q = `'${parentFolderId}' in parents and trashed = false`;
   const all: { id: string; name: string }[] = [];
@@ -221,6 +382,12 @@ export async function listFolder(
 }
 
 export async function deleteFile(fileId: string): Promise<void> {
+  const root = localRoot();
+  if (root) {
+    const abs = localPathFromRel(root, decodeLocalId(fileId));
+    await rm(abs, { recursive: true, force: true });
+    return;
+  }
   const token = await getAccessToken();
   const res = await fetch(`${FILES_BASE}/${encodeURIComponent(fileId)}`, {
     method: 'DELETE',
@@ -236,6 +403,13 @@ export async function updateFile(
   mimeType: string,
   body: Buffer,
 ): Promise<{ id: string; size: number }> {
+  const root = localRoot();
+  if (root) {
+    const rel = decodeLocalId(fileId);
+    const abs = localPathFromRel(root, rel);
+    await writeFile(abs, body);
+    return { id: fileId, size: body.length };
+  }
   const token = await getAccessToken();
   const url =
     `${UPLOAD_BASE}/${encodeURIComponent(fileId)}` +
@@ -260,10 +434,72 @@ export async function uploadFile(
   mimeType: string,
   body: Buffer | ReadableStream<Uint8Array>,
 ): Promise<{ id: string; size: number }> {
+  const root = localRoot();
+  if (root) return uploadLocalFile(root, parentFolderId, name, body);
   if (Buffer.isBuffer(body) && body.length <= RESUMABLE_THRESHOLD) {
     return uploadMultipart(parentFolderId, name, mimeType, body);
   }
   return uploadResumable(parentFolderId, name, mimeType, body);
+}
+
+async function findLocalEntry(
+  root: string,
+  name: string,
+  parentId: string | 'root',
+  kind: 'file' | 'folder',
+): Promise<{ id: string } | null> {
+  sanitizeSegment(name);
+  const parentRel = relFromParentId(parentId);
+  const childRel = parentRel === '' ? name : `${parentRel}/${name}`;
+  const abs = localPathFromRel(root, childRel);
+  try {
+    const s = await stat(abs);
+    if (kind === 'folder' && !s.isDirectory()) return null;
+    if (kind === 'file' && !s.isFile()) return null;
+    return { id: encodeLocalId(childRel) };
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw err;
+  }
+}
+
+async function listLocalFolder(
+  root: string,
+  parentFolderId: string,
+): Promise<{ id: string; name: string }[]> {
+  const parentRel = decodeLocalId(parentFolderId);
+  const abs = localPathFromRel(root, parentRel);
+  const entries = await readdir(abs, { withFileTypes: true });
+  return entries.map((e) => ({
+    id: encodeLocalId(parentRel === '' ? e.name : `${parentRel}/${e.name}`),
+    name: e.name,
+  }));
+}
+
+async function uploadLocalFile(
+  root: string,
+  parentFolderId: string,
+  name: string,
+  body: Buffer | ReadableStream<Uint8Array>,
+): Promise<{ id: string; size: number }> {
+  sanitizeSegment(name);
+  const parentRel = decodeLocalId(parentFolderId);
+  const parentAbs = localPathFromRel(root, parentRel);
+  await mkdir(parentAbs, { recursive: true });
+  const childRel = parentRel === '' ? name : `${parentRel}/${name}`;
+  const abs = localPathFromRel(root, childRel);
+  let size: number;
+  if (Buffer.isBuffer(body)) {
+    await writeFile(abs, body);
+    size = body.length;
+  } else {
+    const ws = createWriteStream(abs);
+    const rs = Readable.fromWeb(body as unknown as Parameters<typeof Readable.fromWeb>[0]);
+    await pipeline(rs, ws);
+    const s = await stat(abs);
+    size = s.size;
+  }
+  return { id: encodeLocalId(childRel), size };
 }
 
 async function uploadMultipart(
