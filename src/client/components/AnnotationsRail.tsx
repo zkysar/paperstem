@@ -53,7 +53,7 @@ function authorLabel(a: Annotation): string {
   return a.user_display_name ?? a.user_email;
 }
 
-export function AnnotationsDrawer({
+export function AnnotationsRail({
   open,
   practiceId,
   selfUserId,
@@ -165,8 +165,8 @@ export function AnnotationsDrawer({
   }
 
   return (
-    <aside className="annotations-drawer" aria-label="Annotations">
-      <div className="annotations-drawer-header">
+    <aside className="annotations-rail" aria-label="Annotations">
+      <div className="annotations-rail-header">
         <h2>Annotations</h2>
         <label className="annotations-markers-toggle" title="Show markers on the timeline">
           <input
@@ -178,7 +178,7 @@ export function AnnotationsDrawer({
         </label>
         <button
           type="button"
-          className="annotations-drawer-close"
+          className="annotations-rail-close"
           aria-label="Close annotations"
           onClick={onClose}
         >

@@ -3,9 +3,9 @@ import { LoginScreen } from './auth/LoginScreen';
 import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
 import {
-  AnnotationsDrawer,
+  AnnotationsRail,
   type AnnotationDraft,
-} from './components/AnnotationsDrawer';
+} from './components/AnnotationsRail';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Player } from './components/Player';
 import { Sidebar } from './components/Sidebar';
@@ -322,7 +322,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
             onLoopAnnotation={handleLoopAnnotation}
           />
         </ErrorBoundary>
-        <AnnotationsDrawer
+        <AnnotationsRail
           open={annotationsOpen}
           practiceId={activePracticeId}
           selfUserId={user.id}
