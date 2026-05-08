@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import type { Annotation } from '../../shared/types';
 import {
   createAnnotation,
@@ -18,12 +18,14 @@ type Props = {
   markersVisible: boolean;
   pendingDraft: AnnotationDraft | null;
   highlightId: string | null;
+  hoveredId: string | null;
   onClose(): void;
   onSeek(seconds: number): void;
   onAnnotationsChange(next: Annotation[]): void;
   onDraftCancel(): void;
   onToggleMarkersVisible(): void;
   onLoopAnnotation(annotation: Annotation): void;
+  onHoverAnnotation: Dispatch<SetStateAction<string | null>>;
 };
 
 const IS_MAC =
@@ -51,7 +53,7 @@ function authorLabel(a: Annotation): string {
   return a.user_display_name ?? a.user_email;
 }
 
-export function AnnotationsDrawer({
+export function AnnotationsRail({
   open,
   practiceId,
   selfUserId,
@@ -61,12 +63,14 @@ export function AnnotationsDrawer({
   markersVisible,
   pendingDraft,
   highlightId,
+  hoveredId,
   onClose,
   onSeek,
   onAnnotationsChange,
   onDraftCancel,
   onToggleMarkersVisible,
   onLoopAnnotation,
+  onHoverAnnotation,
 }: Props) {
   const [draftBody, setDraftBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -161,26 +165,30 @@ export function AnnotationsDrawer({
   }
 
   return (
-    <aside className="annotations-drawer" aria-label="Annotations">
-      <div className="annotations-drawer-header">
-        <h2>Annotations</h2>
-        <label className="annotations-markers-toggle" title="Show markers on the timeline">
-          <input
-            type="checkbox"
-            checked={markersVisible}
-            onChange={onToggleMarkersVisible}
-          />
-          <span>Show on timeline</span>
-        </label>
-        <button
-          type="button"
-          className="annotations-drawer-close"
-          aria-label="Close annotations"
-          onClick={onClose}
-        >
-          ✕
-        </button>
-      </div>
+    <aside className="annotations-rail" aria-label="Annotations">
+      <header className="annotations-rail-header">
+        <h2 className="annotations-rail-title">Comments</h2>
+        <div className="annotations-rail-actions">
+          <button
+            type="button"
+            className="annotations-rail-iconbtn"
+            onClick={onToggleMarkersVisible}
+            aria-pressed={markersVisible}
+            aria-label="Toggle marker visibility"
+            title={markersVisible ? 'Hide markers' : 'Show markers'}
+          >
+            ◉
+          </button>
+          <button
+            type="button"
+            className="annotations-rail-iconbtn annotations-rail-close"
+            onClick={onClose}
+            aria-label="Close comments"
+          >
+            ✕
+          </button>
+        </div>
+      </header>
 
       {error && (
         <div className="annotations-error" role="alert">
@@ -244,12 +252,16 @@ export function AnnotationsDrawer({
           return (
             <li
               key={a.id}
+              data-testid={`rail-card-${a.id}`}
               className={
                 'annotation-row' +
                 (isHighlighted ? ' highlighted' : '') +
+                (hoveredId === a.id ? ' hovered' : '') +
                 (isOwn ? ' own' : '')
               }
               style={{ borderLeftColor: color }}
+              onPointerEnter={() => onHoverAnnotation(a.id)}
+              onPointerLeave={() => onHoverAnnotation(null)}
               onClick={(e) => {
                 const target = e.target as HTMLElement;
                 if (target.closest('button, textarea, input')) return;

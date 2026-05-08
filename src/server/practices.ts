@@ -49,6 +49,7 @@ export function handleListPractices(
     recorded_on: p.recorded_on,
     bpm: p.bpm,
     reference_stem: p.reference_stem,
+    drive_folder_id: p.drive_folder_id,
     created_at: p.created_at,
     updated_at: p.updated_at,
   }));

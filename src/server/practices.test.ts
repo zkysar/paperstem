@@ -139,6 +139,27 @@ describe('GET /api/practices', () => {
     const body = (await res.json()) as { practices: { name: string }[] };
     expect(body.practices.map((p) => p.name)).toEqual(['newer', 'older']);
   });
+
+  it('returns drive_folder_id on each row', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    insertPractice(bandId, owner, 'p1', '2026-05-01');
+
+    const sid = createSession(owner);
+    const res = await app.fetch(
+      new Request(`http://x/api/practices?band_id=${bandId}`, {
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      practices: { name: string; drive_folder_id: string | null }[];
+    };
+    expect(body.practices[0]).toMatchObject({
+      name: 'p1',
+      drive_folder_id: 'practice-folder',
+    });
+  });
 });
 
 describe('GET /api/practices/:id', () => {

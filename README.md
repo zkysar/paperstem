@@ -4,6 +4,10 @@ A DAW-style stem player for sharing rough mixes with bandmates.
 
 **Production:** https://paperstem.fly.dev (login required)
 
+## UI
+
+A Google-Docs-style shell: an `AppHeader` (brand · ▦ files · practice title · Drive ↗ · 💬 comments · avatar), a flat `AppToolbar` (transport · download · waveform-scale · annotation-create · marker visibility · master volume · time), and the song timeline below. The practice list lives behind `⌘K` / the ▦ button as a `FilePicker` overlay rather than a persistent sidebar; comments open in a right-side push column. See `~/projects/plans/2026-05-07-paperstem-ui-redesign.md` for the full design.
+
 ## Architecture
 
 - **Frontend**: Vite + React + TypeScript + WaveSurfer (`src/client/`)
