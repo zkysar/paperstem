@@ -15,6 +15,7 @@
   --rail-w: 170px;
   --rail-gap: 12px;
   --tbtn-size: 32px;
+  --rail-annotations-w: 320px;
 }
 
 html, body { margin: 0; padding: 0; }
@@ -42,6 +43,23 @@ kbd {
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px;
+}
+
+/* ===== App shell ===== */
+.app-shell { display: flex; flex-direction: column; min-height: 100vh; }
+.app-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 16px 16px 0;
+  box-sizing: border-box;
+  gap: 16px;
+}
+.app-body.rail-open {
+  grid-template-columns: 1fr var(--rail-annotations-w);
 }
 
 /* ===== Topbar (mobile only) ===== */

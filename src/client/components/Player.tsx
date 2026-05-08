@@ -42,7 +42,6 @@ type Props = {
   annotationCreateMode: boolean;
   onAnnotationCreated(start_ms: number, end_ms: number | null): void;
   onAnnotationSelected(annotation: Annotation): void;
-  canCreateAnnotations: boolean;
   pendingDraft: { start_ms: number; end_ms: number | null } | null;
   hoveredAnnotationId: string | null;
   onHoverAnnotation: Dispatch<SetStateAction<string | null>>;
@@ -61,7 +60,6 @@ export function Player({
   annotationCreateMode,
   onAnnotationCreated,
   onAnnotationSelected,
-  canCreateAnnotations: _canCreateAnnotations,
   pendingDraft,
   hoveredAnnotationId,
   onHoverAnnotation,

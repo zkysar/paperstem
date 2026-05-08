@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LoginScreen } from './auth/LoginScreen';
 import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
@@ -6,9 +6,11 @@ import {
   AnnotationsRail,
   type AnnotationDraft,
 } from './components/AnnotationsRail';
+import { AppHeader } from './components/AppHeader';
+import { AppToolbar } from './components/AppToolbar';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { FilePicker } from './components/FilePicker';
 import { Player } from './components/Player';
-import { Sidebar } from './components/Sidebar';
 import { UploadDrawer } from './components/UploadDrawer';
 import { listAnnotations } from './data/annotations-repo';
 import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
@@ -20,6 +22,11 @@ import { downloadStemsAsZip } from './lib/download';
 import type { Annotation, User } from '../shared/types';
 
 const UPLOAD_MIN_VIEWPORT_PX = 720;
+
+function initialsFromEmail(email: string): string {
+  const local = email.split('@')[0] ?? '';
+  return local.slice(0, 2).toUpperCase();
+}
 
 export default function App() {
   const { user, loading, logout } = useSession();
@@ -41,10 +48,10 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   );
 
   const [practices, setPractices] = useState<Practice[]>([]);
+  const [practicesLoading, setPracticesLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
@@ -58,14 +65,47 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     null,
   );
 
+  const lastPickerTriggerRef = useRef<HTMLElement | null>(null);
+  const lastRailTriggerRef = useRef<HTMLElement | null>(null);
+
+  const openPicker = useCallback(() => {
+    lastPickerTriggerRef.current = document.activeElement as HTMLElement | null;
+    setPickerOpen(true);
+  }, []);
+  const closePicker = useCallback(() => {
+    setPickerOpen(false);
+    queueMicrotask(() => lastPickerTriggerRef.current?.focus());
+  }, []);
+
+  const openRail = useCallback(() => {
+    lastRailTriggerRef.current = document.activeElement as HTMLElement | null;
+    setAnnotationsOpen(true);
+  }, []);
+  const closeRail = useCallback(() => {
+    setAnnotationsOpen(false);
+    setPendingDraft(null);
+    queueMicrotask(() => lastRailTriggerRef.current?.focus());
+  }, []);
+  const toggleRail = useCallback(() => {
+    if (annotationsOpen) closeRail();
+    else openRail();
+  }, [annotationsOpen, openRail, closeRail]);
+
+  // Auto-open the picker once on mount when no practice is active.
+  useEffect(() => {
+    if (activePracticeId === null) setPickerOpen(true);
+    // intentionally fires once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useKeyboard({
     player,
     pickerOpen,
     annotationsOpen,
     annotationCreateMode,
-    onTogglePicker: () => setPickerOpen((v) => !v),
-    onClosePicker: () => setPickerOpen(false),
-    onCloseRail: () => setAnnotationsOpen(false),
+    onTogglePicker: () => (pickerOpen ? closePicker() : openPicker()),
+    onClosePicker: closePicker,
+    onCloseRail: closeRail,
     onCancelCreate: () => {
       setAnnotationCreateMode(false);
       setPendingDraft(null);
@@ -77,14 +117,6 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     [annotations, user.id],
   );
 
-  useEffect(() => {
-    if (!annotationCreateMode) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setAnnotationCreateMode(false);
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [annotationCreateMode]);
   const [isWide, setIsWide] = useState(() =>
     typeof window === 'undefined'
       ? false
@@ -140,17 +172,22 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   useEffect(() => {
     if (!repo) {
       setPractices([]);
+      setPracticesLoading(false);
       return;
     }
     let cancelled = false;
+    setPracticesLoading(true);
     repo.list().then(
       (list) => {
         if (cancelled) return;
         setPractices(list);
         setLoadError(null);
+        setPracticesLoading(false);
       },
       (err: Error) => {
-        if (!cancelled) setLoadError(err.message);
+        if (cancelled) return;
+        setLoadError(err.message);
+        setPracticesLoading(false);
       },
     );
     return () => {
@@ -160,10 +197,18 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
 
   async function refreshPractices(): Promise<Practice[]> {
     if (!repo) return [];
-    const list = await repo.list();
-    setPractices(list);
-    setLoadError(null);
-    return list;
+    try {
+      const list = await repo.list();
+      setPractices(list);
+      setLoadError(null);
+      setPracticesLoading(false);
+      return list;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setLoadError(msg);
+      setPracticesLoading(false);
+      throw err;
+    }
   }
 
   async function handleUploaded(practiceId: string) {
@@ -180,7 +225,6 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   async function selectPractice(id: string) {
     if (!repo) return;
     setActivePracticeId(id);
-    setDrawerOpen(false);
     setAnnotations([]);
     setPendingDraft(null);
     setAnnotationCreateMode(false);
@@ -241,7 +285,6 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   );
 
   function loadFolder(files: File[], folderName: string) {
-    setDrawerOpen(false);
     if (!files.length) {
       void player.load({
         practiceId: null,
@@ -301,52 +344,46 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   }
 
   return (
-    <>
-      <header className="topbar">
-        <button
-          type="button"
-          className="menu-btn"
-          aria-label="Open practices menu"
-          aria-expanded={drawerOpen}
-          onClick={() => setDrawerOpen(true)}
-        >
-          ☰
-        </button>
-        <h1 className="brand">Paperstem</h1>
-        <span className="topbar-spacer" />
-        <button type="button" className="logout-btn" onClick={onLogout}>
-          Sign out
-        </button>
-      </header>
-      <div className="app">
-        <Sidebar
-          practices={practices}
-          activePracticeId={activePracticeId}
-          loadError={loadError}
-          drawerOpen={drawerOpen}
-          userEmail={user.email}
-          showUpload={showUploadButton}
-          onClose={() => setDrawerOpen(false)}
-          onSelect={(id) => void selectPractice(id)}
-          onLoadFolder={loadFolder}
-          onUploadClick={() => setUploadOpen(true)}
-          onLogout={onLogout}
-        />
-        {showUploadButton && activeBandId && (
-          <UploadDrawer
-            bandId={activeBandId}
-            open={uploadOpen}
-            onClose={() => setUploadOpen(false)}
-            onUploaded={(id) => void handleUploaded(id)}
-          />
-        )}
-        {drawerOpen && (
-          <div
-            className="scrim show"
-            onClick={() => setDrawerOpen(false)}
-            aria-hidden="true"
-          />
-        )}
+    <div className="app-shell">
+      <AppHeader
+        userEmail={user.email}
+        userInitials={initialsFromEmail(user.email)}
+        practiceTitle={player.state.title || null}
+        stemCount={player.state.stems.length}
+        duration={player.state.duration}
+        driveFolderId={player.state.driveFolderId ?? null}
+        annotationsOpen={annotationsOpen}
+        hasPractice={player.state.stems.length > 0}
+        onOpenPicker={openPicker}
+        onToggleAnnotations={toggleRail}
+        onSignOut={onLogout}
+      />
+      <AppToolbar
+        hasPractice={player.state.stems.length > 0}
+        isPlaying={player.state.isPlaying}
+        hasLoop={!!player.state.loop}
+        loopEnabled={!!player.state.loop?.enabled}
+        downloading={downloading}
+        waveformNormalization={player.state.waveformNormalization}
+        masterVolume={player.state.masterVolume}
+        currentTime={player.currentTime}
+        duration={player.state.duration}
+        annotationCreateMode={annotationCreateMode}
+        canCreateAnnotations={activePracticeId !== null}
+        markersVisible={markersVisible}
+        railCollapsed={railCollapsed}
+        showRailToggle={isWide}
+        onSeek={player.seek}
+        onTogglePlay={() => void player.togglePlay()}
+        onToggleLoopEnabled={player.toggleLoopEnabled}
+        onDownloadAll={onDownloadAll}
+        onToggleWaveformNormalization={player.toggleWaveformNormalization}
+        onToggleAnnotationCreate={() => setAnnotationCreateMode((v) => !v)}
+        onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}
+        onSetMasterVolume={player.setMasterVolume}
+        onToggleRailCollapsed={() => setRailCollapsed((v) => !v)}
+      />
+      <div className={'app-body' + (annotationsOpen ? ' rail-open' : '')}>
         <ErrorBoundary>
           <Player
             player={player}
@@ -354,16 +391,13 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
             userColorMap={userColorMap}
             markersVisible={markersVisible}
             annotationCreateMode={annotationCreateMode}
-            onToggleAnnotationCreate={() =>
-              setAnnotationCreateMode((v) => !v)
-            }
+            onToggleAnnotationCreate={() => setAnnotationCreateMode((v) => !v)}
             onAnnotationCreated={handleAnnotationCreated}
             onAnnotationSelected={handleAnnotationSelected}
-            canCreateAnnotations={activePracticeId !== null}
+            onLoopAnnotation={handleLoopAnnotation}
             pendingDraft={pendingDraft}
             hoveredAnnotationId={hoveredAnnotationId}
             onHoverAnnotation={setHoveredAnnotationId}
-            onLoopAnnotation={handleLoopAnnotation}
             railCollapsed={railCollapsed}
           />
         </ErrorBoundary>
@@ -378,18 +412,45 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
           pendingDraft={pendingDraft}
           highlightId={highlightAnnotationId}
           hoveredId={hoveredAnnotationId}
-          onHoverAnnotation={setHoveredAnnotationId}
-          onClose={() => {
-            setAnnotationsOpen(false);
-            setPendingDraft(null);
-          }}
-          onSeek={(seconds) => player.seek(seconds)}
+          onClose={closeRail}
+          onSeek={(s) => player.seek(s)}
           onAnnotationsChange={setAnnotations}
           onDraftCancel={() => setPendingDraft(null)}
           onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}
           onLoopAnnotation={handleLoopAnnotation}
+          onHoverAnnotation={setHoveredAnnotationId}
         />
       </div>
-    </>
+      <FilePicker
+        open={pickerOpen}
+        loading={practicesLoading}
+        loadError={loadError}
+        practices={practices}
+        activePracticeId={activePracticeId}
+        showUpload={showUploadButton}
+        onClose={closePicker}
+        onSelect={(id) => {
+          void selectPractice(id);
+          closePicker();
+        }}
+        onLoadFolder={(files, folderName) => {
+          loadFolder(files, folderName);
+          closePicker();
+        }}
+        onUploadClick={() => setUploadOpen(true)}
+        onRetry={() => {
+          setPracticesLoading(true);
+          void refreshPractices().catch(() => {});
+        }}
+      />
+      {showUploadButton && activeBandId && (
+        <UploadDrawer
+          bandId={activeBandId}
+          open={uploadOpen}
+          onClose={() => setUploadOpen(false)}
+          onUploaded={(id) => void handleUploaded(id)}
+        />
+      )}
+    </div>
   );
 }
