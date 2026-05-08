@@ -282,8 +282,14 @@ kbd {
   opacity: 1;
   transition: opacity 180ms ease-out;
 }
-.clip.loading { opacity: 0; }
 .clip.muted { opacity: 0.3; }
+/* Hide instantly while WaveSurfer re-quantizes (load + container resize),
+   fade back in via the base transition. Specificity beats .clip.muted. */
+.clip.loading,
+.clip.loading.muted {
+  opacity: 0;
+  transition: none;
+}
 
 /* ===== Overlays (playhead, loop region) ===== */
 .loop-region {
