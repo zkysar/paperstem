@@ -184,6 +184,45 @@ describe('GET /api/audio/:stem_id', () => {
     expect(body).toBe('AUDIODATA');
   });
 
+  it('marks the stem as drive_missing when Drive returns 404', async () => {
+    const owner = createUser('alice@example.com');
+    const bandId = createBand('B', owner);
+    const sid = createSession(owner);
+    const { stemId } = createPracticeAndStem(bandId, owner);
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = typeof input === 'string' ? input : (input as Request).url;
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return new Response(
+          JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+      }
+      return new Response('not found', { status: 404 });
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const res = await app.fetch(
+      new Request(`http://x/api/audio/${stemId}`, {
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(410);
+    expect(warnSpy).toHaveBeenCalled();
+
+    const row = dbMod.db
+      .prepare('SELECT deleted_at, deleted_reason FROM stems WHERE id = ?')
+      .get(stemId) as {
+      deleted_at: number | null;
+      deleted_reason: string | null;
+    };
+    expect(row.deleted_at).toBeGreaterThan(0);
+    expect(row.deleted_reason).toBe('drive_missing');
+  });
+
   it('returns 502 when Drive errors', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
