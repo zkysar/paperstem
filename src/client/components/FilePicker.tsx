@@ -1,0 +1,145 @@
+import { useEffect, useRef, useState } from 'react';
+import type { Practice } from '../data/types';
+import { AUDIO_EXT } from '../lib/audio';
+
+type Tab = 'recent' | 'all' | 'local';
+
+type Props = {
+  open: boolean;
+  loading: boolean;
+  loadError: string | null;
+  practices: Practice[];
+  activePracticeId: string | null;
+  showUpload: boolean;
+  onClose(): void;
+  onSelect(id: string): void;
+  onLoadFolder(files: File[], folderName: string): void;
+  onUploadClick(): void;
+  onRetry(): void;
+};
+
+export function FilePicker({
+  open, loading, loadError, practices, activePracticeId, showUpload,
+  onClose, onSelect, onLoadFolder, onUploadClick, onRetry,
+}: Props) {
+  const [tab, setTab] = useState<Tab>('recent');
+  const [search, setSearch] = useState('');
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  function onFolderPicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const all = Array.from(e.target.files ?? []);
+    const audio = all.filter((f) => AUDIO_EXT.test(f.name));
+    audio.sort((a, b) => a.name.localeCompare(b.name));
+    if (!audio.length) {
+      onLoadFolder([], '');
+    } else {
+      const rel = audio[0].webkitRelativePath || audio[0].name;
+      const folderName = rel.split('/')[0] || 'Local folder';
+      onLoadFolder(audio, folderName);
+    }
+    if (folderInputRef.current) folderInputRef.current.value = '';
+  }
+
+  return (
+    <>
+      <div
+        className="filepicker-scrim"
+        data-testid="filepicker-scrim"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="filepicker" role="dialog" aria-modal="true" aria-label="Practices">
+        <div className="fp-header">
+          <h2 className="fp-title">Practices</h2>
+          <input
+            type="search"
+            className="fp-search"
+            placeholder="Search practices"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {showUpload && (
+            <button type="button" className="fp-upload-btn" onClick={onUploadClick}>
+              + Upload
+            </button>
+          )}
+          <button
+            type="button"
+            className="fp-close"
+            onClick={onClose}
+            aria-label="Close picker"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="fp-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'recent'}
+            className={'fp-tab' + (tab === 'recent' ? ' active' : '')}
+            onClick={() => setTab('recent')}
+          >Recent</button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'all'}
+            className={'fp-tab' + (tab === 'all' ? ' active' : '')}
+            onClick={() => setTab('all')}
+          >All</button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'local'}
+            className={'fp-tab' + (tab === 'local' ? ' active' : '')}
+            onClick={() => {
+              setTab('local');
+              folderInputRef.current?.click();
+            }}
+          >Local folder…</button>
+        </div>
+        <input
+          ref={folderInputRef}
+          type="file"
+          {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+          multiple hidden onChange={onFolderPicked}
+        />
+        <FilePickerBody
+          tab={tab} search={search}
+          loading={loading} loadError={loadError}
+          practices={practices} activePracticeId={activePracticeId}
+          showUpload={showUpload}
+          onSelect={onSelect}
+          onUploadClick={onUploadClick}
+          onRetry={onRetry}
+        />
+      </div>
+    </>
+  );
+}
+
+function FilePickerBody(_props: {
+  tab: Tab;
+  search: string;
+  loading: boolean;
+  loadError: string | null;
+  practices: Practice[];
+  activePracticeId: string | null;
+  showUpload: boolean;
+  onSelect(id: string): void;
+  onUploadClick(): void;
+  onRetry(): void;
+}) {
+  return <div className="fp-body" />;
+}
