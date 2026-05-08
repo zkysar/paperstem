@@ -1299,6 +1299,12 @@ kbd {
   background: linear-gradient(to bottom, transparent 25%, var(--accent-tint-2) 25%, var(--accent-tint-2) 75%, transparent 75%);
   border-radius: 2px;
 }
+.fp-thumb-canvas {
+  display: block;
+  width: 100%;
+  height: 18px;
+  color: var(--accent);
+}
 .fp-row-end { display: flex; align-items: center; justify-content: center; }
 .fp-drive-link {
   width: 24px; height: 24px;

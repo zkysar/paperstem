@@ -210,6 +210,23 @@ export const stmts = {
       WHERE band_id = ?
       ORDER BY recorded_on DESC, created_at DESC`,
   ),
+  findPracticesForBandWithRefStem: db.prepare<
+    [string],
+    PracticeRow & { reference_stem_id: string | null }
+  >(
+    `SELECT p.*,
+            COALESCE(
+              (SELECT s.id FROM stems s
+                 WHERE s.practice_id = p.id AND s.name = p.reference_stem
+                 LIMIT 1),
+              (SELECT s.id FROM stems s
+                 WHERE s.practice_id = p.id
+                 ORDER BY s.position LIMIT 1)
+            ) AS reference_stem_id
+       FROM practices p
+      WHERE p.band_id = ?
+      ORDER BY p.recorded_on DESC, p.created_at DESC`,
+  ),
   findStemsForPractice: db.prepare<[string], StemRow>(
     'SELECT * FROM stems WHERE practice_id = ? ORDER BY position',
   ),

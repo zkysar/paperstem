@@ -17,16 +17,22 @@ function summaryToPractice(p: PracticeSummary): Practice {
     folder: '',
     stems: [],
     driveFolderId: p.drive_folder_id,
+    referenceStemId: p.reference_stem_id,
   };
 }
 
 function detailToPractice(detail: PracticeDetail, stems: StemSummary[]): Practice {
+  const refName = detail.reference_stem;
+  const refId = refName
+    ? stems.find((s) => s.name === refName)?.id ?? stems[0]?.id ?? null
+    : stems[0]?.id ?? null;
   return {
     id: detail.id,
     title: detail.name,
     folder: '',
     stems: stems.map((s) => s.id),
     driveFolderId: detail.drive_folder_id,
+    referenceStemId: refId,
   };
 }
 

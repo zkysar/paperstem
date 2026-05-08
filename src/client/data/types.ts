@@ -4,6 +4,7 @@ export type Practice = {
   folder: string;
   stems: string[];
   driveFolderId: string | null;
+  referenceStemId: string | null;
 };
 
 export type PracticeSummary = {
@@ -12,6 +13,7 @@ export type PracticeSummary = {
   recorded_on: string | null;
   bpm: number | null;
   reference_stem: string | null;
+  reference_stem_id: string | null;
   drive_folder_id: string | null;
   created_at: number;
   updated_at: number;
