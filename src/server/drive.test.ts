@@ -111,3 +111,70 @@ describe('drive token cache', () => {
     }
   });
 });
+
+describe('renameDriveItem', () => {
+  it('PATCHes /files/{id} with the new name', async () => {
+    let captured: { url: string; method: string; body: string } | null = null;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = typeof input === 'string' ? input : (input as Request).url;
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return new Response(JSON.stringify({ access_token: 'tok', expires_in: 3600 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      captured = {
+        url,
+        method: init?.method ?? 'GET',
+        body: typeof init?.body === 'string' ? init.body : '',
+      };
+      return new Response('{"id":"f1","name":"new"}', { status: 200 });
+    });
+    await drive.renameDriveItem('f1', 'new');
+    expect(captured!.method).toBe('PATCH');
+    expect(captured!.url).toContain('/files/f1');
+    expect(JSON.parse(captured!.body)).toEqual({ name: 'new' });
+  });
+});
+
+describe('trashDriveItem / untrashDriveItem', () => {
+  it('PATCHes trashed=true / trashed=false', async () => {
+    const calls: { method: string; body: string }[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = typeof input === 'string' ? input : (input as Request).url;
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return new Response(JSON.stringify({ access_token: 'tok', expires_in: 3600 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      calls.push({
+        method: init?.method ?? 'GET',
+        body: typeof init?.body === 'string' ? init.body : '',
+      });
+      return new Response('{}', { status: 200 });
+    });
+    await drive.trashDriveItem('f1');
+    await drive.untrashDriveItem('f1');
+    expect(JSON.parse(calls[0].body)).toEqual({ trashed: true });
+    expect(JSON.parse(calls[1].body)).toEqual({ trashed: false });
+  });
+});
+
+describe('drive 404 surface', () => {
+  it('renameDriveItem on missing file throws DriveNotFoundError', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = typeof input === 'string' ? input : (input as Request).url;
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return new Response(JSON.stringify({ access_token: 'tok', expires_in: 3600 }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      return new Response('not found', { status: 404 });
+    });
+    await expect(drive.renameDriveItem('missing', 'x')).rejects.toBeInstanceOf(
+      drive.DriveNotFoundError,
+    );
+  });
+});
