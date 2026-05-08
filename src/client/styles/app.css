@@ -11,7 +11,6 @@
   --accent-tint: rgba(193, 116, 70, 0.08);
   --accent-tint-2: rgba(193, 116, 70, 0.18);
   --accent-tint-3: rgba(193, 116, 70, 0.04);
-  --side-w: 180px;
   --rail-w: 170px;
   --rail-gap: 12px;
   --tbtn-size: 32px;
@@ -37,9 +36,6 @@ kbd {
 }
 
 .app {
-  display: grid;
-  grid-template-columns: var(--side-w) 1fr;
-  gap: 24px;
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px;
@@ -62,9 +58,9 @@ kbd {
   grid-template-columns: 1fr var(--rail-annotations-w);
 }
 
-/* ===== Topbar (mobile only) ===== */
+/* ===== Topbar (used by bands-empty fallback) ===== */
 .topbar {
-  display: none;
+  display: flex;
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
@@ -76,30 +72,8 @@ kbd {
 }
 .topbar .brand { margin: 0; font-size: 1.1rem; }
 .topbar-spacer { flex: 1; }
-.menu-btn {
-  width: 40px; height: 40px;
-  border-radius: 6px;
-  border: 1px solid #d8cfbb;
-  background: var(--paper);
-  color: var(--ink);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  padding: 0;
-}
-.menu-btn:active { background: var(--accent-tint); }
 
-.scrim {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(42, 39, 35, 0.32);
-  z-index: 30;
-}
-
-/* ===== Sidebar ===== */
-.sidebar { padding-top: 4px; min-width: 0; }
+/* ===== Brand (used by topbar fallback and login screen) ===== */
 .brand {
   font-family: "Playfair Display", Georgia, serif;
   font-size: 1.2rem;
@@ -114,68 +88,6 @@ kbd {
   text-transform: uppercase;
   margin-bottom: 16px;
 }
-.sidebar-close {
-  display: none;
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 36px; height: 36px;
-  border-radius: 6px;
-  border: 1px solid var(--rule);
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 1.1rem;
-  padding: 0;
-}
-.practice-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.practice-item {
-  padding: 10px 12px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 0.82rem;
-  color: var(--ink-2);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  user-select: none;
-  border: none;
-  background: none;
-  text-align: left;
-  font: inherit;
-  width: 100%;
-  min-height: 44px;
-}
-.practice-item:hover { background: var(--accent-tint); }
-.practice-item.active { background: var(--ink); color: var(--bg); }
-.practice-item .practice-meta {
-  font-size: 0.65rem;
-  opacity: 0.7;
-  font-family: ui-monospace, SFMono-Regular, monospace;
-}
-.sidebar-footer {
-  margin-top: 20px;
-  padding-top: 12px;
-  border-top: 1px solid var(--rule);
-}
-.sidebar-footer button {
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 0.78rem;
-  padding: 8px 0;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
-  min-height: 36px;
-}
-.sidebar-footer button:hover { color: var(--ink); }
 
 /* ===== Player ===== */
 .player { min-width: 0; }
@@ -509,53 +421,20 @@ kbd {
   line-height: 1.6;
 }
 
-/* ===== Tablet (≤960px): narrower outer sidebar; rail keeps its overlay
-   form regardless of viewport — the wave element keeps its width even
-   when the rail visually covers part of it. ===== */
+/* ===== Tablet (≤960px) ===== */
 @media (max-width: 960px) {
-  :root {
-    --side-w: 160px;
-  }
-  .app { gap: 18px; padding: 20px; }
+  .app { padding: 20px; }
   .player-title { font-size: 1.55rem; }
 }
 
-/* ===== Phone (≤720px): outer sidebar becomes a drawer; the rail keeps
-   its full desktop layout but is hidden by default and toggled in via
-   the transport button. Touch sizes get bumped here. ===== */
+/* ===== Phone (≤720px): touch sizes bumped; rail keeps its full desktop
+   layout but is hidden by default and toggled via the transport button. ===== */
 @media (max-width: 720px) {
   :root {
     --tbtn-size: 40px;
   }
 
-  .topbar { display: flex; }
-
-  .app {
-    grid-template-columns: 1fr;
-    gap: 0;
-    padding: 12px 14px 24px;
-  }
-
-  /* Sidebar becomes a left drawer on phones */
-  .sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: min(280px, 84vw);
-    background: var(--bg);
-    border-right: 1px solid var(--rule);
-    padding: 56px 16px 16px;
-    z-index: 40;
-    transform: translateX(-100%);
-    transition: transform 0.18s ease-out;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  .sidebar.open { transform: translateX(0); }
-  .sidebar.open ~ .scrim,
-  .scrim.show { display: block; }
-  .sidebar-close { display: inline-flex; align-items: center; justify-content: center; }
+  .app { padding: 12px 14px 24px; }
 
   .player-header { flex-direction: column; align-items: stretch; gap: 8px; }
   .player-title { font-size: 1.5rem; }
@@ -671,37 +550,6 @@ kbd {
   min-height: 36px;
 }
 .logout-btn:hover { background: var(--accent-tint); }
-@media (min-width: 721px) {
-  .topbar .logout-btn { display: none; }
-}
-
-/* ===== Sidebar user info / sign-out ===== */
-.sidebar-user {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--rule);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.sidebar-user-email {
-  font-size: 0.7rem;
-  color: var(--muted);
-  font-family: ui-monospace, SFMono-Regular, monospace;
-  word-break: break-all;
-}
-.sidebar-user button {
-  align-self: flex-start;
-  background: none;
-  border: none;
-  color: var(--muted);
-  font-size: 0.78rem;
-  padding: 6px 0;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
-}
-.sidebar-user button:hover { color: var(--ink); }
 
 /* ===== Upload practice modal (owner-only, desktop) ===== */
 .upload-modal-scrim {
