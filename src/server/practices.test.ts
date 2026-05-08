@@ -2,21 +2,26 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const tmpDir = mkdtempSync(join(tmpdir(), 'paperstem-practices-test-'));
 const dbPath = join(tmpDir, 'test.sqlite');
 process.env.DATABASE_PATH = dbPath;
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
+process.env.GOOGLE_CLIENT_ID = 'cid';
+process.env.GOOGLE_CLIENT_SECRET = 'csec';
+process.env.GOOGLE_REFRESH_TOKEN = 'rtok';
 
 type DbModule = typeof import('./db.js');
 type PracticesModule = typeof import('./practices.js');
+type DriveModule = typeof import('./drive.js');
 type MiddlewareModule = typeof import('./auth/middleware.js');
 type CookieModule = typeof import('./auth/cookie.js');
 
 let dbMod: DbModule;
 let practicesMod: PracticesModule;
+let driveMod: DriveModule;
 let middlewareMod: MiddlewareModule;
 let cookieMod: CookieModule;
 let app: import('hono').Hono;
@@ -24,6 +29,7 @@ let app: import('hono').Hono;
 beforeAll(async () => {
   dbMod = await import('./db.js');
   practicesMod = await import('./practices.js');
+  driveMod = await import('./drive.js');
   middlewareMod = await import('./auth/middleware.js');
   cookieMod = await import('./auth/cookie.js');
   const { Hono } = await import('hono');
@@ -31,6 +37,7 @@ beforeAll(async () => {
   app.use('*', middlewareMod.sessionMiddleware);
   app.get('/api/practices', practicesMod.handleListPractices);
   app.get('/api/practices/:id', practicesMod.handleGetPractice);
+  app.patch('/api/practices/:id', practicesMod.handleRenamePractice);
 });
 
 afterAll(() => {
@@ -41,6 +48,8 @@ function reset() {
   dbMod.db.exec(
     'DELETE FROM stems; DELETE FROM practices; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
+  driveMod._resetTokenCacheForTests();
+  vi.restoreAllMocks();
 }
 
 function createUser(email: string): string {
@@ -198,5 +207,168 @@ describe('GET /api/practices/:id', () => {
     };
     expect(body.practice.id).toBe(pid);
     expect(body.stems.map((s) => s.name)).toEqual(['drums', 'bass']);
+  });
+});
+
+describe('PATCH /api/practices/:id', () => {
+  function tokenResponse(): Response {
+    return new Response(
+      JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    );
+  }
+
+  it('renames practice and PATCHes Drive folder with the new name', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const pid = insertPractice(bandId, owner, 'old name', '2026-05-01');
+    const sid = createSession(owner);
+
+    const captured: { url: string; method: string; body: unknown }[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      const url = typeof input === 'string' ? input : (input as Request).url;
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return tokenResponse();
+      }
+      const method = (init?.method ?? 'GET').toUpperCase();
+      let parsedBody: unknown = undefined;
+      if (init?.body && typeof init.body === 'string') {
+        try {
+          parsedBody = JSON.parse(init.body);
+        } catch {
+          parsedBody = init.body;
+        }
+      }
+      captured.push({ url, method, body: parsedBody });
+      return new Response('{}', {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/practices/${pid}`, {
+        method: 'PATCH',
+        headers: {
+          Cookie: cookieHeader(sid),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: 'new name' }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok: boolean; name: string };
+    expect(body).toMatchObject({ ok: true, name: 'new name' });
+
+    const driveCalls = captured.filter((c) => c.method === 'PATCH');
+    expect(driveCalls.length).toBe(1);
+    expect(driveCalls[0]!.url).toContain('/files/practice-folder');
+    expect(driveCalls[0]!.body).toEqual({ name: 'new name' });
+
+    const row = dbMod.db
+      .prepare('SELECT name FROM practices WHERE id = ?')
+      .get(pid) as { name: string };
+    expect(row.name).toBe('new name');
+  });
+
+  it('returns 200 even if Drive PATCH responds 500 (DB still updates)', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const pid = insertPractice(bandId, owner, 'old name', '2026-05-01');
+    const sid = createSession(owner);
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = typeof input === 'string' ? input : (input as Request).url;
+      if (url.startsWith('https://oauth2.googleapis.com/token')) {
+        return tokenResponse();
+      }
+      return new Response('boom', { status: 500 });
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/practices/${pid}`, {
+        method: 'PATCH',
+        headers: {
+          Cookie: cookieHeader(sid),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: 'renamed' }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(warnSpy).toHaveBeenCalled();
+
+    const row = dbMod.db
+      .prepare('SELECT name FROM practices WHERE id = ?')
+      .get(pid) as { name: string };
+    expect(row.name).toBe('renamed');
+  });
+
+  it('rejects empty or oversized names with 400', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const pid = insertPractice(bandId, owner, 'original', '2026-05-01');
+    const sid = createSession(owner);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    const emptyRes = await app.fetch(
+      new Request(`http://localhost/api/practices/${pid}`, {
+        method: 'PATCH',
+        headers: {
+          Cookie: cookieHeader(sid),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: '' }),
+      }),
+    );
+    expect(emptyRes.status).toBe(400);
+
+    const bigRes = await app.fetch(
+      new Request(`http://localhost/api/practices/${pid}`, {
+        method: 'PATCH',
+        headers: {
+          Cookie: cookieHeader(sid),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: 'x'.repeat(201) }),
+      }),
+    );
+    expect(bigRes.status).toBe(400);
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    const row = dbMod.db
+      .prepare('SELECT name FROM practices WHERE id = ?')
+      .get(pid) as { name: string };
+    expect(row.name).toBe('original');
+  });
+
+  it('rejects non-members with 404', async () => {
+    const owner = createUser('owner@example.com');
+    const stranger = createUser('stranger@example.com');
+    const bandId = createBand('Alpha', owner);
+    const pid = insertPractice(bandId, owner, 'original', '2026-05-01');
+    const sid = createSession(stranger);
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/practices/${pid}`, {
+        method: 'PATCH',
+        headers: {
+          Cookie: cookieHeader(sid),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: 'new name' }),
+      }),
+    );
+    expect(res.status).toBe(404);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const row = dbMod.db
+      .prepare('SELECT name FROM practices WHERE id = ?')
+      .get(pid) as { name: string };
+    expect(row.name).toBe('original');
   });
 });

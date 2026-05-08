@@ -4,7 +4,7 @@ import type { Context } from 'hono';
 import busboy from 'busboy';
 import { stmts } from './db.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
-import { createFolder, uploadFile } from './drive.js';
+import { createFolder, renameDriveItem, uploadFile } from './drive.js';
 
 const MAX_NAME_LENGTH = 200;
 const MAX_STEM_BYTES = 100 * 1024 * 1024;
@@ -89,6 +89,42 @@ export function handleGetPractice(
     },
     stems,
   });
+}
+
+export async function handleRenamePractice(
+  c: Context<{ Variables: AuthVariables }>,
+): Promise<Response> {
+  const user = requireUser(c);
+  const id = c.req.param('id') ?? '';
+  if (!id) return c.json({ error: 'not_found' }, 404);
+
+  const practice = stmts.findPracticeById.get(id);
+  if (!practice) return c.json({ error: 'not_found' }, 404);
+
+  const membership = stmts.findMembership.get(practice.band_id, user.id);
+  if (!membership) return c.json({ error: 'not_found' }, 404);
+
+  let body: { name?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad_request' }, 400);
+  }
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!name || name.length > MAX_NAME_LENGTH) {
+    return c.json({ error: 'invalid_name' }, 400);
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  stmts.renamePractice.run(name, now, id);
+
+  try {
+    await renameDriveItem(practice.drive_folder_id, name);
+  } catch (err) {
+    console.warn('[practices] drive rename failed; DB updated', { id, err });
+  }
+
+  return c.json({ ok: true, name });
 }
 
 type CreatePracticeBody = {
