@@ -400,6 +400,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
             hoveredAnnotationId={hoveredAnnotationId}
             onHoverAnnotation={setHoveredAnnotationId}
             railCollapsed={railCollapsed}
+            onOpenPicker={openPicker}
           />
         </ErrorBoundary>
         <AnnotationsRail

@@ -50,6 +50,7 @@ type Props = {
   // button can drive it). The breakpoint listener also lives in App.
   railCollapsed: boolean;
   onToggleAnnotationCreate(): void;
+  onOpenPicker(): void;
 };
 
 export function Player({
@@ -66,6 +67,7 @@ export function Player({
   onLoopAnnotation,
   railCollapsed,
   onToggleAnnotationCreate,
+  onOpenPicker,
 }: Props) {
   const { state, currentTime } = player;
   const {
@@ -337,7 +339,18 @@ export function Player({
         )}
         <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
         <div className="tracks" ref={tracksRef}>
-          {!stems.length && <div className="empty">No practice loaded.</div>}
+          {!stems.length && (
+            <div className="empty-stage">
+              <p>No practice loaded.</p>
+              <button
+                type="button"
+                className="empty-stage-cta"
+                onClick={onOpenPicker}
+              >
+                Open the file picker (⌘K)
+              </button>
+            </div>
+          )}
           {stems.map((stem, i) => (
             <Track
               key={`${stem.practiceId ?? 'local'}-${stem.name}`}

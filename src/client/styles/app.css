@@ -13,7 +13,6 @@
   --accent-tint-3: rgba(193, 116, 70, 0.04);
   --rail-w: 170px;
   --rail-gap: 12px;
-  --tbtn-size: 32px;
   --rail-annotations-w: 320px;
 }
 
@@ -91,54 +90,9 @@ kbd {
 
 /* ===== Player ===== */
 .player { min-width: 0; }
-.player-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--rule);
-}
-.player-meta {
-  font-size: 0.66rem;
-  color: var(--muted);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-.player-title {
-  font-family: "Playfair Display", Georgia, serif;
-  font-size: 1.8rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
-  margin-top: 6px;
-  word-break: break-word;
-}
-.drive-link {
-  display: inline-block;
-  margin-top: 6px;
-  font-size: 0.78rem;
-  color: var(--muted);
-  text-decoration: none;
-  border-bottom: 1px solid var(--rule);
-}
-.drive-link:hover {
-  color: var(--ink, currentColor);
-  border-bottom-color: currentColor;
-}
-.player-header-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
-.master-vol {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.vol-slider.master { width: 140px; min-width: 140px; }
-.vol-num.master { min-width: 28px; }
+
+/* Per-track volume slider boost styling (>100%): the orange tail and thumb
+   indicate gain above unity. Master volume lives in AppToolbar now. */
 .vol-slider.boosted::-webkit-slider-runnable-track {
   background: linear-gradient(to right, #e5dfd0 0 50%, var(--accent-tint-2) 50% 100%);
 }
@@ -148,39 +102,18 @@ kbd {
 .vol-slider.boosted::-webkit-slider-thumb { background: var(--accent); }
 .vol-slider.boosted::-moz-range-thumb { background: var(--accent); }
 
-.transport {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 0;
-  flex-wrap: wrap;
-}
-.tbtn {
-  width: var(--tbtn-size);
-  height: var(--tbtn-size);
-  border-radius: 50%;
-  background: var(--paper);
-  border: 1px solid #d8cfbb;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.78rem;
-  color: var(--ink);
-  padding: 0;
-  flex: 0 0 auto;
-}
-.tbtn:disabled { opacity: 0.4; cursor: default; }
-.tbtn.play { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.tbtn.loop.on { background: var(--accent); color: var(--paper); border-color: var(--accent); }
-.tbtn.norm { font-size: 0.95rem; line-height: 1; }
-.tbtn.norm.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.tbtn:hover:not(:disabled) { transform: translateY(-1px); transition: transform 0.1s; }
-.ttime {
-  font-family: ui-monospace, SFMono-Regular, monospace;
-  font-size: 0.78rem;
+.empty-stage {
+  text-align: center;
+  padding: 60px 16px;
   color: var(--muted);
-  margin-left: auto;
-  flex: 0 0 auto;
+}
+.empty-stage p { margin: 0; }
+.empty-stage-cta {
+  margin-top: 12px;
+  background: var(--ink); color: var(--paper);
+  border: none; border-radius: 5px;
+  padding: 10px 16px; font: inherit; font-size: 0.85rem;
+  cursor: pointer;
 }
 
 /* ===== Stage (ruler + tracks + overlays) ===== */
@@ -258,16 +191,9 @@ kbd {
 }
 
 /* ===== Rail-collapsed state: hide the rail entirely so the wave occupies
-   the full stage width. The toggle button (transport) brings it back. ===== */
+   the full stage width. The AppToolbar rail-toggle button brings it back. ===== */
 .player.rail-collapsed .track-rail,
 .player.rail-collapsed .ruler-rail-spacer { display: none; }
-/* Only surface the rail-collapse toggle when the viewport is narrow enough
-   that the rail might genuinely steal too much room. On desktop there's
-   plenty of space, so the button has no job. */
-.tbtn.rail-toggle { display: none; font-size: 0.95rem; line-height: 1; }
-@media (max-width: 720px) {
-  .tbtn.rail-toggle { display: inline-flex; }
-}
 .swatch { width: 6px; height: 24px; border-radius: 2px; }
 .track-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .track-name {
@@ -328,7 +254,7 @@ kbd {
   min-width: 24px;
   min-height: 24px;
   padding: 4px 7px;
-  border-radius: 9px;
+  border-radius: 4px;
   background: var(--paper);
   border: 1px solid #d8cfbb;
   color: var(--muted);
@@ -424,29 +350,12 @@ kbd {
 /* ===== Tablet (≤960px) ===== */
 @media (max-width: 960px) {
   .app { padding: 20px; }
-  .player-title { font-size: 1.55rem; }
 }
 
-/* ===== Phone (≤720px): touch sizes bumped; rail keeps its full desktop
-   layout but is hidden by default and toggled via the transport button. ===== */
+/* ===== Phone (≤720px): touch sizes bumped; rail is hidden by default and
+   toggled via the AppToolbar rail-toggle button. ===== */
 @media (max-width: 720px) {
-  :root {
-    --tbtn-size: 40px;
-  }
-
   .app { padding: 12px 14px 24px; }
-
-  .player-header { flex-direction: column; align-items: stretch; gap: 8px; }
-  .player-title { font-size: 1.5rem; }
-  .player-meta + .player-meta { margin-top: 0; }
-  .ttime { font-size: 0.85rem; }
-  /* Master volume: stretch the slider across the available width and
-     left-align the row so it sits beneath the title cleanly. */
-  .player-header-right { align-items: stretch; gap: 4px; }
-  .master-vol { gap: 10px; }
-  .vol-slider.master { width: auto; min-width: 0; flex: 1; }
-
-  .transport { gap: 8px; padding: 12px 0; }
 
   .pill {
     min-width: 28px;
@@ -688,13 +597,6 @@ kbd {
 }
 
 /* ===== Annotations ===== */
-.tbtn.annotations-toggle.on,
-.tbtn.annotation-add.on {
-  background: var(--accent);
-  color: var(--paper);
-  border-color: var(--accent);
-}
-
 .player.annotating .ruler { cursor: crosshair; }
 
 /* In create mode, fade the existing timeline so the new annotation
