@@ -63,14 +63,14 @@ export function AnnotationsRail({
   markersVisible,
   pendingDraft,
   highlightId,
-  hoveredId: _hoveredId,
+  hoveredId,
   onClose,
   onSeek,
   onAnnotationsChange,
   onDraftCancel,
   onToggleMarkersVisible,
   onLoopAnnotation,
-  onHoverAnnotation: _onHoverAnnotation,
+  onHoverAnnotation,
 }: Props) {
   const [draftBody, setDraftBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -166,25 +166,29 @@ export function AnnotationsRail({
 
   return (
     <aside className="annotations-rail" aria-label="Annotations">
-      <div className="annotations-rail-header">
-        <h2>Annotations</h2>
-        <label className="annotations-markers-toggle" title="Show markers on the timeline">
-          <input
-            type="checkbox"
-            checked={markersVisible}
-            onChange={onToggleMarkersVisible}
-          />
-          <span>Show on timeline</span>
-        </label>
-        <button
-          type="button"
-          className="annotations-rail-close"
-          aria-label="Close annotations"
-          onClick={onClose}
-        >
-          ✕
-        </button>
-      </div>
+      <header className="annotations-rail-header">
+        <h2 className="annotations-rail-title">Comments</h2>
+        <div className="annotations-rail-actions">
+          <button
+            type="button"
+            className="annotations-rail-iconbtn"
+            onClick={onToggleMarkersVisible}
+            aria-pressed={markersVisible}
+            aria-label="Toggle marker visibility"
+            title={markersVisible ? 'Hide markers' : 'Show markers'}
+          >
+            ◉
+          </button>
+          <button
+            type="button"
+            className="annotations-rail-iconbtn annotations-rail-close"
+            onClick={onClose}
+            aria-label="Close comments"
+          >
+            ✕
+          </button>
+        </div>
+      </header>
 
       {error && (
         <div className="annotations-error" role="alert">
@@ -248,12 +252,16 @@ export function AnnotationsRail({
           return (
             <li
               key={a.id}
+              data-testid={`rail-card-${a.id}`}
               className={
                 'annotation-row' +
                 (isHighlighted ? ' highlighted' : '') +
+                (hoveredId === a.id ? ' hovered' : '') +
                 (isOwn ? ' own' : '')
               }
               style={{ borderLeftColor: color }}
+              onPointerEnter={() => onHoverAnnotation(a.id)}
+              onPointerLeave={() => onHoverAnnotation(null)}
               onClick={(e) => {
                 const target = e.target as HTMLElement;
                 if (target.closest('button, textarea, input')) return;

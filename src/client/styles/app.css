@@ -1016,12 +1016,34 @@ kbd {
   padding: 14px 16px;
   border-bottom: 1px solid var(--rule);
 }
-.annotations-rail-header h2 {
+.annotations-rail-header h2,
+.annotations-rail-title {
   margin: 0;
   font-size: 1rem;
   font-weight: 600;
   color: var(--ink);
+  flex: 1;
 }
+.annotations-rail-actions { display: flex; gap: 4px; }
+.annotations-rail-iconbtn {
+  width: 24px;
+  height: 24px;
+  background: var(--rule-2);
+  border: none;
+  border-radius: 4px;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.annotations-rail-iconbtn:hover {
+  background: var(--accent-tint);
+  color: var(--ink);
+}
+.annotations-rail-iconbtn[aria-pressed="false"] { opacity: 0.55; }
 .annotations-rail-close {
   background: transparent;
   border: none;
@@ -1031,6 +1053,7 @@ kbd {
   padding: 4px 8px;
 }
 .annotations-rail-close:hover { color: var(--ink); }
+.annotation-row.hovered { background: var(--accent-tint); }
 
 .annotations-error {
   margin: 12px 16px 0;
