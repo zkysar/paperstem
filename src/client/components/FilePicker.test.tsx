@@ -55,9 +55,9 @@ describe('FilePicker', () => {
   });
 
   const fixturePractices: Practice[] = [
-    { id: 'p1', title: 'Practice 2026-04-28', folder: '2026/04', stems: ['a','b','c'], stemCount: 3, driveFolderId: 'd1' },
-    { id: 'p2', title: 'Practice 2026-04-21', folder: '2026/04', stems: ['a','b'], stemCount: 2, driveFolderId: 'd2' },
-    { id: 'p3', title: 'Practice 2026-03-31', folder: '2026/03', stems: ['a'], stemCount: 1, driveFolderId: null },
+    { id: 'p1', title: 'Practice 2026-04-28', folder: '2026/04', stems: ['a','b','c'], stemCount: 3, driveFolderId: 'd1', referenceStemId: null },
+    { id: 'p2', title: 'Practice 2026-04-21', folder: '2026/04', stems: ['a','b'], stemCount: 2, driveFolderId: 'd2', referenceStemId: null },
+    { id: 'p3', title: 'Practice 2026-03-31', folder: '2026/03', stems: ['a'], stemCount: 1, driveFolderId: null, referenceStemId: null },
   ];
 
   it('renders one row per practice', () => {

@@ -42,13 +42,14 @@ export function handleListPractices(
   const membership = stmts.findMembership.get(bandId, user.id);
   if (!membership) return c.json({ error: 'not_found' }, 404);
 
-  const rows = stmts.findPracticesForBand.all(bandId);
+  const rows = stmts.findPracticesForBandWithRefStem.all(bandId);
   const practices = rows.map((p) => ({
     id: p.id,
     name: p.name,
     recorded_on: p.recorded_on,
     bpm: p.bpm,
     reference_stem: p.reference_stem,
+    reference_stem_id: p.reference_stem_id,
     drive_folder_id: p.drive_folder_id,
     created_at: p.created_at,
     updated_at: p.updated_at,

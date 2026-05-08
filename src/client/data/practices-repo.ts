@@ -18,10 +18,15 @@ function summaryToPractice(p: PracticeSummary): Practice {
     stems: [],
     stemCount: p.stem_count,
     driveFolderId: p.drive_folder_id,
+    referenceStemId: p.reference_stem_id,
   };
 }
 
 function detailToPractice(detail: PracticeDetail, stems: StemSummary[]): Practice {
+  const refName = detail.reference_stem;
+  const refId = refName
+    ? stems.find((s) => s.name === refName)?.id ?? stems[0]?.id ?? null
+    : stems[0]?.id ?? null;
   return {
     id: detail.id,
     title: detail.name,
@@ -29,6 +34,7 @@ function detailToPractice(detail: PracticeDetail, stems: StemSummary[]): Practic
     stems: stems.map((s) => s.id),
     stemCount: stems.length,
     driveFolderId: detail.drive_folder_id,
+    referenceStemId: refId,
   };
 }
 
