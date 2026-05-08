@@ -115,4 +115,29 @@ describe('FilePicker', () => {
     // be present when showUpload=false ... it shouldn't be (header gates on showUpload too)
     expect(screen.queryByRole('button', { name: /Upload/ })).toBeNull();
   });
+
+  it('renders Drive ↗ link per row when driveFolderId set', () => {
+    render(<FilePicker {...baseProps} practices={fixturePractices} />);
+    const row = screen.getByTestId('fp-row-p1');
+    const link = row.querySelector('.fp-drive-link') as HTMLAnchorElement;
+    expect(link).toBeTruthy();
+    expect(link.href).toContain('drive.google.com/drive/folders/d1');
+    expect(link.target).toBe('_blank');
+  });
+
+  it('hides Drive ↗ when driveFolderId is null', () => {
+    render(<FilePicker {...baseProps} practices={fixturePractices} />);
+    const row = screen.getByTestId('fp-row-p3');
+    expect(row.querySelector('.fp-drive-link')).toBeNull();
+  });
+
+  it('clicking Drive ↗ does not trigger row onSelect', async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    render(<FilePicker {...baseProps} practices={fixturePractices} onSelect={onSelect} />);
+    const row = screen.getByTestId('fp-row-p1');
+    const link = row.querySelector('.fp-drive-link') as HTMLAnchorElement;
+    await user.click(link);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });

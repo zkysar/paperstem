@@ -206,19 +206,36 @@ function FilePickerBody({
         <span></span>
       </div>
       {rows.map((p) => (
-        <button
+        <div
           key={p.id}
-          type="button"
           data-testid={`fp-row-${p.id}`}
           className={'fp-row fp-row-data' + (p.id === activePracticeId ? ' active' : '')}
-          onClick={() => onSelect(p.id)}
         >
-          <span className="fp-name">{p.title}</span>
-          <span className="fp-thumb" aria-hidden="true" />
-          <span className="fp-meta">{p.folder ?? ''}</span>
-          <span className="fp-meta">{p.stems.length}</span>
-          <span className="fp-row-end" />
-        </button>
+          <button
+            type="button"
+            className="fp-row-main"
+            onClick={() => onSelect(p.id)}
+          >
+            <span className="fp-name">{p.title}</span>
+            <span className="fp-thumb" aria-hidden="true" />
+            <span className="fp-meta">{p.folder ?? ''}</span>
+            <span className="fp-meta">{p.stems.length}</span>
+          </button>
+          <span className="fp-row-end">
+            {p.driveFolderId && (
+              <a
+                className="fp-drive-link"
+                href={`https://drive.google.com/drive/folders/${encodeURIComponent(p.driveFolderId)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title="Open in Drive"
+              >
+                ↗
+              </a>
+            )}
+          </span>
+        </div>
       ))}
     </div>
   );

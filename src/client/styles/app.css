@@ -1486,9 +1486,17 @@ kbd {
   border-bottom: 1px solid var(--rule);
 }
 .fp-row-data {
-  background: transparent; border: none; cursor: pointer; width: 100%;
+  /* Row is a flex/grid container, not a button — Task 9 nests button + link */
+  cursor: default;
 }
-.fp-row-data:hover { background: var(--accent-tint); }
+.fp-row-main {
+  display: contents;
+  background: transparent; border: none; cursor: pointer;
+  font: inherit; font-size: 0.82rem;
+  text-align: left;
+  color: inherit;
+}
+.fp-row-data:has(.fp-row-main:hover) { background: var(--accent-tint); }
 .fp-row-data.active { background: var(--accent-tint-2); }
 .fp-name { font-weight: 600; }
 .fp-meta { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 0.7rem; color: var(--muted); }
@@ -1498,6 +1506,13 @@ kbd {
   border-radius: 2px;
 }
 .fp-row-end { display: flex; align-items: center; justify-content: center; }
+.fp-drive-link {
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  text-decoration: none; color: var(--ink-2);
+  border-radius: 4px;
+}
+.fp-drive-link:hover { background: var(--rule-2); color: var(--ink); }
 .fp-state {
   padding: 36px 16px;
   text-align: center;
