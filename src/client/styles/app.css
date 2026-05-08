@@ -279,7 +279,10 @@ kbd {
   border: 1px solid var(--accent-tint-2);
   overflow: hidden;
   touch-action: pan-y;
+  opacity: 1;
+  transition: opacity 180ms ease-out;
 }
+.clip.loading { opacity: 0; }
 .clip.muted { opacity: 0.3; }
 
 /* ===== Overlays (playhead, loop region) ===== */

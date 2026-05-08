@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import type { LoadedStem, WaveformNormalization } from '../data/types';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
@@ -33,6 +33,7 @@ export function Track({
 }: Props) {
   const clipRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
+  const [waveLoading, setWaveLoading] = useState(true);
   // Read latest normalization in the create-effect without re-mounting on toggle.
   const normRef = useRef(waveformNormalization);
   normRef.current = waveformNormalization;
@@ -42,6 +43,7 @@ export function Track({
   useEffect(() => {
     if (!clipRef.current) return;
     let ws: WaveSurfer | null = null;
+    setWaveLoading(true);
     try {
       ws = WaveSurfer.create({
         container: clipRef.current,
@@ -64,9 +66,19 @@ export function Track({
     wsRef.current = ws;
     const off = ws.on('interaction', (t: number) => onSeek(t));
     const errOff = ws.on('error', () => {});
+    // Wait for initial render + a frame so the layout-settle redraw happens
+    // before we fade the waveform in. Avoids the "jump to fit" flash.
+    let raf = 0;
+    const readyOff = ws.on('ready', () => {
+      raf = requestAnimationFrame(() => {
+        raf = requestAnimationFrame(() => setWaveLoading(false));
+      });
+    });
     return () => {
       off();
       errOff();
+      readyOff();
+      if (raf) cancelAnimationFrame(raf);
       try {
         ws?.destroy();
       } catch {
@@ -140,7 +152,7 @@ export function Track({
       <div className="wave">
         <div
           ref={clipRef}
-          className={'clip' + (effectiveMuted ? ' muted' : '')}
+          className={'clip' + (effectiveMuted ? ' muted' : '') + (waveLoading ? ' loading' : '')}
           style={{ width: `${widthPct}%` }}
         />
       </div>
