@@ -212,7 +212,7 @@ export const stmts = {
   ),
   findPracticesForBandWithRefStem: db.prepare<
     [string],
-    PracticeRow & { reference_stem_id: string | null }
+    PracticeRow & { reference_stem_id: string | null; stem_count: number }
   >(
     `SELECT p.*,
             COALESCE(
@@ -222,7 +222,8 @@ export const stmts = {
               (SELECT s.id FROM stems s
                  WHERE s.practice_id = p.id
                  ORDER BY s.position LIMIT 1)
-            ) AS reference_stem_id
+            ) AS reference_stem_id,
+            (SELECT COUNT(*) FROM stems s WHERE s.practice_id = p.id) AS stem_count
        FROM practices p
       WHERE p.band_id = ?
       ORDER BY p.recorded_on DESC, p.created_at DESC`,

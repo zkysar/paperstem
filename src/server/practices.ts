@@ -53,6 +53,7 @@ export function handleListPractices(
     drive_folder_id: p.drive_folder_id,
     created_at: p.created_at,
     updated_at: p.updated_at,
+    stem_count: p.stem_count,
   }));
   return c.json({ practices });
 }

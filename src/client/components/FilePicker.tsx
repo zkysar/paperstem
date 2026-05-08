@@ -226,7 +226,7 @@ function FilePickerBody({
             <span className="fp-name">{p.title}</span>
             <WaveformThumb stemId={p.referenceStemId} />
             <span className="fp-meta">{p.folder ?? ''}</span>
-            <span className="fp-meta">{p.stems.length}</span>
+            <span className="fp-meta">{p.stemCount}</span>
           </button>
           <span className="fp-row-end">
             {p.driveFolderId && (

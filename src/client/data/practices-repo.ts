@@ -16,6 +16,7 @@ function summaryToPractice(p: PracticeSummary): Practice {
     title: p.name,
     folder: '',
     stems: [],
+    stemCount: p.stem_count,
     driveFolderId: p.drive_folder_id,
     referenceStemId: p.reference_stem_id,
   };
@@ -31,6 +32,7 @@ function detailToPractice(detail: PracticeDetail, stems: StemSummary[]): Practic
     title: detail.name,
     folder: '',
     stems: stems.map((s) => s.id),
+    stemCount: stems.length,
     driveFolderId: detail.drive_folder_id,
     referenceStemId: refId,
   };

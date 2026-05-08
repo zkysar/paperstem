@@ -3,6 +3,7 @@ export type Practice = {
   title: string;
   folder: string;
   stems: string[];
+  stemCount: number;
   driveFolderId: string | null;
   referenceStemId: string | null;
 };
@@ -17,6 +18,7 @@ export type PracticeSummary = {
   drive_folder_id: string | null;
   created_at: number;
   updated_at: number;
+  stem_count: number;
 };
 
 export type StemSummary = {
