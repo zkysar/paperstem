@@ -1309,6 +1309,7 @@ kbd {
   background: linear-gradient(to bottom, transparent 25%, var(--accent-tint-2) 25%, var(--accent-tint-2) 75%, transparent 75%);
   border-radius: 2px;
 }
+.fp-thumb:has(canvas) { background: none; }
 .fp-thumb-canvas {
   display: block;
   width: 100%;

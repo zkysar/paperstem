@@ -4,8 +4,8 @@
     {
       "name": "paperstem",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--base=/", "--port=8765", "--strictPort"],
-      "port": 8765
+      "runtimeArgs": ["vite", "--base=/"],
+      "autoPort": true
     }
   ]
 }

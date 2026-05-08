@@ -113,7 +113,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    port: Number(process.env.PAPERSTEM_VITE_PORT ?? 5173),
+    port: Number(process.env.PAPERSTEM_VITE_PORT ?? process.env.PORT ?? 5173),
     proxy: {
       '/api': `http://localhost:${process.env.PAPERSTEM_API_PORT ?? 8787}`,
       '/auth/callback': `http://localhost:${process.env.PAPERSTEM_API_PORT ?? 8787}`,

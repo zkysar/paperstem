@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { computePeaks, loadCachedPeaks, saveCachedPeaks } from '../lib/peaks';
+import { acquire } from '../lib/concurrency';
 
 type Props = {
   stemId: string | null;
@@ -9,7 +10,32 @@ export function WaveformThumb({ stemId }: Props) {
   const [peaks, setPeaks] = useState<number[] | null>(() =>
     stemId ? loadCachedPeaks(stemId) : null,
   );
+  const [visible, setVisible] = useState(false);
+  const wrapRef = useRef<HTMLSpanElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Mark visible when the wrapper scrolls into view (or immediately if IO is
+  // unavailable). Off-screen rows in a long band stay placeholder until the
+  // user scrolls them in.
+  useEffect(() => {
+    if (visible) return;
+    const el = wrapRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setVisible(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '100px' },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible]);
 
   useEffect(() => {
     if (!stemId) {
@@ -22,6 +48,7 @@ export function WaveformThumb({ stemId }: Props) {
       return;
     }
     setPeaks(null);
+    if (!visible) return;
 
     const Ctor: typeof AudioContext | undefined =
       typeof window === 'undefined'
@@ -34,8 +61,11 @@ export function WaveformThumb({ stemId }: Props) {
     const ac = new AbortController();
     let cancelled = false;
     let ctx: AudioContext | null = null;
+    let release: (() => void) | null = null;
 
     void (async () => {
+      release = await acquire();
+      if (cancelled) return;
       try {
         const res = await fetch(`/api/audio/${encodeURIComponent(stemId)}`, {
           credentials: 'include',
@@ -54,6 +84,7 @@ export function WaveformThumb({ stemId }: Props) {
         // network/decode failures fall back to placeholder
       } finally {
         if (ctx) void ctx.close();
+        if (release) release();
       }
     })();
 
@@ -61,7 +92,7 @@ export function WaveformThumb({ stemId }: Props) {
       cancelled = true;
       ac.abort();
     };
-  }, [stemId]);
+  }, [stemId, visible]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -85,13 +116,15 @@ export function WaveformThumb({ stemId }: Props) {
     }
   }, [peaks]);
 
-  if (!peaks) return <span className="fp-thumb" aria-hidden="true" />;
   return (
-    <canvas
-      ref={canvasRef}
-      className="fp-thumb-canvas"
-      aria-hidden="true"
-      data-testid="fp-waveform"
-    />
+    <span ref={wrapRef} className="fp-thumb" aria-hidden="true">
+      {peaks && (
+        <canvas
+          ref={canvasRef}
+          className="fp-thumb-canvas"
+          data-testid="fp-waveform"
+        />
+      )}
+    </span>
   );
 }
