@@ -1,11 +1,7 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, it, expect, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import { AnnotationMarkers } from './AnnotationMarkers';
 import type { Annotation } from '../../shared/types';
-
-afterEach(() => {
-  cleanup();
-});
 
 const ann: Annotation = {
   id: 'a1',

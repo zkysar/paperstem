@@ -62,9 +62,6 @@ export function AnnotationMarkers({
   const showTimerRef = useRef<number | null>(null);
   const hideTimerRef = useRef<number | null>(null);
   const markerRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  // Force a re-render once after layout so the hover card can read a fresh
-  // bounding rect for the marker. `getBoundingClientRect` isn't reactive.
-  const [, setRectTick] = useState(0);
 
   useEffect(() => {
     return () => {
@@ -86,9 +83,9 @@ export function AnnotationMarkers({
         window.clearTimeout(hideTimerRef.current);
         hideTimerRef.current = null;
       }
-      if (activeHoverId !== null) setActiveHoverId(null);
+      setActiveHoverId((cur) => (cur === null ? cur : null));
     }
-  }, [visible, createMode, activeHoverId]);
+  }, [visible, createMode]);
 
   function handleEnter(e: ReactPointerEvent<HTMLDivElement>, id: string) {
     if (e.pointerType === 'touch') return;
@@ -103,7 +100,6 @@ export function AnnotationMarkers({
     showTimerRef.current = window.setTimeout(() => {
       showTimerRef.current = null;
       setActiveHoverId(id);
-      setRectTick((t) => t + 1);
       onHover(id);
     }, 150);
   }

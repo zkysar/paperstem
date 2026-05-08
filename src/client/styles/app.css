@@ -1212,9 +1212,6 @@ kbd {
   width: 240px;
   font-size: 0.78rem;
 }
-.annotation-hover-card .ahc-loop {
-  pointer-events: auto;
-}
 .annotation-hover-card .ahc-meta {
   display: flex;
   align-items: center;
@@ -1234,6 +1231,7 @@ kbd {
   margin-left: auto;
 }
 .annotation-hover-card .ahc-loop {
+  pointer-events: auto;
   background: transparent; border: none; padding: 0 0 0 4px; cursor: pointer;
   color: var(--ink-2); font: inherit;
 }
