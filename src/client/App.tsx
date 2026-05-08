@@ -86,6 +86,40 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     return () => mql.removeEventListener('change', update);
   }, []);
 
+  // The per-stem rail (track names + volume sliders + M/S pills) auto-collapses
+  // on narrow viewports so the waveform takes the full width. The manual toggle
+  // in AppToolbar (Task 5) overrides this until the viewport next crosses the
+  // breakpoint, at which point we follow the new default again. Lifted here
+  // (from Player) so AppToolbar's rail-toggle button can drive Player.
+  const [railCollapsed, setRailCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 720px)').matches;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(max-width: 720px)');
+    let last = mql.matches;
+    const update = () => {
+      const next = window.matchMedia('(max-width: 720px)').matches;
+      if (next !== last) {
+        last = next;
+        setRailCollapsed(next);
+      }
+    };
+    mql.addEventListener('change', update);
+    window.addEventListener('resize', update);
+    // matchMedia 'change' and window 'resize' aren't reliably dispatched
+    // by every embed environment (e.g. CDP-driven viewport overrides);
+    // ResizeObserver on the root element catches those cases.
+    const ro = new ResizeObserver(update);
+    ro.observe(document.documentElement);
+    return () => {
+      mql.removeEventListener('change', update);
+      window.removeEventListener('resize', update);
+      ro.disconnect();
+    };
+  }, []);
+
   const showUploadButton =
     isWide && activeBand !== null && activeBand.role === 'owner';
 
@@ -302,13 +336,9 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
         <ErrorBoundary>
           <Player
             player={player}
-            onDownloadAll={onDownloadAll}
-            downloading={downloading}
             annotations={annotations}
             userColorMap={userColorMap}
             markersVisible={markersVisible}
-            annotationsOpen={annotationsOpen}
-            onToggleAnnotations={() => setAnnotationsOpen((v) => !v)}
             annotationCreateMode={annotationCreateMode}
             onToggleAnnotationCreate={() =>
               setAnnotationCreateMode((v) => !v)
@@ -320,6 +350,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
             hoveredAnnotationId={hoveredAnnotationId}
             onHoverAnnotation={setHoveredAnnotationId}
             onLoopAnnotation={handleLoopAnnotation}
+            railCollapsed={railCollapsed}
           />
         </ErrorBoundary>
         <AnnotationsRail

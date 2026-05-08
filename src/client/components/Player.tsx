@@ -8,8 +8,7 @@ import {
 } from 'react';
 import type { Annotation } from '../../shared/types';
 import type { PlayerControls } from '../hooks/usePlayer';
-import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
-import { fmt, pixelToTime } from '../lib/format';
+import { pixelToTime } from '../lib/format';
 import { AnnotationMarkers } from './AnnotationMarkers';
 import { LoopRegion } from './LoopRegion';
 import { Playhead } from './Playhead';
@@ -37,15 +36,10 @@ type Drag = {
 
 type Props = {
   player: PlayerControls;
-  onDownloadAll(): void;
-  downloading: boolean;
   annotations: Annotation[];
   userColorMap: Map<string, string>;
   markersVisible: boolean;
-  annotationsOpen: boolean;
-  onToggleAnnotations(): void;
   annotationCreateMode: boolean;
-  onToggleAnnotationCreate(): void;
   onAnnotationCreated(start_ms: number, end_ms: number | null): void;
   onAnnotationSelected(annotation: Annotation): void;
   canCreateAnnotations: boolean;
@@ -53,76 +47,41 @@ type Props = {
   hoveredAnnotationId: string | null;
   onHoverAnnotation: Dispatch<SetStateAction<string | null>>;
   onLoopAnnotation(annotation: Annotation): void;
+  // Controlled rail-collapse state (lifted to App so AppToolbar's rail-toggle
+  // button can drive it). The breakpoint listener also lives in App.
+  railCollapsed: boolean;
+  onToggleAnnotationCreate(): void;
 };
 
 export function Player({
   player,
-  onDownloadAll,
-  downloading,
   annotations,
   userColorMap,
   markersVisible,
-  annotationsOpen,
-  onToggleAnnotations,
   annotationCreateMode,
-  onToggleAnnotationCreate,
   onAnnotationCreated,
   onAnnotationSelected,
-  canCreateAnnotations,
+  canCreateAnnotations: _canCreateAnnotations,
   pendingDraft,
   hoveredAnnotationId,
   onHoverAnnotation,
   onLoopAnnotation,
+  railCollapsed,
+  onToggleAnnotationCreate,
 }: Props) {
   const { state, currentTime } = player;
   const {
     stems,
     duration,
     loop,
-    isPlaying,
     focusedIdx,
     status,
-    title,
-    driveFolderId,
-    masterVolume,
     waveformNormalization,
   } = state;
 
   const stageRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef<HTMLDivElement>(null);
-
-  // The rail (track names + volume sliders + M/S pills) auto-collapses on
-  // narrow viewports so the waveform takes the full width. The manual
-  // toggle in the transport overrides this until the viewport next crosses
-  // the breakpoint, at which point we follow the new default again.
-  const [railCollapsed, setRailCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia('(max-width: 720px)').matches;
-  });
-  useEffect(() => {
-    const mql = window.matchMedia('(max-width: 720px)');
-    let last = mql.matches;
-    const update = () => {
-      const next = window.matchMedia('(max-width: 720px)').matches;
-      if (next !== last) {
-        last = next;
-        setRailCollapsed(next);
-      }
-    };
-    mql.addEventListener('change', update);
-    window.addEventListener('resize', update);
-    // matchMedia 'change' and window 'resize' aren't reliably dispatched
-    // by every embed environment (e.g. CDP-driven viewport overrides);
-    // ResizeObserver on the root element catches those cases.
-    const ro = new ResizeObserver(update);
-    ro.observe(document.documentElement);
-    return () => {
-      mql.removeEventListener('change', update);
-      window.removeEventListener('resize', update);
-      ro.disconnect();
-    };
-  }, []);
 
   // Wave area geometry: re-measured on each render so overlay positions
   // (playhead, loop region) follow size changes without explicit listeners.
@@ -365,150 +324,6 @@ export function Player({
         (annotationCreateMode ? ' annotating' : '')
       }
     >
-      <div className="player-header">
-        <div>
-          <div className="player-meta">Practice</div>
-          <div className="player-title">{title}</div>
-          {driveFolderId ? (
-            <a
-              className="drive-link"
-              href={`https://drive.google.com/drive/folders/${encodeURIComponent(driveFolderId)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Open in Drive ↗
-            </a>
-          ) : null}
-        </div>
-        <div className="player-header-right">
-          <label className="master-vol" title={`Master ${masterVolume}% (${VOLUME_UNITY}% = unity, ${VOLUME_MAX}% = +12 dB)`}>
-            <span className="player-meta">Master</span>
-            <input
-              className={'vol-slider master' + (masterVolume > VOLUME_UNITY ? ' boosted' : '')}
-              type="range"
-              min={0}
-              max={VOLUME_MAX}
-              step={1}
-              value={masterVolume}
-              onChange={(e) => player.setMasterVolume(parseInt(e.target.value, 10))}
-              onDoubleClick={() => player.setMasterVolume(VOLUME_UNITY)}
-            />
-            <span className="vol-num master">{masterVolume}</span>
-          </label>
-          <div className="player-meta">
-            {stems.length ? `${stems.length} stems · ${fmt(duration)}` : ''}
-          </div>
-        </div>
-      </div>
-
-      <div className="transport">
-        <button
-          type="button"
-          className="tbtn"
-          title="Restart"
-          disabled={!stems.length}
-          onClick={() => player.seek(0)}
-        >
-          ⏮
-        </button>
-        <button
-          type="button"
-          className="tbtn play"
-          title="Play / Pause (Space)"
-          disabled={!stems.length}
-          onClick={() => {
-            void player.togglePlay();
-          }}
-        >
-          {isPlaying ? '⏸' : '▶'}
-        </button>
-        <button
-          type="button"
-          className={'tbtn loop' + (loop?.enabled ? ' on' : '')}
-          title="Toggle loop (L)"
-          disabled={!loop}
-          onClick={() => player.toggleLoopEnabled()}
-        >
-          ⟲
-        </button>
-        <button
-          type="button"
-          className="tbtn"
-          title="Download all stems"
-          disabled={!stems.length || downloading}
-          onClick={onDownloadAll}
-        >
-          {downloading ? '…' : '⤓'}
-        </button>
-        <button
-          type="button"
-          className={'tbtn norm' + (waveformNormalization === 'global' ? ' on' : '')}
-          title={
-            waveformNormalization === 'per-track'
-              ? 'Waveform scale: per-track (each row fills its waveform). Click for global.'
-              : 'Waveform scale: global (heights reflect relative loudness). Click for per-track.'
-          }
-          aria-pressed={waveformNormalization === 'global'}
-          onClick={() => player.toggleWaveformNormalization()}
-        >
-          {waveformNormalization === 'per-track' ? (
-            // Three equal bars — each row fills its waveform.
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-              <rect x="3" y="3" width="2" height="10" fill="currentColor" />
-              <rect x="7" y="3" width="2" height="10" fill="currentColor" />
-              <rect x="11" y="3" width="2" height="10" fill="currentColor" />
-            </svg>
-          ) : (
-            // Three bars of different heights — shared scale shows relative loudness.
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-              <rect x="3" y="3" width="2" height="10" fill="currentColor" />
-              <rect x="7" y="6" width="2" height="4" fill="currentColor" />
-              <rect x="11" y="4" width="2" height="8" fill="currentColor" />
-            </svg>
-          )}
-        </button>
-        <button
-          type="button"
-          className={'tbtn rail-toggle' + (railCollapsed ? ' collapsed' : '')}
-          title={railCollapsed ? 'Show track controls' : 'Hide track controls'}
-          aria-label={railCollapsed ? 'Show track controls' : 'Hide track controls'}
-          aria-pressed={railCollapsed}
-          onClick={() => setRailCollapsed((v) => !v)}
-        >
-          {railCollapsed ? '◨' : '◧'}
-        </button>
-        {canCreateAnnotations && (
-          <button
-            type="button"
-            className={
-              'tbtn annotation-add' + (annotationCreateMode ? ' on' : '')
-            }
-            title={
-              annotationCreateMode
-                ? 'Click ruler for point, drag for region. Click again to cancel.'
-                : 'Add annotation: click ruler for point, drag for region'
-            }
-            aria-pressed={annotationCreateMode}
-            disabled={!stems.length}
-            onClick={onToggleAnnotationCreate}
-          >
-            +
-          </button>
-        )}
-        <button
-          type="button"
-          className={'tbtn annotations-toggle' + (annotationsOpen ? ' on' : '')}
-          title="Toggle annotations panel"
-          aria-pressed={annotationsOpen}
-          onClick={onToggleAnnotations}
-        >
-          ✎
-        </button>
-        <span className="ttime">
-          {fmt(currentTime)} / {fmt(duration)}
-        </span>
-      </div>
-
       <div className="stage" ref={stageRef}>
         {annotationCreateMode && duration > 0 && (
           <div
