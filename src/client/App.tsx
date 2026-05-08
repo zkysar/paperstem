@@ -373,6 +373,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
         markersVisible={markersVisible}
         railCollapsed={railCollapsed}
         showRailToggle={isWide}
+        isWide={isWide}
         onSeek={player.seek}
         onTogglePlay={() => void player.togglePlay()}
         onToggleLoopEnabled={player.toggleLoopEnabled}
