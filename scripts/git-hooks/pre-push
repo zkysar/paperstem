@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Blocks `git push` when the build or tests fail. Same checks as CI.
+# Bypass with `git push --no-verify` for emergencies.
+
+set -e
+
+# Skip when only deleting refs (every local-oid is the zero-hash).
+deleting=true
+while read -r _local_ref local_oid _remote_ref _remote_oid; do
+  [[ -z "$local_oid" ]] && continue
+  if [[ "$local_oid" != "0000000000000000000000000000000000000000" ]]; then
+    deleting=false
+  fi
+done
+
+if $deleting; then
+  exit 0
+fi
+
+cd "$(git rev-parse --show-toplevel)"
+
+echo "pre-push: npm run build"
+npm run build
+
+echo "pre-push: vitest"
+npx vitest run
+
+echo "pre-push: ok"
