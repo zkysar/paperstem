@@ -24,7 +24,10 @@ const onlyBandId = values['band-id']?.trim();
 const force = values.force === true;
 
 const bands = onlyBandId
-  ? [stmts.findBandById.get(onlyBandId)].filter(Boolean)
+  ? (() => {
+      const b = stmts.findBandById.get(onlyBandId);
+      return b ? [b] : [];
+    })()
   : stmts.findAllBands.all();
 
 if (bands.length === 0) {
