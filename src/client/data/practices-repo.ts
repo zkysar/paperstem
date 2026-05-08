@@ -23,6 +23,9 @@ function summaryToPractice(p: PracticeSummary): Practice {
 }
 
 function detailToPractice(detail: PracticeDetail, stems: StemSummary[]): Practice {
+  // Reference stem fallback: name match → first stem by position → null.
+  // Must mirror `findPracticesForBandWithRefStem` in src/server/db.ts so the
+  // detail and list endpoints agree on which stem the picker thumbnail uses.
   const refName = detail.reference_stem;
   const refId = refName
     ? stems.find((s) => s.name === refName)?.id ?? stems[0]?.id ?? null
