@@ -10,8 +10,6 @@ export type PracticeSummary = {
   id: string;
   name: string;
   recorded_on: string | null;
-  bpm: number | null;
-  reference_stem: string | null;
   drive_folder_id: string | null;
   created_at: number;
   updated_at: number;
@@ -31,8 +29,6 @@ export type PracticeDetail = {
   name: string;
   recorded_on: string | null;
   drive_folder_id: string;
-  bpm: number | null;
-  reference_stem: string | null;
   notes: string | null;
   created_at: number;
   created_by: string;
@@ -87,4 +83,27 @@ export type StemSource = {
 export type LoadContext = {
   practiceId: string | null;
   title: string;
+};
+
+export type TrashPractice = {
+  id: string;
+  name: string;
+  deleted_at: number;
+  deleted_by_email: string | null;
+  deleted_reason: 'user' | 'drive_missing';
+};
+
+export type TrashStem = {
+  id: string;
+  name: string;
+  practice_id: string;
+  practice_name: string;
+  deleted_at: number;
+  deleted_by_email: string | null;
+  deleted_reason: 'user' | 'drive_missing';
+};
+
+export type TrashList = {
+  practices: TrashPractice[];
+  stems: TrashStem[];
 };
