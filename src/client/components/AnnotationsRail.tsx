@@ -1,4 +1,15 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  Circle,
+  Eye,
+  EyeOff,
+  Pencil,
+  Repeat,
+  Square,
+  Star,
+  Trash2,
+  X,
+} from 'lucide-react';
 import type { Annotation } from '../../shared/types';
 import {
   createAnnotation,
@@ -177,7 +188,9 @@ export function AnnotationsRail({
             aria-label="Toggle marker visibility"
             title={markersVisible ? 'Hide markers' : 'Show markers'}
           >
-            ◉
+            {markersVisible
+              ? <Eye size={16} strokeWidth={2} aria-hidden="true" />
+              : <EyeOff size={16} strokeWidth={2} aria-hidden="true" />}
           </button>
           <button
             type="button"
@@ -185,7 +198,7 @@ export function AnnotationsRail({
             onClick={onClose}
             aria-label="Close comments"
           >
-            ✕
+            <X size={16} strokeWidth={2} aria-hidden="true" />
           </button>
         </div>
       </header>
@@ -277,7 +290,9 @@ export function AnnotationsRail({
                   aria-label={a.end_ms === null ? 'point annotation' : 'region annotation'}
                   title={a.end_ms === null ? 'Point annotation' : 'Region annotation'}
                 >
-                  {a.end_ms === null ? '●' : '▭'}
+                  {a.end_ms === null
+                    ? <Circle size={10} strokeWidth={0} fill="currentColor" aria-hidden="true" />
+                    : <Square size={10} strokeWidth={0} fill="currentColor" aria-hidden="true" />}
                 </span>
                 <span className="annotation-time">{formatRange(a)}</span>
                 <span
@@ -298,7 +313,7 @@ export function AnnotationsRail({
                       onLoopAnnotation(a);
                     }}
                   >
-                    ⟲
+                    <Repeat size={14} strokeWidth={2} aria-hidden="true" />
                   </button>
                 )}
                 {canEdit && (
@@ -310,12 +325,17 @@ export function AnnotationsRail({
                     aria-label={a.starred ? 'Unstar' : 'Star'}
                     onClick={() => void handleToggleStar(a)}
                   >
-                    {a.starred ? '★' : '☆'}
+                    <Star
+                      size={14}
+                      strokeWidth={2}
+                      fill={a.starred ? 'currentColor' : 'none'}
+                      aria-hidden="true"
+                    />
                   </button>
                 )}
                 {!canEdit && a.starred && (
                   <span className="annotation-star starred" aria-hidden="true">
-                    ★
+                    <Star size={14} strokeWidth={2} fill="currentColor" aria-hidden="true" />
                   </span>
                 )}
               </div>
@@ -358,7 +378,7 @@ export function AnnotationsRail({
                     aria-label="Edit"
                     onClick={() => startEdit(a)}
                   >
-                    ✎
+                    <Pencil size={14} strokeWidth={2} aria-hidden="true" />
                   </button>
                   <button
                     type="button"
@@ -366,7 +386,7 @@ export function AnnotationsRail({
                     aria-label="Delete"
                     onClick={() => void handleDelete(a)}
                   >
-                    🗑
+                    <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
                   </button>
                 </div>
               )}

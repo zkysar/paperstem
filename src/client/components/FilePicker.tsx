@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ExternalLink, Pencil, Trash2, Upload, X } from 'lucide-react';
 import type { Practice, TrashList } from '../data/types';
 import { AUDIO_EXT } from '../lib/audio';
 import { WaveformThumb } from './WaveformThumb';
@@ -90,7 +91,8 @@ export function FilePicker({
           />
           {showUpload && (
             <button type="button" className="fp-upload-btn" onClick={onUploadClick}>
-              + Upload
+              <Upload size={14} strokeWidth={2} aria-hidden="true" />
+              Upload
             </button>
           )}
           <button
@@ -99,7 +101,7 @@ export function FilePicker({
             onClick={onClose}
             aria-label="Close picker"
           >
-            ✕
+            <X size={16} strokeWidth={2} aria-hidden="true" />
           </button>
         </div>
         <div className="fp-tabs" role="tablist">
@@ -169,7 +171,10 @@ export function FilePicker({
         )}
         {showUpload && tab !== 'trash' && (
           <div className="fp-upload-bottom">
-            <button type="button" onClick={onUploadClick}>+ Upload practice</button>
+            <button type="button" onClick={onUploadClick}>
+              <Upload size={14} strokeWidth={2} aria-hidden="true" />
+              Upload practice
+            </button>
           </div>
         )}
         {confirm && (
@@ -272,7 +277,8 @@ function FilePickerBody({
         <p className="fp-state-msg">No practices yet.</p>
         {showUpload && (
           <button type="button" className="fp-state-action" onClick={onUploadClick}>
-            + Upload practice
+            <Upload size={14} strokeWidth={2} aria-hidden="true" />
+            Upload practice
           </button>
         )}
         <p className="fp-state-secondary">
@@ -358,7 +364,7 @@ function FilePickerBody({
                   }}
                   title="Rename"
                 >
-                  ✎
+                  <Pencil size={14} strokeWidth={2} aria-hidden="true" />
                 </button>
               )}
               {p.driveFolderId && (
@@ -369,8 +375,9 @@ function FilePickerBody({
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
                   title="Open in Drive"
+                  aria-label="Open in Drive"
                 >
-                  ↗
+                  <ExternalLink size={14} strokeWidth={2} aria-hidden="true" />
                 </a>
               )}
               {!isEditing && (
@@ -384,7 +391,7 @@ function FilePickerBody({
                   }}
                   title="Move to trash"
                 >
-                  🗑
+                  <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
                 </button>
               )}
             </span>

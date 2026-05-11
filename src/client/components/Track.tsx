@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import type { LoadedStem, WaveformNormalization } from '../data/types';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
@@ -222,7 +223,7 @@ export function Track({
               disabled={!canDelete}
               title="Move to trash"
             >
-              🗑
+              <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
             </button>
           </span>
         </div>
@@ -302,7 +303,7 @@ export function Track({
               disabled={!canDelete}
               title="Move to trash"
             >
-              🗑
+              <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
             </button>
           </span>
         </div>

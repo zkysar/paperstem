@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, ExternalLink, Library, MessageSquare } from 'lucide-react';
 import { fmt } from '../lib/format';
 
 type Props = {
@@ -67,7 +68,7 @@ export function AppHeader({
         title="Open practices (⌘K)"
         aria-label="Open practices"
       >
-        ▦
+        <Library size={16} strokeWidth={2} aria-hidden="true" />
       </button>
       <h1 className="ah-brand">Paperstem</h1>
       {envBadge && (
@@ -118,7 +119,7 @@ export function AppHeader({
             onClick={onOpenPicker}
             aria-label="Switch practice"
           >
-            ▾
+            <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
           </button>
         </span>
       </div>
@@ -135,8 +136,9 @@ export function AppHeader({
           target="_blank"
           rel="noopener noreferrer"
           title="Open in Drive"
+          aria-label="Open in Drive"
         >
-          ↗
+          <ExternalLink size={16} strokeWidth={2} aria-hidden="true" />
         </a>
       )}
       {hasPractice && (
@@ -146,8 +148,9 @@ export function AppHeader({
           onClick={onToggleAnnotations}
           aria-pressed={annotationsOpen}
           title="Comments"
+          aria-label="Toggle comments"
         >
-          💬
+          <MessageSquare size={16} strokeWidth={2} aria-hidden="true" />
         </button>
       )}
       <div className="ah-avatar-wrap" ref={avatarRef}>
