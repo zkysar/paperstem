@@ -14,7 +14,7 @@ import { Player } from './components/Player';
 import { UploadDrawer } from './components/UploadDrawer';
 import { listAnnotations } from './data/annotations-repo';
 import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
-import type { Practice, StemSource } from './data/types';
+import type { Practice, StemSource, TrashList } from './data/types';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
 import { buildUserColorMap } from './lib/colors';
@@ -48,6 +48,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
   );
 
   const [practices, setPractices] = useState<Practice[]>([]);
+  const [trash, setTrash] = useState<TrashList | null>(null);
   const [practicesLoading, setPracticesLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
@@ -257,6 +258,52 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
       }
     },
     [repo, activePracticeId, player],
+  );
+
+  const loadTrash = useCallback(async () => {
+    if (!repo) return;
+    try {
+      const data = await repo.listTrash();
+      setTrash(data);
+    } catch (err) {
+      console.error('trash load failed', err);
+      setTrash({ practices: [], stems: [] });
+    }
+  }, [repo]);
+
+  const restorePractice = useCallback(
+    async (id: string) => {
+      if (!repo) return;
+      try {
+        await repo.restorePractice(id);
+      } catch (err) {
+        console.error('restore failed', err);
+        return;
+      }
+      try {
+        const fresh = await repo.list();
+        setPractices(fresh);
+      } catch (_err) { /* ignore */ }
+      await loadTrash();
+    },
+    [repo, loadTrash],
+  );
+
+  const restoreStem = useCallback(
+    async (id: string) => {
+      if (!repo) return;
+      try {
+        await repo.restoreStem(id);
+      } catch (err) {
+        console.error('restore stem failed', err);
+        return;
+      }
+      await loadTrash();
+      if (activePracticeId) {
+        setActivePracticeId((cur) => cur);
+      }
+    },
+    [repo, loadTrash, activePracticeId],
   );
 
   const renamePractice = useCallback(
@@ -514,6 +561,16 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
         }}
         onDeletePractice={(id) => {
           void deletePractice(id);
+        }}
+        trash={trash}
+        onLoadTrash={() => {
+          void loadTrash();
+        }}
+        onRestorePractice={(id) => {
+          void restorePractice(id);
+        }}
+        onRestoreStem={(id) => {
+          void restoreStem(id);
         }}
       />
       {showUploadButton && activeBandId && (

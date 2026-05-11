@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Practice } from '../data/types';
+import type { Practice, TrashList } from '../data/types';
 import { AUDIO_EXT } from '../lib/audio';
 
-type Tab = 'recent' | 'all' | 'local';
+type Tab = 'recent' | 'all' | 'trash' | 'local';
 
 type Props = {
   open: boolean;
@@ -18,12 +18,17 @@ type Props = {
   onRetry(): void;
   onRenamePractice(id: string, name: string): void;
   onDeletePractice(id: string): void;
+  trash: TrashList | null;
+  onLoadTrash(): void;
+  onRestorePractice(id: string): void;
+  onRestoreStem(id: string): void;
 };
 
 export function FilePicker({
   open, loading, loadError, practices, activePracticeId, showUpload,
   onClose, onSelect, onLoadFolder, onUploadClick, onRetry,
   onRenamePractice, onDeletePractice,
+  trash, onLoadTrash, onRestorePractice, onRestoreStem,
 }: Props) {
   const [tab, setTab] = useState<Tab>('recent');
   const [search, setSearch] = useState('');
@@ -105,6 +110,17 @@ export function FilePicker({
           <button
             type="button"
             role="tab"
+            data-tab="trash"
+            aria-selected={tab === 'trash'}
+            className={'fp-tab' + (tab === 'trash' ? ' active' : '')}
+            onClick={() => {
+              setTab('trash');
+              if (trash === null) onLoadTrash();
+            }}
+          >Trash</button>
+          <button
+            type="button"
+            role="tab"
             data-tab="local"
             aria-selected={tab === 'local'}
             className={'fp-tab' + (tab === 'local' ? ' active' : '')}
@@ -120,18 +136,26 @@ export function FilePicker({
           {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
           multiple hidden onChange={onFolderPicked}
         />
-        <FilePickerBody
-          tab={tab} search={search}
-          loading={loading} loadError={loadError}
-          practices={practices} activePracticeId={activePracticeId}
-          showUpload={showUpload}
-          onSelect={onSelect}
-          onUploadClick={onUploadClick}
-          onRetry={onRetry}
-          onRenamePractice={onRenamePractice}
-          onRequestDelete={(id, name) => setConfirm({ id, name })}
-        />
-        {showUpload && (
+        {tab === 'trash' ? (
+          <TrashBody
+            trash={trash}
+            onRestorePractice={onRestorePractice}
+            onRestoreStem={onRestoreStem}
+          />
+        ) : (
+          <FilePickerBody
+            tab={tab} search={search}
+            loading={loading} loadError={loadError}
+            practices={practices} activePracticeId={activePracticeId}
+            showUpload={showUpload}
+            onSelect={onSelect}
+            onUploadClick={onUploadClick}
+            onRetry={onRetry}
+            onRenamePractice={onRenamePractice}
+            onRequestDelete={(id, name) => setConfirm({ id, name })}
+          />
+        )}
+        {showUpload && tab !== 'trash' && (
           <div className="fp-upload-bottom">
             <button type="button" onClick={onUploadClick}>+ Upload practice</button>
           </div>
@@ -349,6 +373,76 @@ function FilePickerBody({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function TrashBody({
+  trash, onRestorePractice, onRestoreStem,
+}: {
+  trash: TrashList | null;
+  onRestorePractice(id: string): void;
+  onRestoreStem(id: string): void;
+}) {
+  if (!trash) {
+    return (
+      <div className="fp-body fp-state">
+        <p className="fp-state-msg">Loading…</p>
+      </div>
+    );
+  }
+  if (!trash.practices.length && !trash.stems.length) {
+    return (
+      <div className="fp-body fp-state">
+        <p className="fp-state-msg">Trash is empty.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="fp-body">
+      <div className="fp-row fp-row-head" role="row">
+        <span>Name</span>
+        <span>Type</span>
+        <span>Deleted by</span>
+        <span>Status</span>
+        <span></span>
+      </div>
+      {trash.practices.map((p) => (
+        <div key={`p-${p.id}`} className="fp-row fp-row-data">
+          <span className="fp-name">{p.name}</span>
+          <span className="fp-meta">Practice</span>
+          <span className="fp-meta">{p.deleted_by_email ?? '—'}</span>
+          <span className="fp-meta">
+            {p.deleted_reason === 'drive_missing' ? 'Drive file missing' : ''}
+          </span>
+          <button
+            type="button"
+            aria-label={`Restore ${p.name}`}
+            disabled={p.deleted_reason === 'drive_missing'}
+            onClick={() => onRestorePractice(p.id)}
+          >
+            Restore
+          </button>
+        </div>
+      ))}
+      {trash.stems.map((s) => (
+        <div key={`s-${s.id}`} className="fp-row fp-row-data">
+          <span className="fp-name">{s.name}</span>
+          <span className="fp-meta">Stem · {s.practice_name}</span>
+          <span className="fp-meta">{s.deleted_by_email ?? '—'}</span>
+          <span className="fp-meta">
+            {s.deleted_reason === 'drive_missing' ? 'Drive file missing' : ''}
+          </span>
+          <button
+            type="button"
+            aria-label={`Restore ${s.name}`}
+            disabled={s.deleted_reason === 'drive_missing'}
+            onClick={() => onRestoreStem(s.id)}
+          >
+            Restore
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { FilePicker } from './FilePicker';
-import type { Practice } from '../data/types';
+import type { Practice, TrashList } from '../data/types';
 
 const practices: Practice[] = []; // empty for now
 const baseProps = {
@@ -19,6 +19,10 @@ const baseProps = {
   onRetry: vi.fn(),
   onRenamePractice: vi.fn(),
   onDeletePractice: vi.fn(),
+  trash: null as TrashList | null,
+  onLoadTrash: vi.fn(),
+  onRestorePractice: vi.fn(),
+  onRestoreStem: vi.fn(),
 };
 
 describe('FilePicker', () => {
@@ -214,5 +218,53 @@ describe('FilePicker', () => {
     await user.click(screen.getByRole('button', { name: /move alpha to trash/i }));
     await user.click(screen.getByRole('button', { name: /^cancel$/i }));
     expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it('renders trash tab content with restore buttons', async () => {
+    const user = userEvent.setup();
+    const onRestorePractice = vi.fn();
+    const onRestoreStem = vi.fn();
+    const trash: TrashList = {
+      practices: [{
+        id: 'p1', name: 'Trashed', deleted_at: 1700000000,
+        deleted_by_email: 'a@b.com', deleted_reason: 'user',
+      }],
+      stems: [{
+        id: 's1', name: 'gone.wav', practice_id: 'p2', practice_name: 'Live',
+        deleted_at: 1700000000, deleted_by_email: 'a@b.com', deleted_reason: 'drive_missing',
+      }],
+    };
+    render(
+      <FilePicker
+        {...baseProps}
+        trash={trash}
+        onRestorePractice={onRestorePractice}
+        onRestoreStem={onRestoreStem}
+      />,
+    );
+
+    await user.click(screen.getByRole('tab', { name: /trash/i }));
+
+    expect(screen.queryByText('Trashed')).not.toBeNull();
+    expect(screen.queryByText('gone.wav')).not.toBeNull();
+
+    const restorePracticeBtn = screen.getByRole('button', { name: /restore Trashed/i });
+    const restoreStemBtn = screen.getByRole('button', { name: /restore gone.wav/i });
+    expect(restorePracticeBtn.hasAttribute('disabled')).toBe(false);
+    expect(restoreStemBtn.hasAttribute('disabled')).toBe(true);
+
+    await user.click(restorePracticeBtn);
+    expect(onRestorePractice).toHaveBeenCalledWith('p1');
+  });
+
+  it('calls onLoadTrash when trash tab is selected', async () => {
+    const user = userEvent.setup();
+    const onLoadTrash = vi.fn();
+    render(
+      <FilePicker {...baseProps} trash={null} onLoadTrash={onLoadTrash} />,
+    );
+
+    await user.click(screen.getByRole('tab', { name: /trash/i }));
+    expect(onLoadTrash).toHaveBeenCalled();
   });
 });
