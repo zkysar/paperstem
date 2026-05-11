@@ -40,11 +40,19 @@ export function FilePicker({
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        // If a confirm modal is open, Esc dismisses just that modal — keep
+        // the picker open so the user doesn't lose context after backing out.
+        if (confirm) {
+          setConfirm(null);
+          return;
+        }
+        onClose();
+      }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, confirm]);
 
   if (!open) return null;
 
@@ -180,7 +188,13 @@ export function FilePicker({
               <h3 id="fp-modal-title">Move "{confirm.name}" to trash?</h3>
               <p>You can restore from this band's trash for 30 days.</p>
               <div className="fp-modal-actions">
-                <button type="button" onClick={() => setConfirm(null)}>Cancel</button>
+                <button
+                  type="button"
+                  autoFocus
+                  onClick={() => setConfirm(null)}
+                >
+                  Cancel
+                </button>
                 <button
                   type="button"
                   className="danger"

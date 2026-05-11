@@ -269,6 +269,35 @@ describe('FilePicker', () => {
     expect(onLoadTrash).toHaveBeenCalled();
   });
 
+  it('Esc closes the delete-confirm modal without closing the picker', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onDelete = vi.fn();
+    const rows: Practice[] = [
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], driveFolderId: null },
+    ];
+    render(
+      <FilePicker
+        {...baseProps}
+        practices={rows}
+        onClose={onClose}
+        onDeletePractice={onDelete}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /move alpha to trash/i }));
+    expect(screen.getByText(/move .*alpha.* to trash/i)).not.toBeNull();
+    // Cancel should have initial focus.
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: /^cancel$/i }),
+    );
+    await user.keyboard('{Escape}');
+    // Confirm modal gone, but picker still open and onClose not called.
+    expect(screen.queryByText(/move .*alpha.* to trash/i)).toBeNull();
+    expect(screen.getByText('Practices')).not.toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
   it('shows trash error banner with Retry when trashError is set', async () => {
     const user = userEvent.setup();
     const onLoadTrash = vi.fn();

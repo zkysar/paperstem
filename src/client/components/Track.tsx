@@ -49,6 +49,16 @@ export function Track({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
 
+  // Esc dismisses the delete-confirm modal when it's open.
+  useEffect(() => {
+    if (!confirmDelete) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setConfirmDelete(false);
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [confirmDelete]);
+
   // Watch the audio element for load failures (e.g. server returns 410 for a
   // ghost stem whose Drive file was deleted out-of-band).
   useEffect(() => {
@@ -323,7 +333,11 @@ export function Track({
             <h3>Move "{stem.displayName}" to trash?</h3>
             <p>You can restore from this band's trash for 30 days.</p>
             <div className="fp-modal-actions">
-              <button type="button" onClick={() => setConfirmDelete(false)}>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setConfirmDelete(false)}
+              >
                 Cancel
               </button>
               <button
