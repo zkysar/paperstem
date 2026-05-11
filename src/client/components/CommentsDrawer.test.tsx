@@ -14,7 +14,6 @@ const ann: Annotation = {
 const baseProps = {
   open: true,
   isNarrow: false,
-  practiceId: 'p1',
   selfUserId: 'u1',
   canEdit: true,
   annotations: [ann],

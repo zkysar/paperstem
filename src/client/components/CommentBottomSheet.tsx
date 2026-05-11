@@ -1,6 +1,7 @@
 import { useState, type KeyboardEvent } from 'react';
 import type { Annotation } from '../../shared/types';
 import { fmt } from '../lib/format';
+import { isMac } from '../lib/platform';
 
 type Props = {
   annotation: Annotation;
@@ -18,13 +19,9 @@ type Props = {
   onClose(): void;
 };
 
-const IS_MAC =
-  typeof navigator !== 'undefined' &&
-  navigator.platform.toUpperCase().includes('MAC');
-
 function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;
-  return IS_MAC ? e.metaKey : e.ctrlKey;
+  return isMac ? e.metaKey : e.ctrlKey;
 }
 
 export function CommentBottomSheet({

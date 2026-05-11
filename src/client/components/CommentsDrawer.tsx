@@ -9,7 +9,6 @@ export type DraftSpec = { start_ms: number; end_ms: number | null };
 type Props = {
   open: boolean;
   isNarrow: boolean;
-  practiceId: string | null;
   selfUserId: string;
   canEdit: boolean;
   annotations: Annotation[];
@@ -30,7 +29,7 @@ function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
 }
 
 export function CommentsDrawer({
-  open, isNarrow, practiceId, selfUserId, canEdit,
+  open, isNarrow, selfUserId, canEdit,
   annotations, userColorMap, activeId, pendingDraft,
   onClose, onSelect, onCreate, onDraftCancel,
 }: Props) {
@@ -139,9 +138,6 @@ export function CommentsDrawer({
             drag a region on the timeline to add a comment
           </div>
         )}
-        {/* practiceId is part of the public API for the parent's wiring even
-            though the component itself doesn't currently need it to render. */}
-        <span hidden data-practice-id={practiceId ?? ''} />
       </aside>
     </>
   );
