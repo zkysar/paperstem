@@ -684,6 +684,7 @@ function PaperstemApp({
           return (
             <>
               <CommentsDrawer
+                key={activePracticeId ?? 'none'}
                 open={drawerOpen}
                 isNarrow={isNarrow}
                 selfUserId={user.id}
