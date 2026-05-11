@@ -13,7 +13,6 @@
   --accent-tint-3: rgba(193, 116, 70, 0.04);
   --rail-w: 260px;
   --rail-gap: 12px;
-  --rail-annotations-w: 320px;
 }
 
 html, body { margin: 0; padding: 0; }
@@ -53,10 +52,6 @@ kbd {
   box-sizing: border-box;
   gap: 16px;
 }
-.app-body.rail-open {
-  grid-template-columns: 1fr var(--rail-annotations-w);
-}
-
 /* ===== Topbar (used by bands-empty fallback) ===== */
 .topbar {
   display: flex;
@@ -985,21 +980,6 @@ kbd {
 .annotation-icon-btn:hover {
   color: var(--ink);
   border-color: var(--ink);
-}
-
-@media (max-width: 720px) {
-  .annotations-rail {
-    width: 100%;
-    max-width: 100%;
-  }
-  .app-body.rail-open {
-    grid-template-columns: 1fr;
-  }
-  .annotations-rail {
-    position: fixed; inset: 0;
-    z-index: 35;
-    border-left: none;
-  }
 }
 
 /* ===== AnnotationHoverCard ===== */
