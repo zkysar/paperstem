@@ -29,6 +29,7 @@
     "busboy": "^1.6.0",
     "hono": "^4.6.13",
     "jszip": "^3.10.1",
+    "lucide-react": "^1.14.0",
     "nodemailer": "^6.9.16",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

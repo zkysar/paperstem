@@ -1,4 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
+import {
+  AudioWaveform,
+  Download,
+  Eye,
+  EyeOff,
+  Loader2,
+  MessageSquarePlus,
+  PanelRightClose,
+  PanelRightOpen,
+  Pause,
+  Play,
+  Repeat,
+  SkipBack,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 import { fmt } from '../lib/format';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
 
@@ -45,26 +61,34 @@ export function AppToolbar(props: Props) {
       <button type="button" className="atb-btn"
         aria-label="Restart"
         disabled={!hasPractice}
-        onClick={() => onSeek(0)}>⏮</button>
+        onClick={() => onSeek(0)}><SkipBack size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" /></button>
       <button type="button" className={'atb-btn play' + (isPlaying ? ' on' : '')}
         aria-label="Play"
         disabled={!hasPractice}
-        onClick={onTogglePlay}>{isPlaying ? '⏸' : '▶'}</button>
+        onClick={onTogglePlay}>
+        {isPlaying
+          ? <Pause size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" />
+          : <Play size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" />}
+      </button>
       <button type="button" className={'atb-btn' + (loopEnabled ? ' loop-on' : '')}
         aria-label="Toggle loop"
         disabled={!hasLoop}
-        onClick={onToggleLoopEnabled}>⟲</button>
+        onClick={onToggleLoopEnabled}><Repeat size={16} strokeWidth={2} aria-hidden="true" /></button>
 
       <span className="atb-divider" />
 
       <button type="button" className="atb-btn"
         aria-label="Download all stems"
         disabled={!hasPractice || downloading}
-        onClick={onDownloadAll}>{downloading ? '…' : '⤓'}</button>
+        onClick={onDownloadAll}>
+        {downloading
+          ? <Loader2 size={16} strokeWidth={2} className="atb-spin" aria-hidden="true" />
+          : <Download size={16} strokeWidth={2} aria-hidden="true" />}
+      </button>
       <button type="button" className={'atb-btn' + (waveformNormalization === 'global' ? ' on' : '')}
         aria-label="Toggle waveform scale"
         aria-pressed={waveformNormalization === 'global'}
-        onClick={onToggleWaveformNormalization}>▥</button>
+        onClick={onToggleWaveformNormalization}><AudioWaveform size={16} strokeWidth={2} aria-hidden="true" /></button>
 
       <span className="atb-divider" />
 
@@ -73,12 +97,16 @@ export function AppToolbar(props: Props) {
         aria-label="Add annotation"
         aria-pressed={annotationCreateMode}
         disabled={!canCreateAnnotations}
-        onClick={onToggleAnnotationCreate}>＋</button>
+        onClick={onToggleAnnotationCreate}><MessageSquarePlus size={16} strokeWidth={2} aria-hidden="true" /></button>
       <button type="button"
         className={'atb-btn' + (markersVisible ? ' on' : '')}
         aria-label="Toggle marker visibility"
         aria-pressed={markersVisible}
-        onClick={onToggleMarkersVisible}>◉</button>
+        onClick={onToggleMarkersVisible}>
+        {markersVisible
+          ? <Eye size={16} strokeWidth={2} aria-hidden="true" />
+          : <EyeOff size={16} strokeWidth={2} aria-hidden="true" />}
+      </button>
 
       {showRailToggle && (
         <>
@@ -87,7 +115,11 @@ export function AppToolbar(props: Props) {
             className={'atb-btn' + (railCollapsed ? ' on' : '')}
             aria-label={railCollapsed ? 'Show track controls' : 'Hide track controls'}
             aria-pressed={railCollapsed}
-            onClick={onToggleRailCollapsed}>{railCollapsed ? '◨' : '◧'}</button>
+            onClick={onToggleRailCollapsed}>
+            {railCollapsed
+              ? <PanelRightOpen size={16} strokeWidth={2} aria-hidden="true" />
+              : <PanelRightClose size={16} strokeWidth={2} aria-hidden="true" />}
+          </button>
         </>
       )}
 
@@ -147,7 +179,9 @@ function MasterVolumePopover({
         aria-pressed={open}
         onClick={() => setOpen((v) => !v)}
       >
-        ♪
+        {masterVolume === 0
+          ? <VolumeX size={16} strokeWidth={2} aria-hidden="true" />
+          : <Volume2 size={16} strokeWidth={2} aria-hidden="true" />}
       </button>
       {open && (
         <div className="atb-master-pop">

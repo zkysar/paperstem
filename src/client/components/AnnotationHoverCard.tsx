@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { Repeat } from 'lucide-react';
 import type { Annotation } from '../../shared/types';
 import { fmt } from '../lib/format';
 
@@ -74,8 +75,9 @@ export function AnnotationHoverCard({
                 onLoopRegion();
               }}
               title="Loop region"
+              aria-label="Loop region"
             >
-              ⟲
+              <Repeat size={12} strokeWidth={2} aria-hidden="true" />
             </button>
           )}
         </span>
