@@ -110,7 +110,10 @@ describe('HttpPracticesRepo.getById', () => {
     expect(fetchSpy.mock.calls[0][0]).toBe('/api/practices/p1');
     expect(p.id).toBe('p1');
     expect(p.title).toBe('Practice One');
-    expect(p.stems).toEqual(['s1', 's2']);
+    expect(p.stems).toEqual([
+      { id: 's1', name: 'drums' },
+      { id: 's2', name: 'bass' },
+    ]);
     expect(p.driveFolderId).toBe('drv');
   });
 });

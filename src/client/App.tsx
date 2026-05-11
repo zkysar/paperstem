@@ -334,10 +334,10 @@ function PaperstemApp({
       try {
         const detail = await repo.getById(id);
         setPractices((prev) => prev.map((p) => (p.id === detail.id ? detail : p)));
-        const sources: StemSource[] = detail.stems.map((stemId) => ({
-          name: stemId,
-          src: `/api/audio/${encodeURIComponent(stemId)}`,
-          serverId: stemId,
+        const sources: StemSource[] = detail.stems.map((s) => ({
+          name: s.name,
+          src: `/api/audio/${encodeURIComponent(s.id)}`,
+          serverId: s.id,
         }));
         void player.load({
           practiceId: detail.id,
