@@ -46,6 +46,20 @@ export function Track({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(stem.displayName);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
+
+  // Watch the audio element for load failures (e.g. server returns 410 for a
+  // ghost stem whose Drive file was deleted out-of-band).
+  useEffect(() => {
+    function onErr() {
+      setUnavailable(true);
+    }
+    setUnavailable(false);
+    stem.audio.addEventListener('error', onErr);
+    return () => {
+      stem.audio.removeEventListener('error', onErr);
+    };
+  }, [stem.audio]);
 
   // Keep the draft in sync if the underlying displayName changes from outside
   // (e.g. an optimistic rename completing, or a different stem rendered into
@@ -96,7 +110,7 @@ export function Track({
     }
     wsRef.current = ws;
     const off = ws.on('interaction', (t: number) => onSeek(t));
-    const errOff = ws.on('error', () => {});
+    const errOff = ws.on('error', () => setUnavailable(true));
     return () => {
       off();
       errOff();
@@ -131,89 +145,121 @@ export function Track({
 
   return (
     <div className={'track' + (focused ? ' focused' : '')} onPointerDown={handlePointerDown}>
-      <div className="track-rail">
-        <span className="swatch" style={{ background: stem.color }} title={stem.displayName} />
-        <div className="track-info">
-          {editing && nameEditable ? (
-            <input
-              className="track-name-input"
-              aria-label="Rename stem"
-              value={draft}
-              autoFocus
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  commitRename();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  cancelRename();
-                }
-              }}
-              onBlur={commitRename}
-            />
-          ) : (
-            <span
-              className={'track-name' + (nameEditable ? ' track-name-editable' : '')}
-              title={nameEditable ? 'Click to rename' : stem.displayName}
-              onClick={() => {
-                if (nameEditable) setEditing(true);
-              }}
-            >
+      {unavailable ? (
+        <div className="track-rail track-rail-unavailable">
+          <span className="swatch swatch-muted" />
+          <div className="track-info">
+            <span className="track-name muted" title={stem.displayName}>
               {stem.displayName}
             </span>
-          )}
-          <span className="vol-row">
-            <input
-              className={'vol-slider' + (stem.userVolume > VOLUME_UNITY ? ' boosted' : '')}
-              type="range"
-              min={0}
-              max={VOLUME_MAX}
-              step={1}
-              value={stem.userVolume}
-              onChange={(e) => onSetVolume(idx, parseInt(e.target.value, 10))}
-              title={`${stem.userVolume}% (${VOLUME_UNITY}% = unity, ${VOLUME_MAX}% = +12 dB)`}
-              aria-label={`${stem.displayName} volume`}
-              onDoubleClick={() => onSetVolume(idx, VOLUME_UNITY)}
-            />
-            <span className="vol-num">{stem.userVolume}</span>
+            <span className="track-meta-muted">
+              Stem unavailable — the audio file is missing in Drive.
+            </span>
+          </div>
+          <span className="ms-pills">
+            <button
+              type="button"
+              className="pill trash"
+              aria-label={`Move ${stem.displayName} to trash`}
+              onClick={() => {
+                if (canDelete) setConfirmDelete(true);
+              }}
+              disabled={!canDelete}
+              title="Move to trash"
+            >
+              🗑
+            </button>
           </span>
         </div>
-        <span className="ms-pills">
-          <button
-            type="button"
-            className={'pill mute' + (stem.userMuted ? ' on' : '')}
-            onClick={() => onToggleMute(idx)}
-          >
-            M
-          </button>
-          <button
-            type="button"
-            className={'pill solo' + (stem.soloed ? ' on' : '')}
-            onClick={() => onToggleSolo(idx)}
-          >
-            S
-          </button>
-          <button
-            type="button"
-            className="pill trash"
-            aria-label={`Move ${stem.displayName} to trash`}
-            onClick={() => {
-              if (canDelete) setConfirmDelete(true);
-            }}
-            disabled={!canDelete}
-            title="Move to trash"
-          >
-            🗑
-          </button>
-        </span>
-      </div>
+      ) : (
+        <div className="track-rail">
+          <span className="swatch" style={{ background: stem.color }} title={stem.displayName} />
+          <div className="track-info">
+            {editing && nameEditable ? (
+              <input
+                className="track-name-input"
+                aria-label="Rename stem"
+                value={draft}
+                autoFocus
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitRename();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelRename();
+                  }
+                }}
+                onBlur={commitRename}
+              />
+            ) : (
+              <span
+                className={'track-name' + (nameEditable ? ' track-name-editable' : '')}
+                title={nameEditable ? 'Click to rename' : stem.displayName}
+                onClick={() => {
+                  if (nameEditable) setEditing(true);
+                }}
+              >
+                {stem.displayName}
+              </span>
+            )}
+            <span className="vol-row">
+              <input
+                className={'vol-slider' + (stem.userVolume > VOLUME_UNITY ? ' boosted' : '')}
+                type="range"
+                min={0}
+                max={VOLUME_MAX}
+                step={1}
+                value={stem.userVolume}
+                onChange={(e) => onSetVolume(idx, parseInt(e.target.value, 10))}
+                title={`${stem.userVolume}% (${VOLUME_UNITY}% = unity, ${VOLUME_MAX}% = +12 dB)`}
+                aria-label={`${stem.displayName} volume`}
+                onDoubleClick={() => onSetVolume(idx, VOLUME_UNITY)}
+              />
+              <span className="vol-num">{stem.userVolume}</span>
+            </span>
+          </div>
+          <span className="ms-pills">
+            <button
+              type="button"
+              className={'pill mute' + (stem.userMuted ? ' on' : '')}
+              onClick={() => onToggleMute(idx)}
+            >
+              M
+            </button>
+            <button
+              type="button"
+              className={'pill solo' + (stem.soloed ? ' on' : '')}
+              onClick={() => onToggleSolo(idx)}
+            >
+              S
+            </button>
+            <button
+              type="button"
+              className="pill trash"
+              aria-label={`Move ${stem.displayName} to trash`}
+              onClick={() => {
+                if (canDelete) setConfirmDelete(true);
+              }}
+              disabled={!canDelete}
+              title="Move to trash"
+            >
+              🗑
+            </button>
+          </span>
+        </div>
+      )}
       <div className="wave">
-        <div
-          ref={clipRef}
-          className={'clip' + (effectiveMuted ? ' muted' : '')}
-          style={{ width: `${widthPct}%` }}
-        />
+        {unavailable ? (
+          <div className="wave-unavailable" style={{ width: `${widthPct}%` }} />
+        ) : (
+          <div
+            ref={clipRef}
+            className={'clip' + (effectiveMuted ? ' muted' : '')}
+            style={{ width: `${widthPct}%` }}
+          />
+        )}
       </div>
       {confirmDelete && (
         <div

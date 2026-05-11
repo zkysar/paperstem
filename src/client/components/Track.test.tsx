@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Track } from './Track';
@@ -108,5 +108,15 @@ describe('Track delete', () => {
     );
     await user.click(screen.getByRole('button', { name: /^cancel$/i }));
     expect(onDeleteStem).not.toHaveBeenCalled();
+  });
+});
+
+describe('Track unavailable state', () => {
+  it('shows unavailable state when audio errors', async () => {
+    const stem = makeStem({ name: 'broken.wav' });
+    render(<Track {...defaultProps({ stem })} />);
+    // Simulate the audio element's error event.
+    fireEvent.error(stem.audio);
+    expect(screen.queryByText(/stem unavailable/i)).not.toBeNull();
   });
 });

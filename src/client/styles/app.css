@@ -308,6 +308,29 @@ kbd {
 }
 .clip.muted { opacity: 0.3; }
 
+/* ===== Unavailable stem (audio file missing in Drive) ===== */
+.track-rail-unavailable { opacity: 0.55; }
+.swatch-muted {
+  width: 6px;
+  height: 24px;
+  border-radius: 2px;
+  background: #555;
+}
+.track-name.muted { color: #888; }
+.track-meta-muted { font-size: 11px; color: #888; }
+.wave-unavailable {
+  position: absolute;
+  top: 4px; bottom: 4px;
+  left: 0;
+  border-radius: 3px;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.04) 0 6px,
+    transparent 6px 12px
+  );
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+}
+
 /* ===== Overlays (playhead, loop region) ===== */
 .loop-region {
   position: absolute;
