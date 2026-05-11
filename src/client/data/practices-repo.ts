@@ -24,17 +24,24 @@ function summaryToPractice(p: PracticeSummary): Practice {
     title: p.name,
     folder: '',
     stems: [],
+    stemCount: p.stem_count,
     driveFolderId: p.drive_folder_id,
+    referenceStemId: p.reference_stem_id ?? null,
   };
 }
 
 function detailToPractice(detail: PracticeDetail, stems: StemSummary[]): Practice {
+  // Picker thumbnail uses the first stem (by position). Mirrors the list
+  // endpoint's `reference_stem_id` so detail and list views agree.
+  const refId = stems[0]?.id ?? null;
   return {
     id: detail.id,
     title: detail.name,
     folder: '',
     stems: stems.map((s) => s.id),
+    stemCount: stems.length,
     driveFolderId: detail.drive_folder_id,
+    referenceStemId: refId,
   };
 }
 

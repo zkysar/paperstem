@@ -1,4 +1,4 @@
-app = "paperstem"
+app = "paperstem-dev"
 primary_region = "sjc"
 
 [build]
@@ -7,11 +7,11 @@ primary_region = "sjc"
   NODE_ENV = "production"
   PORT = "8080"
   DATABASE_PATH = "/data/paperstem.sqlite"
-  APP_URL = "https://paperstem.fly.dev"
-  APP_ENV = "prod"
+  APP_URL = "https://paperstem-dev.fly.dev"
+  APP_ENV = "dev"
 
 [[mounts]]
-  source = "paperstem_data"
+  source = "paperstem_dev_data"
   destination = "/data"
 
 [http_service]

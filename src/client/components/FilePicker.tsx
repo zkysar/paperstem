@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Practice, TrashList } from '../data/types';
 import { AUDIO_EXT } from '../lib/audio';
+import { WaveformThumb } from './WaveformThumb';
 
 type Tab = 'recent' | 'all' | 'trash' | 'local';
 
@@ -312,9 +313,9 @@ function FilePickerBody({
                   onBlur={() => commitEdit(p.id)}
                   onClick={(e) => e.stopPropagation()}
                 />
-                <span className="fp-thumb" aria-hidden="true" />
+                <WaveformThumb stemId={p.referenceStemId} />
                 <span className="fp-meta">{p.folder ?? ''}</span>
-                <span className="fp-meta">{p.stems.length}</span>
+                <span className="fp-meta">{p.stemCount}</span>
               </div>
             ) : (
               <button
@@ -323,9 +324,9 @@ function FilePickerBody({
                 onClick={() => onSelect(p.id)}
               >
                 <span className="fp-name">{p.title}</span>
-                <span className="fp-thumb" aria-hidden="true" />
+                <WaveformThumb stemId={p.referenceStemId} />
                 <span className="fp-meta">{p.folder ?? ''}</span>
-                <span className="fp-meta">{p.stems.length}</span>
+                <span className="fp-meta">{p.stemCount}</span>
               </button>
             )}
             <span className="fp-row-end">

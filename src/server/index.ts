@@ -33,6 +33,7 @@ import {
   handlePatchAnnotation,
 } from './annotations.js';
 import { handleSnapshotsHealth } from './health.js';
+import { handleVersion } from './version.js';
 import { startScheduler } from './jobs/scheduler.js';
 import { registerStatic } from './static.js';
 
@@ -72,6 +73,7 @@ app.post('/api/practices/:id/annotations', handleCreateAnnotation);
 app.patch('/api/annotations/:id', handlePatchAnnotation);
 app.delete('/api/annotations/:id', handleDeleteAnnotation);
 app.get('/api/health/snapshots', handleSnapshotsHealth);
+app.get('/api/version', handleVersion);
 
 app.get('/auth/callback', (c) => {
   const token = c.req.query('token') ?? '';

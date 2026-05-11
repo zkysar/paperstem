@@ -247,6 +247,20 @@ export const stmts = {
       WHERE band_id = ? AND deleted_at IS NULL
       ORDER BY recorded_on DESC, created_at DESC`,
   ),
+  findPracticesForBandWithRefStem: db.prepare<
+    [string],
+    PracticeRow & { stem_count: number; reference_stem_id: string | null }
+  >(
+    `SELECT p.*,
+            (SELECT COUNT(*) FROM stems s
+              WHERE s.practice_id = p.id AND s.deleted_at IS NULL) AS stem_count,
+            (SELECT s.id FROM stems s
+              WHERE s.practice_id = p.id AND s.deleted_at IS NULL
+              ORDER BY s.position LIMIT 1) AS reference_stem_id
+       FROM practices p
+      WHERE p.band_id = ? AND p.deleted_at IS NULL
+      ORDER BY p.recorded_on DESC, p.created_at DESC`,
+  ),
   findStemsForPractice: db.prepare<[string], StemRow>(
     `SELECT s.* FROM stems s
        JOIN practices p ON p.id = s.practice_id

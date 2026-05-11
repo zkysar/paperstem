@@ -39,6 +39,7 @@ export function Track({
 }: Props) {
   const clipRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
+  const [waveLoading, setWaveLoading] = useState(true);
   // Read latest normalization in the create-effect without re-mounting on toggle.
   const normRef = useRef(waveformNormalization);
   normRef.current = waveformNormalization;
@@ -89,6 +90,7 @@ export function Track({
   useEffect(() => {
     if (!clipRef.current) return;
     let ws: WaveSurfer | null = null;
+    setWaveLoading(true);
     try {
       ws = WaveSurfer.create({
         container: clipRef.current,
@@ -111,9 +113,19 @@ export function Track({
     wsRef.current = ws;
     const off = ws.on('interaction', (t: number) => onSeek(t));
     const errOff = ws.on('error', () => setUnavailable(true));
+    // Wait for initial render + a frame so the layout-settle redraw happens
+    // before we fade the waveform in. Avoids the "jump to fit" flash.
+    let raf = 0;
+    const readyOff = ws.on('ready', () => {
+      raf = requestAnimationFrame(() => {
+        raf = requestAnimationFrame(() => setWaveLoading(false));
+      });
+    });
     return () => {
       off();
       errOff();
+      readyOff();
+      if (raf) cancelAnimationFrame(raf);
       try {
         ws?.destroy();
       } catch {
@@ -133,6 +145,39 @@ export function Track({
       // ignore
     }
   }, [waveformNormalization]);
+
+  // Hide-and-fade across container resizes (e.g., comments panel toggling
+  // the rail-annotations column). WaveSurfer auto-redraws on resize; we hide
+  // synchronously so the snap isn't visible, then fade back in once width is
+  // stable.
+  useEffect(() => {
+    const el = clipRef.current;
+    if (!el) return;
+    let lastWidth = el.getBoundingClientRect().width;
+    let firstFire = true;
+    let fadeTimer: number | null = null;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? lastWidth;
+      if (firstFire) {
+        firstFire = false;
+        lastWidth = w;
+        return;
+      }
+      if (Math.abs(w - lastWidth) < 0.5) return;
+      lastWidth = w;
+      setWaveLoading(true);
+      if (fadeTimer) clearTimeout(fadeTimer);
+      fadeTimer = window.setTimeout(() => {
+        setWaveLoading(false);
+        fadeTimer = null;
+      }, 220);
+    });
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      if (fadeTimer) clearTimeout(fadeTimer);
+    };
+  }, []);
 
   const stemDuration = isFinite(stem.audio.duration) ? stem.audio.duration : durationRef;
   const widthPct = durationRef ? Math.max(1, Math.min(100, (stemDuration / durationRef) * 100)) : 100;
@@ -256,7 +301,7 @@ export function Track({
         ) : (
           <div
             ref={clipRef}
-            className={'clip' + (effectiveMuted ? ' muted' : '')}
+            className={'clip' + (effectiveMuted ? ' muted' : '') + (waveLoading ? ' loading' : '')}
             style={{ width: `${widthPct}%` }}
           />
         )}

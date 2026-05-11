@@ -11,6 +11,8 @@ type Props = {
   annotationsOpen: boolean;
   hasPractice: boolean;
   canRename: boolean;
+  appVersion: string | null;
+  appEnv: string | null;
   onOpenPicker(): void;
   onToggleAnnotations(): void;
   onSignOut(): void;
@@ -19,9 +21,10 @@ type Props = {
 
 export function AppHeader({
   userEmail, userInitials, practiceTitle, stemCount, duration,
-  driveFolderId, annotationsOpen, hasPractice, canRename,
+  driveFolderId, annotationsOpen, hasPractice, canRename, appVersion, appEnv,
   onOpenPicker, onToggleAnnotations, onSignOut, onRenamePractice,
 }: Props) {
+  const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
   const [avatarOpen, setAvatarOpen] = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
 
@@ -67,6 +70,15 @@ export function AppHeader({
         ▦
       </button>
       <h1 className="ah-brand">Paperstem</h1>
+      {envBadge && (
+        <span
+          className={`ah-env-badge ah-env-${appEnv}`}
+          title={`Environment: ${appEnv}`}
+          aria-label={`Environment: ${appEnv}`}
+        >
+          {envBadge}
+        </span>
+      )}
       <span className="ah-divider" />
       <div className="ah-title-block">
         <span className="ah-title-label">Practice</span>
@@ -153,6 +165,11 @@ export function AppHeader({
             <button type="button" role="menuitem" onClick={onSignOut}>
               Sign out
             </button>
+            {appVersion && (
+              <div className="ah-avatar-version" title="Build version">
+                {appVersion}
+              </div>
+            )}
           </div>
         )}
       </div>
