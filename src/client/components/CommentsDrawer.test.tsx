@@ -24,6 +24,9 @@ const baseProps = {
   onSelect: vi.fn(),
   onCreate: vi.fn(),
   onDraftCancel: vi.fn(),
+  onToggleStar: vi.fn(),
+  onSaveEdit: vi.fn(),
+  onDelete: vi.fn(),
 };
 
 describe('CommentsDrawer', () => {

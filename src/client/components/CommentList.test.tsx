@@ -25,7 +25,11 @@ const baseProps = {
   selfUserId: 'u1',
   activeId: null as string | null,
   userColorMap: new Map([['u2', '#6f8559']]),
+  canEdit: true,
   onSelect: vi.fn(),
+  onToggleStar: vi.fn(),
+  onSaveEdit: vi.fn(),
+  onDelete: vi.fn(),
 };
 
 describe('CommentList', () => {
@@ -75,5 +79,47 @@ describe('CommentList', () => {
   it('active card has .active class', () => {
     render(<CommentList {...baseProps} activeId="2" />);
     expect(screen.getByTestId('list-card-2').className).toContain('active');
+  });
+
+  it('clicking star button calls onToggleStar', async () => {
+    const onToggleStar = vi.fn();
+    render(<CommentList {...baseProps} canEdit onToggleStar={onToggleStar} />);
+    await userEvent.click(screen.getAllByLabelText(/star/i)[0]);
+    expect(onToggleStar).toHaveBeenCalledWith(annotations[0]);
+  });
+
+  it('star click does not also call onSelect', async () => {
+    const onSelect = vi.fn();
+    const onToggleStar = vi.fn();
+    render(<CommentList {...baseProps} canEdit onSelect={onSelect} onToggleStar={onToggleStar} />);
+    await userEvent.click(screen.getAllByLabelText(/star/i)[0]);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('edit button replaces card body with textarea; Save calls onSaveEdit', async () => {
+    const onSaveEdit = vi.fn();
+    const user = userEvent.setup();
+    render(<CommentList {...baseProps} canEdit onSaveEdit={onSaveEdit} />);
+    await user.click(screen.getAllByLabelText('Edit')[0]);
+    const ta = screen.getByRole('textbox');
+    await user.clear(ta);
+    await user.type(ta, 'updated');
+    await user.click(screen.getByRole('button', { name: /save/i }));
+    expect(onSaveEdit).toHaveBeenCalledWith(annotations[0], 'updated');
+  });
+
+  it('delete button (confirmed) calls onDelete', async () => {
+    const onDelete = vi.fn();
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<CommentList {...baseProps} canEdit onDelete={onDelete} />);
+    await userEvent.click(screen.getAllByLabelText('Delete')[0]);
+    expect(onDelete).toHaveBeenCalledWith(annotations[0]);
+  });
+
+  it('non-owner does not see edit/delete', () => {
+    render(<CommentList {...baseProps} canEdit />);
+    const miraCard = screen.getByTestId('list-card-3');
+    expect(miraCard.querySelector('[aria-label="Edit"]')).toBeNull();
+    expect(miraCard.querySelector('[aria-label="Delete"]')).toBeNull();
   });
 });

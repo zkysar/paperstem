@@ -693,6 +693,9 @@ function PaperstemApp({
                 onSelect={handleAnnotationSelected}
                 onCreate={(body) => void handleCreateFromDraft(body)}
                 onDraftCancel={() => setPendingDraft(null)}
+                onToggleStar={(a) => void handleToggleStar(a)}
+                onSaveEdit={(a, body) => void handleSaveEdit(a, body)}
+                onDelete={(a) => void handleDelete(a)}
               />
               {!drawerOpen && (
                 <CommentsFab

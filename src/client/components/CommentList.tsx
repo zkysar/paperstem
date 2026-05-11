@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type KeyboardEvent } from 'react';
 import type { Annotation } from '../../shared/types';
 import { SELF_ANNOTATION_COLOR } from '../lib/colors';
 import { fmt } from '../lib/format';
+import { isMac } from '../lib/platform';
 
 type Filter =
   | { kind: 'all' }
@@ -14,7 +15,11 @@ type Props = {
   selfUserId: string;
   activeId: string | null;
   userColorMap: Map<string, string>;
+  canEdit: boolean;
   onSelect(annotation: Annotation): void;
+  onToggleStar(annotation: Annotation): void;
+  onSaveEdit(annotation: Annotation, body: string): void;
+  onDelete(annotation: Annotation): void;
 };
 
 function authorLabel(a: Annotation): string {
@@ -27,14 +32,25 @@ function timeText(a: Annotation): string {
     : `${fmt(a.start_ms / 1000)} – ${fmt(a.end_ms / 1000)}`;
 }
 
+function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
+  if (e.key !== 'Enter') return false;
+  return isMac ? e.metaKey : e.ctrlKey;
+}
+
 export function CommentList({
   annotations,
   selfUserId,
   activeId,
   userColorMap,
+  canEdit,
   onSelect,
+  onToggleStar,
+  onSaveEdit,
+  onDelete,
 }: Props) {
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState('');
 
   const authors = useMemo(() => {
     const seen = new Map<string, { userId: string; label: string }>();
@@ -112,6 +128,8 @@ export function CommentList({
           {filtered.map((a) => {
             const color = userColorMap.get(a.user_id) ?? SELF_ANNOTATION_COLOR;
             const isActive = a.id === activeId;
+            const isEditing = a.id === editingId;
+            const isOwn = a.user_id === selfUserId;
             return (
               <li
                 key={a.id}
@@ -123,9 +141,83 @@ export function CommentList({
                 <div className="cl-card-meta">
                   <span className="cl-time" style={{ color }}>{timeText(a)}</span>
                   <span className="cl-author">{authorLabel(a)}</span>
-                  {a.starred && <span className="cl-starred" aria-hidden="true">★</span>}
+                  {canEdit ? (
+                    <button
+                      type="button"
+                      className={'cl-star' + (a.starred ? ' on' : '')}
+                      aria-label={a.starred ? 'Unstar' : 'Star'}
+                      onClick={(e) => { e.stopPropagation(); onToggleStar(a); }}
+                    >{a.starred ? '★' : '☆'}</button>
+                  ) : (
+                    a.starred && <span className="cl-star on" aria-hidden="true">★</span>
+                  )}
                 </div>
-                <div className="cl-body">{a.body}</div>
+                {isEditing ? (
+                  <div className="cl-edit" onClick={(e) => e.stopPropagation()}>
+                    <textarea
+                      autoFocus
+                      rows={3}
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      onKeyDown={(e: KeyboardEvent<HTMLTextAreaElement>) => {
+                        if (isSubmitShortcut(e) && editBody.trim().length > 0) {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onSaveEdit(a, editBody.trim());
+                          setEditingId(null);
+                        }
+                        if (e.key === 'Escape') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setEditingId(null);
+                        }
+                      }}
+                    />
+                    <div className="cl-edit-actions">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setEditingId(null); }}
+                      >Cancel</button>
+                      <button
+                        type="button"
+                        className="cl-save"
+                        disabled={editBody.trim().length === 0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSaveEdit(a, editBody.trim());
+                          setEditingId(null);
+                        }}
+                      >Save</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="cl-body">{a.body}</div>
+                    {isOwn && canEdit && (
+                      <div className="cl-actions">
+                        <button
+                          type="button"
+                          className="cl-iconbtn"
+                          aria-label="Edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditBody(a.body);
+                            setEditingId(a.id);
+                          }}
+                        >✎</button>
+                        <button
+                          type="button"
+                          className="cl-iconbtn"
+                          aria-label="Delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('Delete this comment?')) onDelete(a);
+                          }}
+                        >🗑</button>
+                      </div>
+                    )}
+                  </>
+                )}
               </li>
             );
           })}

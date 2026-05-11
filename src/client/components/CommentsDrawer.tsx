@@ -19,6 +19,9 @@ type Props = {
   onSelect(annotation: Annotation): void;
   onCreate(body: string): void;
   onDraftCancel(): void;
+  onToggleStar(annotation: Annotation): void;
+  onSaveEdit(annotation: Annotation, body: string): void;
+  onDelete(annotation: Annotation): void;
 };
 
 const SUBMIT_HINT = isMac ? '⌘↵' : 'Ctrl+↵';
@@ -32,6 +35,7 @@ export function CommentsDrawer({
   open, isNarrow, selfUserId, canEdit,
   annotations, userColorMap, activeId, pendingDraft,
   onClose, onSelect, onCreate, onDraftCancel,
+  onToggleStar, onSaveEdit, onDelete,
 }: Props) {
   const [draftBody, setDraftBody] = useState('');
 
@@ -130,7 +134,11 @@ export function CommentsDrawer({
           selfUserId={selfUserId}
           activeId={activeId}
           userColorMap={userColorMap}
+          canEdit={canEdit}
           onSelect={onSelect}
+          onToggleStar={onToggleStar}
+          onSaveEdit={onSaveEdit}
+          onDelete={onDelete}
         />
 
         {!isNarrow && !pendingDraft && (

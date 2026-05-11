@@ -1666,7 +1666,55 @@ body.env-non-prod[data-env="local"]::before {
 }
 .cl-time { font-weight: 600; font-variant-numeric: tabular-nums; }
 .cl-author { color: var(--ink-2); }
-.cl-starred { color: var(--accent); margin-left: auto; }
+.cl-star { color: var(--muted); background: transparent; border: none; cursor: pointer; padding: 2px 4px; margin-left: auto; }
+.cl-star.on { color: var(--accent); }
+.cl-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+  justify-content: flex-end;
+}
+.cl-iconbtn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.cl-iconbtn:hover { color: var(--ink); background: var(--rule-2); }
+.cl-edit textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 0.82rem;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 5px 7px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.cl-edit-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.cl-edit-actions button {
+  font: inherit;
+  font-size: 0.74rem;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  cursor: pointer;
+}
+.cl-edit-actions .cl-save {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.cl-edit-actions .cl-save:disabled { opacity: 0.5; cursor: not-allowed; }
 .cl-body {
   font-size: 0.84rem;
   color: var(--ink);
