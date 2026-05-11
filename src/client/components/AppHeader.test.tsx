@@ -156,4 +156,25 @@ describe('AppHeader inline rename', () => {
     await user.type(input, '   {Enter}');
     expect(onRename).not.toHaveBeenCalled();
   });
+
+  it('rename trigger is a real button reachable via the keyboard', async () => {
+    const user = userEvent.setup();
+    const onRename = vi.fn();
+    render(<AppHeader {...baseProps} onRenamePractice={onRename} />);
+
+    const trigger = screen.getByRole('button', { name: 'Practice 2026-04-28' });
+    expect((trigger as HTMLButtonElement).disabled).toBe(false);
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    const input = screen.getByRole('textbox', { name: /rename practice/i });
+    await user.clear(input);
+    await user.type(input, 'Keyboard name{Enter}');
+    await waitFor(() => expect(onRename).toHaveBeenCalledWith('Keyboard name'));
+  });
+
+  it('rename trigger is disabled when canRename is false', () => {
+    render(<AppHeader {...baseProps} canRename={false} />);
+    const trigger = screen.getByRole('button', { name: 'Practice 2026-04-28' });
+    expect((trigger as HTMLButtonElement).disabled).toBe(true);
+  });
 });

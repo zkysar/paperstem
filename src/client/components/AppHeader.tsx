@@ -102,13 +102,15 @@ export function AppHeader({
               onBlur={commit}
             />
           ) : (
-            <span
+            <button
+              type="button"
               className={'ah-title-name' + (titleEditable ? ' ah-title-name-editable' : '')}
               onClick={() => { if (titleEditable) setEditing(true); }}
+              disabled={!titleEditable}
               title={titleEditable ? 'Click to rename' : undefined}
             >
               {practiceTitle ?? 'No practice'}
-            </span>
+            </button>
           )}
           <button
             type="button"

@@ -239,15 +239,17 @@ export function Track({
                 onBlur={commitRename}
               />
             ) : (
-              <span
+              <button
+                type="button"
                 className={'track-name' + (nameEditable ? ' track-name-editable' : '')}
                 title={nameEditable ? 'Click to rename' : stem.displayName}
                 onClick={() => {
                   if (nameEditable) setEditing(true);
                 }}
+                disabled={!nameEditable}
               >
                 {stem.displayName}
-              </span>
+              </button>
             )}
             <span className="vol-row">
               <input

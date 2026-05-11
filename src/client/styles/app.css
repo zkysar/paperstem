@@ -202,6 +202,19 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* When rendered as a <button> (the editable rename trigger), strip the
+   default control chrome so it visually matches the span variant. */
+button.track-name {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
+button.track-name:disabled { cursor: default; }
 .track-name-editable { cursor: text; }
 .track-name-editable:hover {
   text-decoration: underline;
@@ -1132,6 +1145,21 @@ kbd {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   cursor: text;
 }
+/* The header rename trigger renders as a <button> for keyboard a11y; strip
+   the default control chrome so it matches the previous span styling. */
+button.ah-title-name {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
+button.ah-title-name:disabled { cursor: default; }
 .ah-title-name-editable { cursor: text; }
 .ah-title-name-editable:hover {
   text-decoration: underline;

@@ -69,9 +69,24 @@ describe('Track inline rename', () => {
         {...defaultProps({ stem: makeStem({ serverId: null }) })}
       />,
     );
-    // Name renders as a non-editable span (no input present).
+    // Name renders as a disabled button (no editable input).
     expect(screen.queryByRole('textbox', { name: /rename stem/i })).toBeNull();
-    expect(screen.getByText('old.wav')).not.toBeNull();
+    const trigger = screen.getByRole('button', { name: 'old.wav' });
+    expect((trigger as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('rename trigger is keyboard-activatable', async () => {
+    const user = userEvent.setup();
+    const onRenameStem = vi.fn();
+    render(<Track {...defaultProps({ onRenameStem })} />);
+    const trigger = screen.getByRole('button', { name: 'old.wav' });
+    expect((trigger as HTMLButtonElement).disabled).toBe(false);
+    trigger.focus();
+    await user.keyboard('{Enter}');
+    const input = screen.getByRole('textbox', { name: /rename stem/i });
+    await user.clear(input);
+    await user.type(input, 'kbd.wav{Enter}');
+    expect(onRenameStem).toHaveBeenCalledWith('stem-1', 'kbd.wav');
   });
 });
 
