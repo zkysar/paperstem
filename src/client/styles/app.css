@@ -1031,6 +1031,7 @@ button.ah-title-name:disabled { cursor: default; }
 }
 .ah-avatar-menu button:hover { background: var(--accent-tint); }
 .ah-avatar-version {
+  display: block;
   font-size: 0.65rem;
   color: var(--muted);
   padding: 6px 8px 2px;
@@ -1038,6 +1039,11 @@ button.ah-title-name:disabled { cursor: default; }
   margin-top: 4px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   letter-spacing: 0.02em;
+  text-decoration: none;
+}
+.ah-avatar-version:hover {
+  color: var(--text);
+  text-decoration: underline;
 }
 
 /* ===== Environment indicator ===== */
