@@ -20,6 +20,7 @@ const baseProps = {
   onRenamePractice: vi.fn(),
   onDeletePractice: vi.fn(),
   trash: null as TrashList | null,
+  trashError: null as string | null,
   onLoadTrash: vi.fn(),
   onRestorePractice: vi.fn(),
   onRestoreStem: vi.fn(),
@@ -265,6 +266,26 @@ describe('FilePicker', () => {
     );
 
     await user.click(screen.getByRole('tab', { name: /trash/i }));
+    expect(onLoadTrash).toHaveBeenCalled();
+  });
+
+  it('shows trash error banner with Retry when trashError is set', async () => {
+    const user = userEvent.setup();
+    const onLoadTrash = vi.fn();
+    render(
+      <FilePicker
+        {...baseProps}
+        trash={null}
+        trashError="network down"
+        onLoadTrash={onLoadTrash}
+      />,
+    );
+    await user.click(screen.getByRole('tab', { name: /trash/i }));
+    expect(screen.getByText(/couldn't load trash/i)).not.toBeNull();
+    expect(screen.getByText(/network down/)).not.toBeNull();
+    // Should NOT be the "empty" state.
+    expect(screen.queryByText(/trash is empty/i)).toBeNull();
+    await user.click(screen.getByRole('button', { name: /retry/i }));
     expect(onLoadTrash).toHaveBeenCalled();
   });
 });

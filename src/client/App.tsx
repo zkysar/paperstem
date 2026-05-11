@@ -73,6 +73,7 @@ function PaperstemApp({
 
   const [practices, setPractices] = useState<Practice[]>([]);
   const [trash, setTrash] = useState<TrashList | null>(null);
+  const [trashError, setTrashError] = useState<string | null>(null);
   const [practicesLoading, setPracticesLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
@@ -289,9 +290,13 @@ function PaperstemApp({
     try {
       const data = await repo.listTrash();
       setTrash(data);
+      setTrashError(null);
     } catch (err) {
       console.error('trash load failed', err);
-      setTrash({ practices: [], stems: [] });
+      // Surface the error in the UI instead of silently rendering "empty".
+      // Leave `trash` as-is so a previously-good list doesn't disappear on a
+      // transient failure.
+      setTrashError(err instanceof Error ? err.message : 'load failed');
     }
   }, [repo]);
 
@@ -646,6 +651,7 @@ function PaperstemApp({
           void deletePractice(id);
         }}
         trash={trash}
+        trashError={trashError}
         onLoadTrash={() => {
           void loadTrash();
         }}

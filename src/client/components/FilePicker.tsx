@@ -20,6 +20,7 @@ type Props = {
   onRenamePractice(id: string, name: string): void;
   onDeletePractice(id: string): void;
   trash: TrashList | null;
+  trashError: string | null;
   onLoadTrash(): void;
   onRestorePractice(id: string): void;
   onRestoreStem(id: string): void;
@@ -29,7 +30,7 @@ export function FilePicker({
   open, loading, loadError, practices, activePracticeId, showUpload,
   onClose, onSelect, onLoadFolder, onUploadClick, onRetry,
   onRenamePractice, onDeletePractice,
-  trash, onLoadTrash, onRestorePractice, onRestoreStem,
+  trash, trashError, onLoadTrash, onRestorePractice, onRestoreStem,
 }: Props) {
   const [tab, setTab] = useState<Tab>('recent');
   const [search, setSearch] = useState('');
@@ -140,6 +141,8 @@ export function FilePicker({
         {tab === 'trash' ? (
           <TrashBody
             trash={trash}
+            trashError={trashError}
+            onRetry={onLoadTrash}
             onRestorePractice={onRestorePractice}
             onRestoreStem={onRestoreStem}
           />
@@ -379,12 +382,24 @@ function FilePickerBody({
 }
 
 function TrashBody({
-  trash, onRestorePractice, onRestoreStem,
+  trash, trashError, onRetry, onRestorePractice, onRestoreStem,
 }: {
   trash: TrashList | null;
+  trashError: string | null;
+  onRetry(): void;
   onRestorePractice(id: string): void;
   onRestoreStem(id: string): void;
 }) {
+  if (trashError) {
+    return (
+      <div className="fp-body fp-state">
+        <p className="fp-state-msg">Couldn't load trash ({trashError}).</p>
+        <button type="button" className="fp-state-action" onClick={onRetry}>
+          Retry
+        </button>
+      </div>
+    );
+  }
   if (!trash) {
     return (
       <div className="fp-body fp-state">
