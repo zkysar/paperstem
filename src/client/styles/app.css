@@ -1707,3 +1707,74 @@ body.env-non-prod[data-env="local"]::before {
   cursor: pointer;
 }
 .cs-nav button:disabled { color: var(--muted-2); cursor: not-allowed; }
+
+/* ===== CommentList + chips ===== */
+.cl-wrap { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.cl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.chip {
+  font-family: inherit;
+  font-size: 0.74rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.chip:hover { color: var(--ink); }
+.chip.active {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.cl-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+.cl-card {
+  background: var(--bg);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 4px 4px 0;
+  padding: 6px 9px 8px;
+  cursor: pointer;
+}
+.cl-card:hover { background: var(--accent-tint); }
+.cl-card.active {
+  background: var(--accent-tint);
+  box-shadow: inset 0 0 0 1px var(--accent-tint-2);
+}
+.cl-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+  font-size: 0.74rem;
+}
+.cl-time { font-weight: 600; font-variant-numeric: tabular-nums; }
+.cl-author { color: var(--ink-2); }
+.cl-starred { color: var(--accent); margin-left: auto; }
+.cl-body {
+  font-size: 0.84rem;
+  color: var(--ink);
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.cl-empty {
+  padding: 24px 16px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
