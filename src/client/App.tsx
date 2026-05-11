@@ -2,17 +2,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LoginScreen } from './auth/LoginScreen';
 import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
-import {
-  AnnotationsRail,
-  type AnnotationDraft,
-} from './components/AnnotationsRail';
+import { CommentsDrawer, type DraftSpec } from './components/CommentsDrawer';
+import { CommentsFab } from './components/CommentsFab';
+import { CommentPopover } from './components/CommentPopover';
+import { CommentBottomSheet } from './components/CommentBottomSheet';
+import { createPortal } from 'react-dom';
 import { AppHeader } from './components/AppHeader';
 import { AppToolbar } from './components/AppToolbar';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FilePicker } from './components/FilePicker';
 import { Player } from './components/Player';
 import { UploadDrawer } from './components/UploadDrawer';
-import { listAnnotations } from './data/annotations-repo';
+import {
+  listAnnotations,
+  createAnnotation,
+  patchAnnotation,
+  deleteAnnotation,
+} from './data/annotations-repo';
 import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
 import type { Practice, StemSource, TrashList } from './data/types';
 import { useAppVersion } from './hooks/useAppVersion';
@@ -80,19 +86,18 @@ function PaperstemApp({
   const [downloading, setDownloading] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
-  const [annotationsOpen, setAnnotationsOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [annotationCreateMode, setAnnotationCreateMode] = useState(false);
   const [markersVisible, setMarkersVisible] = useState(true);
-  const [pendingDraft, setPendingDraft] = useState<AnnotationDraft | null>(null);
-  const [highlightAnnotationId, setHighlightAnnotationId] = useState<
-    string | null
-  >(null);
+  const [pendingDraft, setPendingDraft] = useState<DraftSpec | null>(null);
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [popoverAnchor, setPopoverAnchor] = useState<{ left: number; top: number } | null>(null);
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(
     null,
   );
 
   const lastPickerTriggerRef = useRef<HTMLElement | null>(null);
-  const lastRailTriggerRef = useRef<HTMLElement | null>(null);
+  const lastDrawerTriggerRef = useRef<HTMLElement | null>(null);
 
   const openPicker = useCallback(() => {
     lastPickerTriggerRef.current = document.activeElement as HTMLElement | null;
@@ -103,19 +108,19 @@ function PaperstemApp({
     queueMicrotask(() => lastPickerTriggerRef.current?.focus());
   }, []);
 
-  const openRail = useCallback(() => {
-    lastRailTriggerRef.current = document.activeElement as HTMLElement | null;
-    setAnnotationsOpen(true);
+  const openDrawer = useCallback(() => {
+    lastDrawerTriggerRef.current = document.activeElement as HTMLElement | null;
+    setDrawerOpen(true);
   }, []);
-  const closeRail = useCallback(() => {
-    setAnnotationsOpen(false);
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false);
     setPendingDraft(null);
-    queueMicrotask(() => lastRailTriggerRef.current?.focus());
+    queueMicrotask(() => lastDrawerTriggerRef.current?.focus());
   }, []);
-  const toggleRail = useCallback(() => {
-    if (annotationsOpen) closeRail();
-    else openRail();
-  }, [annotationsOpen, openRail, closeRail]);
+  const toggleDrawer = useCallback(() => {
+    if (drawerOpen) closeDrawer();
+    else openDrawer();
+  }, [drawerOpen, openDrawer, closeDrawer]);
 
   // Auto-open the picker once on mount when no practice is active.
   useEffect(() => {
@@ -139,11 +144,13 @@ function PaperstemApp({
   useKeyboard({
     player,
     pickerOpen,
-    annotationsOpen,
+    drawerOpen,
+    popoverOpen: activeCommentId !== null,
     annotationCreateMode,
     onTogglePicker: () => (pickerOpen ? closePicker() : openPicker()),
     onClosePicker: closePicker,
-    onCloseRail: closeRail,
+    onCloseDrawer: closeDrawer,
+    onClosePopover: () => { setActiveCommentId(null); setPopoverAnchor(null); },
     onCancelCreate: () => {
       setAnnotationCreateMode(false);
       setPendingDraft(null);
@@ -274,6 +281,9 @@ function PaperstemApp({
         // the activePracticeId effect fires on the next render — keeps the UI
         // from briefly displaying the deleted practice's metadata.
         player.clear();
+        setActiveCommentId(null);
+        setPopoverAnchor(null);
+        setAnnotations([]);
       }
       try {
         await repo.deletePractice(id);
@@ -329,7 +339,8 @@ function PaperstemApp({
         setAnnotations([]);
         setPendingDraft(null);
         setAnnotationCreateMode(false);
-        setHighlightAnnotationId(null);
+        setActiveCommentId(null);
+        setPopoverAnchor(null);
       }
       try {
         const detail = await repo.getById(id);
@@ -448,17 +459,36 @@ function PaperstemApp({
   const handleAnnotationCreated = useCallback(
     (start_ms: number, end_ms: number | null) => {
       setAnnotationCreateMode(false);
-      setAnnotationsOpen(true);
       setPendingDraft({ start_ms, end_ms });
+      setDrawerOpen(true);
     },
     [],
   );
 
+  const handleAddButton = useCallback(() => {
+    if (railCollapsed) {
+      const startMs = Math.round(player.currentTime * 1000);
+      handleAnnotationCreated(startMs, null);
+    } else {
+      setAnnotationCreateMode((v) => !v);
+    }
+  }, [railCollapsed, player, handleAnnotationCreated]);
+
   const handleAnnotationSelected = useCallback(
     (annotation: Annotation) => {
       player.seek(annotation.start_ms / 1000);
-      setAnnotationsOpen(true);
-      setHighlightAnnotationId(annotation.id);
+      setActiveCommentId(annotation.id);
+      queueMicrotask(() => {
+        const el = document.querySelector(
+          `[data-annotation-id="${annotation.id}"]`,
+        ) as HTMLElement | null;
+        if (!el) {
+          setPopoverAnchor(null);
+          return;
+        }
+        const r = el.getBoundingClientRect();
+        setPopoverAnchor({ left: r.left + r.width / 2, top: r.top });
+      });
     },
     [player],
   );
@@ -474,6 +504,49 @@ function PaperstemApp({
     },
     [player],
   );
+
+  async function handleToggleStar(a: Annotation): Promise<void> {
+    const prev = annotations;
+    const optimistic = annotations.map((x) =>
+      x.id === a.id ? { ...x, starred: !x.starred } : x,
+    );
+    setAnnotations(optimistic);
+    try {
+      const updated = await patchAnnotation(a.id, { starred: !a.starred });
+      setAnnotations((cur) => cur.map((x) => (x.id === updated.id ? updated : x)));
+    } catch {
+      setAnnotations(prev);
+    }
+  }
+
+  async function handleSaveEdit(a: Annotation, body: string): Promise<void> {
+    const updated = await patchAnnotation(a.id, { body });
+    setAnnotations((cur) => cur.map((x) => (x.id === updated.id ? updated : x)));
+  }
+
+  async function handleDelete(a: Annotation): Promise<void> {
+    await deleteAnnotation(a.id);
+    setAnnotations((cur) => cur.filter((x) => x.id !== a.id));
+    if (activeCommentId === a.id) {
+      setActiveCommentId(null);
+      setPopoverAnchor(null);
+    }
+  }
+
+  async function handleCreateFromDraft(body: string): Promise<void> {
+    if (!activePracticeId || !pendingDraft) return;
+    const created = await createAnnotation(activePracticeId, {
+      start_ms: pendingDraft.start_ms,
+      end_ms: pendingDraft.end_ms,
+      body,
+    });
+    setAnnotations((cur) =>
+      [...cur, created].sort(
+        (x, y) => x.start_ms - y.start_ms || x.created_at - y.created_at,
+      ),
+    );
+    setPendingDraft(null);
+  }
 
   function loadFolder(files: File[], folderName: string) {
     if (!files.length) {
@@ -543,13 +616,13 @@ function PaperstemApp({
         stemCount={player.state.stems.length}
         duration={player.state.duration}
         driveFolderId={player.state.driveFolderId ?? null}
-        annotationsOpen={annotationsOpen}
+        annotationsOpen={drawerOpen}
         hasPractice={player.state.stems.length > 0}
         canRename={Boolean(activePracticeId)}
         appVersion={appInfo?.version ?? null}
         appEnv={appInfo?.env ?? null}
         onOpenPicker={openPicker}
-        onToggleAnnotations={toggleRail}
+        onToggleAnnotations={toggleDrawer}
         onSignOut={onLogout}
         onRenamePractice={(name) => {
           if (activePracticeId) void renamePractice(activePracticeId, name);
@@ -576,12 +649,12 @@ function PaperstemApp({
         onToggleLoopEnabled={player.toggleLoopEnabled}
         onDownloadAll={onDownloadAll}
         onToggleWaveformNormalization={player.toggleWaveformNormalization}
-        onToggleAnnotationCreate={() => setAnnotationCreateMode((v) => !v)}
+        onToggleAnnotationCreate={handleAddButton}
         onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}
         onSetMasterVolume={player.setMasterVolume}
         onToggleRailCollapsed={() => setRailCollapsed((v) => !v)}
       />
-      <div className={'app-body' + (annotationsOpen ? ' rail-open' : '')}>
+      <div className="app-body">
         <ErrorBoundary>
           <Player
             player={player}
@@ -603,25 +676,87 @@ function PaperstemApp({
             onDeleteStem={(id) => void deleteStem(id)}
           />
         </ErrorBoundary>
-        <AnnotationsRail
-          open={annotationsOpen}
-          practiceId={activePracticeId}
-          selfUserId={user.id}
-          canEdit={activePracticeId !== null}
-          annotations={annotations}
-          userColorMap={userColorMap}
-          markersVisible={markersVisible}
-          pendingDraft={pendingDraft}
-          highlightId={highlightAnnotationId}
-          hoveredId={hoveredAnnotationId}
-          onClose={closeRail}
-          onSeek={(s) => player.seek(s)}
-          onAnnotationsChange={setAnnotations}
-          onDraftCancel={() => setPendingDraft(null)}
-          onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}
-          onLoopAnnotation={handleLoopAnnotation}
-          onHoverAnnotation={setHoveredAnnotationId}
-        />
+        {(() => {
+          const active = annotations.find((a) => a.id === activeCommentId) ?? null;
+          const isNarrow = railCollapsed;
+          const color =
+            (active && userColorMap.get(active.user_id)) ?? '#c17446';
+          return (
+            <>
+              <CommentsDrawer
+                key={activePracticeId ?? 'none'}
+                open={drawerOpen}
+                isNarrow={isNarrow}
+                selfUserId={user.id}
+                canEdit={activePracticeId !== null}
+                annotations={annotations}
+                userColorMap={userColorMap}
+                activeId={activeCommentId}
+                pendingDraft={pendingDraft}
+                onClose={closeDrawer}
+                onSelect={handleAnnotationSelected}
+                onCreate={(body) => void handleCreateFromDraft(body)}
+                onDraftCancel={() => setPendingDraft(null)}
+                onToggleStar={(a) => void handleToggleStar(a)}
+                onSaveEdit={(a, body) => void handleSaveEdit(a, body)}
+                onDelete={(a) => void handleDelete(a)}
+              />
+              {!drawerOpen && (
+                <CommentsFab
+                  count={annotations.length}
+                  starredCount={annotations.filter((a) => a.starred).length}
+                  onClick={openDrawer}
+                />
+              )}
+              {active && popoverAnchor && !isNarrow &&
+                createPortal(
+                  <CommentPopover
+                    annotation={active}
+                    color={color}
+                    anchorLeftPx={popoverAnchor.left}
+                    anchorTopPx={popoverAnchor.top}
+                    canEdit={activePracticeId !== null}
+                    isOwn={active.user_id === user.id}
+                    drawerOpen={drawerOpen}
+                    onLoopRegion={() => handleLoopAnnotation(active)}
+                    onToggleStar={() => void handleToggleStar(active)}
+                    onSaveEdit={(body) => void handleSaveEdit(active, body)}
+                    onDelete={() => void handleDelete(active)}
+                    onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
+                  />,
+                  document.body,
+                )}
+              {active && isNarrow &&
+                createPortal(
+                  (() => {
+                    const idx = annotations.findIndex((a) => a.id === active.id);
+                    const navTo = (newIdx: number) => {
+                      const a = annotations[newIdx];
+                      if (a) handleAnnotationSelected(a);
+                    };
+                    return (
+                      <CommentBottomSheet
+                        annotation={active}
+                        color={color}
+                        canEdit={activePracticeId !== null}
+                        isOwn={active.user_id === user.id}
+                        index={idx}
+                        total={annotations.length}
+                        onPrev={() => navTo(idx - 1)}
+                        onNext={() => navTo(idx + 1)}
+                        onLoopRegion={() => handleLoopAnnotation(active)}
+                        onToggleStar={() => void handleToggleStar(active)}
+                        onSaveEdit={(body) => void handleSaveEdit(active, body)}
+                        onDelete={() => void handleDelete(active)}
+                        onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
+                      />
+                    );
+                  })(),
+                  document.body,
+                )}
+            </>
+          );
+        })()}
       </div>
       <FilePicker
         open={pickerOpen}

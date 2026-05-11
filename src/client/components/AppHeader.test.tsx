@@ -13,6 +13,8 @@ const baseProps = {
   annotationsOpen: false,
   hasPractice: true,
   canRename: true,
+  appVersion: 'test-1.0.0',
+  appEnv: null,
   onOpenPicker: vi.fn(),
   onToggleAnnotations: vi.fn(),
   onSignOut: vi.fn(),

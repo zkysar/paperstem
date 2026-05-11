@@ -36,6 +36,13 @@ if (typeof window !== 'undefined') {
     configurable: true,
     writable: true,
   });
+  if (window.confirm === undefined) {
+    Object.defineProperty(window, 'confirm', {
+      value: () => false,
+      configurable: true,
+      writable: true,
+    });
+  }
 }
 
 import { afterEach } from 'vitest';

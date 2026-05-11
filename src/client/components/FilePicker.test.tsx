@@ -62,9 +62,9 @@ describe('FilePicker', () => {
   });
 
   const fixturePractices: Practice[] = [
-    { id: 'p1', title: 'Practice 2026-04-28', folder: '2026/04', stems: ['a','b','c'], stemCount: 3, driveFolderId: 'd1', referenceStemId: null },
-    { id: 'p2', title: 'Practice 2026-04-21', folder: '2026/04', stems: ['a','b'], stemCount: 2, driveFolderId: 'd2', referenceStemId: null },
-    { id: 'p3', title: 'Practice 2026-03-31', folder: '2026/03', stems: ['a'], stemCount: 1, driveFolderId: null, referenceStemId: null },
+    { id: 'p1', title: 'Practice 2026-04-28', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'c', name: 'c' }], stemCount: 3, driveFolderId: 'd1', referenceStemId: null },
+    { id: 'p2', title: 'Practice 2026-04-21', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }], stemCount: 2, driveFolderId: 'd2', referenceStemId: null },
+    { id: 'p3', title: 'Practice 2026-03-31', folder: '2026/03', stems: [{ id: 'a', name: 'a' }], stemCount: 1, driveFolderId: null, referenceStemId: null },
   ];
 
   it('renders one row per practice', () => {
@@ -152,7 +152,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
     const rows: Practice[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], driveFolderId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker {...baseProps} practices={rows} onRenamePractice={onRename} />,
@@ -168,7 +168,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
     const rows: Practice[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], driveFolderId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker {...baseProps} practices={rows} onRenamePractice={onRename} />,
@@ -183,7 +183,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
     const rows: Practice[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], driveFolderId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker {...baseProps} practices={rows} onSelect={onSelect} />,
@@ -196,7 +196,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
     const rows: Practice[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], driveFolderId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker {...baseProps} practices={rows} onDeletePractice={onDelete} />,
@@ -211,7 +211,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
     const rows: Practice[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], driveFolderId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker {...baseProps} practices={rows} onDeletePractice={onDelete} />,
@@ -274,7 +274,7 @@ describe('FilePicker', () => {
     const onClose = vi.fn();
     const onDelete = vi.fn();
     const rows: Practice[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], driveFolderId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker

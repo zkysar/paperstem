@@ -46,7 +46,11 @@ function detailToPractice(detail: PracticeDetail, stems: StemSummary[]): Practic
 }
 
 export class HttpPracticesRepo implements PracticesRepo {
-  constructor(private readonly bandId: string) {}
+  private readonly bandId: string;
+
+  constructor(bandId: string) {
+    this.bandId = bandId;
+  }
 
   async list(): Promise<Practice[]> {
     const res = await fetch(

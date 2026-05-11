@@ -1,4 +1,5 @@
 import { renderHook } from '@testing-library/react';
+import { fireEvent } from '@testing-library/dom';
 import { describe, it, expect, vi } from 'vitest';
 import { useKeyboard } from './useKeyboard';
 
@@ -28,19 +29,28 @@ function stubPlayer() {
   } as any;
 }
 
+function defaultOpts() {
+  return {
+    player: stubPlayer(),
+    pickerOpen: false,
+    drawerOpen: false,
+    popoverOpen: false,
+    annotationCreateMode: false,
+    onTogglePicker: vi.fn(),
+    onClosePicker: vi.fn(),
+    onCloseDrawer: vi.fn(),
+    onClosePopover: vi.fn(),
+    onCancelCreate: vi.fn(),
+  };
+}
+
 describe('useKeyboard cmd-K toggles picker', () => {
   it('cmd-K calls onTogglePicker', () => {
     const onTogglePicker = vi.fn();
     renderHook(() =>
       useKeyboard({
-        player: stubPlayer(),
-        pickerOpen: false,
-        annotationsOpen: false,
-        annotationCreateMode: false,
+        ...defaultOpts(),
         onTogglePicker,
-        onClosePicker: () => {},
-        onCloseRail: () => {},
-        onCancelCreate: () => {},
       }),
     );
     document.dispatchEvent(
@@ -53,14 +63,8 @@ describe('useKeyboard cmd-K toggles picker', () => {
     const onTogglePicker = vi.fn();
     renderHook(() =>
       useKeyboard({
-        player: stubPlayer(),
-        pickerOpen: false,
-        annotationsOpen: false,
-        annotationCreateMode: false,
+        ...defaultOpts(),
         onTogglePicker,
-        onClosePicker: () => {},
-        onCloseRail: () => {},
-        onCancelCreate: () => {},
       }),
     );
     document.dispatchEvent(
@@ -73,67 +77,73 @@ describe('useKeyboard cmd-K toggles picker', () => {
 describe('useKeyboard Esc precedence', () => {
   it('closes picker first when picker is open', () => {
     const onClosePicker = vi.fn();
-    const onCloseRail = vi.fn();
+    const onCloseDrawer = vi.fn();
+    const onClosePopover = vi.fn();
     const onCancelCreate = vi.fn();
     renderHook(() =>
       useKeyboard({
-        player: stubPlayer(),
+        ...defaultOpts(),
         pickerOpen: true,
-        annotationsOpen: true,
+        drawerOpen: true,
+        popoverOpen: true,
         annotationCreateMode: true,
-        onTogglePicker: () => {},
         onClosePicker,
-        onCloseRail,
+        onCloseDrawer,
+        onClosePopover,
         onCancelCreate,
       }),
     );
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(onClosePicker).toHaveBeenCalledOnce();
-    expect(onCloseRail).not.toHaveBeenCalled();
+    expect(onClosePopover).not.toHaveBeenCalled();
+    expect(onCloseDrawer).not.toHaveBeenCalled();
     expect(onCancelCreate).not.toHaveBeenCalled();
   });
 
-  it('closes rail when picker closed and rail has focus', () => {
-    document.body.innerHTML =
-      '<div class="annotations-rail"><button id="b">x</button></div>';
-    document.getElementById('b')?.focus();
-    const onCloseRail = vi.fn();
-    const onCancelCreate = vi.fn();
+  it('Escape closes popover before drawer', () => {
+    const onClosePopover = vi.fn();
+    const onCloseDrawer = vi.fn();
     renderHook(() =>
       useKeyboard({
-        player: stubPlayer(),
-        pickerOpen: false,
-        annotationsOpen: true,
-        annotationCreateMode: true,
-        onTogglePicker: () => {},
-        onClosePicker: () => {},
-        onCloseRail,
-        onCancelCreate,
+        ...defaultOpts(),
+        drawerOpen: true,
+        popoverOpen: true,
+        onClosePopover,
+        onCloseDrawer,
       }),
     );
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    expect(onCloseRail).toHaveBeenCalledOnce();
-    expect(onCancelCreate).not.toHaveBeenCalled();
-    document.body.innerHTML = '';
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClosePopover).toHaveBeenCalledOnce();
+    expect(onCloseDrawer).not.toHaveBeenCalled();
   });
 
-  it('cancels create-mode when picker closed and rail not focused', () => {
-    const onCloseRail = vi.fn();
+  it('Escape closes drawer when drawerOpen is true', () => {
+    const onCloseDrawer = vi.fn();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        drawerOpen: true,
+        onCloseDrawer,
+      }),
+    );
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onCloseDrawer).toHaveBeenCalledOnce();
+  });
+
+  it('cancels create-mode when picker closed and drawer not open', () => {
+    const onCloseDrawer = vi.fn();
     const onCancelCreate = vi.fn();
     renderHook(() =>
       useKeyboard({
-        player: stubPlayer(),
-        pickerOpen: false,
-        annotationsOpen: false,
+        ...defaultOpts(),
+        drawerOpen: false,
         annotationCreateMode: true,
-        onTogglePicker: () => {},
-        onClosePicker: () => {},
-        onCloseRail,
+        onCloseDrawer,
         onCancelCreate,
       }),
     );
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(onCancelCreate).toHaveBeenCalledOnce();
-    expect(onCloseRail).not.toHaveBeenCalled();
+    expect(onCloseDrawer).not.toHaveBeenCalled();
   });
 });
