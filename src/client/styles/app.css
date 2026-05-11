@@ -1778,3 +1778,116 @@ body.env-non-prod[data-env="local"]::before {
   font-size: 0.85rem;
   text-align: center;
 }
+
+/* ===== CommentsDrawer ===== */
+.comments-drawer-backdrop {
+  position: fixed;
+  left: 0; top: 0; right: 320px; bottom: 0;
+  z-index: 18;
+  background: transparent;
+}
+.comments-drawer {
+  position: fixed;
+  right: 0; top: 0; bottom: 0;
+  width: 320px;
+  background: var(--paper);
+  border-left: 1px solid var(--rule);
+  box-shadow: -16px 0 32px -16px rgba(60, 40, 20, 0.18);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+}
+.cd-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.cd-back {
+  background: transparent;
+  border: none;
+  font-size: 1.2rem;
+  color: var(--ink-2);
+  padding: 0 6px;
+  cursor: pointer;
+}
+.cd-title {
+  font-family: "Playfair Display", Georgia, serif;
+  font-weight: 700;
+  font-size: 1rem;
+  margin: 0;
+}
+.cd-count { font-size: 0.78rem; color: var(--muted); letter-spacing: 0.04em; }
+.cd-close {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.95rem;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.cd-close:hover { color: var(--ink); }
+
+.cd-draft {
+  padding: 10px 12px;
+  border-bottom: 1px dashed var(--rule);
+  background: var(--rule-2);
+}
+.cd-draft-meta {
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.cd-draft textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 0.84rem;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 6px 8px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.cd-draft-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.cd-draft-actions button {
+  font: inherit;
+  font-size: 0.76rem;
+  padding: 4px 10px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  cursor: pointer;
+}
+.cd-draft-actions .cd-save {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.cd-draft-actions .cd-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.cd-foot {
+  border-top: 1px dashed var(--rule);
+  padding: 8px 14px;
+  font-size: 0.72rem;
+  color: var(--muted-2);
+  font-style: italic;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .comments-drawer {
+    inset: 0;
+    width: 100%;
+    border-left: none;
+    box-shadow: none;
+    z-index: 35;
+  }
+  .comments-drawer.narrow .cd-head { padding: 10px 12px 8px; }
+}
