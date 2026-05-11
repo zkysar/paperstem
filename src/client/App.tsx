@@ -222,6 +222,27 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     }
   }
 
+  const deletePractice = useCallback(
+    async (id: string) => {
+      if (!repo) return;
+      let prev: Practice[] = [];
+      setPractices((arr) => {
+        prev = arr;
+        return arr.filter((p) => p.id !== id);
+      });
+      if (activePracticeId === id) {
+        setActivePracticeId(null);
+      }
+      try {
+        await repo.deletePractice(id);
+      } catch (err) {
+        console.error('delete failed', err);
+        setPractices(prev);
+      }
+    },
+    [repo, activePracticeId],
+  );
+
   const renamePractice = useCallback(
     async (id: string, name: string) => {
       if (!repo) return;
@@ -475,8 +496,8 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
         onRenamePractice={(id, name) => {
           void renamePractice(id, name);
         }}
-        onDeletePractice={(_id) => {
-          /* Task 16 will wire delete */
+        onDeletePractice={(id) => {
+          void deletePractice(id);
         }}
       />
       {showUploadButton && activeBandId && (

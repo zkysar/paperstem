@@ -1333,6 +1333,60 @@ kbd {
   font-size: 0.85rem; line-height: 1;
 }
 .fp-rename-btn:hover { background: var(--rule-2); color: var(--ink); }
+.fp-trash-btn {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; padding: 0;
+  color: var(--ink-2); cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.85rem; line-height: 1;
+}
+.fp-trash-btn:hover { background: var(--rule-2); color: var(--ink); }
+.fp-modal-scrim {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+.fp-modal {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 20px 22px;
+  max-width: 420px;
+  width: calc(100% - 32px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+.fp-modal h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+.fp-modal p {
+  margin: 0 0 16px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.fp-modal-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+.fp-modal-actions button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.fp-modal-actions button:hover { background: var(--rule-2); }
+.fp-modal-actions button.danger {
+  background: #c0392b;
+  border-color: #c0392b;
+  color: #fff;
+}
+.fp-modal-actions button.danger:hover { background: #a93226; border-color: #a93226; }
 .fp-row-main-editing {
   display: contents;
 }

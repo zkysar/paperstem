@@ -186,4 +186,33 @@ describe('FilePicker', () => {
     await user.click(screen.getByLabelText(/rename Alpha/i));
     expect(onSelect).not.toHaveBeenCalled();
   });
+
+  it('shows confirm dialog and calls onDeletePractice on confirm', async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    const rows: Practice[] = [
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], driveFolderId: null },
+    ];
+    render(
+      <FilePicker {...baseProps} practices={rows} onDeletePractice={onDelete} />,
+    );
+    await user.click(screen.getByRole('button', { name: /move alpha to trash/i }));
+    expect(screen.getByText(/move .*alpha.* to trash/i)).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: /^move to trash$/i }));
+    expect(onDelete).toHaveBeenCalledWith('p1');
+  });
+
+  it('cancel button closes the dialog without deleting', async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    const rows: Practice[] = [
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], driveFolderId: null },
+    ];
+    render(
+      <FilePicker {...baseProps} practices={rows} onDeletePractice={onDelete} />,
+    );
+    await user.click(screen.getByRole('button', { name: /move alpha to trash/i }));
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    expect(onDelete).not.toHaveBeenCalled();
+  });
 });

@@ -27,6 +27,7 @@ export function FilePicker({
 }: Props) {
   const [tab, setTab] = useState<Tab>('recent');
   const [search, setSearch] = useState('');
+  const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -128,11 +129,42 @@ export function FilePicker({
           onUploadClick={onUploadClick}
           onRetry={onRetry}
           onRenamePractice={onRenamePractice}
-          onDeletePractice={onDeletePractice}
+          onRequestDelete={(id, name) => setConfirm({ id, name })}
         />
         {showUpload && (
           <div className="fp-upload-bottom">
             <button type="button" onClick={onUploadClick}>+ Upload practice</button>
+          </div>
+        )}
+        {confirm && (
+          <div
+            className="fp-modal-scrim"
+            role="presentation"
+            onClick={() => setConfirm(null)}
+          >
+            <div
+              className="fp-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="fp-modal-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 id="fp-modal-title">Move "{confirm.name}" to trash?</h3>
+              <p>You can restore from this band's trash for 30 days.</p>
+              <div className="fp-modal-actions">
+                <button type="button" onClick={() => setConfirm(null)}>Cancel</button>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => {
+                    onDeletePractice(confirm.id);
+                    setConfirm(null);
+                  }}
+                >
+                  Move to trash
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -142,7 +174,7 @@ export function FilePicker({
 
 function FilePickerBody({
   search, practices, activePracticeId, loading, loadError, showUpload,
-  onSelect, onUploadClick, onRetry, onRenamePractice,
+  onSelect, onUploadClick, onRetry, onRenamePractice, onRequestDelete,
 }: {
   tab: Tab;
   search: string;
@@ -155,7 +187,7 @@ function FilePickerBody({
   onUploadClick(): void;
   onRetry(): void;
   onRenamePractice(id: string, name: string): void;
-  onDeletePractice(id: string): void;
+  onRequestDelete(id: string, name: string): void;
 }) {
   const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
 
@@ -298,6 +330,20 @@ function FilePickerBody({
                 >
                   ↗
                 </a>
+              )}
+              {!isEditing && (
+                <button
+                  type="button"
+                  className="fp-trash-btn"
+                  aria-label={`Move ${p.title} to trash`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRequestDelete(p.id, p.title);
+                  }}
+                  title="Move to trash"
+                >
+                  🗑
+                </button>
               )}
             </span>
           </div>
