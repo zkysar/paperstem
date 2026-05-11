@@ -28,6 +28,13 @@ const END_TAIL = 0.02;
 type Action =
   | { type: 'TEARDOWN' }
   | {
+      type: 'LOAD_START';
+      displayNames: string[];
+      colors: string[];
+      status: string;
+    }
+  | { type: 'LOAD_PROGRESS' }
+  | {
       type: 'LOADED';
       stems: LoadedStem[];
       duration: number;
@@ -62,6 +69,7 @@ const initialState: PlayerState = {
   focusedIdx: -1,
   loop: null,
   status: '',
+  loading: null,
   waveformNormalization: loadWaveformNormalization(),
   masterVolume: loadMasterVolume(),
 };
@@ -74,6 +82,27 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         waveformNormalization: state.waveformNormalization,
         masterVolume: state.masterVolume,
       };
+    case 'LOAD_START':
+      return {
+        ...state,
+        stems: [],
+        duration: 0,
+        referenceIdx: 0,
+        isPlaying: false,
+        focusedIdx: -1,
+        loop: null,
+        status: action.status,
+        loading: {
+          displayNames: action.displayNames,
+          colors: action.colors,
+          loaded: 0,
+        },
+      };
+    case 'LOAD_PROGRESS': {
+      if (!state.loading) return state;
+      const next = Math.min(state.loading.loaded + 1, state.loading.displayNames.length);
+      return { ...state, loading: { ...state.loading, loaded: next } };
+    }
     case 'LOADED':
       return {
         ...state,
@@ -87,6 +116,7 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         focusedIdx: -1,
         loop: null,
         status: action.status,
+        loading: null,
       };
     case 'SET_PLAYING':
       return { ...state, isPlaying: action.isPlaying };
@@ -349,9 +379,15 @@ export function usePlayer(): PlayerControls {
       return;
     }
     const ctx: LoadContext = { practiceId: input.practiceId, title: input.title };
-    dispatch({ type: 'SET_STATUS', status: `Loading ${input.sources.length} stem${input.sources.length === 1 ? '' : 's'}…` });
-
     const displayNames = stripCommonPrefix(input.sources.map((it) => it.name));
+    const colors = input.sources.map((_, i) => PALETTE[i % PALETTE.length]);
+    dispatch({
+      type: 'LOAD_START',
+      displayNames,
+      colors,
+      status: `Loading ${input.sources.length} stem${input.sources.length === 1 ? '' : 's'}…`,
+    });
+
     const graph = ensureAudioGraph();
     const built: LoadedStem[] = input.sources.map((src, i) => {
       const audio = new Audio();
@@ -395,13 +431,17 @@ export function usePlayer(): PlayerControls {
       built.map(
         (s) =>
           new Promise<void>((res) => {
-            if (s.audio.readyState >= 1) return res();
-            s.audio.addEventListener('loadedmetadata', () => res(), { once: true });
+            const done = () => {
+              dispatch({ type: 'LOAD_PROGRESS' });
+              res();
+            };
+            if (s.audio.readyState >= 1) return done();
+            s.audio.addEventListener('loadedmetadata', done, { once: true });
             s.audio.addEventListener(
               'error',
               () => {
                 errored.push(s.name);
-                res();
+                done();
               },
               { once: true },
             );
