@@ -14,7 +14,7 @@ import { Player } from './components/Player';
 import { UploadDrawer } from './components/UploadDrawer';
 import { listAnnotations } from './data/annotations-repo';
 import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
-import type { Practice, StemSource } from './data/types';
+import type { Practice, StemSource, TrashList } from './data/types';
 import { useAppVersion } from './hooks/useAppVersion';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
@@ -72,6 +72,8 @@ function PaperstemApp({
   );
 
   const [practices, setPractices] = useState<Practice[]>([]);
+  const [trash, setTrash] = useState<TrashList | null>(null);
+  const [trashError, setTrashError] = useState<string | null>(null);
   const [practicesLoading, setPracticesLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
@@ -121,6 +123,18 @@ function PaperstemApp({
     // intentionally fires once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // When activePracticeId transitions to null (e.g. the active practice was
+  // deleted), reset the player so the header and waveform don't point at a
+  // tombstone. Guarded with a ref so the initial null on mount doesn't fire
+  // clear() before anything has been loaded.
+  const prevActivePracticeIdRef = useRef<string | null>(activePracticeId);
+  useEffect(() => {
+    if (prevActivePracticeIdRef.current !== null && activePracticeId === null) {
+      player.clear();
+    }
+    prevActivePracticeIdRef.current = activePracticeId;
+  }, [activePracticeId, player]);
 
   useKeyboard({
     player,
@@ -246,37 +260,190 @@ function PaperstemApp({
     }
   }
 
-  async function selectPractice(id: string) {
-    if (!repo) return;
-    setActivePracticeId(id);
-    setAnnotations([]);
-    setPendingDraft(null);
-    setAnnotationCreateMode(false);
-    setHighlightAnnotationId(null);
-    try {
-      const detail = await repo.getById(id);
-      setPractices((prev) => prev.map((p) => (p.id === detail.id ? detail : p)));
-      const sources: StemSource[] = detail.stems.map((stemId) => ({
-        name: stemId,
-        src: `/api/audio/${encodeURIComponent(stemId)}`,
-      }));
-      void player.load({
-        practiceId: detail.id,
-        title: detail.title,
-        driveFolderId: detail.driveFolderId,
-        sources,
+  const deletePractice = useCallback(
+    async (id: string) => {
+      if (!repo) return;
+      let prev: Practice[] = [];
+      setPractices((arr) => {
+        prev = arr;
+        return arr.filter((p) => p.id !== id);
       });
-      try {
-        const list = await listAnnotations(id);
-        setAnnotations(list);
-      } catch (err) {
-        console.error('Failed to load annotations:', err);
+      if (activePracticeId === id) {
+        setActivePracticeId(null);
+        // Reset the player explicitly so the header and waveform clear before
+        // the activePracticeId effect fires on the next render — keeps the UI
+        // from briefly displaying the deleted practice's metadata.
+        player.clear();
       }
+      try {
+        await repo.deletePractice(id);
+      } catch (err) {
+        console.error('delete failed', err);
+        setPractices(prev);
+      }
+    },
+    [repo, activePracticeId, player],
+  );
+
+  const loadTrash = useCallback(async () => {
+    if (!repo) return;
+    try {
+      const data = await repo.listTrash();
+      setTrash(data);
+      setTrashError(null);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setLoadError(msg);
+      console.error('trash load failed', err);
+      // Surface the error in the UI instead of silently rendering "empty".
+      // Leave `trash` as-is so a previously-good list doesn't disappear on a
+      // transient failure.
+      setTrashError(err instanceof Error ? err.message : 'load failed');
     }
-  }
+  }, [repo]);
+
+  const restorePractice = useCallback(
+    async (id: string) => {
+      if (!repo) return;
+      try {
+        await repo.restorePractice(id);
+      } catch (err) {
+        console.error('restore failed', err);
+        return;
+      }
+      try {
+        const fresh = await repo.list();
+        setPractices(fresh);
+      } catch (_err) { /* ignore */ }
+      await loadTrash();
+    },
+    [repo, loadTrash],
+  );
+
+  // Core: fetch a practice by id and populate player + annotations. Shared by
+  // selectPractice (user-driven switch) and reloadActive (refresh the current
+  // practice in place — used after stem restore / failed stem delete to bring
+  // server truth back into the player without resetting create-mode etc).
+  const loadPractice = useCallback(
+    async (id: string, opts: { resetUiState: boolean }) => {
+      if (!repo) return;
+      if (opts.resetUiState) {
+        setAnnotations([]);
+        setPendingDraft(null);
+        setAnnotationCreateMode(false);
+        setHighlightAnnotationId(null);
+      }
+      try {
+        const detail = await repo.getById(id);
+        setPractices((prev) => prev.map((p) => (p.id === detail.id ? detail : p)));
+        const sources: StemSource[] = detail.stems.map((stemId) => ({
+          name: stemId,
+          src: `/api/audio/${encodeURIComponent(stemId)}`,
+          serverId: stemId,
+        }));
+        void player.load({
+          practiceId: detail.id,
+          title: detail.title,
+          driveFolderId: detail.driveFolderId,
+          sources,
+        });
+        try {
+          const list = await listAnnotations(id);
+          setAnnotations(list);
+        } catch (err) {
+          console.error('Failed to load annotations:', err);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setLoadError(msg);
+      }
+    },
+    [repo, player],
+  );
+
+  const reloadActive = useCallback(async () => {
+    if (!activePracticeId) return;
+    await loadPractice(activePracticeId, { resetUiState: false });
+  }, [activePracticeId, loadPractice]);
+
+  const restoreStem = useCallback(
+    async (id: string) => {
+      if (!repo) return;
+      try {
+        await repo.restoreStem(id);
+      } catch (err) {
+        console.error('restore stem failed', err);
+        return;
+      }
+      await loadTrash();
+      await reloadActive();
+    },
+    [repo, loadTrash, reloadActive],
+  );
+
+  const renameStem = useCallback(
+    async (serverId: string, name: string) => {
+      if (!repo) return;
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const prev = player.state.stems.find((s) => s.serverId === serverId)?.displayName;
+      player.renameStem(serverId, trimmed);
+      try {
+        await repo.renameStem(serverId, trimmed);
+      } catch (err) {
+        console.error('rename stem failed', err);
+        if (prev !== undefined) player.renameStem(serverId, prev);
+      }
+    },
+    [repo, player],
+  );
+
+  const deleteStem = useCallback(
+    async (serverId: string) => {
+      if (!repo) return;
+      player.removeStem(serverId);
+      try {
+        await repo.deleteStem(serverId);
+      } catch (err) {
+        console.error('delete stem failed', err);
+        // Best-effort recovery: re-load the active practice from the server so
+        // the optimistic removal is reverted with authoritative data.
+        await reloadActive();
+      }
+    },
+    [repo, player, reloadActive],
+  );
+
+  const renamePractice = useCallback(
+    async (id: string, name: string) => {
+      if (!repo) return;
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      let prev: Practice[] = [];
+      setPractices((arr) => {
+        prev = arr;
+        return arr.map((p) => (p.id === id ? { ...p, title: trimmed } : p));
+      });
+      // Reflect the rename in the player title too (header reads player.state.title).
+      player.setTitle(trimmed);
+      try {
+        await repo.renamePractice(id, trimmed);
+      } catch (err) {
+        console.error('rename failed', err);
+        setPractices(prev);
+        const reverted = prev.find((p) => p.id === id);
+        if (reverted) player.setTitle(reverted.title);
+      }
+    },
+    [repo, player],
+  );
+
+  const selectPractice = useCallback(
+    async (id: string) => {
+      if (!repo) return;
+      setActivePracticeId(id);
+      await loadPractice(id, { resetUiState: true });
+    },
+    [repo, loadPractice],
+  );
 
   const handleAnnotationCreated = useCallback(
     (start_ms: number, end_ms: number | null) => {
@@ -378,11 +545,15 @@ function PaperstemApp({
         driveFolderId={player.state.driveFolderId ?? null}
         annotationsOpen={annotationsOpen}
         hasPractice={player.state.stems.length > 0}
+        canRename={Boolean(activePracticeId)}
         appVersion={appInfo?.version ?? null}
         appEnv={appInfo?.env ?? null}
         onOpenPicker={openPicker}
         onToggleAnnotations={toggleRail}
         onSignOut={onLogout}
+        onRenamePractice={(name) => {
+          if (activePracticeId) void renamePractice(activePracticeId, name);
+        }}
       />
       <AppToolbar
         hasPractice={player.state.stems.length > 0}
@@ -398,7 +569,7 @@ function PaperstemApp({
         canCreateAnnotations={activePracticeId !== null}
         markersVisible={markersVisible}
         railCollapsed={railCollapsed}
-        showRailToggle={isWide}
+        showRailToggle={true}
         isWide={isWide}
         onSeek={player.seek}
         onTogglePlay={() => void player.togglePlay()}
@@ -426,7 +597,10 @@ function PaperstemApp({
             hoveredAnnotationId={hoveredAnnotationId}
             onHoverAnnotation={setHoveredAnnotationId}
             railCollapsed={railCollapsed}
+            canMutate={Boolean(activePracticeId)}
             onOpenPicker={openPicker}
+            onRenameStem={(id, name) => void renameStem(id, name)}
+            onDeleteStem={(id) => void deleteStem(id)}
           />
         </ErrorBoundary>
         <AnnotationsRail
@@ -469,6 +643,23 @@ function PaperstemApp({
         onRetry={() => {
           setPracticesLoading(true);
           void refreshPractices().catch(() => {});
+        }}
+        onRenamePractice={(id, name) => {
+          void renamePractice(id, name);
+        }}
+        onDeletePractice={(id) => {
+          void deletePractice(id);
+        }}
+        trash={trash}
+        trashError={trashError}
+        onLoadTrash={() => {
+          void loadTrash();
+        }}
+        onRestorePractice={(id) => {
+          void restorePractice(id);
+        }}
+        onRestoreStem={(id) => {
+          void restoreStem(id);
         }}
       />
       {showUploadButton && activeBandId && (

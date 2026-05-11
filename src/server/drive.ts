@@ -182,6 +182,39 @@ async function driveError(res: Response, action: string): Promise<Error> {
   return new Error(`drive: ${action} failed: ${res.status} ${text}`);
 }
 
+export class DriveNotFoundError extends Error {
+  constructor(public readonly fileId: string) {
+    super(`drive: file ${fileId} not found`);
+    this.name = 'DriveNotFoundError';
+  }
+}
+
+async function patchDriveFile(fileId: string, body: Record<string, unknown>): Promise<void> {
+  const token = await getAccessToken();
+  const res = await fetch(`${FILES_BASE}/${encodeURIComponent(fileId)}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 404) throw new DriveNotFoundError(fileId);
+  if (!res.ok) throw await driveError(res, `patchDriveFile(${fileId})`);
+}
+
+export function renameDriveItem(fileId: string, name: string): Promise<void> {
+  return patchDriveFile(fileId, { name });
+}
+
+export function trashDriveItem(fileId: string): Promise<void> {
+  return patchDriveFile(fileId, { trashed: true });
+}
+
+export function untrashDriveItem(fileId: string): Promise<void> {
+  return patchDriveFile(fileId, { trashed: false });
+}
+
 export async function getDriveFile(
   fileId: string,
   range?: string,
@@ -193,6 +226,7 @@ export async function getDriveFile(
   if (range) headers.Range = range;
   const url = `${FILES_BASE}/${encodeURIComponent(fileId)}?alt=media`;
   const res = await fetch(url, { headers });
+  if (res.status === 404) throw new DriveNotFoundError(fileId);
   if (res.status >= 400) {
     throw await driveError(res, `getDriveFile(${fileId})`);
   }

@@ -49,8 +49,11 @@ type Props = {
   // Controlled rail-collapse state (lifted to App so AppToolbar's rail-toggle
   // button can drive it). The breakpoint listener also lives in App.
   railCollapsed: boolean;
+  canMutate: boolean;
   onToggleAnnotationCreate(): void;
   onOpenPicker(): void;
+  onRenameStem(serverId: string, name: string): void;
+  onDeleteStem(serverId: string): void;
 };
 
 export function Player({
@@ -66,8 +69,11 @@ export function Player({
   onHoverAnnotation,
   onLoopAnnotation,
   railCollapsed,
+  canMutate,
   onToggleAnnotationCreate,
   onOpenPicker,
+  onRenameStem,
+  onDeleteStem,
 }: Props) {
   const { state, currentTime } = player;
   const {
@@ -357,18 +363,21 @@ export function Player({
           )}
           {stems.map((stem, i) => (
             <Track
-              key={`${stem.practiceId ?? 'local'}-${stem.name}`}
+              key={stem.serverId ?? `${stem.practiceId ?? 'local'}-${stem.name}`}
               stem={stem}
               idx={i}
               focused={i === focusedIdx}
               effectiveMuted={anySolo ? !stem.soloed : stem.userMuted}
               durationRef={duration}
               waveformNormalization={waveformNormalization}
+              canMutate={canMutate}
               onFocus={player.focusStem}
               onToggleMute={player.toggleMute}
               onToggleSolo={player.toggleSolo}
               onSetVolume={player.setVolume}
               onSeek={player.seek}
+              onRenameStem={onRenameStem}
+              onDeleteStem={onDeleteStem}
             />
           ))}
         </div>

@@ -46,7 +46,10 @@ type Action =
   | { type: 'SET_MASTER_VOLUME'; vol: number }
   | { type: 'FOCUS'; idx: number }
   | { type: 'SET_STATUS'; status: string }
-  | { type: 'SET_WAVEFORM_NORM'; mode: WaveformNormalization };
+  | { type: 'SET_WAVEFORM_NORM'; mode: WaveformNormalization }
+  | { type: 'SET_TITLE'; title: string }
+  | { type: 'RENAME_STEM'; serverId: string; displayName: string }
+  | { type: 'REMOVE_STEM'; serverId: string };
 
 const initialState: PlayerState = {
   practiceId: null,
@@ -112,6 +115,40 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       return { ...state, status: action.status };
     case 'SET_WAVEFORM_NORM':
       return { ...state, waveformNormalization: action.mode };
+    case 'SET_TITLE':
+      return { ...state, title: action.title };
+    case 'RENAME_STEM': {
+      const idx = state.stems.findIndex((s) => s.serverId === action.serverId);
+      if (idx < 0) return state;
+      return updateStem(state, idx, (s) => ({ ...s, displayName: action.displayName }));
+    }
+    case 'REMOVE_STEM': {
+      const idx = state.stems.findIndex((s) => s.serverId === action.serverId);
+      if (idx < 0) return state;
+      const nextStems = state.stems.slice();
+      nextStems.splice(idx, 1);
+      // Reference idx and focused idx need to remain valid after removal.
+      let referenceIdx = state.referenceIdx;
+      if (referenceIdx === idx) {
+        // Pick the longest remaining stem as the new reference; fall back to 0.
+        referenceIdx = nextStems.length
+          ? nextStems.reduce(
+              (best, s, i, arr) =>
+                (isFinite(s.audio.duration) ? s.audio.duration : 0) >
+                (isFinite(arr[best].audio.duration) ? arr[best].audio.duration : 0)
+                  ? i
+                  : best,
+              0,
+            )
+          : 0;
+      } else if (referenceIdx > idx) {
+        referenceIdx -= 1;
+      }
+      let focusedIdx = state.focusedIdx;
+      if (focusedIdx === idx) focusedIdx = -1;
+      else if (focusedIdx > idx) focusedIdx -= 1;
+      return { ...state, stems: nextStems, referenceIdx, focusedIdx };
+    }
   }
 }
 
@@ -145,6 +182,10 @@ export type PlayerControls = {
   focusStem(idx: number): void;
   setWaveformNormalization(mode: WaveformNormalization): void;
   toggleWaveformNormalization(): void;
+  setTitle(title: string): void;
+  renameStem(serverId: string, displayName: string): void;
+  removeStem(serverId: string): void;
+  clear(): void;
 };
 
 export function usePlayer(): PlayerControls {
@@ -343,6 +384,7 @@ export function usePlayer(): PlayerControls {
         soloed: false,
         userVolume,
         practiceId: ctx.practiceId,
+        serverId: src.serverId ?? null,
         revoke: src.revoke,
         gain,
       };
@@ -516,6 +558,50 @@ export function usePlayer(): PlayerControls {
     dispatch({ type: 'SET_WAVEFORM_NORM', mode: next });
   }, []);
 
+  const setTitle = useCallback((title: string) => {
+    dispatch({ type: 'SET_TITLE', title });
+  }, []);
+
+  const renameStem = useCallback((serverId: string, displayName: string) => {
+    dispatch({ type: 'RENAME_STEM', serverId, displayName });
+  }, []);
+
+  const removeStem = useCallback((serverId: string) => {
+    // Tear down the audio element / gain / object URL before dropping it from
+    // state — otherwise the audio keeps playing and the URL leaks.
+    const stem = stateRef.current.stems.find((s) => s.serverId === serverId);
+    if (stem) {
+      try {
+        stem.audio.pause();
+        stem.gain?.disconnect();
+        stem.revoke?.();
+      } catch {
+        // ignore
+      }
+    }
+    dispatch({ type: 'REMOVE_STEM', serverId });
+  }, []);
+
+  const clear = useCallback(() => {
+    // Tear down any in-flight stems (pause audio elements, disconnect gain
+    // nodes, revoke object URLs) before discarding them. Mirrors the cleanup
+    // load() does at the top of its body so the player can return to its
+    // empty state without leaking resources.
+    const prev = stateRef.current.stems;
+    for (const s of prev) {
+      try {
+        s.audio.pause();
+        s.gain?.disconnect();
+        s.revoke?.();
+      } catch {
+        // ignore
+      }
+    }
+    lastTRef.current = 0;
+    setCurrentTime(0);
+    dispatch({ type: 'TEARDOWN' });
+  }, []);
+
   return {
     state,
     currentTime,
@@ -534,6 +620,10 @@ export function usePlayer(): PlayerControls {
     focusStem,
     setWaveformNormalization,
     toggleWaveformNormalization,
+    setTitle,
+    renameStem,
+    removeStem,
+    clear,
   };
 }
 

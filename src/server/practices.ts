@@ -4,7 +4,13 @@ import type { Context } from 'hono';
 import busboy from 'busboy';
 import { stmts } from './db.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
-import { createFolder, uploadFile } from './drive.js';
+import {
+  createFolder,
+  renameDriveItem,
+  trashDriveItem,
+  untrashDriveItem,
+  uploadFile,
+} from './drive.js';
 
 const MAX_NAME_LENGTH = 200;
 const MAX_STEM_BYTES = 100 * 1024 * 1024;
@@ -47,13 +53,11 @@ export function handleListPractices(
     id: p.id,
     name: p.name,
     recorded_on: p.recorded_on,
-    bpm: p.bpm,
-    reference_stem: p.reference_stem,
-    reference_stem_id: p.reference_stem_id,
     drive_folder_id: p.drive_folder_id,
     created_at: p.created_at,
     updated_at: p.updated_at,
     stem_count: p.stem_count,
+    reference_stem_id: p.reference_stem_id,
   }));
   return c.json({ practices });
 }
@@ -86,8 +90,6 @@ export function handleGetPractice(
       name: practice.name,
       recorded_on: practice.recorded_on,
       drive_folder_id: practice.drive_folder_id,
-      bpm: practice.bpm,
-      reference_stem: practice.reference_stem,
       notes: practice.notes,
       created_at: practice.created_at,
       created_by: practice.created_by,
@@ -97,12 +99,99 @@ export function handleGetPractice(
   });
 }
 
+export async function handleRenamePractice(
+  c: Context<{ Variables: AuthVariables }>,
+): Promise<Response> {
+  const user = requireUser(c);
+  const id = c.req.param('id') ?? '';
+  if (!id) return c.json({ error: 'not_found' }, 404);
+
+  const practice = stmts.findPracticeById.get(id);
+  if (!practice) return c.json({ error: 'not_found' }, 404);
+
+  const membership = stmts.findMembership.get(practice.band_id, user.id);
+  if (!membership) return c.json({ error: 'not_found' }, 404);
+
+  let body: { name?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad_request' }, 400);
+  }
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!name || name.length > MAX_NAME_LENGTH) {
+    return c.json({ error: 'invalid_name' }, 400);
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  stmts.renamePractice.run(name, now, id);
+
+  try {
+    await renameDriveItem(practice.drive_folder_id, name);
+  } catch (err) {
+    console.warn('[practices] drive rename failed; DB updated', { id, err });
+  }
+
+  return c.json({ ok: true, name });
+}
+
+export async function handleDeletePractice(
+  c: Context<{ Variables: AuthVariables }>,
+): Promise<Response> {
+  const user = requireUser(c);
+  const id = c.req.param('id') ?? '';
+  if (!id) return c.json({ error: 'not_found' }, 404);
+
+  const practice = stmts.findPracticeById.get(id);
+  if (!practice) return c.json({ error: 'not_found' }, 404);
+
+  const membership = stmts.findMembership.get(practice.band_id, user.id);
+  if (!membership) return c.json({ error: 'not_found' }, 404);
+
+  const now = Math.floor(Date.now() / 1000);
+  stmts.softDeletePractice.run(now, user.id, id);
+
+  try {
+    await trashDriveItem(practice.drive_folder_id);
+  } catch (err) {
+    console.warn('[practices] drive trash failed; DB updated', { id, err });
+  }
+
+  return c.json({ ok: true });
+}
+
+export async function handleRestorePractice(
+  c: Context<{ Variables: AuthVariables }>,
+): Promise<Response> {
+  const user = requireUser(c);
+  const id = c.req.param('id') ?? '';
+  if (!id) return c.json({ error: 'not_found' }, 404);
+
+  const practice = stmts.findPracticeAnyState.get(id);
+  if (!practice) return c.json({ error: 'not_found' }, 404);
+
+  const membership = stmts.findMembership.get(practice.band_id, user.id);
+  if (!membership) return c.json({ error: 'not_found' }, 404);
+
+  if (practice.deleted_reason === 'drive_missing') {
+    return c.json({ error: 'drive_missing' }, 409);
+  }
+
+  stmts.restorePractice.run(id);
+
+  try {
+    await untrashDriveItem(practice.drive_folder_id);
+  } catch (err) {
+    console.warn('[practices] drive untrash failed; DB updated', { id, err });
+  }
+
+  return c.json({ ok: true });
+}
+
 type CreatePracticeBody = {
   band_id?: unknown;
   name?: unknown;
   recorded_on?: unknown;
-  bpm?: unknown;
-  reference_stem?: unknown;
 };
 
 export async function handleCreatePractice(
@@ -132,23 +221,6 @@ export async function handleCreatePractice(
     recordedOn = body.recorded_on;
   }
 
-  let bpm: number | null = null;
-  if (body.bpm != null && body.bpm !== '') {
-    const n = typeof body.bpm === 'number' ? body.bpm : Number(body.bpm);
-    if (!Number.isInteger(n) || n < 1 || n > 300) {
-      return c.json({ error: 'invalid_input' }, 400);
-    }
-    bpm = n;
-  }
-
-  let referenceStem: string | null = null;
-  if (body.reference_stem != null && body.reference_stem !== '') {
-    if (typeof body.reference_stem !== 'string') {
-      return c.json({ error: 'invalid_input' }, 400);
-    }
-    referenceStem = body.reference_stem.trim() || null;
-  }
-
   if (!stmts.findOwnerMembership.get(bandId, user.id)) {
     return c.json({ error: 'forbidden' }, 403);
   }
@@ -174,8 +246,6 @@ export async function handleCreatePractice(
     rawName,
     recordedOn,
     practiceFolder.id,
-    bpm,
-    referenceStem,
     null,
     now,
     user.id,
@@ -190,8 +260,6 @@ export async function handleCreatePractice(
         name: rawName,
         recorded_on: recordedOn,
         drive_folder_id: practiceFolder.id,
-        bpm,
-        reference_stem: referenceStem,
         notes: null,
         created_at: now,
         created_by: user.id,

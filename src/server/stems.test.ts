@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const tmpDir = mkdtempSync(join(tmpdir(), 'paperstem-practices-test-'));
+const tmpDir = mkdtempSync(join(tmpdir(), 'paperstem-stems-test-'));
 const dbPath = join(tmpDir, 'test.sqlite');
 process.env.DATABASE_PATH = dbPath;
 process.env.GMAIL_USER = 'test@example.com';
@@ -14,13 +14,13 @@ process.env.GOOGLE_CLIENT_SECRET = 'csec';
 process.env.GOOGLE_REFRESH_TOKEN = 'rtok';
 
 type DbModule = typeof import('./db.js');
-type PracticesModule = typeof import('./practices.js');
+type StemsModule = typeof import('./stems.js');
 type DriveModule = typeof import('./drive.js');
 type MiddlewareModule = typeof import('./auth/middleware.js');
 type CookieModule = typeof import('./auth/cookie.js');
 
 let dbMod: DbModule;
-let practicesMod: PracticesModule;
+let stemsMod: StemsModule;
 let driveMod: DriveModule;
 let middlewareMod: MiddlewareModule;
 let cookieMod: CookieModule;
@@ -28,18 +28,16 @@ let app: import('hono').Hono;
 
 beforeAll(async () => {
   dbMod = await import('./db.js');
-  practicesMod = await import('./practices.js');
+  stemsMod = await import('./stems.js');
   driveMod = await import('./drive.js');
   middlewareMod = await import('./auth/middleware.js');
   cookieMod = await import('./auth/cookie.js');
   const { Hono } = await import('hono');
   app = new Hono();
   app.use('*', middlewareMod.sessionMiddleware);
-  app.get('/api/practices', practicesMod.handleListPractices);
-  app.get('/api/practices/:id', practicesMod.handleGetPractice);
-  app.patch('/api/practices/:id', practicesMod.handleRenamePractice);
-  app.delete('/api/practices/:id', practicesMod.handleDeletePractice);
-  app.post('/api/practices/:id/restore', practicesMod.handleRestorePractice);
+  app.patch('/api/stems/:id', stemsMod.handleRenameStem);
+  app.delete('/api/stems/:id', stemsMod.handleDeleteStem);
+  app.post('/api/stems/:id/restore', stemsMod.handleRestoreStem);
 });
 
 afterAll(() => {
@@ -79,151 +77,46 @@ function cookieHeader(sid: string): string {
   return `${cookieMod.SESSION_COOKIE_NAME}=${sid}`;
 }
 
-function insertPractice(
+function createPracticeAndStem(
   bandId: string,
   ownerId: string,
-  name: string,
-  recordedOn: string | null,
-): string {
-  const id = randomUUID();
+  stemName: string,
+): { practiceId: string; stemId: string; driveFileId: string } {
+  const practiceId = randomUUID();
+  const stemId = randomUUID();
+  const driveFileId = `drive-${stemId}`;
   const now = Math.floor(Date.now() / 1000);
   dbMod.stmts.insertPractice.run(
-    id,
+    practiceId,
     bandId,
-    name,
-    recordedOn,
+    'p1',
+    '2026-05-01',
     'practice-folder',
     null,
     now,
     ownerId,
     now,
   );
-  return id;
-}
-
-function insertStem(practiceId: string, name: string, position: number): string {
-  const id = randomUUID();
-  dbMod.stmts.insertStem.run(id, practiceId, name, position, `drive-${id}`, null, 1024);
-  return id;
+  dbMod.stmts.insertStem.run(stemId, practiceId, stemName, 0, driveFileId, null, 1024);
+  return { practiceId, stemId, driveFileId };
 }
 
 beforeEach(() => {
   reset();
 });
 
-describe('GET /api/practices', () => {
-  it('returns 401 unauthenticated', async () => {
-    const res = await app.fetch(new Request('http://x/api/practices?band_id=any'));
-    expect(res.status).toBe(401);
-  });
+function tokenResponse(): Response {
+  return new Response(
+    JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  );
+}
 
-  it('returns 404 for non-members', async () => {
-    const owner = createUser('owner@example.com');
-    const stranger = createUser('stranger@example.com');
-    const bandId = createBand('Alpha', owner);
-    insertPractice(bandId, owner, 'p1', '2026-05-01');
-
-    const sid = createSession(stranger);
-    const res = await app.fetch(
-      new Request(`http://x/api/practices?band_id=${bandId}`, {
-        headers: { cookie: cookieHeader(sid) },
-      }),
-    );
-    expect(res.status).toBe(404);
-  });
-
-  it('returns practices sorted by recorded_on desc', async () => {
+describe('PATCH /api/stems/:id', () => {
+  it('renames stem and PATCHes Drive file with the new name', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    insertPractice(bandId, owner, 'older', '2026-04-01');
-    insertPractice(bandId, owner, 'newer', '2026-05-01');
-
-    const sid = createSession(owner);
-    const res = await app.fetch(
-      new Request(`http://x/api/practices?band_id=${bandId}`, {
-        headers: { cookie: cookieHeader(sid) },
-      }),
-    );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { practices: { name: string }[] };
-    expect(body.practices.map((p) => p.name)).toEqual(['newer', 'older']);
-  });
-
-  it('returns drive_folder_id on each row', async () => {
-    const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    insertPractice(bandId, owner, 'p1', '2026-05-01');
-
-    const sid = createSession(owner);
-    const res = await app.fetch(
-      new Request(`http://x/api/practices?band_id=${bandId}`, {
-        headers: { cookie: cookieHeader(sid) },
-      }),
-    );
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as {
-      practices: { name: string; drive_folder_id: string | null }[];
-    };
-    expect(body.practices[0]).toMatchObject({
-      name: 'p1',
-      drive_folder_id: 'practice-folder',
-    });
-  });
-});
-
-describe('GET /api/practices/:id', () => {
-  it('returns 404 for non-members (no leak)', async () => {
-    const owner = createUser('owner@example.com');
-    const stranger = createUser('stranger@example.com');
-    const bandId = createBand('Alpha', owner);
-    const pid = insertPractice(bandId, owner, 'p1', '2026-05-01');
-
-    const sid = createSession(stranger);
-    const res = await app.fetch(
-      new Request(`http://x/api/practices/${pid}`, {
-        headers: { cookie: cookieHeader(sid) },
-      }),
-    );
-    expect(res.status).toBe(404);
-  });
-
-  it('returns practice with stems but never drive_file_id', async () => {
-    const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const pid = insertPractice(bandId, owner, 'p1', '2026-05-01');
-    insertStem(pid, 'drums', 0);
-    insertStem(pid, 'bass', 1);
-
-    const sid = createSession(owner);
-    const res = await app.fetch(
-      new Request(`http://x/api/practices/${pid}`, {
-        headers: { cookie: cookieHeader(sid) },
-      }),
-    );
-    expect(res.status).toBe(200);
-    const text = await res.text();
-    expect(text).not.toMatch(/drive_file_id/);
-    const body = JSON.parse(text) as {
-      practice: { id: string; name: string };
-      stems: { name: string; position: number }[];
-    };
-    expect(body.practice.id).toBe(pid);
-    expect(body.stems.map((s) => s.name)).toEqual(['drums', 'bass']);
-  });
-});
-
-describe('PATCH /api/practices/:id', () => {
-  function tokenResponse(): Response {
-    return new Response(
-      JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
-
-  it('renames practice and PATCHes Drive folder with the new name', async () => {
-    const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const pid = insertPractice(bandId, owner, 'old name', '2026-05-01');
+    const { stemId, driveFileId } = createPracticeAndStem(bandId, owner, 'old.wav');
     const sid = createSession(owner);
 
     const captured: { url: string; method: string; body: unknown }[] = [];
@@ -249,34 +142,32 @@ describe('PATCH /api/practices/:id', () => {
     });
 
     const res = await app.fetch(
-      new Request(`http://localhost/api/practices/${pid}`, {
+      new Request(`http://localhost/api/stems/${stemId}`, {
         method: 'PATCH',
         headers: {
           Cookie: cookieHeader(sid),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name: 'new name' }),
+        body: JSON.stringify({ name: 'new.wav' }),
       }),
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok: boolean; name: string };
-    expect(body).toMatchObject({ ok: true, name: 'new name' });
+    expect(body).toMatchObject({ ok: true, name: 'new.wav' });
 
     const driveCalls = captured.filter((c) => c.method === 'PATCH');
     expect(driveCalls.length).toBe(1);
-    expect(driveCalls[0]!.url).toContain('/files/practice-folder');
-    expect(driveCalls[0]!.body).toEqual({ name: 'new name' });
+    expect(driveCalls[0]!.url).toContain(`/files/${driveFileId}`);
+    expect(driveCalls[0]!.body).toEqual({ name: 'new.wav' });
 
-    const row = dbMod.db
-      .prepare('SELECT name FROM practices WHERE id = ?')
-      .get(pid) as { name: string };
-    expect(row.name).toBe('new name');
+    const row = dbMod.stmts.findStemById.get(stemId)!;
+    expect(row.name).toBe('new.wav');
   });
 
   it('returns 200 even if Drive PATCH responds 500 (DB still updates)', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const pid = insertPractice(bandId, owner, 'old name', '2026-05-01');
+    const { stemId } = createPracticeAndStem(bandId, owner, 'old.wav');
     const sid = createSession(owner);
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -289,34 +180,32 @@ describe('PATCH /api/practices/:id', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const res = await app.fetch(
-      new Request(`http://localhost/api/practices/${pid}`, {
+      new Request(`http://localhost/api/stems/${stemId}`, {
         method: 'PATCH',
         headers: {
           Cookie: cookieHeader(sid),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name: 'renamed' }),
+        body: JSON.stringify({ name: 'renamed.wav' }),
       }),
     );
     expect(res.status).toBe(200);
     expect(warnSpy).toHaveBeenCalled();
 
-    const row = dbMod.db
-      .prepare('SELECT name FROM practices WHERE id = ?')
-      .get(pid) as { name: string };
-    expect(row.name).toBe('renamed');
+    const row = dbMod.stmts.findStemById.get(stemId)!;
+    expect(row.name).toBe('renamed.wav');
   });
 
   it('rejects empty or oversized names with 400', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const pid = insertPractice(bandId, owner, 'original', '2026-05-01');
+    const { stemId } = createPracticeAndStem(bandId, owner, 'original.wav');
     const sid = createSession(owner);
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     const emptyRes = await app.fetch(
-      new Request(`http://localhost/api/practices/${pid}`, {
+      new Request(`http://localhost/api/stems/${stemId}`, {
         method: 'PATCH',
         headers: {
           Cookie: cookieHeader(sid),
@@ -328,7 +217,7 @@ describe('PATCH /api/practices/:id', () => {
     expect(emptyRes.status).toBe(400);
 
     const bigRes = await app.fetch(
-      new Request(`http://localhost/api/practices/${pid}`, {
+      new Request(`http://localhost/api/stems/${stemId}`, {
         method: 'PATCH',
         headers: {
           Cookie: cookieHeader(sid),
@@ -340,53 +229,42 @@ describe('PATCH /api/practices/:id', () => {
     expect(bigRes.status).toBe(400);
 
     expect(fetchSpy).not.toHaveBeenCalled();
-    const row = dbMod.db
-      .prepare('SELECT name FROM practices WHERE id = ?')
-      .get(pid) as { name: string };
-    expect(row.name).toBe('original');
+    const row = dbMod.stmts.findStemById.get(stemId)!;
+    expect(row.name).toBe('original.wav');
   });
 
   it('rejects non-members with 404', async () => {
     const owner = createUser('owner@example.com');
     const stranger = createUser('stranger@example.com');
     const bandId = createBand('Alpha', owner);
-    const pid = insertPractice(bandId, owner, 'original', '2026-05-01');
+    const { stemId } = createPracticeAndStem(bandId, owner, 'original.wav');
     const sid = createSession(stranger);
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     const res = await app.fetch(
-      new Request(`http://localhost/api/practices/${pid}`, {
+      new Request(`http://localhost/api/stems/${stemId}`, {
         method: 'PATCH',
         headers: {
           Cookie: cookieHeader(sid),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name: 'new name' }),
+        body: JSON.stringify({ name: 'new.wav' }),
       }),
     );
     expect(res.status).toBe(404);
     expect(fetchSpy).not.toHaveBeenCalled();
 
-    const row = dbMod.db
-      .prepare('SELECT name FROM practices WHERE id = ?')
-      .get(pid) as { name: string };
-    expect(row.name).toBe('original');
+    const row = dbMod.stmts.findStemById.get(stemId)!;
+    expect(row.name).toBe('original.wav');
   });
 });
 
-describe('DELETE /api/practices/:id', () => {
-  function tokenResponse(): Response {
-    return new Response(
-      JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
-
-  it('soft-deletes the practice and trashes the Drive folder', async () => {
+describe('DELETE /api/stems/:id', () => {
+  it('soft-deletes the stem and trashes the Drive file', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const pid = insertPractice(bandId, owner, 'p1', '2026-05-01');
+    const { stemId } = createPracticeAndStem(bandId, owner, 'drums.wav');
     const sid = createSession(owner);
 
     const captured: { url: string; method: string; body: unknown }[] = [];
@@ -412,7 +290,7 @@ describe('DELETE /api/practices/:id', () => {
     });
 
     const res = await app.fetch(
-      new Request(`http://localhost/api/practices/${pid}`, {
+      new Request(`http://localhost/api/stems/${stemId}`, {
         method: 'DELETE',
         headers: { Cookie: cookieHeader(sid) },
       }),
@@ -423,8 +301,8 @@ describe('DELETE /api/practices/:id', () => {
     expect(driveCalls.length).toBe(1);
     expect(driveCalls[0]!.body).toEqual({ trashed: true });
 
-    expect(dbMod.stmts.findPracticeById.get(pid)).toBeUndefined();
-    const row = dbMod.stmts.findPracticeAnyState.get(pid)!;
+    expect(dbMod.stmts.findStemById.get(stemId)).toBeUndefined();
+    const row = dbMod.stmts.findStemAnyState.get(stemId)!;
     expect(row.deleted_at).toBeGreaterThan(0);
     expect(row.deleted_by).toBe(owner);
     expect(row.deleted_reason).toBe('user');
@@ -434,13 +312,13 @@ describe('DELETE /api/practices/:id', () => {
     const owner = createUser('owner@example.com');
     const stranger = createUser('stranger@example.com');
     const bandId = createBand('Alpha', owner);
-    const pid = insertPractice(bandId, owner, 'p1', '2026-05-01');
+    const { stemId } = createPracticeAndStem(bandId, owner, 'drums.wav');
     const sid = createSession(stranger);
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     const res = await app.fetch(
-      new Request(`http://localhost/api/practices/${pid}`, {
+      new Request(`http://localhost/api/stems/${stemId}`, {
         method: 'DELETE',
         headers: { Cookie: cookieHeader(sid) },
       }),
@@ -448,25 +326,18 @@ describe('DELETE /api/practices/:id', () => {
     expect(res.status).toBe(404);
     expect(fetchSpy).not.toHaveBeenCalled();
 
-    const row = dbMod.stmts.findPracticeAnyState.get(pid)!;
+    const row = dbMod.stmts.findStemAnyState.get(stemId)!;
     expect(row.deleted_at).toBeNull();
   });
 });
 
-describe('POST /api/practices/:id/restore', () => {
-  function tokenResponse(): Response {
-    return new Response(
-      JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
-
-  it('restores soft-deleted practice and untrashes Drive folder', async () => {
+describe('POST /api/stems/:id/restore', () => {
+  it('restores soft-deleted stem and untrashes Drive file', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const pid = insertPractice(bandId, owner, 'p1', '2026-05-01');
+    const { stemId } = createPracticeAndStem(bandId, owner, 'drums.wav');
     const now = Math.floor(Date.now() / 1000);
-    dbMod.stmts.softDeletePractice.run(now, owner, pid);
+    dbMod.stmts.softDeleteStem.run(now, owner, stemId);
     const sid = createSession(owner);
 
     const captured: { url: string; method: string; body: unknown }[] = [];
@@ -492,7 +363,7 @@ describe('POST /api/practices/:id/restore', () => {
     });
 
     const res = await app.fetch(
-      new Request(`http://localhost/api/practices/${pid}/restore`, {
+      new Request(`http://localhost/api/stems/${stemId}/restore`, {
         method: 'POST',
         headers: { Cookie: cookieHeader(sid) },
       }),
@@ -503,7 +374,7 @@ describe('POST /api/practices/:id/restore', () => {
     expect(driveCalls.length).toBe(1);
     expect(driveCalls[0]!.body).toEqual({ trashed: false });
 
-    const row = dbMod.stmts.findPracticeById.get(pid)!;
+    const row = dbMod.stmts.findStemById.get(stemId)!;
     expect(row).toBeDefined();
     expect(row.deleted_at).toBeNull();
   });
@@ -511,15 +382,15 @@ describe('POST /api/practices/:id/restore', () => {
   it('returns 409 for ghost rows (drive_missing)', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const pid = insertPractice(bandId, owner, 'p1', '2026-05-01');
+    const { stemId } = createPracticeAndStem(bandId, owner, 'drums.wav');
     const now = Math.floor(Date.now() / 1000);
-    dbMod.stmts.markPracticeGhost.run(now, pid);
+    dbMod.stmts.markStemGhost.run(now, stemId);
     const sid = createSession(owner);
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     const res = await app.fetch(
-      new Request(`http://localhost/api/practices/${pid}/restore`, {
+      new Request(`http://localhost/api/stems/${stemId}/restore`, {
         method: 'POST',
         headers: { Cookie: cookieHeader(sid) },
       }),
@@ -527,7 +398,7 @@ describe('POST /api/practices/:id/restore', () => {
     expect(res.status).toBe(409);
     expect(fetchSpy).not.toHaveBeenCalled();
 
-    const row = dbMod.stmts.findPracticeAnyState.get(pid)!;
+    const row = dbMod.stmts.findStemAnyState.get(stemId)!;
     expect(row.deleted_reason).toBe('drive_missing');
   });
 
@@ -535,15 +406,15 @@ describe('POST /api/practices/:id/restore', () => {
     const owner = createUser('owner@example.com');
     const stranger = createUser('stranger@example.com');
     const bandId = createBand('Alpha', owner);
-    const pid = insertPractice(bandId, owner, 'p1', '2026-05-01');
+    const { stemId } = createPracticeAndStem(bandId, owner, 'drums.wav');
     const now = Math.floor(Date.now() / 1000);
-    dbMod.stmts.softDeletePractice.run(now, owner, pid);
+    dbMod.stmts.softDeleteStem.run(now, owner, stemId);
     const sid = createSession(stranger);
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     const res = await app.fetch(
-      new Request(`http://localhost/api/practices/${pid}/restore`, {
+      new Request(`http://localhost/api/stems/${stemId}/restore`, {
         method: 'POST',
         headers: { Cookie: cookieHeader(sid) },
       }),

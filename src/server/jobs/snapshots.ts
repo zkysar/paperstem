@@ -17,8 +17,6 @@ export type SnapshotMeta = {
     id: string;
     name: string;
     recorded_on: string | null;
-    bpm: number | null;
-    reference_stem: string | null;
     notes: string | null;
     created_at: number;
     updated_at: number;
@@ -79,8 +77,6 @@ export function buildPracticeMeta(
       id: practice.id,
       name: practice.name,
       recorded_on: practice.recorded_on,
-      bpm: practice.bpm,
-      reference_stem: practice.reference_stem,
       notes: practice.notes,
       created_at: practice.created_at,
       updated_at: practice.updated_at,
