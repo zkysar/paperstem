@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 import { AUDIO_EXT } from '../lib/audio';
 import { compressToMp3 } from '../lib/audio-compress';
 
@@ -234,7 +235,7 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
             aria-label="Close upload"
             onClick={onClose}
           >
-            ✕
+            <X size={16} strokeWidth={2} aria-hidden="true" />
           </button>
         </div>
 

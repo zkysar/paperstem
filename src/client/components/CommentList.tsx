@@ -1,4 +1,5 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
+import { Pencil, Star, Trash2 } from 'lucide-react';
 import type { Annotation } from '../../shared/types';
 import { SELF_ANNOTATION_COLOR } from '../lib/colors';
 import { fmt } from '../lib/format';
@@ -92,7 +93,7 @@ export function CommentList({
           className={'chip' + (filter.kind === 'starred' ? ' active' : '')}
           aria-selected={filter.kind === 'starred'}
           onClick={() => setFilter({ kind: 'starred' })}
-        >★ Starred {starredCount}</button>
+        ><><Star size={12} strokeWidth={2} fill="currentColor" aria-hidden="true" /> Starred {starredCount}</></button>
         <button
           type="button"
           role="tab"
@@ -147,9 +148,9 @@ export function CommentList({
                       className={'cl-star' + (a.starred ? ' on' : '')}
                       aria-label={a.starred ? 'Unstar' : 'Star'}
                       onClick={(e) => { e.stopPropagation(); onToggleStar(a); }}
-                    >{a.starred ? '★' : '☆'}</button>
+                    ><Star size={14} strokeWidth={2} fill={a.starred ? 'currentColor' : 'none'} aria-hidden="true" /></button>
                   ) : (
-                    a.starred && <span className="cl-star on" aria-hidden="true">★</span>
+                    a.starred && <span className="cl-star on" aria-hidden="true"><Star size={14} strokeWidth={2} fill="currentColor" aria-hidden="true" /></span>
                   )}
                 </div>
                 {isEditing ? (
@@ -204,7 +205,7 @@ export function CommentList({
                             setEditBody(a.body);
                             setEditingId(a.id);
                           }}
-                        >✎</button>
+                        ><Pencil size={14} strokeWidth={2} aria-hidden="true" /></button>
                         <button
                           type="button"
                           className="cl-iconbtn"
@@ -213,7 +214,7 @@ export function CommentList({
                             e.stopPropagation();
                             if (window.confirm('Delete this comment?')) onDelete(a);
                           }}
-                        >🗑</button>
+                        ><Trash2 size={14} strokeWidth={2} aria-hidden="true" /></button>
                       </div>
                     )}
                   </>

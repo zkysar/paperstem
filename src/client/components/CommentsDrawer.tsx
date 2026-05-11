@@ -1,4 +1,5 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
+import { ChevronLeft, X } from 'lucide-react';
 import type { Annotation } from '../../shared/types';
 import { CommentList } from './CommentList';
 import { fmt } from '../lib/format';
@@ -87,7 +88,7 @@ export function CommentsDrawer({
               className="cd-back"
               aria-label="Back"
               onClick={onClose}
-            >‹</button>
+            ><ChevronLeft size={16} strokeWidth={2} aria-hidden="true" /></button>
           )}
           <h2 className="cd-title">All comments</h2>
           <span className="cd-count">· {annotations.length}</span>
@@ -97,7 +98,7 @@ export function CommentsDrawer({
               className="cd-close"
               aria-label="Close"
               onClick={onClose}
-            >✕</button>
+            ><X size={16} strokeWidth={2} aria-hidden="true" /></button>
           )}
         </header>
 

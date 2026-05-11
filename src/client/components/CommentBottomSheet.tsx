@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from 'react';
+import { ChevronLeft, ChevronRight, Pencil, Repeat, Star, Trash2, X } from 'lucide-react';
 import type { Annotation } from '../../shared/types';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
@@ -63,7 +64,7 @@ export function CommentBottomSheet({
             className="cs-iconbtn"
             aria-label="Loop region"
             onClick={onLoopRegion}
-          >⟲</button>
+          ><Repeat size={16} strokeWidth={2} aria-hidden="true" /></button>
         )}
         {canEdit && (
           <button
@@ -71,14 +72,14 @@ export function CommentBottomSheet({
             className={'cs-iconbtn cs-star' + (annotation.starred ? ' on' : '')}
             aria-label={annotation.starred ? 'Unstar' : 'Star'}
             onClick={onToggleStar}
-          >{annotation.starred ? '★' : '☆'}</button>
+          ><Star size={16} strokeWidth={2} fill={annotation.starred ? 'currentColor' : 'none'} aria-hidden="true" /></button>
         )}
         <button
           type="button"
           className="cs-iconbtn cs-close"
           aria-label="Close"
           onClick={onClose}
-        >✕</button>
+        ><X size={16} strokeWidth={2} aria-hidden="true" /></button>
       </div>
       {editing ? (
         <div className="cs-edit">
@@ -122,7 +123,7 @@ export function CommentBottomSheet({
                 className="cs-iconbtn"
                 aria-label="Edit"
                 onClick={() => { setDraft(annotation.body); setEditing(true); }}
-              >✎</button>
+              ><Pencil size={16} strokeWidth={2} aria-hidden="true" /></button>
               <button
                 type="button"
                 className="cs-iconbtn"
@@ -130,7 +131,7 @@ export function CommentBottomSheet({
                 onClick={() => {
                   if (window.confirm('Delete this comment?')) onDelete();
                 }}
-              >🗑</button>
+              ><Trash2 size={16} strokeWidth={2} aria-hidden="true" /></button>
             </div>
           )}
         </>
@@ -141,14 +142,14 @@ export function CommentBottomSheet({
           aria-label="Previous comment"
           disabled={index === 0}
           onClick={onPrev}
-        >‹ prev</button>
+        ><ChevronLeft size={14} strokeWidth={2} aria-hidden="true" /> prev</button>
         <span>{index + 1} / {total}</span>
         <button
           type="button"
           aria-label="Next comment"
           disabled={index >= total - 1}
           onClick={onNext}
-        >next ›</button>
+        >next <ChevronRight size={14} strokeWidth={2} aria-hidden="true" /></button>
       </div>
     </div>
   );

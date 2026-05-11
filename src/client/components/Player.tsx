@@ -82,6 +82,7 @@ export function Player({
     loop,
     focusedIdx,
     status,
+    loading,
     waveformNormalization,
   } = state;
 
@@ -349,7 +350,7 @@ export function Player({
         )}
         <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
         <div className="tracks" ref={tracksRef}>
-          {!stems.length && (
+          {!stems.length && !loading && (
             <div className="empty-stage">
               <p>No practice loaded.</p>
               <button
@@ -360,6 +361,41 @@ export function Player({
                 Open the file picker (⌘K)
               </button>
             </div>
+          )}
+          {!stems.length && loading && (
+            <>
+              {loading.displayNames.map((name, i) => (
+                <div className="track track-skeleton" key={`skel-${i}`} aria-hidden="true">
+                  <div className="track-rail">
+                    <span className="swatch" style={{ background: loading.colors[i] }} />
+                    <div className="track-info">
+                      <span className="track-name" title={name}>{name}</span>
+                    </div>
+                  </div>
+                  <div className="wave">
+                    <div className="clip wave-skel" />
+                  </div>
+                </div>
+              ))}
+              <div className="player-loading-overlay" role="status" aria-live="polite">
+                <div className="player-loading-card">
+                  <div className="player-loading-title">
+                    Loading {loading.displayNames.length} stem{loading.displayNames.length === 1 ? '' : 's'}
+                  </div>
+                  <div className="player-loading-progress">
+                    <div
+                      className="player-loading-bar"
+                      style={{
+                        width: `${(loading.loaded / Math.max(1, loading.displayNames.length)) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="player-loading-count">
+                    {loading.loaded} / {loading.displayNames.length}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
           {stems.map((stem, i) => (
             <Track

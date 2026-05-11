@@ -5,10 +5,10 @@ import { CommentsFab } from './CommentsFab';
 
 describe('CommentsFab', () => {
   it('renders count and label', () => {
-    render(<CommentsFab count={3} starredCount={1} onClick={vi.fn()} />);
+    const { container } = render(<CommentsFab count={3} starredCount={1} onClick={vi.fn()} />);
     expect(screen.getByRole('button', { name: /all comments/i })).not.toBeNull();
     expect(screen.getByText('3')).not.toBeNull();
-    expect(screen.getByText(/★ 1/)).not.toBeNull();
+    expect(container.querySelector('.comments-fab-star')).not.toBeNull();
   });
 
   it('renders nothing when count is 0', () => {

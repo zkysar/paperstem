@@ -5,6 +5,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
 } from 'react';
+import { Pencil, Repeat, Star, Trash2, X } from 'lucide-react';
 import type { Annotation } from '../../shared/types';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
@@ -126,7 +127,7 @@ export function CommentPopover({
               onLoopRegion();
             }}
           >
-            ⟲
+            <Repeat size={14} strokeWidth={2} aria-hidden="true" />
           </button>
         )}
         {canEdit && (
@@ -136,7 +137,7 @@ export function CommentPopover({
             aria-label={annotation.starred ? 'Unstar' : 'Star'}
             onClick={(e) => { e.stopPropagation(); onToggleStar(); }}
           >
-            {annotation.starred ? '★' : '☆'}
+            <Star size={14} strokeWidth={2} fill={annotation.starred ? 'currentColor' : 'none'} aria-hidden="true" />
           </button>
         )}
         <button
@@ -145,7 +146,7 @@ export function CommentPopover({
           aria-label="Close"
           onClick={(e) => { e.stopPropagation(); onClose(); }}
         >
-          ✕
+          <X size={14} strokeWidth={2} aria-hidden="true" />
         </button>
       </div>
       {editing ? (
@@ -189,7 +190,7 @@ export function CommentPopover({
                 aria-label="Edit"
                 onClick={(e) => { e.stopPropagation(); startEdit(); }}
               >
-                ✎
+                <Pencil size={14} strokeWidth={2} aria-hidden="true" />
               </button>
               <button
                 type="button"
@@ -197,7 +198,7 @@ export function CommentPopover({
                 aria-label="Delete"
                 onClick={(e) => { e.stopPropagation(); handleDelete(); }}
               >
-                🗑
+                <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
               </button>
             </div>
           )}

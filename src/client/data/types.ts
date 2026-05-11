@@ -71,6 +71,16 @@ export type LoopRegion = {
 
 export type WaveformNormalization = 'per-track' | 'global';
 
+export type PlayerLoading = {
+  // Display names (after common-prefix strip) and palette colors so the player
+  // can render skeleton tracks with the right shape while audio metadata is
+  // still being fetched. `loaded` increments as each stem's `loadedmetadata`
+  // (or error) resolves.
+  displayNames: string[];
+  colors: string[];
+  loaded: number;
+};
+
 export type PlayerState = {
   practiceId: string | null;
   title: string;
@@ -82,6 +92,7 @@ export type PlayerState = {
   focusedIdx: number;
   loop: LoopRegion | null;
   status: string;
+  loading: PlayerLoading | null;
   waveformNormalization: WaveformNormalization;
   masterVolume: number;
 };
