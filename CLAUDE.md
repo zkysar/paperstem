@@ -87,6 +87,36 @@ Workflow when finishing a piece of work:
 
 Don't `git checkout main && git merge <branch> && git push` — the hook will block it and that's intentional. If you genuinely need to bypass (rare; e.g. recovering a broken remote), use `--no-verify` and say so explicitly.
 
+## Deployment
+
+Two Fly.io apps, deployed by [.github/workflows/ci.yml](.github/workflows/ci.yml):
+
+| App | Config | Trigger |
+|---|---|---|
+| `paperstem-dev` (https://paperstem-dev.fly.dev) | [fly.dev.toml](fly.dev.toml) | every push to `main` |
+| `paperstem` (https://paperstem.fly.dev) | [fly.toml](fly.toml) | tag push matching `v*` (e.g. `git tag v1.2.3 && git push origin v1.2.3`) |
+
+Both use the same [Dockerfile](Dockerfile). The `APP_VERSION` build arg is baked in as an env var; the server returns it from `/api/version` and the client renders it in the avatar dropdown. Dev builds get `dev-<short-sha>`, prod builds get the tag name (`v1.2.3`).
+
+### One-time setup
+
+```bash
+# Dev app + volume
+fly apps create paperstem-dev
+fly volumes create paperstem_dev_data --region sjc --size 1 -a paperstem-dev
+
+# Secrets — both apps need GMAIL_* (mailer.ts crashes at import without them)
+# and GOOGLE_* (Drive API). Repeat for -a paperstem.
+fly secrets set -a paperstem-dev \
+  GMAIL_USER=... GMAIL_APP_PASSWORD=... \
+  GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... GOOGLE_REFRESH_TOKEN=...
+
+# GitHub Actions token (one token works for both apps)
+fly tokens create deploy -x 999999h
+# Add the output as repo secret FLY_API_TOKEN at:
+# https://github.com/<owner>/paperstem/settings/secrets/actions
+```
+
 ## Things that bite
 
 - **`mailer.ts` throws at module import** if `GMAIL_USER`/`GMAIL_APP_PASSWORD` aren't set. Use placeholders in dev unless you actually need to send a magic link.
