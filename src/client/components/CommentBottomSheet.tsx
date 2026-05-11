@@ -92,6 +92,11 @@ export function CommentBottomSheet({
                 e.preventDefault();
                 commitEdit();
               }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setDraft(annotation.body);
+                setEditing(false);
+              }
             }}
           />
           <div className="cs-edit-actions">
