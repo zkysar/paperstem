@@ -149,6 +149,7 @@ export type PlayerControls = {
   setWaveformNormalization(mode: WaveformNormalization): void;
   toggleWaveformNormalization(): void;
   setTitle(title: string): void;
+  clear(): void;
 };
 
 export function usePlayer(): PlayerControls {
@@ -524,6 +525,26 @@ export function usePlayer(): PlayerControls {
     dispatch({ type: 'SET_TITLE', title });
   }, []);
 
+  const clear = useCallback(() => {
+    // Tear down any in-flight stems (pause audio elements, disconnect gain
+    // nodes, revoke object URLs) before discarding them. Mirrors the cleanup
+    // load() does at the top of its body so the player can return to its
+    // empty state without leaking resources.
+    const prev = stateRef.current.stems;
+    for (const s of prev) {
+      try {
+        s.audio.pause();
+        s.gain?.disconnect();
+        s.revoke?.();
+      } catch {
+        // ignore
+      }
+    }
+    lastTRef.current = 0;
+    setCurrentTime(0);
+    dispatch({ type: 'TEARDOWN' });
+  }, []);
+
   return {
     state,
     currentTime,
@@ -543,6 +564,7 @@ export function usePlayer(): PlayerControls {
     setWaveformNormalization,
     toggleWaveformNormalization,
     setTitle,
+    clear,
   };
 }
 

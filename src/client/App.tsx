@@ -98,6 +98,18 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // When activePracticeId transitions to null (e.g. the active practice was
+  // deleted), reset the player so the header and waveform don't point at a
+  // tombstone. Guarded with a ref so the initial null on mount doesn't fire
+  // clear() before anything has been loaded.
+  const prevActivePracticeIdRef = useRef<string | null>(activePracticeId);
+  useEffect(() => {
+    if (prevActivePracticeIdRef.current !== null && activePracticeId === null) {
+      player.clear();
+    }
+    prevActivePracticeIdRef.current = activePracticeId;
+  }, [activePracticeId, player]);
+
   useKeyboard({
     player,
     pickerOpen,
@@ -232,6 +244,10 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
       });
       if (activePracticeId === id) {
         setActivePracticeId(null);
+        // Reset the player explicitly so the header and waveform clear before
+        // the activePracticeId effect fires on the next render — keeps the UI
+        // from briefly displaying the deleted practice's metadata.
+        player.clear();
       }
       try {
         await repo.deletePractice(id);
@@ -240,7 +256,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
         setPractices(prev);
       }
     },
-    [repo, activePracticeId],
+    [repo, activePracticeId, player],
   );
 
   const renamePractice = useCallback(
