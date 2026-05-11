@@ -8,11 +8,13 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 FROM node:20-alpine AS runtime
+ARG APP_VERSION=dev
 RUN apk add --no-cache tini
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV DATABASE_PATH=/data/paperstem.sqlite
+ENV APP_VERSION=$APP_VERSION
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist

@@ -1,12 +1,14 @@
-name: CI
+name: CI + Deploy
 
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
 
 jobs:
-  build:
+  check:
+    name: Build & test
     runs-on: ubuntu-latest
     env:
       GMAIL_USER: ci@example.com
@@ -20,3 +22,42 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx vitest run
+
+  deploy-dev:
+    name: Deploy to paperstem-dev
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: |
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          flyctl deploy \
+            --config fly.dev.toml \
+            --remote-only \
+            --build-arg APP_VERSION="dev-${SHORT_SHA}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  deploy-prod:
+    name: Deploy to paperstem (prod)
+    needs: check
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: |
+          flyctl deploy \
+            --config fly.toml \
+            --remote-only \
+            --build-arg APP_VERSION="${{ github.ref_name }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

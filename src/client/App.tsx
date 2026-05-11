@@ -15,6 +15,7 @@ import { UploadDrawer } from './components/UploadDrawer';
 import { listAnnotations } from './data/annotations-repo';
 import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
 import type { Practice, StemSource } from './data/types';
+import { useAppVersion } from './hooks/useAppVersion';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
 import { buildUserColorMap } from './lib/colors';
@@ -30,12 +31,35 @@ function initialsFromEmail(email: string): string {
 
 export default function App() {
   const { user, loading, logout } = useSession();
+  const appInfo = useAppVersion();
+
+  useEffect(() => {
+    const env = appInfo?.env;
+    if (env && env !== 'prod') {
+      document.title = `[${env.toUpperCase()}] Paperstem`;
+      document.body.classList.add('env-non-prod');
+      document.body.dataset.env = env;
+    } else {
+      document.title = 'Paperstem';
+      document.body.classList.remove('env-non-prod');
+      delete document.body.dataset.env;
+    }
+  }, [appInfo?.env]);
+
   if (loading) return null;
   if (!user) return <LoginScreen />;
-  return <PaperstemApp user={user} onLogout={logout} />;
+  return <PaperstemApp user={user} onLogout={logout} appInfo={appInfo} />;
 }
 
-function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) {
+function PaperstemApp({
+  user,
+  onLogout,
+  appInfo,
+}: {
+  user: User;
+  onLogout: () => void;
+  appInfo: ReturnType<typeof useAppVersion>;
+}) {
   const player = usePlayer();
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -354,6 +378,8 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
         driveFolderId={player.state.driveFolderId ?? null}
         annotationsOpen={annotationsOpen}
         hasPractice={player.state.stems.length > 0}
+        appVersion={appInfo?.version ?? null}
+        appEnv={appInfo?.env ?? null}
         onOpenPicker={openPicker}
         onToggleAnnotations={toggleRail}
         onSignOut={onLogout}
