@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { FilePicker } from './FilePicker';
@@ -17,6 +17,8 @@ const baseProps = {
   onLoadFolder: vi.fn(),
   onUploadClick: vi.fn(),
   onRetry: vi.fn(),
+  onRenamePractice: vi.fn(),
+  onDeletePractice: vi.fn(),
 };
 
 describe('FilePicker', () => {
@@ -138,6 +140,50 @@ describe('FilePicker', () => {
     const row = screen.getByTestId('fp-row-p1');
     const link = row.querySelector('.fp-drive-link') as HTMLAnchorElement;
     await user.click(link);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('renames a practice via inline edit', async () => {
+    const user = userEvent.setup();
+    const onRename = vi.fn();
+    const rows: Practice[] = [
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], driveFolderId: null },
+    ];
+    render(
+      <FilePicker {...baseProps} practices={rows} onRenamePractice={onRename} />,
+    );
+    await user.click(screen.getByLabelText(/rename Alpha/i));
+    const input = screen.getByRole('textbox', { name: /rename practice/i });
+    await user.clear(input);
+    await user.type(input, 'Beta{Enter}');
+    await waitFor(() => expect(onRename).toHaveBeenCalledWith('p1', 'Beta'));
+  });
+
+  it('Esc cancels inline rename', async () => {
+    const user = userEvent.setup();
+    const onRename = vi.fn();
+    const rows: Practice[] = [
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], driveFolderId: null },
+    ];
+    render(
+      <FilePicker {...baseProps} practices={rows} onRenamePractice={onRename} />,
+    );
+    await user.click(screen.getByLabelText(/rename Alpha/i));
+    const input = screen.getByRole('textbox', { name: /rename practice/i });
+    await user.type(input, 'changed{Escape}');
+    expect(onRename).not.toHaveBeenCalled();
+  });
+
+  it('rename pencil click does not trigger row onSelect', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const rows: Practice[] = [
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], driveFolderId: null },
+    ];
+    render(
+      <FilePicker {...baseProps} practices={rows} onSelect={onSelect} />,
+    );
+    await user.click(screen.getByLabelText(/rename Alpha/i));
     expect(onSelect).not.toHaveBeenCalled();
   });
 });

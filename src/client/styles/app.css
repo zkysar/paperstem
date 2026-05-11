@@ -1281,7 +1281,7 @@ kbd {
 }
 .fp-row {
   display: grid;
-  grid-template-columns: 1fr 110px 100px 50px 32px;
+  grid-template-columns: 1fr 110px 100px 50px 60px;
   gap: 12px;
   align-items: center;
   padding: 9px 16px;
@@ -1316,7 +1316,7 @@ kbd {
   background: linear-gradient(to bottom, transparent 25%, var(--accent-tint-2) 25%, var(--accent-tint-2) 75%, transparent 75%);
   border-radius: 2px;
 }
-.fp-row-end { display: flex; align-items: center; justify-content: center; }
+.fp-row-end { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
 .fp-drive-link {
   width: 24px; height: 24px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -1324,6 +1324,28 @@ kbd {
   border-radius: 4px;
 }
 .fp-drive-link:hover { background: var(--rule-2); color: var(--ink); }
+.fp-rename-btn {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; padding: 0;
+  color: var(--ink-2); cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.85rem; line-height: 1;
+}
+.fp-rename-btn:hover { background: var(--rule-2); color: var(--ink); }
+.fp-row-main-editing {
+  display: contents;
+}
+.fp-name-input {
+  font: inherit; font-size: 0.82rem; font-weight: 600;
+  padding: 2px 4px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--ink);
+  width: 100%;
+  box-sizing: border-box;
+}
 .fp-state {
   padding: 36px 16px;
   text-align: center;

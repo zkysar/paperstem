@@ -16,11 +16,14 @@ type Props = {
   onLoadFolder(files: File[], folderName: string): void;
   onUploadClick(): void;
   onRetry(): void;
+  onRenamePractice(id: string, name: string): void;
+  onDeletePractice(id: string): void;
 };
 
 export function FilePicker({
   open, loading, loadError, practices, activePracticeId, showUpload,
   onClose, onSelect, onLoadFolder, onUploadClick, onRetry,
+  onRenamePractice, onDeletePractice,
 }: Props) {
   const [tab, setTab] = useState<Tab>('recent');
   const [search, setSearch] = useState('');
@@ -124,6 +127,8 @@ export function FilePicker({
           onSelect={onSelect}
           onUploadClick={onUploadClick}
           onRetry={onRetry}
+          onRenamePractice={onRenamePractice}
+          onDeletePractice={onDeletePractice}
         />
         {showUpload && (
           <div className="fp-upload-bottom">
@@ -137,7 +142,7 @@ export function FilePicker({
 
 function FilePickerBody({
   search, practices, activePracticeId, loading, loadError, showUpload,
-  onSelect, onUploadClick, onRetry,
+  onSelect, onUploadClick, onRetry, onRenamePractice,
 }: {
   tab: Tab;
   search: string;
@@ -149,7 +154,19 @@ function FilePickerBody({
   onSelect(id: string): void;
   onUploadClick(): void;
   onRetry(): void;
+  onRenamePractice(id: string, name: string): void;
+  onDeletePractice(id: string): void;
 }) {
+  const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
+
+  function commitEdit(id: string) {
+    if (!editing || editing.id !== id) return;
+    const next = editing.draft.trim();
+    setEditing(null);
+    const original = practices.find((p) => p.id === id);
+    if (!next || next === original?.title) return;
+    onRenamePractice(id, next);
+  }
   if (loadError) {
     return (
       <div className="fp-body fp-state">
@@ -211,38 +228,81 @@ function FilePickerBody({
         <span>Stems</span>
         <span></span>
       </div>
-      {rows.map((p) => (
-        <div
-          key={p.id}
-          data-testid={`fp-row-${p.id}`}
-          className={'fp-row fp-row-data' + (p.id === activePracticeId ? ' active' : '')}
-        >
-          <button
-            type="button"
-            className="fp-row-main"
-            onClick={() => onSelect(p.id)}
+      {rows.map((p) => {
+        const isEditing = editing?.id === p.id;
+        return (
+          <div
+            key={p.id}
+            data-testid={`fp-row-${p.id}`}
+            className={'fp-row fp-row-data' + (p.id === activePracticeId ? ' active' : '')}
           >
-            <span className="fp-name">{p.title}</span>
-            <span className="fp-thumb" aria-hidden="true" />
-            <span className="fp-meta">{p.folder ?? ''}</span>
-            <span className="fp-meta">{p.stems.length}</span>
-          </button>
-          <span className="fp-row-end">
-            {p.driveFolderId && (
-              <a
-                className="fp-drive-link"
-                href={`https://drive.google.com/drive/folders/${encodeURIComponent(p.driveFolderId)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                title="Open in Drive"
+            {isEditing ? (
+              <div className="fp-row-main fp-row-main-editing">
+                <input
+                  className="fp-name-input"
+                  aria-label="Rename practice"
+                  autoFocus
+                  value={editing!.draft}
+                  onChange={(e) => setEditing({ id: p.id, draft: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      commitEdit(p.id);
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setEditing(null);
+                    }
+                  }}
+                  onBlur={() => commitEdit(p.id)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <span className="fp-thumb" aria-hidden="true" />
+                <span className="fp-meta">{p.folder ?? ''}</span>
+                <span className="fp-meta">{p.stems.length}</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="fp-row-main"
+                onClick={() => onSelect(p.id)}
               >
-                ↗
-              </a>
+                <span className="fp-name">{p.title}</span>
+                <span className="fp-thumb" aria-hidden="true" />
+                <span className="fp-meta">{p.folder ?? ''}</span>
+                <span className="fp-meta">{p.stems.length}</span>
+              </button>
             )}
-          </span>
-        </div>
-      ))}
+            <span className="fp-row-end">
+              {!isEditing && (
+                <button
+                  type="button"
+                  className="fp-rename-btn"
+                  aria-label={`Rename ${p.title}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditing({ id: p.id, draft: p.title });
+                  }}
+                  title="Rename"
+                >
+                  ✎
+                </button>
+              )}
+              {p.driveFolderId && (
+                <a
+                  className="fp-drive-link"
+                  href={`https://drive.google.com/drive/folders/${encodeURIComponent(p.driveFolderId)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title="Open in Drive"
+                >
+                  ↗
+                </a>
+              )}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

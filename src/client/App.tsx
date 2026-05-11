@@ -472,6 +472,12 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
           setPracticesLoading(true);
           void refreshPractices().catch(() => {});
         }}
+        onRenamePractice={(id, name) => {
+          void renamePractice(id, name);
+        }}
+        onDeletePractice={(_id) => {
+          /* Task 16 will wire delete */
+        }}
       />
       {showUploadButton && activeBandId && (
         <UploadDrawer
