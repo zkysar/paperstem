@@ -1485,3 +1485,34 @@ body.env-non-prod[data-env="local"]::before {
   }
   .track-rail .vol-row { display: none; }
 }
+
+/* ===== CommentsFab ===== */
+.comments-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  border-radius: 999px;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 0.82rem;
+  box-shadow: 0 8px 20px -8px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.comments-fab:hover { background: #1a1815; }
+.comments-fab-star {
+  color: var(--accent);
+  font-size: 0.78rem;
+}
+.comments-fab-count {
+  background: rgba(255, 255, 255, 0.12);
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
