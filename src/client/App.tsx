@@ -281,6 +281,9 @@ function PaperstemApp({
         // the activePracticeId effect fires on the next render — keeps the UI
         // from briefly displaying the deleted practice's metadata.
         player.clear();
+        setActiveCommentId(null);
+        setPopoverAnchor(null);
+        setAnnotations([]);
       }
       try {
         await repo.deletePractice(id);
