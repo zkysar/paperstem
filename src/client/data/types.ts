@@ -2,10 +2,15 @@ export type Practice = {
   id: string;
   title: string;
   folder: string;
-  stems: string[];
+  stems: PracticeStem[];
   stemCount: number;
   driveFolderId: string | null;
   referenceStemId: string | null;
+};
+
+export type PracticeStem = {
+  id: string;
+  name: string;
 };
 
 export type PracticeSummary = {
