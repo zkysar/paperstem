@@ -1602,3 +1602,108 @@ body.env-non-prod[data-env="local"]::before {
   border-color: var(--ink);
 }
 .cp-edit-actions .cp-save:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ===== CommentBottomSheet ===== */
+.comment-sheet {
+  position: fixed;
+  left: 8px; right: 8px;
+  bottom: 8px;
+  z-index: 60;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 -12px 32px -8px rgba(60, 40, 20, 0.28);
+  padding: 8px 12px 10px;
+  font-size: 0.85rem;
+}
+.cs-handle {
+  width: 32px; height: 4px;
+  background: var(--rule);
+  border-radius: 2px;
+  margin: 2px auto 8px;
+}
+.cs-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.cs-avatar {
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  color: var(--paper);
+  font-size: 0.66rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cs-author { font-weight: 600; font-size: 0.82rem; }
+.cs-time { color: var(--muted); font-size: 0.78rem; margin-left: auto; }
+.cs-iconbtn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 3px;
+}
+.cs-iconbtn:hover { color: var(--ink); }
+.cs-star.on { color: var(--accent); }
+.cs-body {
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: var(--ink);
+  margin-bottom: 6px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.cs-actions { display: flex; gap: 4px; justify-content: flex-end; margin-bottom: 6px; }
+.cs-edit textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 0.86rem;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 6px 8px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.cs-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 6px;
+  margin-bottom: 6px;
+}
+.cs-edit-actions button {
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 6px 14px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  cursor: pointer;
+}
+.cs-edit-actions .cs-save {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.cs-edit-actions .cs-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.cs-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px dashed var(--rule);
+  padding-top: 6px;
+  margin-top: 4px;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+.cs-nav button {
+  background: transparent;
+  border: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+.cs-nav button:disabled { color: var(--muted-2); cursor: not-allowed; }
