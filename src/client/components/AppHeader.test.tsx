@@ -69,6 +69,24 @@ describe('AppHeader', () => {
     expect(onSignOut).toHaveBeenCalledOnce();
   });
 
+  it('avatar dropdown links the build version to GitHub', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<AppHeader {...baseProps} appVersion="dev-6237c11" />);
+    await user.click(screen.getByLabelText('Account'));
+    const devLink = screen.getByRole('link', { name: 'dev-6237c11' }) as HTMLAnchorElement;
+    expect(devLink.href).toBe('https://github.com/zkysar/paperstem/commit/6237c11');
+    expect(devLink.target).toBe('_blank');
+    expect(devLink.rel).toContain('noopener');
+
+    rerender(<AppHeader {...baseProps} appVersion="v1.2.3" />);
+    const tagLink = screen.getByRole('link', { name: 'v1.2.3' }) as HTMLAnchorElement;
+    expect(tagLink.href).toBe('https://github.com/zkysar/paperstem/tree/v1.2.3');
+
+    rerender(<AppHeader {...baseProps} appVersion="dev" />);
+    const fallback = screen.getByRole('link', { name: 'dev' }) as HTMLAnchorElement;
+    expect(fallback.href).toBe('https://github.com/zkysar/paperstem');
+  });
+
   it('clicking outside the avatar menu closes it', async () => {
     const user = userEvent.setup();
     render(

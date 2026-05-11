@@ -2,6 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ExternalLink, Library, MessageSquare } from 'lucide-react';
 import { fmt } from '../lib/format';
 
+const GITHUB_REPO_URL = 'https://github.com/zkysar/paperstem';
+
+function githubUrlForVersion(version: string): string {
+  const m = version.match(/^dev-([0-9a-f]{7,40})$/i);
+  if (m) return `${GITHUB_REPO_URL}/commit/${m[1]}`;
+  if (/^v\d/.test(version)) return `${GITHUB_REPO_URL}/tree/${encodeURIComponent(version)}`;
+  return GITHUB_REPO_URL;
+}
+
 type Props = {
   userEmail: string;
   userInitials: string;
@@ -171,9 +180,15 @@ export function AppHeader({
               Sign out
             </button>
             {appVersion && (
-              <div className="ah-avatar-version" title="Build version">
+              <a
+                className="ah-avatar-version"
+                href={githubUrlForVersion(appVersion)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="View this build on GitHub"
+              >
                 {appVersion}
-              </div>
+              </a>
             )}
           </div>
         )}
