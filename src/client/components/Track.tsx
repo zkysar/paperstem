@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import type { LoadedStem, WaveformNormalization } from '../data/types';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
@@ -11,11 +11,14 @@ type Props = {
   effectiveMuted: boolean;
   durationRef: number; // total song length, for clip width
   waveformNormalization: WaveformNormalization;
+  canMutate: boolean;
   onFocus(idx: number): void;
   onToggleMute(idx: number): void;
   onToggleSolo(idx: number): void;
   onSetVolume(idx: number, vol: number): void;
   onSeek(t: number): void;
+  onRenameStem(serverId: string, name: string): void;
+  onDeleteStem(serverId: string): void;
 };
 
 export function Track({
@@ -25,17 +28,47 @@ export function Track({
   effectiveMuted,
   durationRef,
   waveformNormalization,
+  canMutate,
   onFocus,
   onToggleMute,
   onToggleSolo,
   onSetVolume,
   onSeek,
+  onRenameStem,
+  onDeleteStem,
 }: Props) {
   const clipRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   // Read latest normalization in the create-effect without re-mounting on toggle.
   const normRef = useRef(waveformNormalization);
   normRef.current = waveformNormalization;
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(stem.displayName);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Keep the draft in sync if the underlying displayName changes from outside
+  // (e.g. an optimistic rename completing, or a different stem rendered into
+  // the same Track slot).
+  useEffect(() => {
+    setDraft(stem.displayName);
+  }, [stem.displayName]);
+
+  const nameEditable = canMutate && stem.serverId !== null;
+  const canDelete = canMutate && stem.serverId !== null;
+
+  function commitRename() {
+    setEditing(false);
+    const next = draft.trim();
+    if (!next || next === stem.displayName) return;
+    if (!stem.serverId) return;
+    onRenameStem(stem.serverId, next);
+  }
+
+  function cancelRename() {
+    setEditing(false);
+    setDraft(stem.displayName);
+  }
 
   // Attach WaveSurfer to the clip element. Re-creates when the audio element
   // changes (i.e. a new practice loads).
@@ -92,7 +125,7 @@ export function Track({
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     const target = e.target as HTMLElement;
-    if (target.closest('.pill, .vol-slider, .clip')) return;
+    if (target.closest('.pill, .vol-slider, .clip, .track-name-input, .track-name-editable')) return;
     onFocus(idx);
   }
 
@@ -101,9 +134,35 @@ export function Track({
       <div className="track-rail">
         <span className="swatch" style={{ background: stem.color }} title={stem.displayName} />
         <div className="track-info">
-          <span className="track-name" title={stem.displayName}>
-            {stem.displayName}
-          </span>
+          {editing && nameEditable ? (
+            <input
+              className="track-name-input"
+              aria-label="Rename stem"
+              value={draft}
+              autoFocus
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitRename();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancelRename();
+                }
+              }}
+              onBlur={commitRename}
+            />
+          ) : (
+            <span
+              className={'track-name' + (nameEditable ? ' track-name-editable' : '')}
+              title={nameEditable ? 'Click to rename' : stem.displayName}
+              onClick={() => {
+                if (nameEditable) setEditing(true);
+              }}
+            >
+              {stem.displayName}
+            </span>
+          )}
           <span className="vol-row">
             <input
               className={'vol-slider' + (stem.userVolume > VOLUME_UNITY ? ' boosted' : '')}
@@ -135,6 +194,18 @@ export function Track({
           >
             S
           </button>
+          <button
+            type="button"
+            className="pill trash"
+            aria-label={`Move ${stem.displayName} to trash`}
+            onClick={() => {
+              if (canDelete) setConfirmDelete(true);
+            }}
+            disabled={!canDelete}
+            title="Move to trash"
+          >
+            🗑
+          </button>
         </span>
       </div>
       <div className="wave">
@@ -144,6 +215,38 @@ export function Track({
           style={{ width: `${widthPct}%` }}
         />
       </div>
+      {confirmDelete && (
+        <div
+          className="fp-modal-scrim"
+          role="presentation"
+          onClick={() => setConfirmDelete(false)}
+        >
+          <div
+            className="fp-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3>Move "{stem.displayName}" to trash?</h3>
+            <p>You can restore from this band's trash for 30 days.</p>
+            <div className="fp-modal-actions">
+              <button type="button" onClick={() => setConfirmDelete(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger"
+                onClick={() => {
+                  if (stem.serverId) onDeleteStem(stem.serverId);
+                  setConfirmDelete(false);
+                }}
+              >
+                Move to trash
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

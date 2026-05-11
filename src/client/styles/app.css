@@ -202,6 +202,32 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.track-name-editable { cursor: text; }
+.track-name-editable:hover {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.track-name-input {
+  font: inherit;
+  font-size: 0.82rem;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 1px 4px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.pill.trash {
+  font-size: 0.7rem;
+  line-height: 1;
+}
+.pill.trash:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 .vol-row { display: flex; align-items: center; gap: 6px; }
 .vol-slider {
   flex: 1;

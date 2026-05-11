@@ -306,6 +306,39 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     [repo, loadTrash, activePracticeId],
   );
 
+  const renameStem = useCallback(
+    async (serverId: string, name: string) => {
+      if (!repo) return;
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      const prev = player.state.stems.find((s) => s.serverId === serverId)?.displayName;
+      player.renameStem(serverId, trimmed);
+      try {
+        await repo.renameStem(serverId, trimmed);
+      } catch (err) {
+        console.error('rename stem failed', err);
+        if (prev !== undefined) player.renameStem(serverId, prev);
+      }
+    },
+    [repo, player],
+  );
+
+  const deleteStem = useCallback(
+    async (serverId: string) => {
+      if (!repo) return;
+      player.removeStem(serverId);
+      try {
+        await repo.deleteStem(serverId);
+      } catch (err) {
+        console.error('delete stem failed', err);
+        // Best-effort recovery: re-trigger the active practice load so the
+        // server's truth replaces the optimistic removal.
+        if (activePracticeId) setActivePracticeId((cur) => cur);
+      }
+    },
+    [repo, player, activePracticeId],
+  );
+
   const renamePractice = useCallback(
     async (id: string, name: string) => {
       if (!repo) return;
@@ -343,6 +376,7 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
       const sources: StemSource[] = detail.stems.map((stemId) => ({
         name: stemId,
         src: `/api/audio/${encodeURIComponent(stemId)}`,
+        serverId: stemId,
       }));
       void player.load({
         practiceId: detail.id,
@@ -512,7 +546,10 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
             hoveredAnnotationId={hoveredAnnotationId}
             onHoverAnnotation={setHoveredAnnotationId}
             railCollapsed={railCollapsed}
+            canMutate={Boolean(activePracticeId)}
             onOpenPicker={openPicker}
+            onRenameStem={(id, name) => void renameStem(id, name)}
+            onDeleteStem={(id) => void deleteStem(id)}
           />
         </ErrorBoundary>
         <AnnotationsRail

@@ -44,6 +44,9 @@ export type LoadedStem = {
   soloed: boolean;
   userVolume: number;
   practiceId: string | null;
+  // Stem id from the API. Null for local-folder loads (the user picked a folder
+  // from disk; nothing to rename/delete server-side).
+  serverId: string | null;
   revoke?: () => void;
   // Per-track gain node in the Web Audio graph (source → gain → master → output).
   // Null if Web Audio is unavailable or wiring failed; the player falls back to
@@ -77,6 +80,9 @@ export type PlayerState = {
 export type StemSource = {
   name: string;
   src: string;
+  // Server-side stem id, if this source came from the API. Null for
+  // local-folder loads (no server stem to rename/delete).
+  serverId?: string | null;
   revoke?: () => void;
 };
 
