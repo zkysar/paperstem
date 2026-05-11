@@ -46,7 +46,8 @@ type Action =
   | { type: 'SET_MASTER_VOLUME'; vol: number }
   | { type: 'FOCUS'; idx: number }
   | { type: 'SET_STATUS'; status: string }
-  | { type: 'SET_WAVEFORM_NORM'; mode: WaveformNormalization };
+  | { type: 'SET_WAVEFORM_NORM'; mode: WaveformNormalization }
+  | { type: 'SET_TITLE'; title: string };
 
 const initialState: PlayerState = {
   practiceId: null,
@@ -112,6 +113,8 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       return { ...state, status: action.status };
     case 'SET_WAVEFORM_NORM':
       return { ...state, waveformNormalization: action.mode };
+    case 'SET_TITLE':
+      return { ...state, title: action.title };
   }
 }
 
@@ -145,6 +148,7 @@ export type PlayerControls = {
   focusStem(idx: number): void;
   setWaveformNormalization(mode: WaveformNormalization): void;
   toggleWaveformNormalization(): void;
+  setTitle(title: string): void;
 };
 
 export function usePlayer(): PlayerControls {
@@ -516,6 +520,10 @@ export function usePlayer(): PlayerControls {
     dispatch({ type: 'SET_WAVEFORM_NORM', mode: next });
   }, []);
 
+  const setTitle = useCallback((title: string) => {
+    dispatch({ type: 'SET_TITLE', title });
+  }, []);
+
   return {
     state,
     currentTime,
@@ -534,6 +542,7 @@ export function usePlayer(): PlayerControls {
     focusStem,
     setWaveformNormalization,
     toggleWaveformNormalization,
+    setTitle,
   };
 }
 

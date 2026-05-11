@@ -10,18 +10,27 @@ type Props = {
   driveFolderId: string | null;
   annotationsOpen: boolean;
   hasPractice: boolean;
+  canRename: boolean;
   onOpenPicker(): void;
   onToggleAnnotations(): void;
   onSignOut(): void;
+  onRenamePractice(name: string): void;
 };
 
 export function AppHeader({
   userEmail, userInitials, practiceTitle, stemCount, duration,
-  driveFolderId, annotationsOpen, hasPractice,
-  onOpenPicker, onToggleAnnotations, onSignOut,
+  driveFolderId, annotationsOpen, hasPractice, canRename,
+  onOpenPicker, onToggleAnnotations, onSignOut, onRenamePractice,
 }: Props) {
   const [avatarOpen, setAvatarOpen] = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(practiceTitle ?? '');
+
+  useEffect(() => {
+    setDraft(practiceTitle ?? '');
+  }, [practiceTitle]);
 
   useEffect(() => {
     if (!avatarOpen) return;
@@ -31,6 +40,20 @@ export function AppHeader({
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [avatarOpen]);
+
+  function commit() {
+    setEditing(false);
+    const next = draft.trim();
+    if (!next || next === practiceTitle) return;
+    onRenamePractice(next);
+  }
+
+  function cancel() {
+    setEditing(false);
+    setDraft(practiceTitle ?? '');
+  }
+
+  const titleEditable = hasPractice && canRename;
 
   return (
     <header className="app-header">
@@ -48,9 +71,33 @@ export function AppHeader({
       <div className="ah-title-block">
         <span className="ah-title-label">Practice</span>
         <span className="ah-title-row">
-          <span className="ah-title-name">
-            {practiceTitle ?? 'No practice'}
-          </span>
+          {editing && titleEditable ? (
+            <input
+              className="ah-title-input"
+              aria-label="Rename practice"
+              value={draft}
+              autoFocus
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commit();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancel();
+                }
+              }}
+              onBlur={commit}
+            />
+          ) : (
+            <span
+              className={'ah-title-name' + (titleEditable ? ' ah-title-name-editable' : '')}
+              onClick={() => { if (titleEditable) setEditing(true); }}
+              title={titleEditable ? 'Click to rename' : undefined}
+            >
+              {practiceTitle ?? 'No practice'}
+            </span>
+          )}
           <button
             type="button"
             className="ah-title-caret"

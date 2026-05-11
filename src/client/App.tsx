@@ -222,6 +222,30 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
     }
   }
 
+  const renamePractice = useCallback(
+    async (id: string, name: string) => {
+      if (!repo) return;
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      let prev: Practice[] = [];
+      setPractices((arr) => {
+        prev = arr;
+        return arr.map((p) => (p.id === id ? { ...p, title: trimmed } : p));
+      });
+      // Reflect the rename in the player title too (header reads player.state.title).
+      player.setTitle(trimmed);
+      try {
+        await repo.renamePractice(id, trimmed);
+      } catch (err) {
+        console.error('rename failed', err);
+        setPractices(prev);
+        const reverted = prev.find((p) => p.id === id);
+        if (reverted) player.setTitle(reverted.title);
+      }
+    },
+    [repo, player],
+  );
+
   async function selectPractice(id: string) {
     if (!repo) return;
     setActivePracticeId(id);
@@ -354,9 +378,13 @@ function PaperstemApp({ user, onLogout }: { user: User; onLogout: () => void }) 
         driveFolderId={player.state.driveFolderId ?? null}
         annotationsOpen={annotationsOpen}
         hasPractice={player.state.stems.length > 0}
+        canRename={Boolean(activePracticeId)}
         onOpenPicker={openPicker}
         onToggleAnnotations={toggleRail}
         onSignOut={onLogout}
+        onRenamePractice={(name) => {
+          if (activePracticeId) void renamePractice(activePracticeId, name);
+        }}
       />
       <AppToolbar
         hasPractice={player.state.stems.length > 0}

@@ -1074,6 +1074,23 @@ kbd {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   cursor: text;
 }
+.ah-title-name-editable { cursor: text; }
+.ah-title-name-editable:hover {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.ah-title-input {
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 2px 6px;
+  min-width: 0;
+}
 .ah-title-caret {
   background: transparent; border: none;
   color: var(--muted);
