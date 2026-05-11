@@ -569,7 +569,7 @@ function PaperstemApp({
         canCreateAnnotations={activePracticeId !== null}
         markersVisible={markersVisible}
         railCollapsed={railCollapsed}
-        showRailToggle={isWide}
+        showRailToggle={true}
         isWide={isWide}
         onSeek={player.seek}
         onTogglePlay={() => void player.togglePlay()}

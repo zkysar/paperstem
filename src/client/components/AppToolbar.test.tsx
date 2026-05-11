@@ -63,6 +63,20 @@ describe('AppToolbar', () => {
     expect(screen.queryByLabelText('Show track controls')).toBeNull();
   });
 
+  it('renders rail-toggle on narrow viewports when showRailToggle is true', () => {
+    // Stems live in the rail; narrow-viewport users still need a way to open
+    // it to access stem rename/delete actions.
+    render(
+      <AppToolbar
+        {...baseProps}
+        isWide={false}
+        railCollapsed={true}
+        showRailToggle={true}
+      />,
+    );
+    expect(screen.getByLabelText('Show track controls')).not.toBeNull();
+  });
+
   it('renders 0:00 / 0:00 when duration is 0', () => {
     render(<AppToolbar {...baseProps} hasPractice={false} duration={0} currentTime={0} />);
     expect(screen.getByText(/0:00 \/ 0:00/)).not.toBeNull();
