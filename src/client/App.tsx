@@ -313,6 +313,52 @@ function PaperstemApp({
     [repo, loadTrash],
   );
 
+  // Core: fetch a practice by id and populate player + annotations. Shared by
+  // selectPractice (user-driven switch) and reloadActive (refresh the current
+  // practice in place — used after stem restore / failed stem delete to bring
+  // server truth back into the player without resetting create-mode etc).
+  const loadPractice = useCallback(
+    async (id: string, opts: { resetUiState: boolean }) => {
+      if (!repo) return;
+      if (opts.resetUiState) {
+        setAnnotations([]);
+        setPendingDraft(null);
+        setAnnotationCreateMode(false);
+        setHighlightAnnotationId(null);
+      }
+      try {
+        const detail = await repo.getById(id);
+        setPractices((prev) => prev.map((p) => (p.id === detail.id ? detail : p)));
+        const sources: StemSource[] = detail.stems.map((stemId) => ({
+          name: stemId,
+          src: `/api/audio/${encodeURIComponent(stemId)}`,
+          serverId: stemId,
+        }));
+        void player.load({
+          practiceId: detail.id,
+          title: detail.title,
+          driveFolderId: detail.driveFolderId,
+          sources,
+        });
+        try {
+          const list = await listAnnotations(id);
+          setAnnotations(list);
+        } catch (err) {
+          console.error('Failed to load annotations:', err);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setLoadError(msg);
+      }
+    },
+    [repo, player],
+  );
+
+  const reloadActive = useCallback(async () => {
+    if (!activePracticeId) return;
+    await loadPractice(activePracticeId, { resetUiState: false });
+  }, [activePracticeId, loadPractice]);
+
   const restoreStem = useCallback(
     async (id: string) => {
       if (!repo) return;
@@ -323,11 +369,9 @@ function PaperstemApp({
         return;
       }
       await loadTrash();
-      if (activePracticeId) {
-        setActivePracticeId((cur) => cur);
-      }
+      await reloadActive();
     },
-    [repo, loadTrash, activePracticeId],
+    [repo, loadTrash, reloadActive],
   );
 
   const renameStem = useCallback(
@@ -355,12 +399,12 @@ function PaperstemApp({
         await repo.deleteStem(serverId);
       } catch (err) {
         console.error('delete stem failed', err);
-        // Best-effort recovery: re-trigger the active practice load so the
-        // server's truth replaces the optimistic removal.
-        if (activePracticeId) setActivePracticeId((cur) => cur);
+        // Best-effort recovery: re-load the active practice from the server so
+        // the optimistic removal is reverted with authoritative data.
+        await reloadActive();
       }
     },
-    [repo, player, activePracticeId],
+    [repo, player, reloadActive],
   );
 
   const renamePractice = useCallback(
@@ -387,38 +431,14 @@ function PaperstemApp({
     [repo, player],
   );
 
-  async function selectPractice(id: string) {
-    if (!repo) return;
-    setActivePracticeId(id);
-    setAnnotations([]);
-    setPendingDraft(null);
-    setAnnotationCreateMode(false);
-    setHighlightAnnotationId(null);
-    try {
-      const detail = await repo.getById(id);
-      setPractices((prev) => prev.map((p) => (p.id === detail.id ? detail : p)));
-      const sources: StemSource[] = detail.stems.map((stemId) => ({
-        name: stemId,
-        src: `/api/audio/${encodeURIComponent(stemId)}`,
-        serverId: stemId,
-      }));
-      void player.load({
-        practiceId: detail.id,
-        title: detail.title,
-        driveFolderId: detail.driveFolderId,
-        sources,
-      });
-      try {
-        const list = await listAnnotations(id);
-        setAnnotations(list);
-      } catch (err) {
-        console.error('Failed to load annotations:', err);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setLoadError(msg);
-    }
-  }
+  const selectPractice = useCallback(
+    async (id: string) => {
+      if (!repo) return;
+      setActivePracticeId(id);
+      await loadPractice(id, { resetUiState: true });
+    },
+    [repo, loadPractice],
+  );
 
   const handleAnnotationCreated = useCallback(
     (start_ms: number, end_ms: number | null) => {
