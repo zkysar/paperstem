@@ -295,6 +295,15 @@ function PaperstemApp({
     [],
   );
 
+  const handleAddButton = useCallback(() => {
+    if (railCollapsed) {
+      const startMs = Math.round(player.currentTime * 1000);
+      handleAnnotationCreated(startMs, null);
+    } else {
+      setAnnotationCreateMode((v) => !v);
+    }
+  }, [railCollapsed, player, handleAnnotationCreated]);
+
   const handleAnnotationSelected = useCallback(
     (annotation: Annotation) => {
       player.seek(annotation.start_ms / 1000);
@@ -466,7 +475,7 @@ function PaperstemApp({
         onToggleLoopEnabled={player.toggleLoopEnabled}
         onDownloadAll={onDownloadAll}
         onToggleWaveformNormalization={player.toggleWaveformNormalization}
-        onToggleAnnotationCreate={() => setAnnotationCreateMode((v) => !v)}
+        onToggleAnnotationCreate={handleAddButton}
         onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}
         onSetMasterVolume={player.setMasterVolume}
         onToggleRailCollapsed={() => setRailCollapsed((v) => !v)}
