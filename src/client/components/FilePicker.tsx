@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Practice } from '../data/types';
+import type { Practice, TrashList } from '../data/types';
 import { AUDIO_EXT } from '../lib/audio';
 import { WaveformThumb } from './WaveformThumb';
 
-type Tab = 'recent' | 'all' | 'local';
+type Tab = 'recent' | 'all' | 'trash' | 'local';
 
 type Props = {
   open: boolean;
@@ -17,24 +17,42 @@ type Props = {
   onLoadFolder(files: File[], folderName: string): void;
   onUploadClick(): void;
   onRetry(): void;
+  onRenamePractice(id: string, name: string): void;
+  onDeletePractice(id: string): void;
+  trash: TrashList | null;
+  trashError: string | null;
+  onLoadTrash(): void;
+  onRestorePractice(id: string): void;
+  onRestoreStem(id: string): void;
 };
 
 export function FilePicker({
   open, loading, loadError, practices, activePracticeId, showUpload,
   onClose, onSelect, onLoadFolder, onUploadClick, onRetry,
+  onRenamePractice, onDeletePractice,
+  trash, trashError, onLoadTrash, onRestorePractice, onRestoreStem,
 }: Props) {
   const [tab, setTab] = useState<Tab>('recent');
   const [search, setSearch] = useState('');
+  const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        // If a confirm modal is open, Esc dismisses just that modal — keep
+        // the picker open so the user doesn't lose context after backing out.
+        if (confirm) {
+          setConfirm(null);
+          return;
+        }
+        onClose();
+      }
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  }, [open, onClose, confirm]);
 
   if (!open) return null;
 
@@ -102,6 +120,17 @@ export function FilePicker({
           <button
             type="button"
             role="tab"
+            data-tab="trash"
+            aria-selected={tab === 'trash'}
+            className={'fp-tab' + (tab === 'trash' ? ' active' : '')}
+            onClick={() => {
+              setTab('trash');
+              if (trash === null) onLoadTrash();
+            }}
+          >Trash</button>
+          <button
+            type="button"
+            role="tab"
             data-tab="local"
             aria-selected={tab === 'local'}
             className={'fp-tab' + (tab === 'local' ? ' active' : '')}
@@ -117,18 +146,67 @@ export function FilePicker({
           {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
           multiple hidden onChange={onFolderPicked}
         />
-        <FilePickerBody
-          tab={tab} search={search}
-          loading={loading} loadError={loadError}
-          practices={practices} activePracticeId={activePracticeId}
-          showUpload={showUpload}
-          onSelect={onSelect}
-          onUploadClick={onUploadClick}
-          onRetry={onRetry}
-        />
-        {showUpload && (
+        {tab === 'trash' ? (
+          <TrashBody
+            trash={trash}
+            trashError={trashError}
+            onRetry={onLoadTrash}
+            onRestorePractice={onRestorePractice}
+            onRestoreStem={onRestoreStem}
+          />
+        ) : (
+          <FilePickerBody
+            tab={tab} search={search}
+            loading={loading} loadError={loadError}
+            practices={practices} activePracticeId={activePracticeId}
+            showUpload={showUpload}
+            onSelect={onSelect}
+            onUploadClick={onUploadClick}
+            onRetry={onRetry}
+            onRenamePractice={onRenamePractice}
+            onRequestDelete={(id, name) => setConfirm({ id, name })}
+          />
+        )}
+        {showUpload && tab !== 'trash' && (
           <div className="fp-upload-bottom">
             <button type="button" onClick={onUploadClick}>+ Upload practice</button>
+          </div>
+        )}
+        {confirm && (
+          <div
+            className="fp-modal-scrim"
+            role="presentation"
+            onClick={() => setConfirm(null)}
+          >
+            <div
+              className="fp-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="fp-modal-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 id="fp-modal-title">Move "{confirm.name}" to trash?</h3>
+              <p>You can restore from this band's trash for 30 days.</p>
+              <div className="fp-modal-actions">
+                <button
+                  type="button"
+                  autoFocus
+                  onClick={() => setConfirm(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => {
+                    onDeletePractice(confirm.id);
+                    setConfirm(null);
+                  }}
+                >
+                  Move to trash
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -138,7 +216,7 @@ export function FilePicker({
 
 function FilePickerBody({
   search, practices, activePracticeId, loading, loadError, showUpload,
-  onSelect, onUploadClick, onRetry,
+  onSelect, onUploadClick, onRetry, onRenamePractice, onRequestDelete,
 }: {
   tab: Tab;
   search: string;
@@ -150,7 +228,19 @@ function FilePickerBody({
   onSelect(id: string): void;
   onUploadClick(): void;
   onRetry(): void;
+  onRenamePractice(id: string, name: string): void;
+  onRequestDelete(id: string, name: string): void;
 }) {
+  const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
+
+  function commitEdit(id: string) {
+    if (!editing || editing.id !== id) return;
+    const next = editing.draft.trim();
+    setEditing(null);
+    const original = practices.find((p) => p.id === id);
+    if (!next || next === original?.title) return;
+    onRenamePractice(id, next);
+  }
   if (loadError) {
     return (
       <div className="fp-body fp-state">
@@ -212,36 +302,175 @@ function FilePickerBody({
         <span>Stems</span>
         <span></span>
       </div>
-      {rows.map((p) => (
-        <div
-          key={p.id}
-          data-testid={`fp-row-${p.id}`}
-          className={'fp-row fp-row-data' + (p.id === activePracticeId ? ' active' : '')}
-        >
+      {rows.map((p) => {
+        const isEditing = editing?.id === p.id;
+        return (
+          <div
+            key={p.id}
+            data-testid={`fp-row-${p.id}`}
+            className={'fp-row fp-row-data' + (p.id === activePracticeId ? ' active' : '')}
+          >
+            {isEditing ? (
+              <div className="fp-row-main fp-row-main-editing">
+                <input
+                  className="fp-name-input"
+                  aria-label="Rename practice"
+                  autoFocus
+                  value={editing!.draft}
+                  onChange={(e) => setEditing({ id: p.id, draft: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      commitEdit(p.id);
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setEditing(null);
+                    }
+                  }}
+                  onBlur={() => commitEdit(p.id)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <WaveformThumb stemId={p.referenceStemId} />
+                <span className="fp-meta">{p.folder ?? ''}</span>
+                <span className="fp-meta">{p.stemCount}</span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="fp-row-main"
+                onClick={() => onSelect(p.id)}
+              >
+                <span className="fp-name">{p.title}</span>
+                <WaveformThumb stemId={p.referenceStemId} />
+                <span className="fp-meta">{p.folder ?? ''}</span>
+                <span className="fp-meta">{p.stemCount}</span>
+              </button>
+            )}
+            <span className="fp-row-end">
+              {!isEditing && (
+                <button
+                  type="button"
+                  className="fp-rename-btn"
+                  aria-label={`Rename ${p.title}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditing({ id: p.id, draft: p.title });
+                  }}
+                  title="Rename"
+                >
+                  ✎
+                </button>
+              )}
+              {p.driveFolderId && (
+                <a
+                  className="fp-drive-link"
+                  href={`https://drive.google.com/drive/folders/${encodeURIComponent(p.driveFolderId)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  title="Open in Drive"
+                >
+                  ↗
+                </a>
+              )}
+              {!isEditing && (
+                <button
+                  type="button"
+                  className="fp-trash-btn"
+                  aria-label={`Move ${p.title} to trash`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRequestDelete(p.id, p.title);
+                  }}
+                  title="Move to trash"
+                >
+                  🗑
+                </button>
+              )}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TrashBody({
+  trash, trashError, onRetry, onRestorePractice, onRestoreStem,
+}: {
+  trash: TrashList | null;
+  trashError: string | null;
+  onRetry(): void;
+  onRestorePractice(id: string): void;
+  onRestoreStem(id: string): void;
+}) {
+  if (trashError) {
+    return (
+      <div className="fp-body fp-state">
+        <p className="fp-state-msg">Couldn't load trash ({trashError}).</p>
+        <button type="button" className="fp-state-action" onClick={onRetry}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+  if (!trash) {
+    return (
+      <div className="fp-body fp-state">
+        <p className="fp-state-msg">Loading…</p>
+      </div>
+    );
+  }
+  if (!trash.practices.length && !trash.stems.length) {
+    return (
+      <div className="fp-body fp-state">
+        <p className="fp-state-msg">Trash is empty.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="fp-body">
+      <div className="fp-row fp-row-head" role="row">
+        <span>Name</span>
+        <span>Type</span>
+        <span>Deleted by</span>
+        <span>Status</span>
+        <span></span>
+      </div>
+      {trash.practices.map((p) => (
+        <div key={`p-${p.id}`} className="fp-row fp-row-data">
+          <span className="fp-name">{p.name}</span>
+          <span className="fp-meta">Practice</span>
+          <span className="fp-meta">{p.deleted_by_email ?? '—'}</span>
+          <span className="fp-meta">
+            {p.deleted_reason === 'drive_missing' ? 'Drive file missing' : ''}
+          </span>
           <button
             type="button"
-            className="fp-row-main"
-            onClick={() => onSelect(p.id)}
+            aria-label={`Restore ${p.name}`}
+            disabled={p.deleted_reason === 'drive_missing'}
+            onClick={() => onRestorePractice(p.id)}
           >
-            <span className="fp-name">{p.title}</span>
-            <WaveformThumb stemId={p.referenceStemId} />
-            <span className="fp-meta">{p.folder ?? ''}</span>
-            <span className="fp-meta">{p.stemCount}</span>
+            Restore
           </button>
-          <span className="fp-row-end">
-            {p.driveFolderId && (
-              <a
-                className="fp-drive-link"
-                href={`https://drive.google.com/drive/folders/${encodeURIComponent(p.driveFolderId)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                title="Open in Drive"
-              >
-                ↗
-              </a>
-            )}
+        </div>
+      ))}
+      {trash.stems.map((s) => (
+        <div key={`s-${s.id}`} className="fp-row fp-row-data">
+          <span className="fp-name">{s.name}</span>
+          <span className="fp-meta">Stem · {s.practice_name}</span>
+          <span className="fp-meta">{s.deleted_by_email ?? '—'}</span>
+          <span className="fp-meta">
+            {s.deleted_reason === 'drive_missing' ? 'Drive file missing' : ''}
           </span>
+          <button
+            type="button"
+            aria-label={`Restore ${s.name}`}
+            disabled={s.deleted_reason === 'drive_missing'}
+            onClick={() => onRestoreStem(s.id)}
+          >
+            Restore
+          </button>
         </div>
       ))}
     </div>

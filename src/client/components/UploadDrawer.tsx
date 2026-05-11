@@ -75,7 +75,6 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(defaultPracticeName());
   const [recordedOn, setRecordedOn] = useState(todayIso());
-  const [referenceStem, setReferenceStem] = useState('');
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
@@ -84,7 +83,6 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
     if (!open) {
       setName(defaultPracticeName());
       setRecordedOn(todayIso());
-      setReferenceStem('');
       setFiles([]);
       setSubmitting(false);
       setTopError(null);
@@ -120,10 +118,6 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
         error: null,
       })),
     );
-    if (referenceStem === '' && audio.length > 0) {
-      const first = audio[0].name.replace(/\.[^.]+$/, '');
-      setReferenceStem(first);
-    }
   }
 
   function updateFile(index: number, patch: Partial<FileEntry>) {
@@ -140,7 +134,6 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
       name: trimmedName,
     };
     if (recordedOn) practiceBody.recorded_on = recordedOn;
-    if (referenceStem) practiceBody.reference_stem = referenceStem;
 
     let practiceId: string;
     try {
@@ -280,27 +273,6 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
               disabled={submitting}
             />
           </label>
-
-          {files.length > 0 && (
-            <label className="upload-field">
-              <span>Reference stem (optional)</span>
-              <select
-                value={referenceStem}
-                onChange={(e) => setReferenceStem(e.target.value)}
-                disabled={submitting}
-              >
-                <option value="">(none)</option>
-                {files.map((f) => {
-                  const stemName = f.file.name.replace(/\.[^.]+$/, '');
-                  return (
-                    <option key={f.file.name} value={stemName}>
-                      {stemName}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
-          )}
 
           {files.length > 0 && (
             <ul className="upload-file-list">

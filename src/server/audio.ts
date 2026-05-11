@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import { stmts } from './db.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
-import { getDriveFile } from './drive.js';
+import { DriveNotFoundError, getDriveFile } from './drive.js';
 
 const FORWARD_HEADERS = [
   'content-type',
@@ -29,6 +29,11 @@ export async function handleGetAudio(
   try {
     upstream = await getDriveFile(stem.drive_file_id, range);
   } catch (err) {
+    if (err instanceof DriveNotFoundError) {
+      stmts.markStemGhost.run(Math.floor(Date.now() / 1000), stemId);
+      console.warn('[audio] drive 404, marked stem as drive_missing', { stemId });
+      return c.json({ error: 'drive_missing' }, 410);
+    }
     console.error('[audio] drive fetch failed', { stemId, err });
     return c.json({ error: 'upstream_error' }, 502);
   }

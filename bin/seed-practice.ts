@@ -20,8 +20,6 @@ const { values } = parseArgs({
     name: { type: 'string' },
     'recorded-on': { type: 'string' },
     files: { type: 'string' },
-    bpm: { type: 'string' },
-    'reference-stem': { type: 'string' },
   },
   strict: true,
 });
@@ -30,20 +28,12 @@ const bandId = values['band-id']?.trim();
 const practiceName = values.name?.trim();
 const recordedOn = values['recorded-on']?.trim() || null;
 const filesArg = values.files?.trim() ?? '';
-const bpmRaw = values.bpm?.trim();
-const referenceStem = values['reference-stem']?.trim() || null;
 
 if (!bandId || !practiceName || !filesArg) {
   console.error(
     'Usage: tsx bin/seed-practice.ts --band-id <uuid> --name <name> ' +
-      '--files a.mp3,b.mp3 [--recorded-on YYYY-MM-DD] [--bpm 120] [--reference-stem drums]',
+      '--files a.mp3,b.mp3 [--recorded-on YYYY-MM-DD]',
   );
-  process.exit(1);
-}
-
-const bpm = bpmRaw ? Number(bpmRaw) : null;
-if (bpm !== null && !Number.isFinite(bpm)) {
-  console.error(`Invalid --bpm: ${bpmRaw}`);
   process.exit(1);
 }
 
@@ -88,8 +78,6 @@ stmts.insertPractice.run(
   practiceName,
   recordedOn,
   practiceFolder.id,
-  bpm,
-  referenceStem,
   null,
   now,
   owner.id,

@@ -13,9 +13,18 @@ import { handleListBands, handleGetBand } from './bands.js';
 import {
   handleCreatePractice,
   handleCreateStem,
+  handleDeletePractice,
   handleGetPractice,
   handleListPractices,
+  handleRenamePractice,
+  handleRestorePractice,
 } from './practices.js';
+import {
+  handleDeleteStem,
+  handleRenameStem,
+  handleRestoreStem,
+} from './stems.js';
+import { handleListTrash } from './trash.js';
 import { handleGetAudio } from './audio.js';
 import {
   handleCreateAnnotation,
@@ -50,7 +59,14 @@ app.get('/api/bands/:id', handleGetBand);
 app.get('/api/practices', handleListPractices);
 app.get('/api/practices/:id', handleGetPractice);
 app.post('/api/practices', handleCreatePractice);
+app.patch('/api/practices/:id', handleRenamePractice);
+app.delete('/api/practices/:id', handleDeletePractice);
+app.post('/api/practices/:id/restore', handleRestorePractice);
 app.post('/api/practices/:id/stems', handleCreateStem);
+app.patch('/api/stems/:id', handleRenameStem);
+app.delete('/api/stems/:id', handleDeleteStem);
+app.post('/api/stems/:id/restore', handleRestoreStem);
+app.get('/api/bands/:id/trash', handleListTrash);
 app.get('/api/audio/:stem_id', handleGetAudio);
 app.get('/api/practices/:id/annotations', handleListAnnotations);
 app.post('/api/practices/:id/annotations', handleCreateAnnotation);

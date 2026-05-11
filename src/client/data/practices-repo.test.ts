@@ -21,8 +21,6 @@ describe('HttpPracticesRepo.list', () => {
               id: 'p1',
               name: 'Practice One',
               recorded_on: '2026-05-01',
-              bpm: null,
-              reference_stem: null,
               created_at: 0,
               updated_at: 0,
             },
@@ -68,8 +66,6 @@ describe('HttpPracticesRepo.list', () => {
               id: 'p1',
               name: 'Practice One',
               recorded_on: '2026-05-01',
-              bpm: null,
-              reference_stem: null,
               drive_folder_id: 'drive-xyz',
               created_at: 0,
               updated_at: 0,
@@ -96,8 +92,6 @@ describe('HttpPracticesRepo.getById', () => {
             name: 'Practice One',
             recorded_on: '2026-05-01',
             drive_folder_id: 'drv',
-            bpm: null,
-            reference_stem: null,
             notes: null,
             created_at: 0,
             created_by: 'u1',
@@ -116,7 +110,10 @@ describe('HttpPracticesRepo.getById', () => {
     expect(fetchSpy.mock.calls[0][0]).toBe('/api/practices/p1');
     expect(p.id).toBe('p1');
     expect(p.title).toBe('Practice One');
-    expect(p.stems).toEqual(['s1', 's2']);
+    expect(p.stems).toEqual([
+      { id: 's1', name: 'drums' },
+      { id: 's2', name: 'bass' },
+    ]);
     expect(p.driveFolderId).toBe('drv');
   });
 });

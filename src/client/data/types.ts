@@ -2,23 +2,26 @@ export type Practice = {
   id: string;
   title: string;
   folder: string;
-  stems: string[];
+  stems: PracticeStem[];
   stemCount: number;
   driveFolderId: string | null;
   referenceStemId: string | null;
+};
+
+export type PracticeStem = {
+  id: string;
+  name: string;
 };
 
 export type PracticeSummary = {
   id: string;
   name: string;
   recorded_on: string | null;
-  bpm: number | null;
-  reference_stem: string | null;
-  reference_stem_id: string | null;
   drive_folder_id: string | null;
   created_at: number;
   updated_at: number;
   stem_count: number;
+  reference_stem_id: string | null;
 };
 
 export type StemSummary = {
@@ -35,8 +38,6 @@ export type PracticeDetail = {
   name: string;
   recorded_on: string | null;
   drive_folder_id: string;
-  bpm: number | null;
-  reference_stem: string | null;
   notes: string | null;
   created_at: number;
   created_by: string;
@@ -52,6 +53,9 @@ export type LoadedStem = {
   soloed: boolean;
   userVolume: number;
   practiceId: string | null;
+  // Stem id from the API. Null for local-folder loads (the user picked a folder
+  // from disk; nothing to rename/delete server-side).
+  serverId: string | null;
   revoke?: () => void;
   // Per-track gain node in the Web Audio graph (source → gain → master → output).
   // Null if Web Audio is unavailable or wiring failed; the player falls back to
@@ -85,10 +89,36 @@ export type PlayerState = {
 export type StemSource = {
   name: string;
   src: string;
+  // Server-side stem id, if this source came from the API. Null for
+  // local-folder loads (no server stem to rename/delete).
+  serverId?: string | null;
   revoke?: () => void;
 };
 
 export type LoadContext = {
   practiceId: string | null;
   title: string;
+};
+
+export type TrashPractice = {
+  id: string;
+  name: string;
+  deleted_at: number;
+  deleted_by_email: string | null;
+  deleted_reason: 'user' | 'drive_missing';
+};
+
+export type TrashStem = {
+  id: string;
+  name: string;
+  practice_id: string;
+  practice_name: string;
+  deleted_at: number;
+  deleted_by_email: string | null;
+  deleted_reason: 'user' | 'drive_missing';
+};
+
+export type TrashList = {
+  practices: TrashPractice[];
+  stems: TrashStem[];
 };

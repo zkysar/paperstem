@@ -197,6 +197,45 @@ kbd {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* When rendered as a <button> (the editable rename trigger), strip the
+   default control chrome so it visually matches the span variant. */
+button.track-name {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
+button.track-name:disabled { cursor: default; }
+.track-name-editable { cursor: text; }
+.track-name-editable:hover {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.track-name-input {
+  font: inherit;
+  font-size: 0.82rem;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 1px 4px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.pill.trash {
+  font-size: 0.7rem;
+  line-height: 1;
+}
+.pill.trash:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 .vol-row { display: flex; align-items: center; gap: 6px; }
 .vol-slider {
   flex: 1;
@@ -284,6 +323,29 @@ kbd {
 .clip.loading.muted {
   opacity: 0;
   transition: none;
+}
+
+/* ===== Unavailable stem (audio file missing in Drive) ===== */
+.track-rail-unavailable { opacity: 0.55; }
+.swatch-muted {
+  width: 6px;
+  height: 24px;
+  border-radius: 2px;
+  background: #555;
+}
+.track-name.muted { color: #888; }
+.track-meta-muted { font-size: 11px; color: #888; }
+.wave-unavailable {
+  position: absolute;
+  top: 4px; bottom: 4px;
+  left: 0;
+  border-radius: 3px;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.04) 0 6px,
+    transparent 6px 12px
+  );
+  border: 1px dashed rgba(255, 255, 255, 0.12);
 }
 
 /* ===== Overlays (playhead, loop region) ===== */
@@ -815,6 +877,38 @@ kbd {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   cursor: text;
 }
+/* The header rename trigger renders as a <button> for keyboard a11y; strip
+   the default control chrome so it matches the previous span styling. */
+button.ah-title-name {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
+button.ah-title-name:disabled { cursor: default; }
+.ah-title-name-editable { cursor: text; }
+.ah-title-name-editable:hover {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.ah-title-input {
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 2px 6px;
+  min-width: 0;
+}
 .ah-title-caret {
   background: transparent; border: none;
   color: var(--muted);
@@ -1050,7 +1144,7 @@ body.env-non-prod[data-env="local"]::before {
 }
 .fp-row {
   display: grid;
-  grid-template-columns: 1fr 110px 100px 50px 32px;
+  grid-template-columns: 1fr 110px 100px 50px 60px;
   gap: 12px;
   align-items: center;
   padding: 9px 16px;
@@ -1092,7 +1186,7 @@ body.env-non-prod[data-env="local"]::before {
   height: 18px;
   color: var(--accent);
 }
-.fp-row-end { display: flex; align-items: center; justify-content: center; }
+.fp-row-end { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
 .fp-drive-link {
   width: 24px; height: 24px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -1100,6 +1194,82 @@ body.env-non-prod[data-env="local"]::before {
   border-radius: 4px;
 }
 .fp-drive-link:hover { background: var(--rule-2); color: var(--ink); }
+.fp-rename-btn {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; padding: 0;
+  color: var(--ink-2); cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.85rem; line-height: 1;
+}
+.fp-rename-btn:hover { background: var(--rule-2); color: var(--ink); }
+.fp-trash-btn {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; padding: 0;
+  color: var(--ink-2); cursor: pointer;
+  border-radius: 4px;
+  font-size: 0.85rem; line-height: 1;
+}
+.fp-trash-btn:hover { background: var(--rule-2); color: var(--ink); }
+.fp-modal-scrim {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+.fp-modal {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 20px 22px;
+  max-width: 420px;
+  width: calc(100% - 32px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+.fp-modal h3 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+.fp-modal p {
+  margin: 0 0 16px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.fp-modal-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+.fp-modal-actions button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.fp-modal-actions button:hover { background: var(--rule-2); }
+.fp-modal-actions button.danger {
+  background: #c0392b;
+  border-color: #c0392b;
+  color: #fff;
+}
+.fp-modal-actions button.danger:hover { background: #a93226; border-color: #a93226; }
+.fp-row-main-editing {
+  display: contents;
+}
+.fp-name-input {
+  font: inherit; font-size: 0.82rem; font-weight: 600;
+  padding: 2px 4px;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--ink);
+  width: 100%;
+  box-sizing: border-box;
+}
 .fp-state {
   padding: 36px 16px;
   text-align: center;

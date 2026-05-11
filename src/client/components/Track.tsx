@@ -11,11 +11,14 @@ type Props = {
   effectiveMuted: boolean;
   durationRef: number; // total song length, for clip width
   waveformNormalization: WaveformNormalization;
+  canMutate: boolean;
   onFocus(idx: number): void;
   onToggleMute(idx: number): void;
   onToggleSolo(idx: number): void;
   onSetVolume(idx: number, vol: number): void;
   onSeek(t: number): void;
+  onRenameStem(serverId: string, name: string): void;
+  onDeleteStem(serverId: string): void;
 };
 
 export function Track({
@@ -25,11 +28,14 @@ export function Track({
   effectiveMuted,
   durationRef,
   waveformNormalization,
+  canMutate,
   onFocus,
   onToggleMute,
   onToggleSolo,
   onSetVolume,
   onSeek,
+  onRenameStem,
+  onDeleteStem,
 }: Props) {
   const clipRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
@@ -37,6 +43,57 @@ export function Track({
   // Read latest normalization in the create-effect without re-mounting on toggle.
   const normRef = useRef(waveformNormalization);
   normRef.current = waveformNormalization;
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(stem.displayName);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
+
+  // Esc dismisses the delete-confirm modal when it's open.
+  useEffect(() => {
+    if (!confirmDelete) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setConfirmDelete(false);
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [confirmDelete]);
+
+  // Watch the audio element for load failures (e.g. server returns 410 for a
+  // ghost stem whose Drive file was deleted out-of-band).
+  useEffect(() => {
+    function onErr() {
+      setUnavailable(true);
+    }
+    setUnavailable(false);
+    stem.audio.addEventListener('error', onErr);
+    return () => {
+      stem.audio.removeEventListener('error', onErr);
+    };
+  }, [stem.audio]);
+
+  // Keep the draft in sync if the underlying displayName changes from outside
+  // (e.g. an optimistic rename completing, or a different stem rendered into
+  // the same Track slot).
+  useEffect(() => {
+    setDraft(stem.displayName);
+  }, [stem.displayName]);
+
+  const nameEditable = canMutate && stem.serverId !== null;
+  const canDelete = canMutate && stem.serverId !== null;
+
+  function commitRename() {
+    setEditing(false);
+    const next = draft.trim();
+    if (!next || next === stem.displayName) return;
+    if (!stem.serverId) return;
+    onRenameStem(stem.serverId, next);
+  }
+
+  function cancelRename() {
+    setEditing(false);
+    setDraft(stem.displayName);
+  }
 
   // Attach WaveSurfer to the clip element. Re-creates when the audio element
   // changes (i.e. a new practice loads).
@@ -65,7 +122,7 @@ export function Track({
     }
     wsRef.current = ws;
     const off = ws.on('interaction', (t: number) => onSeek(t));
-    const errOff = ws.on('error', () => {});
+    const errOff = ws.on('error', () => setUnavailable(true));
     // Wait for initial render + a frame so the layout-settle redraw happens
     // before we fade the waveform in. Avoids the "jump to fit" flash.
     let raf = 0;
@@ -137,58 +194,166 @@ export function Track({
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
     const target = e.target as HTMLElement;
-    if (target.closest('.pill, .vol-slider, .clip')) return;
+    if (target.closest('.pill, .vol-slider, .clip, .track-name-input, .track-name-editable')) return;
     onFocus(idx);
   }
 
   return (
     <div className={'track' + (focused ? ' focused' : '')} onPointerDown={handlePointerDown}>
-      <div className="track-rail">
-        <span className="swatch" style={{ background: stem.color }} title={stem.displayName} />
-        <div className="track-info">
-          <span className="track-name" title={stem.displayName}>
-            {stem.displayName}
-          </span>
-          <span className="vol-row">
-            <input
-              className={'vol-slider' + (stem.userVolume > VOLUME_UNITY ? ' boosted' : '')}
-              type="range"
-              min={0}
-              max={VOLUME_MAX}
-              step={1}
-              value={stem.userVolume}
-              onChange={(e) => onSetVolume(idx, parseInt(e.target.value, 10))}
-              title={`${stem.userVolume}% (${VOLUME_UNITY}% = unity, ${VOLUME_MAX}% = +12 dB)`}
-              aria-label={`${stem.displayName} volume`}
-              onDoubleClick={() => onSetVolume(idx, VOLUME_UNITY)}
-            />
-            <span className="vol-num">{stem.userVolume}</span>
+      {unavailable ? (
+        <div className="track-rail track-rail-unavailable">
+          <span className="swatch swatch-muted" />
+          <div className="track-info">
+            <span className="track-name muted" title={stem.displayName}>
+              {stem.displayName}
+            </span>
+            <span className="track-meta-muted">
+              Stem unavailable — the audio file is missing in Drive.
+            </span>
+          </div>
+          <span className="ms-pills">
+            <button
+              type="button"
+              className="pill trash"
+              aria-label={`Move ${stem.displayName} to trash`}
+              onClick={() => {
+                if (canDelete) setConfirmDelete(true);
+              }}
+              disabled={!canDelete}
+              title="Move to trash"
+            >
+              🗑
+            </button>
           </span>
         </div>
-        <span className="ms-pills">
-          <button
-            type="button"
-            className={'pill mute' + (stem.userMuted ? ' on' : '')}
-            onClick={() => onToggleMute(idx)}
-          >
-            M
-          </button>
-          <button
-            type="button"
-            className={'pill solo' + (stem.soloed ? ' on' : '')}
-            onClick={() => onToggleSolo(idx)}
-          >
-            S
-          </button>
-        </span>
-      </div>
+      ) : (
+        <div className="track-rail">
+          <span className="swatch" style={{ background: stem.color }} title={stem.displayName} />
+          <div className="track-info">
+            {editing && nameEditable ? (
+              <input
+                className="track-name-input"
+                aria-label="Rename stem"
+                value={draft}
+                autoFocus
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitRename();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelRename();
+                  }
+                }}
+                onBlur={commitRename}
+              />
+            ) : (
+              <button
+                type="button"
+                className={'track-name' + (nameEditable ? ' track-name-editable' : '')}
+                title={nameEditable ? 'Click to rename' : stem.displayName}
+                onClick={() => {
+                  if (nameEditable) setEditing(true);
+                }}
+                disabled={!nameEditable}
+              >
+                {stem.displayName}
+              </button>
+            )}
+            <span className="vol-row">
+              <input
+                className={'vol-slider' + (stem.userVolume > VOLUME_UNITY ? ' boosted' : '')}
+                type="range"
+                min={0}
+                max={VOLUME_MAX}
+                step={1}
+                value={stem.userVolume}
+                onChange={(e) => onSetVolume(idx, parseInt(e.target.value, 10))}
+                title={`${stem.userVolume}% (${VOLUME_UNITY}% = unity, ${VOLUME_MAX}% = +12 dB)`}
+                aria-label={`${stem.displayName} volume`}
+                onDoubleClick={() => onSetVolume(idx, VOLUME_UNITY)}
+              />
+              <span className="vol-num">{stem.userVolume}</span>
+            </span>
+          </div>
+          <span className="ms-pills">
+            <button
+              type="button"
+              className={'pill mute' + (stem.userMuted ? ' on' : '')}
+              onClick={() => onToggleMute(idx)}
+            >
+              M
+            </button>
+            <button
+              type="button"
+              className={'pill solo' + (stem.soloed ? ' on' : '')}
+              onClick={() => onToggleSolo(idx)}
+            >
+              S
+            </button>
+            <button
+              type="button"
+              className="pill trash"
+              aria-label={`Move ${stem.displayName} to trash`}
+              onClick={() => {
+                if (canDelete) setConfirmDelete(true);
+              }}
+              disabled={!canDelete}
+              title="Move to trash"
+            >
+              🗑
+            </button>
+          </span>
+        </div>
+      )}
       <div className="wave">
-        <div
-          ref={clipRef}
-          className={'clip' + (effectiveMuted ? ' muted' : '') + (waveLoading ? ' loading' : '')}
-          style={{ width: `${widthPct}%` }}
-        />
+        {unavailable ? (
+          <div className="wave-unavailable" style={{ width: `${widthPct}%` }} />
+        ) : (
+          <div
+            ref={clipRef}
+            className={'clip' + (effectiveMuted ? ' muted' : '') + (waveLoading ? ' loading' : '')}
+            style={{ width: `${widthPct}%` }}
+          />
+        )}
       </div>
+      {confirmDelete && (
+        <div
+          className="fp-modal-scrim"
+          role="presentation"
+          onClick={() => setConfirmDelete(false)}
+        >
+          <div
+            className="fp-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3>Move "{stem.displayName}" to trash?</h3>
+            <p>You can restore from this band's trash for 30 days.</p>
+            <div className="fp-modal-actions">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger"
+                onClick={() => {
+                  if (stem.serverId) onDeleteStem(stem.serverId);
+                  setConfirmDelete(false);
+                }}
+              >
+                Move to trash
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

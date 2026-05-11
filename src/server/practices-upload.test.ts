@@ -84,8 +84,6 @@ function createPractice(bandId: string, ownerId: string): string {
     null,
     'practice-folder-x',
     null,
-    null,
-    null,
     now,
     ownerId,
     now,
@@ -265,7 +263,6 @@ describe('POST /api/practices owner-only auth', () => {
           band_id: bandId,
           name: 'practice-2026-05-04',
           recorded_on: '2026-05-04',
-          bpm: 120,
         }),
       }),
     );
@@ -276,7 +273,6 @@ describe('POST /api/practices owner-only auth', () => {
         band_id: string;
         drive_folder_id: string;
         name: string;
-        bpm: number | null;
         recorded_on: string | null;
         notes: string | null;
       };
@@ -284,7 +280,6 @@ describe('POST /api/practices owner-only auth', () => {
     expect(data.practice.band_id).toBe(bandId);
     expect(data.practice.drive_folder_id).toBe('practice-folder-abc');
     expect(data.practice.name).toBe('practice-2026-05-04');
-    expect(data.practice.bpm).toBe(120);
     expect(data.practice.recorded_on).toBe('2026-05-04');
     expect(data.practice.notes).toBe(null);
 
@@ -308,23 +303,6 @@ describe('POST /api/practices owner-only auth', () => {
           name: 'p',
           recorded_on: 'not-a-date',
         }),
-      }),
-    );
-    expect(res.status).toBe(400);
-  });
-
-  it('400 bpm out of range', async () => {
-    const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const sid = createSession(owner);
-    const res = await app.fetch(
-      new Request('http://x/api/practices', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          cookie: cookieHeader(sid),
-        },
-        body: JSON.stringify({ band_id: bandId, name: 'p', bpm: 9999 }),
       }),
     );
     expect(res.status).toBe(400);
