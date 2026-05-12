@@ -53,6 +53,10 @@ export type LoadedStem = {
   displayName: string;
   color: string;
   audio: HTMLAudioElement;
+  // Decoded Web Audio buffer used for sample-accurate scheduled playback.
+  // Null only when decode failed; the stem is then playback-disabled but still
+  // appears in the UI for waveform display and rename/delete.
+  audioBuffer: AudioBuffer | null;
   userMuted: boolean;
   soloed: boolean;
   userVolume: number;
@@ -61,9 +65,8 @@ export type LoadedStem = {
   // from disk; nothing to rename/delete server-side).
   serverId: string | null;
   revoke?: () => void;
-  // Per-track gain node in the Web Audio graph (source → gain → master → output).
-  // Null if Web Audio is unavailable or wiring failed; the player falls back to
-  // HTMLAudioElement.volume in that case.
+  // Per-track gain node in the Web Audio graph: BufferSource → gain → master →
+  // output. Null only if Web Audio failed at load time.
   gain: GainNode | null;
   // Pre-computed waveform peaks (0..1 floats). When present, WaveSurfer renders
   // without decoding the audio — eliminates the multi-second blank-lane gap.
