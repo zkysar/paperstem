@@ -389,33 +389,30 @@ export function usePlayer(): PlayerControls {
     });
 
     const graph = ensureAudioGraph();
+    if (!graph) {
+      // Web Audio is required for synchronized playback. Surface this as a load
+      // failure rather than silently falling back to broken multi-track sync.
+      dispatch({
+        type: 'SET_STATUS',
+        status: 'This browser does not support Web Audio. Try Chrome or Safari.',
+      });
+      return;
+    }
     const built: LoadedStem[] = input.sources.map((src, i) => {
       const audio = new Audio();
       audio.preload = 'auto';
+      audio.muted = true; // Web Audio drives all sound now; this is metadata only.
       audio.src = src.src;
       const userVolume = loadVolume(ctx.practiceId, src.name);
-      let gain: GainNode | null = null;
-      if (graph) {
-        try {
-          const source = graph.ctx.createMediaElementSource(audio);
-          gain = graph.ctx.createGain();
-          gain.gain.value = volumeToGain(userVolume);
-          source.connect(gain).connect(graph.master);
-          audio.volume = 1;
-        } catch {
-          // MediaElementSource creation can fail (e.g. element already wired
-          // somewhere). Fall through to native volume control.
-          gain = null;
-          audio.volume = Math.min(1, volumeToGain(userVolume));
-        }
-      } else {
-        audio.volume = Math.min(1, volumeToGain(userVolume));
-      }
+      const gain = graph.ctx.createGain();
+      gain.gain.value = volumeToGain(userVolume);
+      gain.connect(graph.master);
       return {
         name: src.name,
         displayName: displayNames[i],
         color: PALETTE[i % PALETTE.length],
         audio,
+        audioBuffer: null, // Populated after decode below.
         userMuted: false,
         soloed: false,
         userVolume,
@@ -428,26 +425,35 @@ export function usePlayer(): PlayerControls {
     });
 
     const errored: string[] = [];
+
+    // Parallel: wait for HTMLAudioElement metadata (for duration/WaveSurfer) AND
+    // for AudioBuffer decode (for playback). Each stem reports load-progress once
+    // both complete (or either errors).
     await Promise.all(
-      built.map(
-        (s) =>
-          new Promise<void>((res) => {
-            const done = () => {
-              dispatch({ type: 'LOAD_PROGRESS' });
+      built.map(async (s, i) => {
+        const metaP = new Promise<void>((res) => {
+          if (s.audio.readyState >= 1) return res();
+          s.audio.addEventListener('loadedmetadata', () => res(), { once: true });
+          s.audio.addEventListener(
+            'error',
+            () => {
+              errored.push(s.name);
               res();
-            };
-            if (s.audio.readyState >= 1) return done();
-            s.audio.addEventListener('loadedmetadata', done, { once: true });
-            s.audio.addEventListener(
-              'error',
-              () => {
-                errored.push(s.name);
-                done();
-              },
-              { once: true },
-            );
-          }),
-      ),
+            },
+            { once: true },
+          );
+        });
+        const decodeP = decodeStem(graph.ctx, input.sources[i].src).then((buf) => {
+          if (buf) {
+            // Mutate in place — the array is local and not yet in state.
+            built[i].audioBuffer = buf;
+          } else if (!errored.includes(s.name)) {
+            errored.push(s.name);
+          }
+        });
+        await Promise.all([metaP, decodeP]);
+        dispatch({ type: 'LOAD_PROGRESS' });
+      }),
     );
 
     const durations = built.map((s) => s.audio.duration);
@@ -675,6 +681,20 @@ function seekAll(stems: LoadedStem[], t: number): void {
     } catch {
       // ignore
     }
+  }
+}
+
+async function decodeStem(
+  ctx: AudioContext,
+  url: string,
+): Promise<AudioBuffer | null> {
+  try {
+    const res = await fetch(url, { credentials: 'include' });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    return await ctx.decodeAudioData(buf);
+  } catch {
+    return null;
   }
 }
 
