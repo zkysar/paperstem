@@ -40,7 +40,16 @@ kbd {
 }
 
 /* ===== App shell ===== */
-.app-shell { display: flex; flex-direction: column; min-height: 100vh; }
+/* Bound the shell to the viewport so the player can flex-fill the remaining
+   space below the header/toolbar. The internal scroll container (.tracks)
+   lets the timeline ruler and the bottom controls stay visible while a long
+   list of stems scrolls. */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+}
 .app-body {
   flex: 1;
   display: grid;
@@ -51,6 +60,7 @@ kbd {
   padding: 16px 16px 0;
   box-sizing: border-box;
   gap: 16px;
+  min-height: 0;
 }
 /* ===== Topbar (used by bands-empty fallback) ===== */
 .topbar {
@@ -83,8 +93,17 @@ kbd {
   margin-bottom: 16px;
 }
 
-/* ===== Player ===== */
-.player { min-width: 0; }
+/* ===== Player =====
+   Flex column inside the bounded app-body so .stage flex-grows and .tracks
+   gets a real height to scroll against, while .status + .keys-hint stay at
+   the bottom of the player regardless of how many stems are loaded. */
+.player {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
 
 /* Per-track volume slider boost styling (>100%): the orange tail and thumb
    indicate gain above unity. Master volume lives in AppToolbar now. */
@@ -111,8 +130,17 @@ kbd {
   cursor: pointer;
 }
 
-/* ===== Stage (ruler + tracks + overlays) ===== */
-.stage { position: relative; }
+/* ===== Stage (ruler + tracks + overlays) =====
+   Flex-grow within .player so the tracks area can scroll internally; overlays
+   (playhead, loop region, annotation markers) remain absolute children of
+   .stage and span the visible window. */
+.stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 
 /* The rail (track names, volume, M/S pills) is the first column of a
    2-column grid; the ruler and each wave occupy the second column. Timeline
@@ -128,6 +156,15 @@ kbd {
 .player.rail-collapsed .ruler-row,
 .player.rail-collapsed .track {
   grid-template-columns: 1fr;
+}
+/* Pin the ruler at the top of the scrolling tracks area so the timeline
+   stays visible regardless of scroll position. z-index sits above tracks
+   but below the playhead/loop/marker overlays (which live in .stage). */
+.ruler-row {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--bg);
 }
 
 .ruler {
@@ -155,7 +192,12 @@ kbd {
   pointer-events: none;
 }
 
-.tracks { padding-top: 4px; }
+.tracks {
+  padding-top: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
 .empty {
   color: var(--muted);
   padding: 32px 0;
