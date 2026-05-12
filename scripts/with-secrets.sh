@@ -22,5 +22,6 @@ export APP_URL="${APP_URL:-http://localhost:5173}"
 export DATABASE_PATH="${DATABASE_PATH:-./dev.sqlite}"
 export PORT="${PORT:-8787}"
 export SESSION_COOKIE_SECRET="${SESSION_COOKIE_SECRET:-dev-only-not-secret-replace-in-prod}"
+export PAPERSTEM_DEV_AUTO_LOGIN="${PAPERSTEM_DEV_AUTO_LOGIN-$GMAIL_USER}"
 
 exec "$@"
