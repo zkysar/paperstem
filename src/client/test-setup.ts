@@ -45,6 +45,30 @@ if (typeof window !== 'undefined') {
   }
 }
 
+// happy-dom logs resource-fetch failures (e.g. anchor hrefs to drive.google.com)
+// even though tests never click them. Filter that noise out across all sinks.
+const noiseRe = /^GET https?:\/\/.* \d{3} /;
+const wrap = (orig: (...args: unknown[]) => void) =>
+  (...args: unknown[]) => {
+    const first = args[0];
+    if (typeof first === 'string' && noiseRe.test(first)) return;
+    orig(...args);
+  };
+console.log = wrap(console.log.bind(console));
+console.error = wrap(console.error.bind(console));
+console.warn = wrap(console.warn.bind(console));
+console.info = wrap(console.info.bind(console));
+const origWrite = process.stderr.write.bind(process.stderr);
+process.stderr.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
+  if (typeof chunk === 'string' && noiseRe.test(chunk)) return true;
+  return (origWrite as unknown as (...a: unknown[]) => boolean)(chunk, ...rest);
+}) as typeof process.stderr.write;
+const origStdoutWrite = process.stdout.write.bind(process.stdout);
+process.stdout.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
+  if (typeof chunk === 'string' && noiseRe.test(chunk)) return true;
+  return (origStdoutWrite as unknown as (...a: unknown[]) => boolean)(chunk, ...rest);
+}) as typeof process.stdout.write;
+
 import { afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 

@@ -9,7 +9,7 @@ RUN npm prune --omit=dev
 
 FROM node:20-alpine AS runtime
 ARG APP_VERSION=dev
-RUN apk add --no-cache tini
+RUN apk add --no-cache tini ffmpeg
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080

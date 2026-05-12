@@ -273,6 +273,10 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
               onChange={handleFolderPicked}
               disabled={submitting}
             />
+            <span className="upload-hint">
+              Stems are re-encoded to MP3 128 kbps in your browser before upload.
+              This is lossy compression — keep your original masters elsewhere.
+            </span>
           </label>
 
           {files.length > 0 && (
