@@ -77,7 +77,7 @@ function insertPractice(bandId: string, userId: string, name: string): string {
 
 function insertStem(practiceId: string, position: number, name: string): string {
   const id = randomUUID();
-  dbMod.stmts.insertStem.run(id, practiceId, name, position, 'drive-file', 1000, 100);
+  dbMod.stmts.insertStem.run(id, practiceId, name, position, 'drive-file', 1000, 100, null);
   return id;
 }
 

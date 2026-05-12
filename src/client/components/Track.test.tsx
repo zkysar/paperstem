@@ -16,6 +16,7 @@ function makeStem(overrides: Partial<LoadedStem> = {}): LoadedStem {
     practiceId: 'practice-1',
     serverId: 'stem-1',
     gain: null,
+    peaks: null,
     ...overrides,
   };
 }

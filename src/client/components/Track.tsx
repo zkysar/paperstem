@@ -4,6 +4,7 @@ import WaveSurfer from 'wavesurfer.js';
 import type { LoadedStem, WaveformNormalization } from '../data/types';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
 import { mix } from '../lib/colors';
+import { computePeaks, encodePeaks, PLAYER_PEAK_BINS } from '../lib/peaks';
 
 type Props = {
   stem: LoadedStem;
@@ -102,6 +103,13 @@ export function Track({
     if (!clipRef.current) return;
     let ws: WaveSurfer | null = null;
     setWaveLoading(true);
+    // When we have pre-computed peaks, hand them to WaveSurfer and skip the
+    // audio decode entirely — the waveform renders immediately. Duration must
+    // also be supplied; we read it from the audio element (which has had
+    // `loadedmetadata` fire by the time Track mounts, courtesy of the
+    // LOAD_PROGRESS → LOADED handshake in usePlayer).
+    const usePrecomputed =
+      stem.peaks !== null && stem.peaks.length > 0 && isFinite(stem.audio.duration);
     try {
       ws = WaveSurfer.create({
         container: clipRef.current,
@@ -117,6 +125,9 @@ export function Track({
         barRadius: 0,
         normalize: normRef.current === 'per-track',
         interact: true,
+        ...(usePrecomputed
+          ? { peaks: [stem.peaks as number[]], duration: stem.audio.duration }
+          : {}),
       });
     } catch {
       return;
@@ -127,10 +138,33 @@ export function Track({
     // Wait for initial render + a frame so the layout-settle redraw happens
     // before we fade the waveform in. Avoids the "jump to fit" flash.
     let raf = 0;
+    const wsRefForReady = ws;
+    const sidForBackfill = stem.serverId;
+    const needsBackfill = !usePrecomputed && sidForBackfill !== null;
     const readyOff = ws.on('ready', () => {
       raf = requestAnimationFrame(() => {
         raf = requestAnimationFrame(() => setWaveLoading(false));
       });
+      // Opportunistic backfill: if this stem had no pre-computed peaks, the
+      // browser just decoded the audio anyway — grab the resulting buffer,
+      // compute the same peaks format we ship at upload, and PUT it to the
+      // server so the next viewer (and future loads here) skip the decode.
+      // Fire-and-forget; failures are silent.
+      if (!needsBackfill) return;
+      try {
+        const decoded = wsRefForReady.getDecodedData();
+        if (!decoded) return;
+        const peaks = computePeaks(decoded, PLAYER_PEAK_BINS);
+        const encoded = encodePeaks(peaks);
+        void fetch(`/api/stems/${encodeURIComponent(sidForBackfill)}/peaks`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ peaks: encoded }),
+        }).catch(() => {});
+      } catch {
+        // ignore
+      }
     });
     return () => {
       off();

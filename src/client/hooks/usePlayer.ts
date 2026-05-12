@@ -423,6 +423,7 @@ export function usePlayer(): PlayerControls {
         serverId: src.serverId ?? null,
         revoke: src.revoke,
         gain,
+        peaks: src.peaks ?? null,
       };
     });
 

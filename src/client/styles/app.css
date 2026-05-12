@@ -317,13 +317,23 @@ button.track-name:disabled { cursor: default; }
   transition: opacity 180ms ease-out;
 }
 .clip.muted { opacity: 0.3; }
-/* Hide instantly while WaveSurfer re-quantizes (load + container resize),
-   fade back in via the base transition. Specificity beats .clip.muted. */
+/* While WaveSurfer is decoding/quantizing (initial load before peaks come in,
+   or a container-resize re-render), hide the canvas children and shimmer the
+   lane instead of leaving a blank rectangle. Specificity beats .clip.muted. */
 .clip.loading,
 .clip.loading.muted {
-  opacity: 0;
+  opacity: 1;
   transition: none;
+  background: linear-gradient(
+    90deg,
+    var(--rule-2) 0%,
+    var(--rule) 50%,
+    var(--rule-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: fp-shimmer 1.4s infinite;
 }
+.clip.loading > * { opacity: 0; }
 
 /* ===== Skeleton tracks + loading overlay (shown while audio metadata loads) ===== */
 .track-skeleton { pointer-events: none; }

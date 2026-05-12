@@ -89,9 +89,9 @@ describe('GET /api/bands/:id/trash', () => {
     dbMod.stmts.softDeletePractice.run(now, userId, trashedPid);
 
     const liveSid = randomUUID();
-    dbMod.stmts.insertStem.run(liveSid, livePid, 'live.wav', 0, 'sd1', null, null);
+    dbMod.stmts.insertStem.run(liveSid, livePid, 'live.wav', 0, 'sd1', null, null, null);
     const trashedSid = randomUUID();
-    dbMod.stmts.insertStem.run(trashedSid, livePid, 'trashed.wav', 1, 'sd2', null, null);
+    dbMod.stmts.insertStem.run(trashedSid, livePid, 'trashed.wav', 1, 'sd2', null, null, null);
     dbMod.stmts.softDeleteStem.run(now, userId, trashedSid);
 
     const res = await app.fetch(

@@ -18,6 +18,7 @@ import {
   handleListPractices,
   handleRenamePractice,
   handleRestorePractice,
+  handleUpdateStemPeaks,
 } from './practices.js';
 import {
   handleDeleteStem,
@@ -67,6 +68,7 @@ app.post('/api/practices/:id/stems', handleCreateStem);
 app.patch('/api/stems/:id', handleRenameStem);
 app.delete('/api/stems/:id', handleDeleteStem);
 app.post('/api/stems/:id/restore', handleRestoreStem);
+app.put('/api/stems/:id/peaks', handleUpdateStemPeaks);
 app.get('/api/bands/:id/trash', handleListTrash);
 app.get('/api/audio/:stem_id', handleGetAudio);
 app.get('/api/practices/:id/annotations', handleListAnnotations);

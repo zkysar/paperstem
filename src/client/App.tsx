@@ -25,6 +25,7 @@ import {
 } from './data/annotations-repo';
 import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
 import type { Practice, StemSource, TrashList } from './data/types';
+import { decodePeaks } from './lib/peaks';
 import { useAppVersion } from './hooks/useAppVersion';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
@@ -364,6 +365,7 @@ function PaperstemApp({
           name: s.name,
           src: `/api/audio/${encodeURIComponent(s.id)}`,
           serverId: s.id,
+          peaks: s.peaks ? decodePeaks(s.peaks) : null,
         }));
         void player.load({
           practiceId: detail.id,

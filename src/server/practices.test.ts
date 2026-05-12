@@ -103,7 +103,7 @@ function insertPractice(
 
 function insertStem(practiceId: string, name: string, position: number): string {
   const id = randomUUID();
-  dbMod.stmts.insertStem.run(id, practiceId, name, position, `drive-${id}`, null, 1024);
+  dbMod.stmts.insertStem.run(id, practiceId, name, position, `drive-${id}`, null, 1024, null);
   return id;
 }
 

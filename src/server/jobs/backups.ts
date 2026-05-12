@@ -115,8 +115,8 @@ export function buildBandDump(bandId: string): Buffer {
     }
 
     const insertStem = dump.prepare(
-      `INSERT INTO stems (id, practice_id, name, position, drive_file_id, duration_ms, size_bytes)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO stems (id, practice_id, name, position, drive_file_id, duration_ms, size_bytes, peaks)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const p of practices) {
       const stems = stmts.findStemsForPractice.all(p.id);
@@ -129,6 +129,7 @@ export function buildBandDump(bandId: string): Buffer {
           s.drive_file_id,
           s.duration_ms,
           s.size_bytes,
+          s.peaks,
         );
       }
     }

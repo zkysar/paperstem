@@ -44,6 +44,9 @@ for (const col of ['deleted_at', 'deleted_by', 'deleted_reason']) {
     db.exec(`ALTER TABLE stems ADD COLUMN ${col} ${type}`);
   }
 }
+if (tableExists('stems') && !columnExists('stems', 'peaks')) {
+  db.exec('ALTER TABLE stems ADD COLUMN peaks TEXT');
+}
 
 db.exec(schema);
 
@@ -115,6 +118,7 @@ export type StemRow = {
   drive_file_id: string;
   duration_ms: number | null;
   size_bytes: number | null;
+  peaks: string | null;
   deleted_at: number | null;
   deleted_by: string | null;
   deleted_reason: string | null;
@@ -288,11 +292,15 @@ export const stmts = {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ),
   insertStem: db.prepare<
-    [string, string, string, number, string, number | null, number | null]
+    [string, string, string, number, string, number | null, number | null, string | null]
   >(
     `INSERT INTO stems
-       (id, practice_id, name, position, drive_file_id, duration_ms, size_bytes)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (id, practice_id, name, position, drive_file_id, duration_ms, size_bytes, peaks)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  ),
+  updateStemPeaks: db.prepare<[string, string]>(
+    `UPDATE stems SET peaks = ?
+      WHERE id = ? AND deleted_at IS NULL`,
   ),
   findAnnotationsForPractice: db.prepare<[string], AnnotationJoinedRow>(
     `SELECT a.id, a.practice_id, a.user_id, a.start_ms, a.end_ms, a.body,
