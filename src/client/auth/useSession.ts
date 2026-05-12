@@ -16,9 +16,23 @@ export function useSession() {
       if (res.ok) {
         const data = (await res.json()) as { user: User };
         setState({ user: data.user, loading: false });
-      } else {
-        setState({ user: null, loading: false });
+        return;
       }
+      const body = (await res.json().catch(() => null)) as
+        | { devLoginUrl?: string }
+        | null;
+      if (body?.devLoginUrl) {
+        const devRes = await fetch(body.devLoginUrl, { credentials: 'include' });
+        if (devRes.ok) {
+          const retry = await fetch('/api/me', { credentials: 'include' });
+          if (retry.ok) {
+            const data = (await retry.json()) as { user: User };
+            setState({ user: data.user, loading: false });
+            return;
+          }
+        }
+      }
+      setState({ user: null, loading: false });
     } catch {
       setState({ user: null, loading: false });
     }
