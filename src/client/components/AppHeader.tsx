@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ExternalLink, Library, MessageSquare } from 'lucide-react';
+import { Bug, ChevronDown, ExternalLink, Library, MessageSquare } from 'lucide-react';
 import { fmt } from '../lib/format';
-
-const GITHUB_REPO_URL = 'https://github.com/zkysar/paperstem';
-
-function githubUrlForVersion(version: string): string {
-  const m = version.match(/^dev-([0-9a-f]{7,40})$/i);
-  if (m) return `${GITHUB_REPO_URL}/commit/${m[1]}`;
-  if (/^v\d/.test(version)) return `${GITHUB_REPO_URL}/tree/${encodeURIComponent(version)}`;
-  return GITHUB_REPO_URL;
-}
+import { githubUrlForVersion } from '../../shared/version';
 
 type Props = {
   userEmail: string;
@@ -26,13 +18,14 @@ type Props = {
   onOpenPicker(): void;
   onToggleAnnotations(): void;
   onSignOut(): void;
+  onReportBug(): void;
   onRenamePractice(name: string): void;
 };
 
 export function AppHeader({
   userEmail, userInitials, practiceTitle, stemCount, duration,
   driveFolderId, annotationsOpen, hasPractice, canRename, appVersion, appEnv,
-  onOpenPicker, onToggleAnnotations, onSignOut, onRenamePractice,
+  onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenamePractice,
 }: Props) {
   const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -176,6 +169,13 @@ export function AppHeader({
         {avatarOpen && (
           <div className="ah-avatar-menu" role="menu">
             <div className="ah-avatar-email">{userEmail}</div>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { setAvatarOpen(false); onReportBug(); }}
+            >
+              <Bug size={14} strokeWidth={2} aria-hidden="true" /> Report a bug
+            </button>
             <button type="button" role="menuitem" onClick={onSignOut}>
               Sign out
             </button>

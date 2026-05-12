@@ -18,6 +18,7 @@ const baseProps = {
   onOpenPicker: vi.fn(),
   onToggleAnnotations: vi.fn(),
   onSignOut: vi.fn(),
+  onReportBug: vi.fn(),
   onRenamePractice: vi.fn(),
 };
 
@@ -67,6 +68,16 @@ describe('AppHeader', () => {
     expect(screen.getByText('zach@example.com')).not.toBeNull();
     await user.click(screen.getByRole('menuitem', { name: 'Sign out' }));
     expect(onSignOut).toHaveBeenCalledOnce();
+  });
+
+  it('Report a bug item invokes onReportBug and closes the menu', async () => {
+    const onReportBug = vi.fn();
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} onReportBug={onReportBug} />);
+    await user.click(screen.getByLabelText('Account'));
+    await user.click(screen.getByRole('menuitem', { name: /Report a bug/i }));
+    expect(onReportBug).toHaveBeenCalledOnce();
+    expect(screen.queryByText('zach@example.com')).toBeNull();
   });
 
   it('avatar dropdown links the build version to GitHub', async () => {

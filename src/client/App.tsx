@@ -9,6 +9,10 @@ import { CommentBottomSheet } from './components/CommentBottomSheet';
 import { createPortal } from 'react-dom';
 import { AppHeader } from './components/AppHeader';
 import { AppToolbar } from './components/AppToolbar';
+import {
+  BugReportDrawer,
+  type BugReportPrefill,
+} from './components/BugReportDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FilePicker } from './components/FilePicker';
 import { Player } from './components/Player';
@@ -95,6 +99,17 @@ function PaperstemApp({
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(
     null,
   );
+  const [bugReportOpen, setBugReportOpen] = useState(false);
+  const [bugReportPrefill, setBugReportPrefill] = useState<BugReportPrefill | null>(null);
+
+  const openBugReport = useCallback((prefill: BugReportPrefill | null = null) => {
+    setBugReportPrefill(prefill);
+    setBugReportOpen(true);
+  }, []);
+  const closeBugReport = useCallback(() => {
+    setBugReportOpen(false);
+    setBugReportPrefill(null);
+  }, []);
 
   const lastPickerTriggerRef = useRef<HTMLElement | null>(null);
   const lastDrawerTriggerRef = useRef<HTMLElement | null>(null);
@@ -624,6 +639,7 @@ function PaperstemApp({
         onOpenPicker={openPicker}
         onToggleAnnotations={toggleDrawer}
         onSignOut={onLogout}
+        onReportBug={() => openBugReport()}
         onRenamePractice={(name) => {
           if (activePracticeId) void renamePractice(activePracticeId, name);
         }}
@@ -655,7 +671,7 @@ function PaperstemApp({
         onToggleRailCollapsed={() => setRailCollapsed((v) => !v)}
       />
       <div className="app-body">
-        <ErrorBoundary>
+        <ErrorBoundary onReportBug={openBugReport}>
           <Player
             player={player}
             annotations={annotations}
@@ -805,6 +821,26 @@ function PaperstemApp({
           onUploaded={(id) => void handleUploaded(id)}
         />
       )}
+      <BugReportDrawer
+        open={bugReportOpen}
+        isNarrow={railCollapsed}
+        reporterEmail={user.email}
+        appVersion={appInfo?.version ?? null}
+        prefill={bugReportPrefill}
+        pageContext={{
+          activeBandId,
+          activePracticeId,
+          practiceTitle: player.state.title ?? null,
+          stemCount: player.state.stems.length,
+          isPlaying: player.state.isPlaying,
+          currentTime: player.currentTime,
+          duration: player.state.duration,
+          loop: player.state.loop ?? null,
+          drawerOpen,
+          pickerOpen,
+        }}
+        onClose={closeBugReport}
+      />
     </div>
   );
 }
