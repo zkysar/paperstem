@@ -6,6 +6,7 @@ import {
 import {
   mkdir,
   readdir,
+  rename,
   rm,
   stat,
   writeFile,
@@ -205,6 +206,28 @@ async function patchDriveFile(fileId: string, body: Record<string, unknown>): Pr
 
 export function renameDriveItem(fileId: string, name: string): Promise<void> {
   return patchDriveFile(fileId, { name });
+}
+
+export async function renameAndRetype(
+  fileId: string,
+  newName: string,
+  mimeType: string,
+): Promise<{ id: string }> {
+  const root = localRoot();
+  if (root) {
+    sanitizeSegment(newName);
+    const oldRel = decodeLocalId(fileId);
+    const oldAbs = localPathFromRel(root, oldRel);
+    const lastSlash = oldRel.lastIndexOf('/');
+    const newRel = lastSlash === -1 ? newName : `${oldRel.slice(0, lastSlash)}/${newName}`;
+    const newAbs = localPathFromRel(root, newRel);
+    if (oldAbs !== newAbs) {
+      await rename(oldAbs, newAbs);
+    }
+    return { id: encodeLocalId(newRel) };
+  }
+  await patchDriveFile(fileId, { name: newName, mimeType });
+  return { id: fileId };
 }
 
 export function trashDriveItem(fileId: string): Promise<void> {

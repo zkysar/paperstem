@@ -1,6 +1,6 @@
 import lamejs from '@breezystack/lamejs';
 
-const TARGET_BITRATE_KBPS = 320;
+const TARGET_BITRATE_KBPS = 128;
 const FRAME_SAMPLES = 1152;
 const YIELD_EVERY_FRAMES = 200;
 
