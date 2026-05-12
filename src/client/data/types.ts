@@ -11,6 +11,9 @@ export type Practice = {
 export type PracticeStem = {
   id: string;
   name: string;
+  // Server-side waveform peaks (comma-separated 0..255 ints). When present,
+  // WaveSurfer can render the waveform without decoding the audio.
+  peaks: string | null;
 };
 
 export type PracticeSummary = {
@@ -30,6 +33,7 @@ export type StemSummary = {
   position: number;
   duration_ms: number | null;
   size_bytes: number | null;
+  peaks: string | null;
 };
 
 export type PracticeDetail = {
@@ -61,6 +65,9 @@ export type LoadedStem = {
   // Null if Web Audio is unavailable or wiring failed; the player falls back to
   // HTMLAudioElement.volume in that case.
   gain: GainNode | null;
+  // Pre-computed waveform peaks (0..1 floats). When present, WaveSurfer renders
+  // without decoding the audio — eliminates the multi-second blank-lane gap.
+  peaks: number[] | null;
 };
 
 export type LoopRegion = {
@@ -104,6 +111,7 @@ export type StemSource = {
   // local-folder loads (no server stem to rename/delete).
   serverId?: string | null;
   revoke?: () => void;
+  peaks?: number[] | null;
 };
 
 export type LoadContext = {

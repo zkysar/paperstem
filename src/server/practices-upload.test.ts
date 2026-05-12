@@ -37,6 +37,8 @@ beforeAll(async () => {
   app.use('*', middlewareMod.sessionMiddleware);
   app.post('/api/practices', practicesMod.handleCreatePractice);
   app.post('/api/practices/:id/stems', practicesMod.handleCreateStem);
+  app.get('/api/practices/:id', practicesMod.handleGetPractice);
+  app.put('/api/stems/:id/peaks', practicesMod.handleUpdateStemPeaks);
 });
 
 afterAll(() => {
@@ -566,6 +568,118 @@ describe('POST /api/practices/:id/stems', () => {
     expect(res.status).toBe(201);
     expect(bodyKind).toBe('stream');
     expect(observedBytes).toBe(FIFTY_MB);
+  });
+
+  it('persists peaks field on upload and returns them on GET', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const practiceId = createPractice(bandId, owner);
+    const sid = createSession(owner);
+    mockDriveSuccess({ fileId: 'drive-file-peaks' });
+
+    const peaksStr = '0,64,128,192,255,128,64,0';
+    const { contentType, body } = buildMultipart(
+      [
+        { name: 'position', value: '0' },
+        { name: 'peaks', value: peaksStr },
+      ],
+      {
+        fieldName: 'file',
+        filename: 'guitar.mp3',
+        mime: 'audio/mpeg',
+        body: Buffer.from('synthetic'),
+      },
+    );
+    const res = await app.fetch(
+      new Request(`http://x/api/practices/${practiceId}/stems`, {
+        method: 'POST',
+        headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
+        body,
+      }),
+    );
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { stem: { id: string; peaks: string | null } };
+    expect(data.stem.peaks).toBe(peaksStr);
+
+    const stored = dbMod.stmts.findStemById.get(data.stem.id);
+    expect(stored?.peaks).toBe(peaksStr);
+
+    const getRes = await app.fetch(
+      new Request(`http://x/api/practices/${practiceId}`, {
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const getData = (await getRes.json()) as {
+      stems: { id: string; peaks: string | null }[];
+    };
+    expect(getData.stems[0].peaks).toBe(peaksStr);
+  });
+
+  it('rejects malformed peaks and stores null', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const practiceId = createPractice(bandId, owner);
+    const sid = createSession(owner);
+    mockDriveSuccess({});
+
+    const { contentType, body } = buildMultipart(
+      [{ name: 'peaks', value: 'not,a,number' }],
+      {
+        fieldName: 'file',
+        filename: 'guitar.mp3',
+        mime: 'audio/mpeg',
+        body: Buffer.from('x'),
+      },
+    );
+    const res = await app.fetch(
+      new Request(`http://x/api/practices/${practiceId}/stems`, {
+        method: 'POST',
+        headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
+        body,
+      }),
+    );
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { stem: { id: string; peaks: string | null } };
+    expect(data.stem.peaks).toBeNull();
+  });
+
+  it('PUT /api/stems/:id/peaks backfills peaks for an existing stem', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const practiceId = createPractice(bandId, owner);
+    const sid = createSession(owner);
+    mockDriveSuccess({ fileId: 'drive-file-pre' });
+
+    const { contentType, body } = buildMultipart([], {
+      fieldName: 'file',
+      filename: 'bass.mp3',
+      mime: 'audio/mpeg',
+      body: Buffer.from('x'),
+    });
+    const create = await app.fetch(
+      new Request(`http://x/api/practices/${practiceId}/stems`, {
+        method: 'POST',
+        headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
+        body,
+      }),
+    );
+    const { stem } = (await create.json()) as { stem: { id: string } };
+
+    const peaksStr = '10,20,30,40,50';
+    const put = await app.fetch(
+      new Request(`http://x/api/stems/${stem.id}/peaks`, {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ peaks: peaksStr }),
+      }),
+    );
+    expect(put.status).toBe(200);
+
+    const stored = dbMod.stmts.findStemById.get(stem.id);
+    expect(stored?.peaks).toBe(peaksStr);
   });
 
   it('502 upstream_error if Drive upload fails', async () => {

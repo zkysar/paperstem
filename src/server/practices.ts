@@ -15,6 +15,20 @@ import {
 const MAX_NAME_LENGTH = 200;
 const MAX_STEM_BYTES = 100 * 1024 * 1024;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// 2000 bins ≈ 8KB; cap at 8000 bins for safety. Stored as comma-separated ints.
+const MAX_PEAKS_BINS = 8000;
+const MAX_PEAKS_BYTES = MAX_PEAKS_BINS * 5;
+const PEAKS_RE = /^(?:[0-9]{1,3})(?:,[0-9]{1,3})*$/;
+
+function validatePeaksString(raw: string): string | null {
+  if (!raw || raw.length > MAX_PEAKS_BYTES) return null;
+  if (!PEAKS_RE.test(raw)) return null;
+  for (const part of raw.split(',')) {
+    const n = Number(part);
+    if (!Number.isInteger(n) || n < 0 || n > 255) return null;
+  }
+  return raw;
+}
 
 const MIME_BY_EXT: Record<string, string> = {
   '.mp3': 'audio/mpeg',
@@ -81,6 +95,7 @@ export function handleGetPractice(
     position: s.position,
     duration_ms: s.duration_ms,
     size_bytes: s.size_bytes,
+    peaks: s.peaks,
   }));
 
   return c.json({
@@ -275,6 +290,7 @@ type ParsedUpload = {
   mime: string;
   body: ReadableStream<Uint8Array>;
   position: number | null;
+  peaks: string | null;
   done: Promise<{ tooLarge: boolean }>;
 };
 
@@ -285,6 +301,7 @@ function parseStemMultipart(
   return new Promise((resolve, reject) => {
     let fileSeen = false;
     let positionField: number | null = null;
+    let peaksField: string | null = null;
     let resolved = false;
     const bb = busboy({
       headers: { 'content-type': contentType },
@@ -295,6 +312,8 @@ function parseStemMultipart(
       if (name === 'position') {
         const n = Number(value);
         if (Number.isInteger(n) && n >= 0) positionField = n;
+      } else if (name === 'peaks') {
+        peaksField = validatePeaksString(value);
       }
     });
 
@@ -333,6 +352,7 @@ function parseStemMultipart(
         mime,
         body: Readable.toWeb(fileStream) as ReadableStream<Uint8Array>,
         position: positionField,
+        peaks: peaksField,
         done: finished,
       });
     });
@@ -426,6 +446,13 @@ export async function handleCreateStem(
   const position =
     parsed.position ?? (stmts.countStemsForPractice.get(practiceId)?.c ?? 0);
 
+  // Re-read the peaks field — busboy delivers fields before/around the file
+  // depending on multipart ordering, but the `field` handler may have fired
+  // after we resolved if the client appended `peaks` after `file`. In practice
+  // both browsers and our UploadDrawer append peaks before file, so peaks is
+  // already set by here.
+  const peaks = parsed.peaks;
+
   const stemId = randomUUID();
   stmts.insertStem.run(
     stemId,
@@ -435,6 +462,7 @@ export async function handleCreateStem(
     uploaded.id,
     null,
     uploaded.size,
+    peaks,
   );
 
   return c.json(
@@ -446,8 +474,36 @@ export async function handleCreateStem(
         position,
         duration_ms: null,
         size_bytes: uploaded.size,
+        peaks,
       },
     },
     201,
   );
+}
+
+export async function handleUpdateStemPeaks(
+  c: Context<{ Variables: AuthVariables }>,
+): Promise<Response> {
+  const user = requireUser(c);
+  const id = c.req.param('id') ?? '';
+  if (!id) return c.json({ error: 'not_found' }, 404);
+
+  const stem = stmts.findStemWithBandId.get(id);
+  if (!stem) return c.json({ error: 'not_found' }, 404);
+
+  const membership = stmts.findMembership.get(stem.band_id, user.id);
+  if (!membership) return c.json({ error: 'not_found' }, 404);
+
+  let body: { peaks?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: 'bad_request' }, 400);
+  }
+  const raw = typeof body.peaks === 'string' ? body.peaks : '';
+  const validated = validatePeaksString(raw);
+  if (!validated) return c.json({ error: 'invalid_peaks' }, 400);
+
+  stmts.updateStemPeaks.run(validated, id);
+  return c.json({ ok: true });
 }

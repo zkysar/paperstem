@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS stems (
   drive_file_id  TEXT NOT NULL,
   duration_ms    INTEGER,
   size_bytes     INTEGER,
+  peaks          TEXT,
   deleted_at     INTEGER,
   deleted_by     TEXT REFERENCES users(id),
   deleted_reason TEXT

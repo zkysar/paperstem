@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { AUDIO_EXT } from '../lib/audio';
 import { compressToMp3 } from '../lib/audio-compress';
+import { computePeaks, encodePeaks, PLAYER_PEAK_BINS } from '../lib/peaks';
 
 const MAX_NAME_LENGTH = 200;
 const MAX_STEM_BYTES = 100 * 1024 * 1024;
@@ -35,15 +36,39 @@ function defaultPracticeName(): string {
   return `practice-${todayIso()}`;
 }
 
+async function computeStemPeaks(file: File): Promise<string | null> {
+  const Ctor: typeof AudioContext | undefined =
+    typeof window === 'undefined'
+      ? undefined
+      : window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+  if (!Ctor) return null;
+  let ctx: AudioContext | null = null;
+  try {
+    const buf = await file.arrayBuffer();
+    ctx = new Ctor();
+    const audio = await ctx.decodeAudioData(buf);
+    const peaks = computePeaks(audio, PLAYER_PEAK_BINS);
+    return encodePeaks(peaks);
+  } catch {
+    return null;
+  } finally {
+    if (ctx) void ctx.close();
+  }
+}
+
 function uploadStem(
   practiceId: string,
   file: File,
   position: number,
+  peaks: string | null,
   onProgress: (frac: number) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const fd = new FormData();
     fd.append('position', String(position));
+    if (peaks) fd.append('peaks', peaks);
     fd.append('file', file, file.name);
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `/api/practices/${encodeURIComponent(practiceId)}/stems`);
@@ -190,9 +215,16 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
         }
       }
 
+      // Decode the file in the browser to pre-compute the player waveform
+      // peaks. Sent alongside the file so the server stores them on the row
+      // — every subsequent player load skips the decode and renders instantly.
+      // If decoding fails (unsupported codec, OOM), we fall back to the
+      // original behavior where the player decodes on its own.
+      const peaks = await computeStemPeaks(toUpload);
+
       updateFile(i, { status: 'uploading', progress: 0, error: null });
       try {
-        await uploadStem(practiceId, toUpload, i + 1, (frac) => {
+        await uploadStem(practiceId, toUpload, i + 1, peaks, (frac) => {
           updateFile(i, { progress: frac });
         });
         updateFile(i, { status: 'done', progress: 1, error: null });

@@ -4,6 +4,8 @@ import {
   loadCachedPeaks,
   saveCachedPeaks,
   PEAK_BINS,
+  encodePeaks,
+  decodePeaks,
 } from './peaks';
 
 function makeBuffer(samples: number[][], sampleRate = 44100): AudioBuffer {
@@ -85,5 +87,34 @@ describe('peaks cache', () => {
   it('returns null on malformed stored data', () => {
     localStorage.setItem('paperstem:peaks:v1:bad', 'not,a,number');
     expect(loadCachedPeaks('bad')).toBeNull();
+  });
+});
+
+describe('encodePeaks / decodePeaks (wire format)', () => {
+  it('round-trips with bounded loss', () => {
+    const original = [0, 0.25, 0.5, 0.75, 1];
+    const encoded = encodePeaks(original);
+    const decoded = decodePeaks(encoded);
+    expect(decoded).not.toBeNull();
+    expect(decoded!).toHaveLength(original.length);
+    for (let i = 0; i < original.length; i++) {
+      expect(decoded![i]).toBeCloseTo(original[i], 2);
+    }
+  });
+
+  it('returns null for empty input', () => {
+    expect(decodePeaks('')).toBeNull();
+  });
+
+  it('returns null on malformed input', () => {
+    expect(decodePeaks('not,numbers')).toBeNull();
+  });
+
+  it('clamps out-of-range values when encoding', () => {
+    const encoded = encodePeaks([-0.5, 0.5, 1.5]);
+    const decoded = decodePeaks(encoded);
+    expect(decoded![0]).toBeCloseTo(0, 5);
+    expect(decoded![1]).toBeCloseTo(0.5, 2);
+    expect(decoded![2]).toBeCloseTo(1, 5);
   });
 });

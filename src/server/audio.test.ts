@@ -82,7 +82,7 @@ function createPracticeAndStem(bandId: string, ownerId: string): {
     ownerId,
     now,
   );
-  dbMod.stmts.insertStem.run(stemId, practiceId, 'drums', 0, 'drive-file-abc', null, 1024);
+  dbMod.stmts.insertStem.run(stemId, practiceId, 'drums', 0, 'drive-file-abc', null, 1024, null);
   return { practiceId, stemId };
 }
 

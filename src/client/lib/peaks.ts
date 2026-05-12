@@ -1,10 +1,14 @@
-// Peaks: tiny per-stem amplitude envelope, sized for the picker thumbnail
-// (~110px wide). Computed once from the decoded AudioBuffer, normalized 0..1,
-// cached in localStorage as 0..255 ints to keep entries under a few hundred
-// bytes.
+// Peaks: per-stem amplitude envelope. Two resolutions:
+//   - PEAK_BINS (~110) for the picker thumbnail, cached in localStorage.
+//   - PLAYER_PEAK_BINS (2000) for the main player waveform, stored server-side
+//     on the `stems.peaks` column so WaveSurfer can render without decoding
+//     the full audio.
+// Wire format on the server side is comma-separated ints 0..255 — same as the
+// localStorage cache. ~2000 bins ≈ 8KB per stem, manageable.
 
 const CACHE_PREFIX = 'paperstem:peaks:v1:';
 export const PEAK_BINS = 110;
+export const PLAYER_PEAK_BINS = 2000;
 
 export function computePeaks(buffer: AudioBuffer, bins: number = PEAK_BINS): number[] {
   const channels: Float32Array[] = [];
@@ -63,4 +67,25 @@ export function saveCachedPeaks(stemId: string, peaks: number[]): void {
   } catch {
     // localStorage may be unavailable or full — silently skip.
   }
+}
+
+// Wire-format encode/decode for the server-side `stems.peaks` column.
+// Same format as the localStorage cache.
+export function encodePeaks(peaks: number[]): string {
+  return peaks
+    .map((p) => Math.round(Math.max(0, Math.min(1, p)) * 255))
+    .join(',');
+}
+
+export function decodePeaks(raw: string): number[] | null {
+  if (!raw) return null;
+  const parts = raw.split(',');
+  if (parts.length === 0) return null;
+  const out = new Array<number>(parts.length);
+  for (let i = 0; i < parts.length; i++) {
+    const n = parseInt(parts[i], 10);
+    if (!isFinite(n)) return null;
+    out[i] = Math.max(0, Math.min(1, n / 255));
+  }
+  return out;
 }

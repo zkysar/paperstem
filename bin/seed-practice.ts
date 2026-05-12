@@ -107,6 +107,7 @@ for (let i = 0; i < filePaths.length; i++) {
     uploaded.id,
     null,
     uploaded.size,
+    null,
   );
   console.log(
     `uploaded ${filename} (${uploaded.size} bytes) -> drive=${uploaded.id} stem=${stemId}`,

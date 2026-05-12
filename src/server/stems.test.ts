@@ -97,7 +97,7 @@ function createPracticeAndStem(
     ownerId,
     now,
   );
-  dbMod.stmts.insertStem.run(stemId, practiceId, stemName, 0, driveFileId, null, 1024);
+  dbMod.stmts.insertStem.run(stemId, practiceId, stemName, 0, driveFileId, null, 1024, null);
   return { practiceId, stemId, driveFileId };
 }
 

@@ -38,7 +38,7 @@ function detailToPractice(detail: PracticeDetail, stems: StemSummary[]): Practic
     id: detail.id,
     title: detail.name,
     folder: '',
-    stems: stems.map((s) => ({ id: s.id, name: s.name })),
+    stems: stems.map((s) => ({ id: s.id, name: s.name, peaks: s.peaks })),
     stemCount: stems.length,
     driveFolderId: detail.drive_folder_id,
     referenceStemId: refId,
