@@ -107,9 +107,12 @@ fly volumes create paperstem_dev_data --region sjc --size 1 -a paperstem-dev
 
 # Secrets — both apps need GMAIL_* (mailer.ts crashes at import without them)
 # and GOOGLE_* (Drive API). Repeat for -a paperstem.
+# BUG_REPORT_TO is optional — bug-report emails are sent to GMAIL_USER if
+# unset. Set it to redirect them to a different inbox.
 fly secrets set -a paperstem-dev \
   GMAIL_USER=... GMAIL_APP_PASSWORD=... \
-  GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... GOOGLE_REFRESH_TOKEN=...
+  GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... GOOGLE_REFRESH_TOKEN=... \
+  BUG_REPORT_TO=...
 
 # GitHub Actions token (one token works for both apps)
 fly tokens create deploy -x 999999h
