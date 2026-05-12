@@ -102,6 +102,11 @@ export function Player({
     if (!stage) return;
     const ro = new ResizeObserver(() => forceRender((n) => n + 1));
     ro.observe(stage);
+    // Also watch the ruler: when the tracks area gets a scrollbar (or loses
+    // one), .stage's outer width is unchanged but the wave column inside it
+    // shrinks, so overlay positions need to re-measure off the ruler's rect.
+    const ruler = rulerRef.current;
+    if (ruler) ro.observe(ruler);
     return () => ro.disconnect();
   }, []);
   // ResizeObserver fires async after layout, so the first render under a new
@@ -348,8 +353,8 @@ export function Player({
             aria-label="Click for point annotation, drag for region"
           />
         )}
-        <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
         <div className="tracks" ref={tracksRef}>
+          <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
           {!stems.length && !loading && (
             <div className="empty-stage">
               <p>No practice loaded.</p>
