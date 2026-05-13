@@ -204,16 +204,19 @@ export function Track({
     }
   }, [trackHeight]);
 
-  // Hide-and-fade across container resizes (e.g., comments panel toggling
-  // the rail-annotations column). WaveSurfer auto-redraws on resize; we hide
-  // synchronously so the snap isn't visible, then fade back in once width is
-  // stable.
+  // Hide-and-fade across BIG container resizes (e.g., comments panel toggling
+  // the rail-annotations column — a single ~300px jump). WaveSurfer auto-
+  // redraws on resize; we hide synchronously so the snap isn't visible, then
+  // fade back in once width is stable. We skip the hide for small incremental
+  // changes — otherwise continuous horizontal zoom (which fires many small
+  // width changes per gesture) leaves the wave hidden the entire time.
   useEffect(() => {
     const el = clipRef.current;
     if (!el) return;
     let lastWidth = el.getBoundingClientRect().width;
     let firstFire = true;
     let fadeTimer: number | null = null;
+    const RESIZE_THRESHOLD_PX = 100;
     const ro = new ResizeObserver((entries) => {
       const w = entries[0]?.contentRect.width ?? lastWidth;
       if (firstFire) {
@@ -221,8 +224,9 @@ export function Track({
         lastWidth = w;
         return;
       }
-      if (Math.abs(w - lastWidth) < 0.5) return;
+      const delta = Math.abs(w - lastWidth);
       lastWidth = w;
+      if (delta < RESIZE_THRESHOLD_PX) return;
       setWaveLoading(true);
       if (fadeTimer) clearTimeout(fadeTimer);
       fadeTimer = window.setTimeout(() => {

@@ -459,11 +459,13 @@ button.track-name:disabled { cursor: default; }
 
 .wave {
   position: relative;
-  /* Fill the parent .track row, which is sized by --track-h (driven by
-     viewport.state.trackHeight). The WaveSurfer canvas inside .clip is sized
-     to max(8, trackHeight - 16) by Track.tsx, so it always fits cleanly
-     inside the 4px top/bottom inset. */
-  height: 100%;
+  /* Drive height directly from --track-h (driven by viewport.state.trackHeight).
+     We can't use height: 100% — the mobile media query below sets .track to
+     height: auto for the rail-above-wave layout, which would collapse a
+     100%-height descendant to 0px. The WaveSurfer canvas inside .clip is
+     sized to max(8, trackHeight - 16) by Track.tsx and fits cleanly inside
+     the 4px top/bottom inset. */
+  height: var(--track-h, 44px);
   min-width: 0;
   width: 100%;
 }
