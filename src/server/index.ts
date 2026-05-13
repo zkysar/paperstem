@@ -8,6 +8,11 @@ import { handleAuthVerify } from './auth/verify.js';
 import { handleAuthLogout } from './auth/logout.js';
 import { handleDevLogin, isDevLoginEnabled } from './auth/dev-login.js';
 import { handleMe } from './auth/me.js';
+import {
+  handleListTokens,
+  handleCreateToken,
+  handleRevokeToken,
+} from './tokens.js';
 import { sessionMiddleware, type AuthVariables } from './auth/middleware.js';
 import { handleListBands, handleGetBand } from './bands.js';
 import {
@@ -56,6 +61,9 @@ if (isDevLoginEnabled()) {
   app.get('/api/auth/dev-login', handleDevLogin);
 }
 app.get('/api/me', handleMe);
+app.get('/api/me/tokens', handleListTokens);
+app.post('/api/me/tokens', handleCreateToken);
+app.delete('/api/me/tokens/:id', handleRevokeToken);
 app.get('/api/bands', handleListBands);
 app.get('/api/bands/:id', handleGetBand);
 app.get('/api/practices', handleListPractices);

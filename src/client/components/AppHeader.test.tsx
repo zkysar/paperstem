@@ -20,6 +20,7 @@ const baseProps = {
   onSignOut: vi.fn(),
   onReportBug: vi.fn(),
   onRenamePractice: vi.fn(),
+  onOpenTokens: vi.fn(),
 };
 
 describe('AppHeader', () => {

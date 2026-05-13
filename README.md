@@ -44,6 +44,82 @@ flyctl ssh console --app paperstem --command 'node /app/dist/server/bin/backfill
 flyctl ssh console --app paperstem --command 'node /app/dist/server/bin/run-job.js [snapshots|backups]'
 ```
 
+## Importing from a multitrack recorder
+
+Paperstem ships a CLI importer that pulls recordings off an SD card and turns them into practices automatically. Currently supports the Tascam Model 12; other multitrack recorders can be added as plugins under [src/server/import/](src/server/import/).
+
+### Workflow
+
+On the device:
+
+1. Once per practice, create a new song on the Model 12 and start recording.
+2. (Optional) Tap **MARK** at the start of each new idea you want as a separate practice in Paperstem.
+3. Press **STOP** when done.
+
+On your laptop:
+
+1. Insert the SD card (or connect the Model 12 over USB-C in mass-storage mode).
+2. The launchd agent (set up once, below) notices it and uploads everything within ~5 minutes. New practices appear in Paperstem with the song name for un-marked songs, or `take 1` / `take 2` / … for marked ones.
+
+### One-time setup
+
+1. **Install ffmpeg:** `brew install ffmpeg`
+2. **Mint a token:** Log into Paperstem → avatar menu → **Import tokens** → **Create new token**. Copy the value (shown once only).
+3. **Stash the token** in macOS Keychain (or wherever you keep secrets):
+   ```bash
+   security add-generic-password -a "$USER" -s paperstem-import-token -w
+   # paste the token when prompted
+   ```
+4. **Write the config** at `~/.config/paperstem/import.json`:
+   ```json
+   {
+     "device": "model12",
+     "sd_card_path": "/Volumes/YOUR_SD_CARD_NAME",
+     "paperstem_url": "https://paperstem.fly.dev",
+     "band_id": "band_xxxxxxxx",
+     "delete_after_import": false
+   }
+   ```
+5. **Test it once:**
+   ```bash
+   PAPERSTEM_SESSION_TOKEN="$(security find-generic-password -a "$USER" -s paperstem-import-token -w)" \
+     npx tsx bin/import-from-device.ts
+   ```
+   No SD card mounted? Silent exit. Card with new recordings? They land in Paperstem.
+6. **Schedule it** with `~/Library/LaunchAgents/com.you.paperstem-import.plist`:
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+   <plist version="1.0">
+   <dict>
+     <key>Label</key><string>com.you.paperstem-import</string>
+     <key>ProgramArguments</key>
+     <array>
+       <string>/opt/homebrew/bin/npx</string>
+       <string>tsx</string>
+       <string>/Users/you/projects/paperstem/bin/import-from-device.ts</string>
+     </array>
+     <key>EnvironmentVariables</key>
+     <dict>
+       <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+       <key>PAPERSTEM_SESSION_TOKEN</key><string><!-- paste your token --></string>
+     </dict>
+     <key>StartInterval</key><integer>300</integer>
+     <key>StandardOutPath</key><string>/tmp/paperstem-import.out</string>
+     <key>StandardErrorPath</key><string>/tmp/paperstem-import.err</string>
+   </dict>
+   </plist>
+   ```
+   Load with `launchctl load -w ~/Library/LaunchAgents/com.you.paperstem-import.plist`.
+
+### Permissions
+
+The importer creates practices via `POST /api/practices`, which is currently restricted to the **band owner**. Non-owner members can't use the importer against a band they don't own — the API returns 403. If you're not the owner of the `band_id` in your config, ask the owner to mint a token for you and stash it locally, or relax the route to any member (`src/server/practices.ts:239`).
+
+### Reclaiming SD card space
+
+By default, the importer never deletes files from the card. To enable automatic deletion after a successful import, set `"delete_after_import": true` in the config — that waits 30 days before deletion so you have time to spot a bad upload and `rm` the `.paperstem-imported` marker to re-import. Pass an integer to override the grace period in days, or `0` to delete on the next tick.
+
 ## Deploying
 
 ```bash
