@@ -8,6 +8,11 @@ import {
   ShareArrivalBanner,
   type ShareArrivalCategory,
 } from './components/ShareArrivalBanner';
+import {
+  buildShareUrl,
+  describeShareCategories,
+  snapshotShareState,
+} from './lib/share-url';
 import { CommentsDrawer, type DraftSpec } from './components/CommentsDrawer';
 import { CommentsFab } from './components/CommentsFab';
 import { CommentPopover } from './components/CommentPopover';
@@ -608,6 +613,21 @@ function PaperstemApp({
     [player],
   );
 
+  // Snapshot current player + UI state into a full share URL. Called by the
+  // AppToolbar Share button (which then writes the URL to the clipboard).
+  // Returns null when nothing is loaded — the toolbar treats that as a no-op.
+  const handleShareSnapshot = useCallback(() => {
+    if (!activePracticeId) return null;
+    const state = snapshotShareState({
+      practiceId: activePracticeId,
+      player: player.state,
+      currentTime: player.currentTime,
+      activeCommentId,
+    });
+    const url = buildShareUrl(state, window.location.href);
+    return { fullUrl: url, categories: describeShareCategories(state) };
+  }, [activePracticeId, player.state, player.currentTime, activeCommentId]);
+
   async function handleToggleStar(a: Annotation): Promise<void> {
     const prev = annotations;
     const optimistic = annotations.map((x) =>
@@ -777,6 +797,7 @@ function PaperstemApp({
         onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}
         onSetMasterVolume={player.setMasterVolume}
         onToggleRailCollapsed={() => setRailCollapsed((v) => !v)}
+        onShare={handleShareSnapshot}
       />
       {activePracticeId === null && draftFiles.length > 0 && (
         <div className="draft-banner" role="status">

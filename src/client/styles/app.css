@@ -2391,3 +2391,52 @@ body.env-non-prod[data-env="local"]::before {
   align-items: center;
 }
 .share-arrival-dismiss:hover { color: var(--ink); }
+
+/* Share button + transient "Copied — includes X" label + clipboard
+ * fallback popover. Lives in the AppToolbar after the download button. */
+.atb-share-wrap { position: relative; display: inline-flex; align-items: center; }
+.atb-share-label {
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: var(--accent-tint);
+  color: var(--ink);
+  border: 1px solid var(--accent-tint-2);
+  border-radius: 3px;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.atb-share-fallback {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  min-width: 320px;
+}
+.atb-share-fallback input {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  border: 1px solid var(--rule);
+  background: var(--bg);
+  color: var(--ink);
+  padding: 4px 6px;
+  border-radius: 3px;
+}
+.atb-share-fallback-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: var(--fs-lg);
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+}
+.atb-share-fallback-close:hover { color: var(--ink); }
