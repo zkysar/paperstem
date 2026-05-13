@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { ExternalLink, Pencil, Trash2, Upload, X } from 'lucide-react';
+import { ExternalLink, FolderOpen, Pencil, Trash2, X } from 'lucide-react';
 import type { Practice, TrashList } from '../data/types';
 import { AUDIO_EXT } from '../lib/audio';
 import { WaveformThumb } from './WaveformThumb';
 
-type Tab = 'recent' | 'all' | 'trash' | 'local';
+type Tab = 'recent' | 'all' | 'trash';
 
 type Props = {
   open: boolean;
@@ -16,7 +16,6 @@ type Props = {
   onClose(): void;
   onSelect(id: string): void;
   onLoadFolder(files: File[], folderName: string): void;
-  onUploadClick(): void;
   onRetry(): void;
   onRenamePractice(id: string, name: string): void;
   onDeletePractice(id: string): void;
@@ -29,7 +28,7 @@ type Props = {
 
 export function FilePicker({
   open, loading, loadError, practices, activePracticeId, showUpload,
-  onClose, onSelect, onLoadFolder, onUploadClick, onRetry,
+  onClose, onSelect, onLoadFolder, onRetry,
   onRenamePractice, onDeletePractice,
   trash, trashError, onLoadTrash, onRestorePractice, onRestoreStem,
 }: Props) {
@@ -90,9 +89,13 @@ export function FilePicker({
             onChange={(e) => setSearch(e.target.value)}
           />
           {showUpload && (
-            <button type="button" className="fp-upload-btn" onClick={onUploadClick}>
-              <Upload size={14} strokeWidth={2} aria-hidden="true" />
-              Upload
+            <button
+              type="button"
+              className="fp-upload-btn"
+              onClick={() => folderInputRef.current?.click()}
+            >
+              <FolderOpen size={14} strokeWidth={2} aria-hidden="true" />
+              New practice
             </button>
           )}
           <button
@@ -130,17 +133,6 @@ export function FilePicker({
               if (trash === null) onLoadTrash();
             }}
           >Trash</button>
-          <button
-            type="button"
-            role="tab"
-            data-tab="local"
-            aria-selected={tab === 'local'}
-            className={'fp-tab' + (tab === 'local' ? ' active' : '')}
-            onClick={() => {
-              setTab('local');
-              folderInputRef.current?.click();
-            }}
-          >Local folder…</button>
         </div>
         <input
           ref={folderInputRef}
@@ -163,7 +155,7 @@ export function FilePicker({
             practices={practices} activePracticeId={activePracticeId}
             showUpload={showUpload}
             onSelect={onSelect}
-            onUploadClick={onUploadClick}
+            onNewPracticeClick={() => folderInputRef.current?.click()}
             onRetry={onRetry}
             onRenamePractice={onRenamePractice}
             onRequestDelete={(id, name) => setConfirm({ id, name })}
@@ -171,9 +163,12 @@ export function FilePicker({
         )}
         {showUpload && tab !== 'trash' && (
           <div className="fp-upload-bottom">
-            <button type="button" onClick={onUploadClick}>
-              <Upload size={14} strokeWidth={2} aria-hidden="true" />
-              Upload practice
+            <button
+              type="button"
+              onClick={() => folderInputRef.current?.click()}
+            >
+              <FolderOpen size={14} strokeWidth={2} aria-hidden="true" />
+              New practice
             </button>
           </div>
         )}
@@ -221,7 +216,7 @@ export function FilePicker({
 
 function FilePickerBody({
   search, practices, activePracticeId, loading, loadError, showUpload,
-  onSelect, onUploadClick, onRetry, onRenamePractice, onRequestDelete,
+  onSelect, onNewPracticeClick, onRetry, onRenamePractice, onRequestDelete,
 }: {
   tab: Tab;
   search: string;
@@ -231,7 +226,7 @@ function FilePickerBody({
   activePracticeId: string | null;
   showUpload: boolean;
   onSelect(id: string): void;
-  onUploadClick(): void;
+  onNewPracticeClick(): void;
   onRetry(): void;
   onRenamePractice(id: string, name: string): void;
   onRequestDelete(id: string, name: string): void;
@@ -276,13 +271,14 @@ function FilePickerBody({
       <div className="fp-body fp-state">
         <p className="fp-state-msg">No practices yet.</p>
         {showUpload && (
-          <button type="button" className="fp-state-action" onClick={onUploadClick}>
-            <Upload size={14} strokeWidth={2} aria-hidden="true" />
-            Upload practice
+          <button type="button" className="fp-state-action" onClick={onNewPracticeClick}>
+            <FolderOpen size={14} strokeWidth={2} aria-hidden="true" />
+            New practice
           </button>
         )}
         <p className="fp-state-secondary">
-          Or use the “Local folder…” tab to play stems off your disk.
+          Pick a folder of stems. You can listen and rename before saving it
+          to your band.
         </p>
       </div>
     );

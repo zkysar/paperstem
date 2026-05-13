@@ -90,6 +90,10 @@ function PaperstemApp({
   const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  // Draft mode: when the user picks a folder via "+ New practice", the audio
+  // plays from local File objects (object URLs). We keep the underlying Files
+  // around so "Save to band" can hand them to UploadDrawer for promotion.
+  const [draftFiles, setDraftFiles] = useState<File[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [annotationCreateMode, setAnnotationCreateMode] = useState(false);
@@ -274,6 +278,7 @@ function PaperstemApp({
 
   async function handleUploaded(practiceId: string) {
     setUploadOpen(false);
+    setDraftFiles([]);
     try {
       await refreshPractices();
       await selectPractice(practiceId);
@@ -468,6 +473,7 @@ function PaperstemApp({
     async (id: string) => {
       if (!repo) return;
       setActivePracticeId(id);
+      setDraftFiles([]);
       await loadPractice(id, { resetUiState: true });
     },
     [repo, loadPractice],
@@ -567,6 +573,7 @@ function PaperstemApp({
 
   function loadFolder(files: File[], folderName: string) {
     if (!files.length) {
+      setDraftFiles([]);
       void player.load({
         practiceId: null,
         title: folderName || 'Local folder',
@@ -580,6 +587,7 @@ function PaperstemApp({
       return { name: f.name, src: url, revoke: () => URL.revokeObjectURL(url) };
     });
     setActivePracticeId(null);
+    setDraftFiles(files);
     void player.load({
       practiceId: `local:${folderName}`,
       title: folderName,
@@ -635,7 +643,7 @@ function PaperstemApp({
         driveFolderId={player.state.driveFolderId ?? null}
         annotationsOpen={drawerOpen}
         hasPractice={player.state.stems.length > 0}
-        canRename={Boolean(activePracticeId)}
+        canRename={player.state.stems.length > 0}
         appVersion={appInfo?.version ?? null}
         appEnv={appInfo?.env ?? null}
         onOpenPicker={openPicker}
@@ -643,7 +651,14 @@ function PaperstemApp({
         onSignOut={onLogout}
         onReportBug={() => openBugReport()}
         onRenamePractice={(name) => {
-          if (activePracticeId) void renamePractice(activePracticeId, name);
+          // In draft mode there's no server practice yet — just update the
+          // player title. The new title becomes the default upload name on
+          // promote.
+          if (activePracticeId) {
+            void renamePractice(activePracticeId, name);
+          } else {
+            player.setTitle(name.trim());
+          }
         }}
       />
       <AppToolbar
@@ -672,6 +687,22 @@ function PaperstemApp({
         onSetMasterVolume={player.setMasterVolume}
         onToggleRailCollapsed={() => setRailCollapsed((v) => !v)}
       />
+      {activePracticeId === null && draftFiles.length > 0 && (
+        <div className="draft-banner" role="status">
+          <span className="draft-banner-label">
+            Local draft — only on this device.
+          </span>
+          {showUploadButton && (
+            <button
+              type="button"
+              className="draft-banner-save"
+              onClick={() => setUploadOpen(true)}
+            >
+              Save to your band
+            </button>
+          )}
+        </div>
+      )}
       <div className="app-body">
         <ErrorBoundary onReportBug={openBugReport}>
           <Player
@@ -688,7 +719,7 @@ function PaperstemApp({
             hoveredAnnotationId={hoveredAnnotationId}
             onHoverAnnotation={setHoveredAnnotationId}
             railCollapsed={railCollapsed}
-            canMutate={Boolean(activePracticeId)}
+            canMutate={player.state.stems.length > 0}
             onOpenPicker={openPicker}
             onRenameStem={(id, name) => void renameStem(id, name)}
             onDeleteStem={(id) => void deleteStem(id)}
@@ -792,7 +823,6 @@ function PaperstemApp({
           loadFolder(files, folderName);
           closePicker();
         }}
-        onUploadClick={() => setUploadOpen(true)}
         onRetry={() => {
           setPracticesLoading(true);
           void refreshPractices().catch(() => {});
@@ -819,6 +849,10 @@ function PaperstemApp({
         <UploadDrawer
           bandId={activeBandId}
           open={uploadOpen}
+          prefilledFiles={draftFiles}
+          prefilledName={
+            draftFiles.length > 0 ? player.state.title || null : null
+          }
           onClose={() => setUploadOpen(false)}
           onUploaded={(id) => void handleUploaded(id)}
         />
