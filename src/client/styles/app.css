@@ -213,7 +213,12 @@ kbd {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* Hide the native scrollbars — scroll still works via wheel, WASD,
+     trackpad pan, and minimap drag. Visible scrollbars clash with the
+     DAW-style timeline. */
+  scrollbar-width: none; /* Firefox */
 }
+.viewport::-webkit-scrollbar { display: none; /* WebKit */ }
 .viewport-inner {
   position: relative;
   display: flex;

@@ -419,16 +419,18 @@ export function Player({
 
   // Overlays (playhead, loop region, annotation markers, annotation preview)
   // live INSIDE .viewport-inner, so their `left` is measured from the inner
-  // content's left edge (not the viewport's scroll-clipped left). That means
-  // positions are computed in *content* coordinates: x = 0 corresponds to
-  // t = 0, and x = innerWidth corresponds to t = duration. Don't add wr.left
-  // here — wr.left goes negative when scrolled right, which would drag the
-  // overlays out of alignment with the underlying waveform.
+  // content's left edge. The grid puts the rail in column 1 (railWidth px)
+  // and the wave in column 2 (waveWidth px). Overlays must offset by
+  // railWidth so they don't extend under the sticky rail / track names.
+  // When the rail is collapsed (mobile), railWidth = 0 and the wave fills
+  // the full row.
+  const railWidth = railCollapsed ? 0 : 260; // matches --rail-w in app.css
+  const waveWidth = Math.max(0, innerWidth - railWidth);
   const playheadLeft = duration
-    ? (Math.min(currentTime, duration) / duration) * innerWidth
+    ? railWidth + (Math.min(currentTime, duration) / duration) * waveWidth
     : 0;
-  const loopLeft = loop && duration ? (loop.start / duration) * innerWidth : 0;
-  const loopWidth = loop && duration ? ((loop.end - loop.start) / duration) * innerWidth : 0;
+  const loopLeft = loop && duration ? railWidth + (loop.start / duration) * waveWidth : 0;
+  const loopWidth = loop && duration ? ((loop.end - loop.start) / duration) * waveWidth : 0;
   const previewSource = (() => {
     if (!duration) return null;
     if (annotationDragPreview) {
@@ -448,12 +450,12 @@ export function Player({
     return null;
   })();
   const previewLeft = previewSource && duration
-    ? (previewSource.startMs / 1000 / duration) * innerWidth
+    ? railWidth + (previewSource.startMs / 1000 / duration) * waveWidth
     : 0;
   const previewWidth = previewSource && duration
     ? Math.max(
         previewSource.isPoint ? 3 : 2,
-        ((previewSource.endMs - previewSource.startMs) / 1000 / duration) * innerWidth,
+        ((previewSource.endMs - previewSource.startMs) / 1000 / duration) * waveWidth,
       )
     : 0;
 
@@ -511,7 +513,7 @@ export function Player({
             {annotationCreateMode && duration > 0 && (
               <div
                 className="annotation-create-overlay"
-                style={{ left: 0, width: `${innerWidth}px` }}
+                style={{ left: `${railWidth}px`, width: `${waveWidth}px` }}
                 onPointerDown={(e) => {
                   if (e.button !== 0) return;
                   startAnnotationDrag(e.clientX, e.pointerId);
@@ -602,8 +604,8 @@ export function Player({
               duration={duration}
               userColorMap={userColorMap}
               visible={markersVisible}
-              waveLeftPx={0}
-              waveWidthPx={innerWidth}
+              waveLeftPx={railWidth}
+              waveWidthPx={waveWidth}
               onSelect={onAnnotationSelected}
               hoveredId={hoveredAnnotationId}
               onHover={onHoverAnnotation}
