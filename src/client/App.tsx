@@ -77,6 +77,22 @@ function PaperstemApp({
   const viewport = useViewport();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [showZoomHint, setShowZoomHint] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('paperstem.hints.zoom.seen') !== '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const dismissZoomHint = useCallback(() => {
+    setShowZoomHint(false);
+    try {
+      localStorage.setItem('paperstem.hints.zoom.seen', '1');
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
   const activeBand = bands[0] ?? null;
@@ -703,6 +719,19 @@ function PaperstemApp({
             viewport={viewport}
           />
         </ErrorBoundary>
+        {showZoomHint && player.state.stems.length > 0 && (
+          <div className="zoom-hint" role="status" onClick={dismissZoomHint}>
+            <span>Hold <kbd>⌥</kbd> and scroll to zoom in. Press <kbd>?</kbd> for shortcuts.</span>
+            <button
+              type="button"
+              className="zoom-hint-close"
+              onClick={dismissZoomHint}
+              aria-label="Dismiss hint"
+            >
+              ×
+            </button>
+          </div>
+        )}
         {(() => {
           const active = annotations.find((a) => a.id === activeCommentId) ?? null;
           const isNarrow = railCollapsed;

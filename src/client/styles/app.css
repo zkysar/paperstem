@@ -2405,3 +2405,28 @@ body.env-non-prod[data-env="local"]::before {
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
+
+.zoom-hint {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 20, 0.92);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 900;
+  cursor: pointer;
+}
+.zoom-hint-close {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 4px;
+}
