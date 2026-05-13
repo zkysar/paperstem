@@ -126,6 +126,40 @@ export function Player({
     }
   }, [viewport.state.scrollLeft]);
 
+  // Non-passive wheel listener for ⌥-scroll (horizontal zoom) and
+  // ⇧-scroll (horizontal pan). We attach via addEventListener — React's
+  // synthetic onWheel is passive-by-default and can't preventDefault.
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if (e.altKey) {
+        e.preventDefault();
+        const stage = stageRef.current;
+        if (!stage) return;
+        const stageRect = stage.getBoundingClientRect();
+        const anchorX = e.clientX - stageRect.left;
+        viewport.zoomH(e.deltaY < 0 ? 'in' : 'out', {
+          stageWidth: stageRect.width,
+          anchorX,
+        });
+        // Manual zoom suspends auto-follow.
+        if (viewport.state.followActive) viewport.setFollowActive(false);
+      } else if (e.shiftKey && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        // Shift converts vertical wheel to horizontal pan.
+        e.preventDefault();
+        const target = el.scrollLeft + e.deltaY;
+        viewport.setScrollLeft(target, el.scrollWidth - el.clientWidth);
+        if (viewport.state.followActive) viewport.setFollowActive(false);
+      }
+      // Otherwise let the browser handle: native vertical scroll on the
+      // viewport (when tracks overflow vertically), and native horizontal
+      // pan (trackpad two-finger swipe → e.deltaX without shift).
+    }
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [viewport]);
+
   function getStageInnerWidth(): number {
     const stage = stageRef.current;
     if (!stage) return 0;
