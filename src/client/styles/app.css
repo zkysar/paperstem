@@ -607,7 +607,7 @@ button.track-name:disabled { cursor: default; }
 }
 .unavailable-popover {
   position: absolute;
-  right: calc(100% + 6px);
+  left: calc(100% + 6px);
   top: 50%;
   transform: translateY(-50%);
   z-index: 20;
