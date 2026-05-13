@@ -172,11 +172,9 @@ kbd {
   font-size: 0.85rem;
 }
 
-.tracks {
-  /* Default track height; overridden by Player when viewport state changes. */
-  --track-h: 44px;
-}
 .track {
+  /* --track-h is set on .viewport-inner by Player from viewport state;
+     44px is the fallback if no ancestor sets it. */
   height: var(--track-h, 44px);
   border-bottom: 1px solid var(--rule-2);
 }
