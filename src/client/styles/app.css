@@ -1310,6 +1310,7 @@ button.ah-title-name:disabled { cursor: default; }
 }
 .ah-avatar-menu button {
   width: 100%;
+  display: flex; align-items: center; gap: 8px;
   text-align: left;
   background: transparent; border: none;
   padding: 6px 8px;
@@ -1317,6 +1318,7 @@ button.ah-title-name:disabled { cursor: default; }
   color: var(--ink); border-radius: 4px;
   cursor: pointer;
 }
+.ah-avatar-menu button > svg { flex: 0 0 14px; }
 .ah-avatar-menu button:hover { background: var(--accent-tint); }
 .ah-avatar-version {
   display: block;
