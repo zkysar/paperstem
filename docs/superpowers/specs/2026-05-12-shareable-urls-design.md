@@ -24,7 +24,7 @@ https://paperstem.app/#p=abc123
 ### Share-snapshot URL (the Share button output)
 
 ```
-https://paperstem.app/#p=abc123&t=42.50&l=10.00-30.00&le=0&fs=stem_xyz&fc=cmt_abc&mv=0.80&mix=stem_a:m,stem_b:s,stem_c:v0.50&wn=peak
+https://paperstem.app/#p=abc123&t=42.50&l=10.00-30.00&le=0&fs=stem_xyz&fc=cmt_abc&mv=0.80&mix=stem_a:m,stem_b:s,stem_c:v0.50
 ```
 
 - Built on-click from a full snapshot of player + UI state.
@@ -42,7 +42,6 @@ https://paperstem.app/#p=abc123&t=42.50&l=10.00-30.00&le=0&fs=stem_xyz&fc=cmt_ab
 | `l` | `<start>-<end>` (2 decimals each) | no loop region | `l=10.00-30.00` |
 | `le` | `1`/`0` (loop enabled) | `1` (only override when set and disabled) | `le=0` |
 | `mv` | master volume, 2 decimals | `1.0` | `mv=0.80` |
-| `wn` | waveform normalization mode | the player's default mode | `wn=peak` |
 | `fs` | stem server ID | no focused stem | `fs=stem_xyz` |
 | `fc` | comment ID | no focused comment | `fc=cmt_abc` |
 | `mix` | per-stem deviations | every stem at defaults | `mix=stem_a:m,stem_b:s,stem_c:v0.50` |
@@ -58,6 +57,9 @@ https://paperstem.app/#p=abc123&t=42.50&l=10.00-30.00&le=0&fs=stem_xyz&fc=cmt_ab
 - Cheap to parse — `URLSearchParams` for the top level, simple split for `mix`.
 - Forward-stable: unknown keys are ignored, so future additions (e.g. `pr` for playback rate) won't break old links/clients.
 - Length stays small for the typical "here's a spot" link (just `p` and `t` → ~20 chars after `#`).
+- "Share from the very start" produces a clean `#p=<id>` link — `t=0` is the default and gets omitted.
+
+Waveform normalization is **not** included. It's a personal viewing preference, not part of the moment being shared; including it would override the recipient's chosen default for no benefit.
 
 ### Precision
 
@@ -73,12 +75,27 @@ Centi-second (`42.50`) timestamps. Finer than musical-aural targeting needs.
    2. `setLoopEnabled(le)`
    3. Per-stem mix: `setVolume`, `toggleMute`, `toggleSolo` as needed
    4. `setMasterVolume(mv)`
-   5. `setWaveformNormalization(wn)`
-   6. `focusStem(fs)`
-   7. `setActiveCommentId(fc)`
-   8. `seek(t)` — last
+   5. `focusStem(fs)`
+   6. `setActiveCommentId(fc)` — and ensure the comment is **scrolled into view in the comments drawer** and **emphasized** (sustained highlight, not just selected). See "Arrival affordance" below.
+   7. `seek(t)` — last
 5. Player stays **paused**. No autoplay (browser autoplay policies + surprise audio).
 6. Clear the ref after applying so subsequent practice loads don't re-apply.
+
+### Arrival affordance (recipient UX)
+
+A share link that lands a recipient on a paused player at `0:42` with a custom mix is silent and confusing — they don't know the link "did" anything, and a `mix=...` that mutes most stems can read as "broken."
+
+When `ShareState` is consumed (i.e. at least one non-`p` field applied), show a **dismissable arrival banner** anchored near the timeline/transport. Contents:
+
+- "Shared at `0:42`" (or "Shared link applied" if no `t`)
+- A "▶ Listen" call-to-action that starts playback from the linked moment (this also satisfies the autoplay-gesture requirement)
+- A short note listing what was carried over, only when those fields are present: e.g. "Custom mix · Loop region · Focused comment"
+
+Banner auto-dismisses on first play or any explicit user dismiss. Stays visible until then — no time-based fade — because the worst failure mode is the user not noticing it.
+
+When `fc` is present, the focused comment must be:
+- Scrolled into view in the comments drawer (open the drawer if closed)
+- Highlighted with a sustained emphasis (not just the normal selection state) that fades over a few seconds — long enough to register
 
 ### Address-bar live-sync
 
@@ -90,6 +107,8 @@ Fragment parsing happens on mount of `PaperstemApp`, which only renders after `u
 
 **Magic-link case:** if the user is logged out, the magic-link click navigates through `/auth/callback?token=...` which is a fresh server-side navigation and **drops the fragment**. To preserve it across this flow, `App` stashes the current `location.hash` in `sessionStorage` (`paperstem.pendingShareHash`) whenever it renders `LoginScreen` with a non-empty hash present. After login, on first `PaperstemApp` mount, parse `location.hash` first, then fall back to `sessionStorage.getItem('paperstem.pendingShareHash')` and consume/clear it. This means the share-link state survives even the magic-link round trip.
 
+The magic-link login flow can take a minute or two; the user may forget why they clicked. When `LoginScreen` renders with `pendingShareHash` present (or `location.hash` non-empty), show a small hint above or below the email field: **"You'll be taken to the shared moment after you log in."** Keeps expectations anchored across the round trip.
+
 **Already-logged-in case:** fragment is in `location.hash` at `PaperstemApp` mount. Trivial.
 
 ## UI entry points
@@ -97,7 +116,8 @@ Fragment parsing happens on mount of `PaperstemApp`, which only renders after `u
 ### Primary: "Share" button in `AppToolbar`
 
 - Visible only when a practice is loaded.
-- Click: snapshot current state → build URL → `navigator.clipboard.writeText` → label flips to "Copied" for ~1.5s, then back.
+- Click: snapshot current state → build URL → `navigator.clipboard.writeText` → button enters a "copied" state for ~2s, then resets.
+- The "copied" state shows a small inline summary of what's included beyond the practice + time, e.g. "Copied — includes loop, mix" or "Copied — includes mix" or just "Copied" if only `p + t`. Lists only the categories that are present (loop, mix, focused stem, focused comment). This calibrates the sender's expectation about what they just shipped — particularly important if they had absent-mindedly soloed a stem.
 - If clipboard write fails (insecure context, denied permission): fall back to a small popover with the URL pre-selected for manual copy.
 
 ### Secondary: "Copy link to this comment" in the comment menu
@@ -129,9 +149,14 @@ Fragment parsing happens on mount of `PaperstemApp`, which only renders after `u
 
 ### Changed
 
-- **`src/client/App.tsx`** — wire `useShareLink`. Hold parsed `ShareState` in a ref. New effect drains the ref after practice load (gated on `player.state.stems.length > 0` and matching `practiceId`). Effect on `activePracticeId` calls `syncPracticeId`.
-- **`src/client/components/AppToolbar.tsx`** — Share button + copy logic + clipboard fallback popover.
-- **`src/client/components/CommentList.tsx`** (or `CommentPopover.tsx`) — "Copy link" menu item.
+- **`src/client/App.tsx`** — wire `useShareLink`. Hold parsed `ShareState` in a ref. New effect drains the ref after practice load (gated on `player.state.stems.length > 0` and matching `practiceId`). After draining, set an `arrivalState` (the categories applied + the timestamp) used by the banner. Effect on `activePracticeId` calls `syncPracticeId`. Opens `CommentsDrawer` when `fc` is being applied.
+- **`src/client/components/AppToolbar.tsx`** — Share button + copy logic + "copied — includes X" summary + clipboard fallback popover.
+- **`src/client/auth/LoginScreen.tsx`** — show a "you'll be taken to the shared moment after you log in" hint when a pending share hash is present.
+- **`src/client/components/CommentList.tsx`** (or `CommentPopover.tsx`) — "Copy link" menu item. Also: a sustained-emphasis style for the comment when it's the arrival focus (separate from normal active-comment selection).
+
+### New
+
+- **`src/client/components/ShareArrivalBanner.tsx`** — the recipient-side banner. Props: `{ time?: number, categories: Array<'mix' | 'loop' | 'stem' | 'comment'>, onPlay: () => void, onDismiss: () => void }`. Stateless. Rendered conditionally by `App.tsx`. Companion `ShareArrivalBanner.test.tsx` covers render variants.
 
 ### Not adding
 
@@ -151,6 +176,8 @@ Fragment parsing happens on mount of `PaperstemApp`, which only renders after `u
 | Loop range invalid (`start ≥ end`, NaN, negative) | Drop loop entirely. |
 | `fs` / `fc` ID not present after load | Silently skip that field. |
 | `mix` references stems not in the practice | Skip those entries; apply the rest. |
+| `mix` mutes every stem in the practice | Applied as-is; the arrival banner's "Custom mix" category + "▶ Listen" CTA makes it clear the silence is intentional. |
+| `fc` comment exists but drawer is closed | Drawer opens; comment scrolls into view; sustained emphasis fades after ~3s. |
 | Clipboard write fails | Show popover with pre-selected URL. |
 | User opens share link while viewing a different practice | Switch to the new practice (same as picker click). |
 | User opens share link while logged out | `App` stashes the hash in `sessionStorage` before rendering `LoginScreen`. After magic-link login, `PaperstemApp` mount falls back to that stash and consumes it. |
@@ -174,10 +201,12 @@ Fragment parsing happens on mount of `PaperstemApp`, which only renders after `u
 - One smoke test in `App.test.tsx`: mount with `#p=abc&t=10` set, assert `player.seek` called with `10` after load completes.
 
 ### Manual
-- Generate share link from main toolbar, paste in new tab, verify state matches.
-- Generate from comment menu, verify lands at correct time and focuses comment.
+- Generate share link from main toolbar, paste in new tab, verify state matches and arrival banner appears with correct category list.
+- Generate from comment menu, verify lands at correct time, drawer opens, comment scrolls into view, sustained emphasis is visible.
+- Generate a share link with every stem muted — verify arrival banner makes the silence intelligible (recipient understands why playback is silent).
+- Verify "Copied" state on Share button lists the right categories (loop only, mix only, both, etc.).
 - Refresh after navigating around — confirm address bar reflects only current practice ID.
-- Open a share link while logged out — complete magic-link login — confirm state still applies (sessionStorage path).
+- Open a share link while logged out — confirm LoginScreen shows the "you'll be taken to the shared moment" hint. Complete magic-link login — confirm state still applies (sessionStorage path).
 
 ### Not needed
 - Server-side tests. Fragment never reaches the server.
