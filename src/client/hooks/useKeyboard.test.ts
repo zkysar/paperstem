@@ -29,6 +29,26 @@ function stubPlayer() {
   } as any;
 }
 
+function defaultViewport() {
+  return {
+    state: {
+      hZoom: 1,
+      trackHeight: 44,
+      scrollLeft: 0,
+      followMode: 'smooth' as const,
+      followActive: true,
+      minimapPref: 'auto' as const,
+    },
+    zoomH: vi.fn(),
+    zoomV: vi.fn(),
+    setScrollLeft: vi.fn(),
+    fitToWindow: vi.fn(),
+    setFollowActive: vi.fn(),
+    setFollowMode: vi.fn(),
+    setMinimapPref: vi.fn(),
+  } as any;
+}
+
 function defaultOpts() {
   return {
     player: stubPlayer(),
@@ -36,11 +56,13 @@ function defaultOpts() {
     drawerOpen: false,
     popoverOpen: false,
     annotationCreateMode: false,
+    viewport: defaultViewport(),
     onTogglePicker: vi.fn(),
     onClosePicker: vi.fn(),
     onCloseDrawer: vi.fn(),
     onClosePopover: vi.fn(),
     onCancelCreate: vi.fn(),
+    onToggleShortcuts: vi.fn(),
   };
 }
 
@@ -145,5 +167,107 @@ describe('useKeyboard Esc precedence', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(onCancelCreate).toHaveBeenCalledOnce();
     expect(onCloseDrawer).not.toHaveBeenCalled();
+  });
+});
+
+describe('useKeyboard zoom chords', () => {
+  it('cmd-= calls viewport.zoomH("in")', () => {
+    const viewport = defaultViewport();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        viewport,
+      }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '=', metaKey: true }),
+    );
+    expect(viewport.zoomH).toHaveBeenCalledWith('in', expect.any(Object));
+  });
+
+  it('cmd-minus calls viewport.zoomH("out")', () => {
+    const viewport = defaultViewport();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        viewport,
+      }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '-', metaKey: true }),
+    );
+    expect(viewport.zoomH).toHaveBeenCalledWith('out', expect.any(Object));
+  });
+
+  it('shift-cmd-= calls viewport.zoomV("in")', () => {
+    const viewport = defaultViewport();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        viewport,
+      }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '=', metaKey: true, shiftKey: true }),
+    );
+    expect(viewport.zoomV).toHaveBeenCalledWith('in');
+  });
+
+  it('shift-cmd-minus calls viewport.zoomV("out")', () => {
+    const viewport = defaultViewport();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        viewport,
+      }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '-', metaKey: true, shiftKey: true }),
+    );
+    expect(viewport.zoomV).toHaveBeenCalledWith('out');
+  });
+
+  it('cmd-0 calls viewport.fitToWindow', () => {
+    const viewport = defaultViewport();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        viewport,
+      }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '0', metaKey: true }),
+    );
+    expect(viewport.fitToWindow).toHaveBeenCalledOnce();
+  });
+
+  it('? opens shortcuts overlay', () => {
+    const onToggleShortcuts = vi.fn();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        onToggleShortcuts,
+      }),
+    );
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '?' }));
+    expect(onToggleShortcuts).toHaveBeenCalledOnce();
+  });
+
+  it('? does not fire when typing in an input', () => {
+    const onToggleShortcuts = vi.fn();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        onToggleShortcuts,
+      }),
+    );
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '?', bubbles: true }),
+    );
+    expect(onToggleShortcuts).not.toHaveBeenCalled();
+    document.body.removeChild(input);
   });
 });

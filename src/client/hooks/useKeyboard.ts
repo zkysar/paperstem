@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { PlayerControls } from './usePlayer';
+import type { ViewportControls } from './useViewport';
 
 export type KeyboardOpts = {
   player: PlayerControls;
@@ -7,11 +8,13 @@ export type KeyboardOpts = {
   drawerOpen: boolean;
   popoverOpen: boolean;
   annotationCreateMode: boolean;
+  viewport: ViewportControls;
   onTogglePicker(): void;
   onClosePicker(): void;
   onCloseDrawer(): void;
   onClosePopover(): void;
   onCancelCreate(): void;
+  onToggleShortcuts(): void;
 };
 
 /**
@@ -47,7 +50,47 @@ export function useKeyboard(opts: KeyboardOpts): void {
         return;
       }
 
+      // Zoom chords: ⌘= / ⌘- (horizontal), ⇧⌘= / ⇧⌘- (vertical), ⌘0 (fit).
+      // Run before the isTextField guard so users zoom while focused in a
+      // rename field; these aren't characters anyone would type in text.
+      if ((e.metaKey || e.ctrlKey) && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        const stage = document.querySelector('.stage') as HTMLDivElement | null;
+        const rect = stage?.getBoundingClientRect();
+        const sw = rect?.width ?? 800;
+        if (e.shiftKey) {
+          opts.viewport.zoomV('in');
+        } else {
+          opts.viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+        }
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '-') {
+        e.preventDefault();
+        const stage = document.querySelector('.stage') as HTMLDivElement | null;
+        const rect = stage?.getBoundingClientRect();
+        const sw = rect?.width ?? 800;
+        if (e.shiftKey) {
+          opts.viewport.zoomV('out');
+        } else {
+          opts.viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+        }
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '0') {
+        e.preventDefault();
+        opts.viewport.fitToWindow();
+        return;
+      }
+
       if (isTextField) return;
+
+      // ? opens the shortcuts overlay (not inside text inputs).
+      if (e.key === '?') {
+        e.preventDefault();
+        opts.onToggleShortcuts();
+        return;
+      }
 
       const { state } = player;
 

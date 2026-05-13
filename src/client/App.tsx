@@ -75,6 +75,7 @@ function PaperstemApp({
   const player = usePlayer();
   const viewport = useViewport();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
   const activeBand = bands[0] ?? null;
@@ -165,6 +166,7 @@ function PaperstemApp({
     drawerOpen,
     popoverOpen: activeCommentId !== null,
     annotationCreateMode,
+    viewport,
     onTogglePicker: () => (pickerOpen ? closePicker() : openPicker()),
     onClosePicker: closePicker,
     onCloseDrawer: closeDrawer,
@@ -173,6 +175,7 @@ function PaperstemApp({
       setAnnotationCreateMode(false);
       setPendingDraft(null);
     },
+    onToggleShortcuts: () => setShortcutsOpen((v) => !v),
   });
 
   const userColorMap = useMemo(
