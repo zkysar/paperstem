@@ -486,6 +486,12 @@ button.track-name:disabled { cursor: default; }
 }
 
 /* ===== Footer bits ===== */
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .status {
   color: var(--muted);
   font-size: 0.78rem;

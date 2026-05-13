@@ -125,6 +125,7 @@ export function useKeyboard(opts: KeyboardOpts): void {
       if (e.code === 'Space') {
         if (state.stems.length) {
           e.preventDefault();
+          opts.viewport.setFollowActive(true);
           void player.togglePlay();
         }
       } else if (e.key === 'l' || e.key === 'L') {

@@ -10,6 +10,7 @@ import type { Annotation } from '../../shared/types';
 import type { PlayerControls } from '../hooks/usePlayer';
 import { pixelToTime } from '../lib/format';
 import { AnnotationMarkers } from './AnnotationMarkers';
+import { FollowPill } from './FollowPill';
 import { LoopRegion } from './LoopRegion';
 import { Playhead } from './Playhead';
 import { Ruler } from './Ruler';
@@ -159,6 +160,50 @@ export function Player({
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [viewport]);
+
+  // Smooth/page-flip follow. Runs only while playing and followActive.
+  useEffect(() => {
+    if (!viewport.state.followActive) return;
+    if (!player.state.stems.length || !duration) return;
+
+    let raf = 0;
+    function tick() {
+      const inner = viewportRef.current;
+      const stage = stageRef.current;
+      if (!inner || !stage) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      // Only follow while audio is actually playing — pausing freezes follow.
+      const playing = player.state.stems.some(
+        (s: { audio: HTMLAudioElement }) => !s.audio.paused,
+      );
+      if (!playing) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      const w = stage.getBoundingClientRect().width;
+      const innerW = w * viewport.state.hZoom;
+      const t = player.currentTime;
+      const playheadInner = duration ? (t / duration) * innerW : 0;
+      const sl = inner.scrollLeft;
+      const visibleR = sl + w;
+      if (viewport.state.followMode === 'smooth') {
+        const target = Math.max(0, playheadInner - w * 0.25);
+        if (Math.abs(target - sl) > 0.5) {
+          inner.scrollLeft = target;
+        }
+      } else {
+        // page-flip: jump only when playhead crosses the right edge
+        if (playheadInner > visibleR - 10) {
+          inner.scrollLeft = Math.max(0, playheadInner - w * 0.05);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [viewport.state.followActive, viewport.state.followMode, viewport.state.hZoom, duration, player]);
 
   function getStageInnerWidth(): number {
     const stage = stageRef.current;
@@ -545,12 +590,18 @@ export function Player({
         </div>
       )}
 
-      <div className="status">{status}</div>
+      <div className="status-row">
+        <div className="status">{status}</div>
+        {viewport.state.hZoom > 1 && (
+          <FollowPill
+            active={viewport.state.followActive}
+            onToggle={() => viewport.setFollowActive(!viewport.state.followActive)}
+          />
+        )}
+      </div>
 
       <div className="keys-hint">
-        <strong>Keys:</strong> <kbd>Space</kbd> play/pause &middot; <kbd>L</kbd> loop on/off
-        &middot; <kbd>Esc</kbd> clear loop &middot; <kbd>M</kbd>/<kbd>S</kbd> mute/solo focused
-        track &middot; drag the ruler to set a loop region
+        Press <kbd>?</kbd> for keyboard shortcuts.
       </div>
     </main>
   );
