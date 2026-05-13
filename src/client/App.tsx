@@ -16,6 +16,7 @@ import {
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FilePicker } from './components/FilePicker';
 import { Player } from './components/Player';
+import { ShortcutsOverlay } from './components/ShortcutsOverlay';
 import { UploadDrawer } from './components/UploadDrawer';
 import {
   listAnnotations,
@@ -848,6 +849,10 @@ function PaperstemApp({
           pickerOpen,
         }}
         onClose={closeBugReport}
+      />
+      <ShortcutsOverlay
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
       />
     </div>
   );
