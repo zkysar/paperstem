@@ -442,14 +442,12 @@ export function Player({
   // the full row.
   const railWidth = railCollapsed ? 0 : 260; // matches --rail-w in app.css
   const waveWidth = Math.max(0, innerWidth - railWidth);
-  // Nudge the playhead 2px past the rail's box-shadow edge so it stays
-  // visible at t=0 (where its true position coincides with the rail's
-  // right border). 2px over a multi-second timeline is sub-pixel-percent
-  // — imperceptible — and prevents the rail from clipping the playhead at
-  // the song start.
-  const PLAYHEAD_EDGE_OFFSET = 2;
+  // Playhead uses the same linear t → x mapping as the loop region,
+  // annotation markers, and minimap. Z-index (5) places it above the
+  // sticky rail (3), so the 1px line stays visible at t=0 even though
+  // it overlaps the rail's right-edge box-shadow.
   const playheadLeft = duration
-    ? railWidth + PLAYHEAD_EDGE_OFFSET + (Math.min(currentTime, duration) / duration) * Math.max(0, waveWidth - PLAYHEAD_EDGE_OFFSET)
+    ? railWidth + (Math.min(currentTime, duration) / duration) * waveWidth
     : 0;
   const loopLeft = loop && duration ? railWidth + (loop.start / duration) * waveWidth : 0;
   const loopWidth = loop && duration ? ((loop.end - loop.start) / duration) * waveWidth : 0;
@@ -665,11 +663,7 @@ export function Player({
               leftPx={playheadLeft}
               clientXToLeftPx={(clientX) => {
                 const t = xToTime(clientX);
-                return duration
-                  ? railWidth +
-                      PLAYHEAD_EDGE_OFFSET +
-                      (t / duration) * Math.max(0, waveWidth - PLAYHEAD_EDGE_OFFSET)
-                  : 0;
+                return duration ? railWidth + (t / duration) * waveWidth : 0;
               }}
               clientXToTime={xToTime}
               onSeek={player.seek}
