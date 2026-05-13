@@ -677,6 +677,8 @@ function PaperstemApp({
         onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}
         onSetMasterVolume={player.setMasterVolume}
         onToggleRailCollapsed={() => setRailCollapsed((v) => !v)}
+        viewport={viewport}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
       />
       <div className="app-body">
         <ErrorBoundary onReportBug={openBugReport}>

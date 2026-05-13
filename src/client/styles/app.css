@@ -2391,3 +2391,17 @@ body.env-non-prod[data-env="local"]::before {
 @media (max-width: 720px) {
   .minimap-strip { display: none; }
 }
+
+/* Toolbar zoom group (Task 12) */
+.toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.toolbar-readout {
+  font-size: 0.75rem;
+  color: var(--muted);
+  min-width: 38px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}

@@ -4,7 +4,10 @@ import {
   Download,
   Eye,
   EyeOff,
+  HelpCircle,
   Loader2,
+  Map as MapIcon,
+  Maximize2,
   MessageSquarePlus,
   PanelRightClose,
   PanelRightOpen,
@@ -14,9 +17,12 @@ import {
   SkipBack,
   Volume2,
   VolumeX,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
+import type { ViewportControls } from '../hooks/useViewport';
 
 type Props = {
   hasPractice: boolean;
@@ -43,6 +49,8 @@ type Props = {
   onToggleMarkersVisible(): void;
   onSetMasterVolume(v: number): void;
   onToggleRailCollapsed(): void;
+  viewport: ViewportControls;
+  onOpenShortcuts(): void;
 };
 
 export function AppToolbar(props: Props) {
@@ -54,6 +62,7 @@ export function AppToolbar(props: Props) {
     onSeek, onTogglePlay, onToggleLoopEnabled, onDownloadAll,
     onToggleWaveformNormalization, onToggleAnnotationCreate,
     onToggleMarkersVisible, onSetMasterVolume, onToggleRailCollapsed,
+    viewport, onOpenShortcuts,
   } = props;
 
   return (
@@ -122,6 +131,72 @@ export function AppToolbar(props: Props) {
           </button>
         </>
       )}
+
+      <span className="atb-divider" />
+
+      <div className="toolbar-group">
+        <button
+          type="button"
+          className="atb-btn"
+          onClick={() => {
+            const stage = document.querySelector('.stage') as HTMLDivElement | null;
+            const sw = stage?.getBoundingClientRect().width ?? 800;
+            viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+          }}
+          aria-label="Zoom out"
+          title="Zoom out (⌘−)"
+        >
+          <ZoomOut size={14} aria-hidden="true" />
+        </button>
+        <span
+          className="toolbar-readout"
+          title={`Horizontal ${Math.round(viewport.state.hZoom * 100)}%, track ${viewport.state.trackHeight}px`}
+        >
+          {Math.round(viewport.state.hZoom * 100)}%
+        </span>
+        <button
+          type="button"
+          className="atb-btn"
+          onClick={() => {
+            const stage = document.querySelector('.stage') as HTMLDivElement | null;
+            const sw = stage?.getBoundingClientRect().width ?? 800;
+            viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+          }}
+          aria-label="Zoom in"
+          title="Zoom in (⌘=)"
+        >
+          <ZoomIn size={14} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="atb-btn"
+          onClick={() => viewport.fitToWindow()}
+          aria-label="Fit to window"
+          title="Fit to window (⌘0)"
+        >
+          <Maximize2 size={14} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className={'atb-btn' + (viewport.state.minimapPref === 'off' ? ' off' : '')}
+          onClick={() =>
+            viewport.setMinimapPref(viewport.state.minimapPref === 'auto' ? 'off' : 'auto')
+          }
+          aria-label={viewport.state.minimapPref === 'auto' ? 'Hide minimap' : 'Show minimap (auto)'}
+          title={viewport.state.minimapPref === 'auto' ? 'Minimap: auto (click to hide)' : 'Minimap: off (click to enable auto)'}
+        >
+          <MapIcon size={14} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="atb-btn"
+          onClick={onOpenShortcuts}
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+        >
+          <HelpCircle size={14} aria-hidden="true" />
+        </button>
+      </div>
 
       <span className="atb-divider" />
 
