@@ -381,6 +381,10 @@ export function usePlayer(): PlayerControls {
   // ---- Cleanup on unmount: stop sources, disconnect gain nodes ----
   useEffect(() => {
     return () => {
+      if (pendingSeekRafRef.current != null) {
+        cancelAnimationFrame(pendingSeekRafRef.current);
+        pendingSeekRafRef.current = null;
+      }
       stopSources();
       const s = stateRef.current;
       for (const stem of s.stems) {
@@ -567,16 +571,34 @@ export function usePlayer(): PlayerControls {
     }
   }, [pause]);
 
+  // Coalesce rapid seeks (e.g. spam-clicking the timeline) into one audio
+  // reschedule per frame. The visual cursor still moves on every call so the
+  // UI feels responsive; only the (expensive) stopSources/startSourcesAt pair
+  // is deferred, and only the latest target survives.
+  const pendingSeekTargetRef = useRef<number | null>(null);
+  const pendingSeekRafRef = useRef<number | null>(null);
+
   const seek = useCallback((t: number) => {
     const s = stateRef.current;
     const clamped = Math.max(0, Math.min(s.duration, t));
     pausedOffsetRef.current = clamped;
     lastTRef.current = clamped;
     setCurrentTime(clamped);
-    if (isPlayingInternalRef.current) {
-      stopSources();
-      startSourcesAt(clamped);
+    if (!isPlayingInternalRef.current) {
+      // Paused: nothing scheduled, no need to coalesce.
+      return;
     }
+    pendingSeekTargetRef.current = clamped;
+    if (pendingSeekRafRef.current != null) return;
+    pendingSeekRafRef.current = requestAnimationFrame(() => {
+      pendingSeekRafRef.current = null;
+      const target = pendingSeekTargetRef.current;
+      pendingSeekTargetRef.current = null;
+      if (target == null) return;
+      if (!isPlayingInternalRef.current) return;
+      stopSources();
+      startSourcesAt(target);
+    });
   }, []);
 
   const setVolume = useCallback((idx: number, vol: number) => {
