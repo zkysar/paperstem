@@ -3,6 +3,7 @@ import { LoginScreen } from './auth/LoginScreen';
 import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
 import { PENDING_SHARE_HASH_KEY, useShareLink } from './hooks/useShareLink';
+import { applyShareState } from './lib/apply-share-state';
 import { CommentsDrawer, type DraftSpec } from './components/CommentsDrawer';
 import { CommentsFab } from './components/CommentsFab';
 import { CommentPopover } from './components/CommentPopover';
@@ -437,6 +438,23 @@ function PaperstemApp({
     // because the share state hasn't been applied yet.
     void loadPractice(initial.practiceId, { resetUiState: true });
   }, [repo, loadPractice]);
+
+  // Drain pendingShareStateRef once the active practice is fully loaded
+  // (stems decoded). Player stays paused; recipient drives playback.
+  // Task 6 extends this effect to set arrival banner state from `result`.
+  useEffect(() => {
+    const pending = pendingShareStateRef.current;
+    if (!pending) return;
+    if (player.state.practiceId !== pending.practiceId) return;
+    if (player.state.stems.length === 0) return;
+
+    applyShareState(pending, {
+      player,
+      onFocusComment: (id) => setActiveCommentId(id),
+      onOpenDrawer: () => openDrawer(),
+    });
+    pendingShareStateRef.current = null;
+  }, [player, openDrawer]);
 
   const restoreStem = useCallback(
     async (id: string) => {
