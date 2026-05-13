@@ -82,6 +82,44 @@ kbd {
   gap: 16px;
   min-height: 0;
 }
+/* ===== Draft banner =====
+   Shown above .app-body when the player is loaded from a local folder pick
+   (no server-side practice yet). Calls attention to the fact that nothing
+   is saved or shared, and offers Save to your band as the resolving action. */
+.draft-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 8px 16px;
+  background: var(--accent-soft, rgba(193, 116, 70, 0.12));
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--fs-sm);
+  color: var(--ink-2, var(--ink));
+  z-index: 5;
+}
+.draft-banner-label {
+  font-weight: 500;
+}
+.draft-banner-save {
+  appearance: none;
+  background: var(--accent, #c17446);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.draft-banner-save:hover {
+  filter: brightness(1.05);
+}
+.draft-banner-save:focus-visible {
+  outline: 2px solid var(--accent, #c17446);
+  outline-offset: 2px;
+}
+
 /* ===== Topbar (used by bands-empty fallback) ===== */
 .topbar {
   display: flex;

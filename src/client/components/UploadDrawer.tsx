@@ -20,6 +20,12 @@ type FileEntry = {
 type Props = {
   bandId: string;
   open: boolean;
+  // Optional: pre-populate the file list and name field. Used by the
+  // "Save to band" flow that promotes a local-folder draft — the user
+  // already picked the folder upstream, so the drawer skips its own
+  // folder-picker UI and shows the files immediately.
+  prefilledFiles?: File[];
+  prefilledName?: string | null;
   onClose(): void;
   onUploaded(practiceId: string): void;
 };
@@ -97,14 +103,33 @@ function uploadStem(
   });
 }
 
-export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
+export function UploadDrawer({
+  bandId,
+  open,
+  prefilledFiles,
+  prefilledName,
+  onClose,
+  onUploaded,
+}: Props) {
   const folderInputRef = useRef<HTMLInputElement>(null);
-  const [name, setName] = useState(defaultPracticeName());
+  const [name, setName] = useState(prefilledName?.trim() || defaultPracticeName());
   const [recordedOn, setRecordedOn] = useState(todayIso());
-  const [files, setFiles] = useState<FileEntry[]>([]);
+  const [files, setFiles] = useState<FileEntry[]>(() =>
+    (prefilledFiles ?? []).map((file) => ({
+      file,
+      status: 'pending' as UploadStatus,
+      progress: 0,
+      error: null,
+    })),
+  );
   const [submitting, setSubmitting] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
 
+  const hasPrefilledFiles = (prefilledFiles?.length ?? 0) > 0;
+
+  // Reset on open: pick up fresh prefill values, or clear back to defaults.
+  // Done in an effect rather than in initial state so re-opening with new
+  // prefill values takes effect.
   useEffect(() => {
     if (!open) {
       setName(defaultPracticeName());
@@ -113,8 +138,20 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
       setSubmitting(false);
       setTopError(null);
       if (folderInputRef.current) folderInputRef.current.value = '';
+      return;
     }
-  }, [open]);
+    if (prefilledName) setName(prefilledName.trim());
+    if (prefilledFiles && prefilledFiles.length > 0) {
+      setFiles(
+        prefilledFiles.map((file) => ({
+          file,
+          status: 'pending' as UploadStatus,
+          progress: 0,
+          error: null,
+        })),
+      );
+    }
+  }, [open, prefilledFiles, prefilledName]);
 
   const trimmedName = name.trim();
   const nameValid = trimmedName.length > 0 && trimmedName.length <= MAX_NAME_LENGTH;
@@ -260,7 +297,9 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
     >
       <div className="upload-modal" onClick={(e) => e.stopPropagation()}>
         <div className="upload-modal-header">
-          <h2 id="upload-modal-title">Upload practice</h2>
+          <h2 id="upload-modal-title">
+            {hasPrefilledFiles ? 'Save to your band' : 'Upload practice'}
+          </h2>
           <button
             type="button"
             className="upload-modal-close"
@@ -295,21 +334,28 @@ export function UploadDrawer({ bandId, open, onClose, onUploaded }: Props) {
             />
           </label>
 
-          <label className="upload-field">
-            <span>Folder of stems</span>
-            <input
-              ref={folderInputRef}
-              type="file"
-              {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
-              multiple
-              onChange={handleFolderPicked}
-              disabled={submitting}
-            />
-            <span className="upload-hint">
+          {hasPrefilledFiles ? (
+            <p className="upload-hint">
               Stems are re-encoded to MP3 128 kbps in your browser before upload.
               This is lossy compression — keep your original masters elsewhere.
-            </span>
-          </label>
+            </p>
+          ) : (
+            <label className="upload-field">
+              <span>Folder of stems</span>
+              <input
+                ref={folderInputRef}
+                type="file"
+                {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+                multiple
+                onChange={handleFolderPicked}
+                disabled={submitting}
+              />
+              <span className="upload-hint">
+                Stems are re-encoded to MP3 128 kbps in your browser before upload.
+                This is lossy compression — keep your original masters elsewhere.
+              </span>
+            </label>
+          )}
 
           {files.length > 0 && (
             <ul className="upload-file-list">

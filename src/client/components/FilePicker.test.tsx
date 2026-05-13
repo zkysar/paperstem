@@ -15,7 +15,6 @@ const baseProps = {
   onClose: vi.fn(),
   onSelect: vi.fn(),
   onLoadFolder: vi.fn(),
-  onUploadClick: vi.fn(),
   onRetry: vi.fn(),
   onRenamePractice: vi.fn(),
   onDeletePractice: vi.fn(),
@@ -110,17 +109,47 @@ describe('FilePicker', () => {
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
-  it('shows empty-state with Upload (when allowed) and Local folder', () => {
+  it('shows empty-state with New practice button (when allowed)', () => {
     render(<FilePicker {...baseProps} practices={[]} showUpload={true} />);
     expect(screen.getByText(/No practices yet/)).not.toBeNull();
+    // The new entry-point label (header + bottom + empty state all read
+    // "New practice" — we just assert the empty-state action exists).
+    expect(
+      screen.getAllByRole('button', { name: /New practice/i }).length,
+    ).toBeGreaterThan(0);
   });
 
-  it('hides Upload in empty state when showUpload is false', () => {
+  it('hides New practice in empty state when showUpload is false', () => {
     render(<FilePicker {...baseProps} practices={[]} showUpload={false} />);
     expect(screen.getByText(/No practices yet/)).not.toBeNull();
-    // No "+ Upload" button in the empty body. The header upload button may still
-    // be present when showUpload=false ... it shouldn't be (header gates on showUpload too)
+    // Header, bottom, and empty-state buttons all gate on showUpload — none
+    // of them should appear when the user can't create practices.
+    expect(screen.queryByRole('button', { name: /New practice/i })).toBeNull();
+    // And the legacy "Upload" label is gone.
     expect(screen.queryByRole('button', { name: /Upload/ })).toBeNull();
+  });
+
+  it('does not render the Local-folder tab', () => {
+    render(<FilePicker {...baseProps} />);
+    // The picker's tabs are now Recent | All | Trash only.
+    expect(screen.queryByRole('tab', { name: /Local folder/i })).toBeNull();
+  });
+
+  it('clicking + New practice opens the folder picker', async () => {
+    const user = userEvent.setup();
+    render(<FilePicker {...baseProps} practices={[]} showUpload={true} />);
+    // The header button triggers a click on the hidden file input — we can't
+    // easily intercept the OS dialog, but we can verify the input exists and
+    // the click handler is wired by spying on its click method.
+    const folderInput = document.querySelector(
+      'input[type="file"][webkitdirectory]',
+    ) as HTMLInputElement | null;
+    expect(folderInput).not.toBeNull();
+    const click = vi.spyOn(folderInput!, 'click');
+    // Header + bottom + empty-state all render the same button; click any.
+    const buttons = screen.getAllByRole('button', { name: /New practice/i });
+    await user.click(buttons[0]);
+    expect(click).toHaveBeenCalled();
   });
 
   it('renders Drive ↗ link per row when driveFolderId set', () => {
