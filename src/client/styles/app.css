@@ -74,7 +74,8 @@ kbd {
   flex: 1;
   display: grid;
   grid-template-columns: 1fr;
-  max-width: 1200px;
+  /* Let the player use the full viewport width — the DAW-style zoom feature
+     wants every pixel of timeline real-estate, not a centered 1200px column. */
   width: 100%;
   margin: 0 auto;
   padding: 16px 16px 0;
@@ -199,6 +200,33 @@ kbd {
   flex: 1;
   min-height: 0;
 }
+.viewport {
+  /* Single scroll container for BOTH axes. position: sticky on the rail and
+     ruler-row anchors to the nearest scroll ancestor — making .viewport the
+     sole scroller means `.track-rail { left: 0 }` and `.ruler-row { top: 0 }`
+     stay pinned during horizontal/vertical scroll. If .tracks also had its
+     own overflow, sticky would anchor there instead, and the rail would
+     scroll off-screen along with .tracks's content. */
+  overflow: auto;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* Hide the native scrollbars — scroll still works via wheel, WASD,
+     trackpad pan, and minimap drag. Visible scrollbars clash with the
+     DAW-style timeline. */
+  scrollbar-width: none; /* Firefox */
+}
+.viewport::-webkit-scrollbar { display: none; /* WebKit */ }
+.viewport-inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  /* width is set inline via JS based on viewport.state.hZoom */
+}
 
 /* The rail (track names, volume, M/S pills) is the first column of a
    2-column grid; the ruler and each wave occupy the second column. Timeline
@@ -228,6 +256,7 @@ kbd {
 .ruler {
   height: 22px;
   position: relative;
+  background: var(--bg);
   border-bottom: 1px solid var(--rule);
   cursor: crosshair;
   user-select: none;
@@ -251,10 +280,13 @@ kbd {
 }
 
 .tracks {
-  padding-top: 4px;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  /* No overflow here — the parent .viewport is the single scroll container
+     for both axes. Keeping `overflow-y: auto` here would make .tracks a
+     vertical scroll context, which causes `.track-rail { position: sticky }`
+     to anchor to .tracks (whose own left edge scrolls horizontally with
+     .viewport) instead of to .viewport, breaking the sticky rail. */
 }
 .empty {
   color: var(--muted);
@@ -264,8 +296,19 @@ kbd {
 }
 
 .track {
-  height: 44px;
+  /* --track-h is set on .viewport-inner by Player from viewport state;
+     44px is the fallback if no ancestor sets it. */
+  height: var(--track-h, 44px);
   border-bottom: 1px solid var(--rule-2);
+}
+
+/* Track content collapse tiers, driven by the className that Track.tsx
+   sets based on its current height. Each tier hides the previous tier's
+   most-collapsible content. */
+.track.tier-min .vol-row,
+.track.tier-min .pill.trash,
+.track.tier-mid .vol-row {
+  display: none;
 }
 .track:last-child { border-bottom: none; }
 .track.focused .track-rail {
@@ -283,6 +326,20 @@ kbd {
   padding: 4px 6px 4px 4px;
   min-width: 0;
   box-shadow: 1px 0 0 var(--rule-2);
+  /* Stay anchored at the left edge when the .viewport scrolls horizontally
+     so track names and M/S controls remain visible while panning a zoomed
+     timeline. z-index sits above the wave but below the sticky ruler row. */
+  position: sticky;
+  left: 0;
+  z-index: 3;
+}
+/* Same sticky anchoring for the ruler's left-column spacer so the ruler
+   bar lines up with the visible wave start instead of scrolling away. */
+.ruler-rail-spacer {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--bg);
 }
 
 /* ===== Rail-collapsed state: hide the rail entirely so the wave occupies
@@ -402,10 +459,27 @@ button.track-name:disabled { cursor: default; }
 }
 .pill.mute.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .pill.solo.on { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+/* Pill sizing drops with track tier so M/S stay readable but don't overflow
+   the 22px-tall row at min tier. */
+.track.tier-min .pill {
+  min-height: 18px;
+  min-width: 18px;
+  padding: 2px 4px;
+  font-size: 10px;
+}
+.track.tier-mid .pill {
+  min-height: 22px;
+}
 
 .wave {
   position: relative;
-  height: 36px;
+  /* Drive height directly from --track-h (driven by viewport.state.trackHeight).
+     We can't use height: 100% — the mobile media query below sets .track to
+     height: auto for the rail-above-wave layout, which would collapse a
+     100%-height descendant to 0px. The WaveSurfer canvas inside .clip is
+     sized to max(8, trackHeight - 16) by Track.tsx and fits cleanly inside
+     the 4px top/bottom inset. */
+  height: var(--track-h, 44px);
   min-width: 0;
   width: 100%;
 }
@@ -421,6 +495,9 @@ button.track-name:disabled { cursor: default; }
   opacity: 1;
   transition: opacity 180ms ease-out;
 }
+/* At the smallest track tier the 4px insets eat too much of the row; tighten
+   them so the waveform has room to breathe. */
+.track.tier-min .clip { top: 2px; bottom: 2px; }
 .clip.muted { opacity: 0.3; }
 /* While WaveSurfer is decoding/quantizing (initial load before peaks come in,
    or a container-resize re-render), hide the canvas children and shimmer the
@@ -567,10 +644,20 @@ button.track-name:disabled { cursor: default; }
   width: 1px;
   background: var(--accent);
   pointer-events: none;
-  z-index: 10;
+  /* Above the ruler-row (z:4) so the playhead line cuts through the
+     timeline labels. Rail-area overlap is handled in JS — Player.tsx
+     suppresses rendering when the playhead's screen position would fall
+     inside the sticky rail's column. */
+  z-index: 5;
 }
 
 /* ===== Footer bits ===== */
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 .status {
   color: var(--muted);
   font-size: var(--fs-md);
@@ -2359,6 +2446,182 @@ body.env-non-prod[data-env="local"]::before {
   }
 }
 
+
+.shortcuts-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.shortcuts-modal {
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  max-width: 640px;
+  width: calc(100% - 32px);
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+}
+.shortcuts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rule-2);
+}
+.shortcuts-header h2 { margin: 0; font-size: 1.05rem; }
+.shortcuts-close {
+  background: transparent;
+  border: 0;
+  font-size: 1.25rem;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.shortcuts-body {
+  padding: 12px 16px 16px;
+  overflow-y: auto;
+}
+.shortcuts-section + .shortcuts-section { margin-top: 16px; }
+.shortcuts-section h3 {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.shortcuts-section dl { margin: 0; }
+.shortcuts-row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 12px;
+  padding: 4px 0;
+  align-items: baseline;
+}
+.shortcuts-row dt { margin: 0; }
+.shortcuts-row dd { margin: 0; font-size: 0.9rem; }
+.shortcuts-note { color: var(--muted); }
+
+.follow-pill {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--rule-2);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.follow-pill.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
+
+.minimap-strip {
+  position: relative;
+  /* Slim strip that always lives between the toolbar and the timeline.
+     Always rendered (no toggle) so zooming never causes layout shift. */
+  height: 14px;
+  background: transparent;
+  border-bottom: 1px solid var(--rule-2);
+  cursor: pointer;
+  overflow: hidden;
+  /* Align with the main timeline's wave column. The rail occupies the first
+     --rail-w pixels of the stage; the minimap must skip that space so t=0
+     in the minimap lines up with t=0 in the main timeline. */
+  margin-left: var(--rail-w, 260px);
+}
+.player.rail-collapsed .minimap-strip,
+.player .minimap-strip.rail-collapsed {
+  margin-left: 0;
+}
+.minimap-rect {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* Translucent overlay — at hZoom=1 it covers the full strip and is barely
+     visible; once zoomed in it visibly highlights the viewport window. */
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  cursor: grab;
+}
+.minimap-rect:active { cursor: grabbing; }
+.minimap-loop {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--accent-tint, rgba(255, 200, 50, 0.18));
+}
+.minimap-dot {
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.minimap-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+@media (max-width: 720px) {
+  .minimap-strip { display: none; }
+}
+
+/* Toolbar zoom group (Task 12) */
+.toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.toolbar-readout {
+  font-size: 0.75rem;
+  color: var(--muted);
+  min-width: 38px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.zoom-hint {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--paper);
+  color: var(--ink);
+  padding: 8px 12px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  font-size: var(--fs-sm);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  z-index: 900;
+  cursor: pointer;
+}
+.zoom-hint-close {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.zoom-hint-close:hover { color: var(--ink); }
 
 /* Share-link arrival banner — shown when a recipient opens a share URL with
  * non-trivial state (loop, mix, focused comment, etc). Anchored at the top

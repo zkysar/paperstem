@@ -22,7 +22,7 @@ type Props = {
 
 function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;
-  return isMac ? e.metaKey : e.ctrlKey;
+  return isMac() ? e.metaKey : e.ctrlKey;
 }
 
 export function CommentBottomSheet({

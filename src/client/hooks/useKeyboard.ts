@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { PlayerControls } from './usePlayer';
+import type { ViewportControls } from './useViewport';
 
 export type KeyboardOpts = {
   player: PlayerControls;
@@ -7,11 +8,13 @@ export type KeyboardOpts = {
   drawerOpen: boolean;
   popoverOpen: boolean;
   annotationCreateMode: boolean;
+  viewport: ViewportControls;
   onTogglePicker(): void;
   onClosePicker(): void;
   onCloseDrawer(): void;
   onClosePopover(): void;
   onCancelCreate(): void;
+  onToggleShortcuts(): void;
 };
 
 /**
@@ -47,7 +50,47 @@ export function useKeyboard(opts: KeyboardOpts): void {
         return;
       }
 
+      // Zoom chords: ⌘= / ⌘- (horizontal), ⇧⌘= / ⇧⌘- (vertical), ⌘0 (fit).
+      // Run before the isTextField guard so users zoom while focused in a
+      // rename field; these aren't characters anyone would type in text.
+      if ((e.metaKey || e.ctrlKey) && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        const stage = document.querySelector('.stage') as HTMLDivElement | null;
+        const rect = stage?.getBoundingClientRect();
+        const sw = rect?.width ?? 800;
+        if (e.shiftKey) {
+          opts.viewport.zoomV('in');
+        } else {
+          opts.viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+        }
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '-') {
+        e.preventDefault();
+        const stage = document.querySelector('.stage') as HTMLDivElement | null;
+        const rect = stage?.getBoundingClientRect();
+        const sw = rect?.width ?? 800;
+        if (e.shiftKey) {
+          opts.viewport.zoomV('out');
+        } else {
+          opts.viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+        }
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '0') {
+        e.preventDefault();
+        opts.viewport.fitToWindow();
+        return;
+      }
+
       if (isTextField) return;
+
+      // ? opens the shortcuts overlay (not inside text inputs).
+      if (e.key === '?') {
+        e.preventDefault();
+        opts.onToggleShortcuts();
+        return;
+      }
 
       const { state } = player;
 
@@ -82,6 +125,7 @@ export function useKeyboard(opts: KeyboardOpts): void {
       if (e.code === 'Space') {
         if (state.stems.length) {
           e.preventDefault();
+          opts.viewport.setFollowActive(true);
           void player.togglePlay();
         }
       } else if (e.key === 'l' || e.key === 'L') {
@@ -92,9 +136,50 @@ export function useKeyboard(opts: KeyboardOpts): void {
       } else if ((e.key === 'm' || e.key === 'M') && state.focusedIdx >= 0) {
         e.preventDefault();
         player.toggleMute(state.focusedIdx);
-      } else if ((e.key === 's' || e.key === 'S') && state.focusedIdx >= 0) {
+      } else if ((e.key === 'o' || e.key === 'O') && state.focusedIdx >= 0) {
+        // Solo focused track (was 'S', moved to 'O' to free S for WASD).
         e.preventDefault();
         player.toggleSolo(state.focusedIdx);
+      } else if (
+        e.key === 'w' || e.key === 'W' ||
+        e.key === 'a' || e.key === 'A' ||
+        e.key === 's' || e.key === 'S' ||
+        e.key === 'd' || e.key === 'D'
+      ) {
+        // WASD: W/S = horizontal zoom in/out (like a map), A/D = horizontal
+        // pan. Holding the key triggers OS key-repeat for continuous
+        // zoom/pan. Pan step = ~1/6 of the viewport so a few keystrokes
+        // traverse the visible window.
+        const viewportEl = document.querySelector('.viewport') as HTMLDivElement | null;
+        const stage = document.querySelector('.stage') as HTMLDivElement | null;
+        if (!viewportEl || !stage) return;
+        e.preventDefault();
+        const sw = stage.getBoundingClientRect().width || 800;
+        const step = Math.round(viewportEl.clientWidth / 6);
+        switch (e.key.toLowerCase()) {
+          case 'w':
+            opts.viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+            if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
+            break;
+          case 's':
+            opts.viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+            if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
+            break;
+          case 'a':
+            opts.viewport.setScrollLeft(
+              viewportEl.scrollLeft - step,
+              viewportEl.scrollWidth - viewportEl.clientWidth,
+            );
+            if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
+            break;
+          case 'd':
+            opts.viewport.setScrollLeft(
+              viewportEl.scrollLeft + step,
+              viewportEl.scrollWidth - viewportEl.clientWidth,
+            );
+            if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
+            break;
+        }
       }
     }
     document.addEventListener('keydown', onKey);

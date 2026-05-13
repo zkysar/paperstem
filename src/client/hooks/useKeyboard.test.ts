@@ -29,6 +29,25 @@ function stubPlayer() {
   } as any;
 }
 
+function defaultViewport() {
+  return {
+    state: {
+      hZoom: 1,
+      trackHeight: 44,
+      scrollLeft: 0,
+      followMode: 'smooth' as const,
+      followActive: true,
+    },
+    zoomH: vi.fn(),
+    zoomHBy: vi.fn(),
+    zoomV: vi.fn(),
+    setScrollLeft: vi.fn(),
+    fitToWindow: vi.fn(),
+    setFollowActive: vi.fn(),
+    setFollowMode: vi.fn(),
+  } as any;
+}
+
 function defaultOpts() {
   return {
     player: stubPlayer(),
@@ -36,11 +55,13 @@ function defaultOpts() {
     drawerOpen: false,
     popoverOpen: false,
     annotationCreateMode: false,
+    viewport: defaultViewport(),
     onTogglePicker: vi.fn(),
     onClosePicker: vi.fn(),
     onCloseDrawer: vi.fn(),
     onClosePopover: vi.fn(),
     onCancelCreate: vi.fn(),
+    onToggleShortcuts: vi.fn(),
   };
 }
 
@@ -145,5 +166,216 @@ describe('useKeyboard Esc precedence', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(onCancelCreate).toHaveBeenCalledOnce();
     expect(onCloseDrawer).not.toHaveBeenCalled();
+  });
+});
+
+describe('useKeyboard zoom chords', () => {
+  it('cmd-= calls viewport.zoomH("in")', () => {
+    const viewport = defaultViewport();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        viewport,
+      }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '=', metaKey: true }),
+    );
+    expect(viewport.zoomH).toHaveBeenCalledWith('in', expect.any(Object));
+  });
+
+  it('cmd-minus calls viewport.zoomH("out")', () => {
+    const viewport = defaultViewport();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        viewport,
+      }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '-', metaKey: true }),
+    );
+    expect(viewport.zoomH).toHaveBeenCalledWith('out', expect.any(Object));
+  });
+
+  it('shift-cmd-= calls viewport.zoomV("in")', () => {
+    const viewport = defaultViewport();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        viewport,
+      }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '=', metaKey: true, shiftKey: true }),
+    );
+    expect(viewport.zoomV).toHaveBeenCalledWith('in');
+  });
+
+  it('shift-cmd-minus calls viewport.zoomV("out")', () => {
+    const viewport = defaultViewport();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        viewport,
+      }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '-', metaKey: true, shiftKey: true }),
+    );
+    expect(viewport.zoomV).toHaveBeenCalledWith('out');
+  });
+
+  it('cmd-0 calls viewport.fitToWindow', () => {
+    const viewport = defaultViewport();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        viewport,
+      }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '0', metaKey: true }),
+    );
+    expect(viewport.fitToWindow).toHaveBeenCalledOnce();
+  });
+
+  it('? opens shortcuts overlay', () => {
+    const onToggleShortcuts = vi.fn();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        onToggleShortcuts,
+      }),
+    );
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '?' }));
+    expect(onToggleShortcuts).toHaveBeenCalledOnce();
+  });
+
+  it('? does not fire when typing in an input', () => {
+    const onToggleShortcuts = vi.fn();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        onToggleShortcuts,
+      }),
+    );
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '?', bubbles: true }),
+    );
+    expect(onToggleShortcuts).not.toHaveBeenCalled();
+    document.body.removeChild(input);
+  });
+});
+
+describe('useKeyboard WASD navigation', () => {
+  function withViewport(): { viewportEl: HTMLDivElement; stageEl: HTMLDivElement } {
+    const viewportEl = document.createElement('div');
+    viewportEl.className = 'viewport';
+    Object.defineProperty(viewportEl, 'clientWidth', { value: 600, configurable: true });
+    Object.defineProperty(viewportEl, 'clientHeight', { value: 400, configurable: true });
+    Object.defineProperty(viewportEl, 'scrollWidth', { value: 1800, configurable: true });
+    Object.defineProperty(viewportEl, 'scrollHeight', { value: 800, configurable: true });
+    viewportEl.scrollLeft = 600;
+    viewportEl.scrollTop = 200;
+    document.body.appendChild(viewportEl);
+
+    const stageEl = document.createElement('div');
+    stageEl.className = 'stage';
+    stageEl.getBoundingClientRect = () => ({
+      left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    document.body.appendChild(stageEl);
+
+    return { viewportEl, stageEl };
+  }
+
+  it('W calls viewport.zoomH("in") with center anchor', () => {
+    const viewport = defaultViewport();
+    const { viewportEl, stageEl } = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
+    expect(viewport.zoomH).toHaveBeenCalledWith('in', expect.objectContaining({
+      stageWidth: 600,
+      anchorX: 300,
+    }));
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
+
+  it('S calls viewport.zoomH("out")', () => {
+    const viewport = defaultViewport();
+    const { viewportEl, stageEl } = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 's' }));
+    expect(viewport.zoomH).toHaveBeenCalledWith('out', expect.any(Object));
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
+
+  it('A pans the viewport left via viewport.setScrollLeft', () => {
+    const viewport = defaultViewport();
+    const { viewportEl, stageEl } = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
+    expect(viewport.setScrollLeft).toHaveBeenCalled();
+    const call = viewport.setScrollLeft.mock.calls[0];
+    expect(call[0]).toBe(600 - 100); // scrollLeft - step (clientWidth/6 = 100)
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
+
+  it('D pans the viewport right', () => {
+    const viewport = defaultViewport();
+    const { viewportEl, stageEl } = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    expect(viewport.setScrollLeft).toHaveBeenCalled();
+    const call = viewport.setScrollLeft.mock.calls[0];
+    expect(call[0]).toBe(600 + 100);
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
+
+  it('all four WASD keys suspend auto-follow', () => {
+    for (const key of ['w', 'a', 's', 'd']) {
+      const viewport = defaultViewport();
+      const { viewportEl, stageEl } = withViewport();
+      renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key }));
+      expect(viewport.setFollowActive).toHaveBeenCalledWith(false);
+      document.body.removeChild(viewportEl);
+      document.body.removeChild(stageEl);
+    }
+  });
+
+  it('WASD does not fire in text inputs', () => {
+    const viewport = defaultViewport();
+    const { viewportEl, stageEl } = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+    expect(viewport.setScrollLeft).not.toHaveBeenCalled();
+    expect(viewport.zoomH).not.toHaveBeenCalled();
+    document.body.removeChild(input);
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
+});
+
+describe('useKeyboard solo (O)', () => {
+  it('O calls player.toggleSolo when a track is focused', () => {
+    const player = stubPlayer();
+    player.state.focusedIdx = 2;
+    player.state.stems = [{}, {}, {}] as any;
+    renderHook(() => useKeyboard({ ...defaultOpts(), player }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'o' }));
+    expect(player.toggleSolo).toHaveBeenCalledWith(2);
   });
 });

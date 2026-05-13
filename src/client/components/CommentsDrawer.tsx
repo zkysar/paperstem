@@ -27,11 +27,11 @@ type Props = {
   onCopyLink(annotation: Annotation): void;
 };
 
-const SUBMIT_HINT = isMac ? '⌘↵' : 'Ctrl+↵';
+const SUBMIT_HINT = isMac() ? '⌘↵' : 'Ctrl+↵';
 
 function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;
-  return isMac ? e.metaKey : e.ctrlKey;
+  return isMac() ? e.metaKey : e.ctrlKey;
 }
 
 export function CommentsDrawer({
