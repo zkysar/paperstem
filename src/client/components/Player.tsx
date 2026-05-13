@@ -14,7 +14,7 @@ import { LoopRegion } from './LoopRegion';
 import { Playhead } from './Playhead';
 import { Ruler } from './Ruler';
 import { Track } from './Track';
-import { DEFAULT_TRACK_H } from '../hooks/useViewport';
+import type { ViewportControls } from '../hooks/useViewport';
 
 const DRAG_THRESHOLD_PX = 4;
 const MIN_LOOP_SEC = 0.05;
@@ -55,6 +55,7 @@ type Props = {
   onOpenPicker(): void;
   onRenameStem(serverId: string, name: string): void;
   onDeleteStem(serverId: string): void;
+  viewport: ViewportControls;
 };
 
 export function Player({
@@ -75,6 +76,7 @@ export function Player({
   onOpenPicker,
   onRenameStem,
   onDeleteStem,
+  viewport,
 }: Props) {
   const { state, currentTime } = player;
   const {
@@ -90,6 +92,7 @@ export function Player({
   const stageRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   // Wave area geometry: re-measured on each render so overlay positions
   // (playhead, loop region, annotation markers) follow size changes. A
@@ -112,6 +115,24 @@ export function Player({
   useLayoutEffect(() => {
     forceRender((n) => n + 1);
   }, [railCollapsed]);
+
+  // Keep the DOM scrollLeft in sync with viewport state when something other
+  // than user-scroll changed it (e.g. zoom anchor math, fit-to-window).
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    if (Math.abs(el.scrollLeft - viewport.state.scrollLeft) > 0.5) {
+      el.scrollLeft = viewport.state.scrollLeft;
+    }
+  }, [viewport.state.scrollLeft]);
+
+  function getStageInnerWidth(): number {
+    const stage = stageRef.current;
+    if (!stage) return 0;
+    return stage.getBoundingClientRect().width;
+  }
+  const stageWidth = getStageInnerWidth();
+  const innerWidth = stageWidth * viewport.state.hZoom;
 
   function getWaveRect(): { left: number; width: number } {
     const stage = stageRef.current;
@@ -337,123 +358,142 @@ export function Player({
       }
     >
       <div className="stage" ref={stageRef}>
-        {annotationCreateMode && duration > 0 && (
+        <div
+          className="viewport"
+          ref={viewportRef}
+          onScroll={(e) => {
+            const sl = (e.currentTarget as HTMLDivElement).scrollLeft;
+            if (sl !== viewport.state.scrollLeft) {
+              viewport.setScrollLeft(sl);
+            }
+          }}
+        >
           <div
-            className="annotation-create-overlay"
-            style={{ left: `${wr.left}px`, width: `${wr.width}px` }}
-            onPointerDown={(e) => {
-              if (e.button !== 0) return;
-              startAnnotationDrag(e.clientX, e.pointerId);
-              e.preventDefault();
-            }}
-            aria-label="Click for point annotation, drag for region"
-          />
-        )}
-        <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
-        <div className="tracks" ref={tracksRef}>
-          {!stems.length && !loading && (
-            <div className="empty-stage">
-              <p>No practice loaded.</p>
-              <button
-                type="button"
-                className="empty-stage-cta"
-                onClick={onOpenPicker}
-              >
-                Open the file picker (⌘K)
-              </button>
-            </div>
-          )}
-          {!stems.length && loading && (
-            <>
-              {loading.displayNames.map((name, i) => (
-                <div className="track track-skeleton" key={`skel-${i}`} aria-hidden="true">
-                  <div className="track-rail">
-                    <span className="swatch" style={{ background: loading.colors[i] }} />
-                    <div className="track-info">
-                      <span className="track-name" title={name}>{name}</span>
+            className="viewport-inner"
+            style={{
+              width: viewport.state.hZoom > 1 ? `${innerWidth}px` : '100%',
+              '--track-h': `${viewport.state.trackHeight}px`,
+            } as React.CSSProperties}
+          >
+            {annotationCreateMode && duration > 0 && (
+              <div
+                className="annotation-create-overlay"
+                style={{ left: `${wr.left}px`, width: `${wr.width}px` }}
+                onPointerDown={(e) => {
+                  if (e.button !== 0) return;
+                  startAnnotationDrag(e.clientX, e.pointerId);
+                  e.preventDefault();
+                }}
+                aria-label="Click for point annotation, drag for region"
+              />
+            )}
+            <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
+            <div className="tracks" ref={tracksRef}>
+              {!stems.length && !loading && (
+                <div className="empty-stage">
+                  <p>No practice loaded.</p>
+                  <button
+                    type="button"
+                    className="empty-stage-cta"
+                    onClick={onOpenPicker}
+                  >
+                    Open the file picker (⌘K)
+                  </button>
+                </div>
+              )}
+              {!stems.length && loading && (
+                <>
+                  {loading.displayNames.map((name, i) => (
+                    <div className="track track-skeleton" key={`skel-${i}`} aria-hidden="true">
+                      <div className="track-rail">
+                        <span className="swatch" style={{ background: loading.colors[i] }} />
+                        <div className="track-info">
+                          <span className="track-name" title={name}>{name}</span>
+                        </div>
+                      </div>
+                      <div className="wave">
+                        <div className="clip wave-skel" />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="player-loading-overlay" role="status" aria-live="polite">
+                    <div className="player-loading-card">
+                      <div className="player-loading-title">
+                        Loading {loading.displayNames.length} stem{loading.displayNames.length === 1 ? '' : 's'}
+                      </div>
+                      <div className="player-loading-progress">
+                        <div
+                          className="player-loading-bar"
+                          style={{
+                            width: `${(loading.loaded / Math.max(1, loading.displayNames.length)) * 100}%`,
+                          }}
+                        />
+                      </div>
+                      <div className="player-loading-count">
+                        {loading.loaded} / {loading.displayNames.length}
+                      </div>
                     </div>
                   </div>
-                  <div className="wave">
-                    <div className="clip wave-skel" />
-                  </div>
-                </div>
+                </>
+              )}
+              {stems.map((stem, i) => (
+                <Track
+                  key={stem.serverId ?? `${stem.practiceId ?? 'local'}-${stem.name}`}
+                  stem={stem}
+                  idx={i}
+                  focused={i === focusedIdx}
+                  effectiveMuted={anySolo ? !stem.soloed : stem.userMuted}
+                  durationRef={duration}
+                  waveformNormalization={waveformNormalization}
+                  canMutate={canMutate}
+                  trackHeight={viewport.state.trackHeight}
+                  onFocus={player.focusStem}
+                  onToggleMute={player.toggleMute}
+                  onToggleSolo={player.toggleSolo}
+                  onSetVolume={player.setVolume}
+                  onSeek={player.seek}
+                  onRenameStem={onRenameStem}
+                  onDeleteStem={onDeleteStem}
+                />
               ))}
-              <div className="player-loading-overlay" role="status" aria-live="polite">
-                <div className="player-loading-card">
-                  <div className="player-loading-title">
-                    Loading {loading.displayNames.length} stem{loading.displayNames.length === 1 ? '' : 's'}
-                  </div>
-                  <div className="player-loading-progress">
-                    <div
-                      className="player-loading-bar"
-                      style={{
-                        width: `${(loading.loaded / Math.max(1, loading.displayNames.length)) * 100}%`,
-                      }}
-                    />
-                  </div>
-                  <div className="player-loading-count">
-                    {loading.loaded} / {loading.displayNames.length}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-          {stems.map((stem, i) => (
-            <Track
-              key={stem.serverId ?? `${stem.practiceId ?? 'local'}-${stem.name}`}
-              stem={stem}
-              idx={i}
-              focused={i === focusedIdx}
-              effectiveMuted={anySolo ? !stem.soloed : stem.userMuted}
-              durationRef={duration}
-              waveformNormalization={waveformNormalization}
-              canMutate={canMutate}
-              trackHeight={DEFAULT_TRACK_H}
-              onFocus={player.focusStem}
-              onToggleMute={player.toggleMute}
-              onToggleSolo={player.toggleSolo}
-              onSetVolume={player.setVolume}
-              onSeek={player.seek}
-              onRenameStem={onRenameStem}
-              onDeleteStem={onDeleteStem}
+            </div>
+            <LoopRegion
+              visible={!!loop}
+              enabled={!!loop?.enabled}
+              leftPx={loopLeft}
+              widthPx={loopWidth}
+              onPointerDown={onLoopPointerDown}
             />
-          ))}
+            <AnnotationMarkers
+              annotations={annotations}
+              duration={duration}
+              userColorMap={userColorMap}
+              visible={markersVisible}
+              waveLeftPx={wr.left}
+              waveWidthPx={wr.width}
+              onSelect={onAnnotationSelected}
+              hoveredId={hoveredAnnotationId}
+              onHover={onHoverAnnotation}
+              onLoopAnnotation={onLoopAnnotation}
+              createMode={annotationCreateMode}
+            />
+            {previewSource && (
+              <div
+                className={
+                  'annotation-drag-preview' +
+                  (previewSource.isPoint ? ' point' : '') +
+                  (annotationDragPreview ? ' dragging' : ' pending')
+                }
+                style={{
+                  left: `${previewLeft}px`,
+                  width: `${previewWidth}px`,
+                }}
+                aria-hidden="true"
+              />
+            )}
+            <Playhead visible={!!stems.length && !!duration} leftPx={playheadLeft} />
+          </div>
         </div>
-        <LoopRegion
-          visible={!!loop}
-          enabled={!!loop?.enabled}
-          leftPx={loopLeft}
-          widthPx={loopWidth}
-          onPointerDown={onLoopPointerDown}
-        />
-        <AnnotationMarkers
-          annotations={annotations}
-          duration={duration}
-          userColorMap={userColorMap}
-          visible={markersVisible}
-          waveLeftPx={wr.left}
-          waveWidthPx={wr.width}
-          onSelect={onAnnotationSelected}
-          hoveredId={hoveredAnnotationId}
-          onHover={onHoverAnnotation}
-          onLoopAnnotation={onLoopAnnotation}
-          createMode={annotationCreateMode}
-        />
-        {previewSource && (
-          <div
-            className={
-              'annotation-drag-preview' +
-              (previewSource.isPoint ? ' point' : '') +
-              (annotationDragPreview ? ' dragging' : ' pending')
-            }
-            style={{
-              left: `${previewLeft}px`,
-              width: `${previewWidth}px`,
-            }}
-            aria-hidden="true"
-          />
-        )}
-        <Playhead visible={!!stems.length && !!duration} leftPx={playheadLeft} />
       </div>
 
       {annotationCreateMode && (

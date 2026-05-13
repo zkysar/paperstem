@@ -113,6 +113,15 @@ kbd {
 
 /* ===== Stage (ruler + tracks + overlays) ===== */
 .stage { position: relative; }
+.viewport {
+  overflow-x: auto;
+  overflow-y: visible;
+  width: 100%;
+}
+.viewport-inner {
+  position: relative;
+  /* width is set inline via JS based on viewport.state.hZoom */
+}
 
 /* The rail (track names, volume, M/S pills) is the first column of a
    2-column grid; the ruler and each wave occupy the second column. Timeline

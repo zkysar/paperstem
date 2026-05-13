@@ -29,6 +29,7 @@ import { decodePeaks } from './lib/peaks';
 import { useAppVersion } from './hooks/useAppVersion';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
+import { useViewport } from './hooks/useViewport';
 import { buildUserColorMap } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
 import type { Annotation, User } from '../shared/types';
@@ -72,6 +73,7 @@ function PaperstemApp({
   appInfo: ReturnType<typeof useAppVersion>;
 }) {
   const player = usePlayer();
+  const viewport = useViewport();
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
@@ -692,6 +694,7 @@ function PaperstemApp({
             onOpenPicker={openPicker}
             onRenameStem={(id, name) => void renameStem(id, name)}
             onDeleteStem={(id) => void deleteStem(id)}
+            viewport={viewport}
           />
         </ErrorBoundary>
         {(() => {
