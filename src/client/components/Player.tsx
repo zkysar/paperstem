@@ -417,12 +417,18 @@ export function Player({
     e.preventDefault();
   }
 
-  const wr = getWaveRect();
+  // Overlays (playhead, loop region, annotation markers, annotation preview)
+  // live INSIDE .viewport-inner, so their `left` is measured from the inner
+  // content's left edge (not the viewport's scroll-clipped left). That means
+  // positions are computed in *content* coordinates: x = 0 corresponds to
+  // t = 0, and x = innerWidth corresponds to t = duration. Don't add wr.left
+  // here — wr.left goes negative when scrolled right, which would drag the
+  // overlays out of alignment with the underlying waveform.
   const playheadLeft = duration
-    ? wr.left + (Math.min(currentTime, duration) / duration) * wr.width
+    ? (Math.min(currentTime, duration) / duration) * innerWidth
     : 0;
-  const loopLeft = loop && duration ? wr.left + (loop.start / duration) * wr.width : 0;
-  const loopWidth = loop && duration ? ((loop.end - loop.start) / duration) * wr.width : 0;
+  const loopLeft = loop && duration ? (loop.start / duration) * innerWidth : 0;
+  const loopWidth = loop && duration ? ((loop.end - loop.start) / duration) * innerWidth : 0;
   const previewSource = (() => {
     if (!duration) return null;
     if (annotationDragPreview) {
@@ -442,12 +448,12 @@ export function Player({
     return null;
   })();
   const previewLeft = previewSource && duration
-    ? wr.left + (previewSource.startMs / 1000 / duration) * wr.width
+    ? (previewSource.startMs / 1000 / duration) * innerWidth
     : 0;
   const previewWidth = previewSource && duration
     ? Math.max(
         previewSource.isPoint ? 3 : 2,
-        ((previewSource.endMs - previewSource.startMs) / 1000 / duration) * wr.width,
+        ((previewSource.endMs - previewSource.startMs) / 1000 / duration) * innerWidth,
       )
     : 0;
 
@@ -463,22 +469,22 @@ export function Player({
       }
     >
       <div className="stage" ref={stageRef}>
-        {((viewport.state.hZoom > 1 && viewport.state.minimapPref === 'auto') ||
-          viewport.state.minimapPref === 'pinned') && (
-          <Minimap
-            duration={duration}
-            hZoom={viewport.state.hZoom}
-            scrollLeft={viewport.state.scrollLeft}
-            viewportWidth={stageWidth}
-            innerWidth={innerWidth}
-            annotations={annotations}
-            loop={loop}
-            currentTime={currentTime}
-            userColorMap={userColorMap}
-            onSeek={player.seek}
-            onScrollTo={(px) => viewport.setScrollLeft(px, innerWidth - stageWidth)}
-          />
-        )}
+        {/* Minimap is always rendered (no toolbar toggle). The viewport rect
+            is full-width and visually subtle at hZoom=1; once you zoom in,
+            it shows the visible window and you can drag/click to pan. */}
+        <Minimap
+          duration={duration}
+          hZoom={viewport.state.hZoom}
+          scrollLeft={viewport.state.scrollLeft}
+          viewportWidth={stageWidth}
+          innerWidth={innerWidth}
+          annotations={annotations}
+          loop={loop}
+          currentTime={currentTime}
+          userColorMap={userColorMap}
+          onSeek={player.seek}
+          onScrollTo={(px) => viewport.setScrollLeft(px, innerWidth - stageWidth)}
+        />
         <div
           className="viewport"
           ref={viewportRef}
@@ -505,7 +511,7 @@ export function Player({
             {annotationCreateMode && duration > 0 && (
               <div
                 className="annotation-create-overlay"
-                style={{ left: `${wr.left}px`, width: `${wr.width}px` }}
+                style={{ left: 0, width: `${innerWidth}px` }}
                 onPointerDown={(e) => {
                   if (e.button !== 0) return;
                   startAnnotationDrag(e.clientX, e.pointerId);
@@ -596,8 +602,8 @@ export function Player({
               duration={duration}
               userColorMap={userColorMap}
               visible={markersVisible}
-              waveLeftPx={wr.left}
-              waveWidthPx={wr.width}
+              waveLeftPx={0}
+              waveWidthPx={innerWidth}
               onSelect={onAnnotationSelected}
               hoveredId={hoveredAnnotationId}
               onHover={onHoverAnnotation}

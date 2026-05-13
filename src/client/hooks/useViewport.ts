@@ -12,13 +12,6 @@ export const ZOOM_FACTOR = 1.5;
 export const WHEEL_ZOOM_FACTOR = 1.1;
 
 export type FollowMode = 'smooth' | 'page-flip';
-/** Minimap visibility preference, cycled by the toolbar button:
- *  - `auto`: shown only when hZoom > 1 (the default, since there's nothing
- *    to pan at fit-to-window)
- *  - `off`: never shown
- *  - `pinned`: always shown, even at hZoom === 1 — useful for jumping with
- *    a single click to a song region when not yet zoomed in */
-export type MinimapPref = 'auto' | 'off' | 'pinned';
 export type ZoomDir = 'in' | 'out';
 
 export type ViewportState = {
@@ -27,7 +20,6 @@ export type ViewportState = {
   scrollLeft: number;
   followMode: FollowMode;
   followActive: boolean;
-  minimapPref: MinimapPref;
 };
 
 export type ZoomHOpts = {
@@ -47,7 +39,6 @@ export type ViewportControls = {
   fitToWindow(): void;
   setFollowActive(active: boolean): void;
   setFollowMode(mode: FollowMode): void;
-  setMinimapPref(pref: MinimapPref): void;
 };
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -61,7 +52,6 @@ export function useViewport(): ViewportControls {
     scrollLeft: 0,
     followMode: 'smooth',
     followActive: true,
-    minimapPref: 'auto',
   });
 
   const applyHorizontalZoom = (
@@ -133,10 +123,6 @@ export function useViewport(): ViewportControls {
     setState((prev) => ({ ...prev, followMode: mode }));
   }, []);
 
-  const setMinimapPref = useCallback((pref: MinimapPref) => {
-    setState((prev) => ({ ...prev, minimapPref: pref }));
-  }, []);
-
   return {
     state,
     zoomH,
@@ -146,6 +132,5 @@ export function useViewport(): ViewportControls {
     fitToWindow,
     setFollowActive,
     setFollowMode,
-    setMinimapPref,
   };
 }

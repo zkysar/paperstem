@@ -10,7 +10,6 @@ describe('useViewport defaults', () => {
     expect(result.current.state.scrollLeft).toBe(0);
     expect(result.current.state.followMode).toBe('smooth');
     expect(result.current.state.followActive).toBe(true);
-    expect(result.current.state.minimapPref).toBe('auto');
   });
 });
 

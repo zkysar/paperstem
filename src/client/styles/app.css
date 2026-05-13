@@ -201,8 +201,13 @@ kbd {
   min-height: 0;
 }
 .viewport {
-  overflow-x: auto;
-  overflow-y: hidden;
+  /* Single scroll container for BOTH axes. position: sticky on the rail and
+     ruler-row anchors to the nearest scroll ancestor — making .viewport the
+     sole scroller means `.track-rail { left: 0 }` and `.ruler-row { top: 0 }`
+     stay pinned during horizontal/vertical scroll. If .tracks also had its
+     own overflow, sticky would anchor there instead, and the rail would
+     scroll off-screen along with .tracks's content. */
+  overflow: auto;
   width: 100%;
   flex: 1;
   min-height: 0;
@@ -272,7 +277,11 @@ kbd {
 .tracks {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  /* No overflow here — the parent .viewport is the single scroll container
+     for both axes. Keeping `overflow-y: auto` here would make .tracks a
+     vertical scroll context, which causes `.track-rail { position: sticky }`
+     to anchor to .tracks (whose own left edge scrolls horizontally with
+     .viewport) instead of to .viewport, breaking the sticky rail. */
 }
 .empty {
   color: var(--muted);
@@ -2507,12 +2516,11 @@ body.env-non-prod[data-env="local"]::before {
 
 .minimap-strip {
   position: relative;
-  height: 24px;
-  /* Match the paper/cream palette of the rest of the app instead of the
-     dark DAW look — readable in the light theme. */
-  background: var(--rule-2);
-  border-top: 1px solid var(--rule);
-  border-bottom: 1px solid var(--rule);
+  /* Slim strip that always lives between the toolbar and the timeline.
+     Always rendered (no toggle) so zooming never causes layout shift. */
+  height: 14px;
+  background: transparent;
+  border-bottom: 1px solid var(--rule-2);
   cursor: pointer;
   overflow: hidden;
 }
@@ -2520,8 +2528,10 @@ body.env-non-prod[data-env="local"]::before {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: var(--accent-tint);
-  border: 1px solid var(--ink);
+  /* Translucent overlay — at hZoom=1 it covers the full strip and is barely
+     visible; once zoomed in it visibly highlights the viewport window. */
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--rule);
   border-radius: 2px;
   cursor: grab;
 }

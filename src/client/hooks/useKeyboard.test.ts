@@ -37,7 +37,6 @@ function defaultViewport() {
       scrollLeft: 0,
       followMode: 'smooth' as const,
       followActive: true,
-      minimapPref: 'auto' as const,
     },
     zoomH: vi.fn(),
     zoomHBy: vi.fn(),
@@ -46,7 +45,6 @@ function defaultViewport() {
     fitToWindow: vi.fn(),
     setFollowActive: vi.fn(),
     setFollowMode: vi.fn(),
-    setMinimapPref: vi.fn(),
   } as any;
 }
 

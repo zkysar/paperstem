@@ -6,7 +6,6 @@ import {
   EyeOff,
   HelpCircle,
   Loader2,
-  Map as MapIcon,
   Maximize2,
   MessageSquarePlus,
   PanelRightClose,
@@ -249,42 +248,6 @@ export function AppToolbar(props: Props) {
           title="Fit to window (⌘0)"
         >
           <Maximize2 size={14} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className={
-            'atb-btn' +
-            (viewport.state.minimapPref === 'off' ? ' off' : '') +
-            (viewport.state.minimapPref === 'pinned' ? ' on' : '')
-          }
-          onClick={() => {
-            // Tri-state cycle: auto → off → pinned → auto. Lets the user
-            // force-show the minimap even at fit-to-window (where 'auto'
-            // hides it because there is no scrollable window).
-            const next: typeof viewport.state.minimapPref =
-              viewport.state.minimapPref === 'auto'
-                ? 'off'
-                : viewport.state.minimapPref === 'off'
-                  ? 'pinned'
-                  : 'auto';
-            viewport.setMinimapPref(next);
-          }}
-          aria-label={
-            viewport.state.minimapPref === 'auto'
-              ? 'Hide minimap'
-              : viewport.state.minimapPref === 'off'
-                ? 'Always show minimap'
-                : 'Reset minimap to auto'
-          }
-          title={
-            viewport.state.minimapPref === 'auto'
-              ? 'Minimap: auto (click to hide)'
-              : viewport.state.minimapPref === 'off'
-                ? 'Minimap: off (click to always show)'
-                : 'Minimap: pinned (click to reset to auto)'
-          }
-        >
-          <MapIcon size={14} aria-hidden="true" />
         </button>
         <button
           type="button"
