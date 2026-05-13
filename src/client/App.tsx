@@ -4,6 +4,10 @@ import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
 import { PENDING_SHARE_HASH_KEY, useShareLink } from './hooks/useShareLink';
 import { applyShareState } from './lib/apply-share-state';
+import {
+  ShareArrivalBanner,
+  type ShareArrivalCategory,
+} from './components/ShareArrivalBanner';
 import { CommentsDrawer, type DraftSpec } from './components/CommentsDrawer';
 import { CommentsFab } from './components/CommentsFab';
 import { CommentPopover } from './components/CommentPopover';
@@ -127,6 +131,11 @@ function PaperstemApp({
   );
   const [bugReportOpen, setBugReportOpen] = useState(false);
   const [bugReportPrefill, setBugReportPrefill] = useState<BugReportPrefill | null>(null);
+  // Arrival banner state — populated when a share link applies non-trivial
+  // player state. Cleared on first manual play or explicit dismiss.
+  const [arrival, setArrival] = useState<
+    { time: number | null; categories: ShareArrivalCategory[] } | null
+  >(null);
 
   const openBugReport = useCallback((prefill: BugReportPrefill | null = null) => {
     setBugReportPrefill(prefill);
@@ -441,20 +450,32 @@ function PaperstemApp({
 
   // Drain pendingShareStateRef once the active practice is fully loaded
   // (stems decoded). Player stays paused; recipient drives playback.
-  // Task 6 extends this effect to set arrival banner state from `result`.
+  // Sets arrival banner state when anything beyond `p` was applied.
   useEffect(() => {
     const pending = pendingShareStateRef.current;
     if (!pending) return;
     if (player.state.practiceId !== pending.practiceId) return;
     if (player.state.stems.length === 0) return;
 
-    applyShareState(pending, {
+    const result = applyShareState(pending, {
       player,
       onFocusComment: (id) => setActiveCommentId(id),
       onOpenDrawer: () => openDrawer(),
     });
     pendingShareStateRef.current = null;
+
+    const hasNonTrivial =
+      (result.time != null && result.time > 0) || result.appliedCategories.length > 0;
+    if (hasNonTrivial) {
+      setArrival({ time: result.time, categories: result.appliedCategories });
+    }
   }, [player, openDrawer]);
+
+  // Auto-dismiss the arrival banner once playback starts (either via the
+  // banner's ▶ Listen button or any manual play).
+  useEffect(() => {
+    if (arrival && player.state.isPlaying) setArrival(null);
+  }, [arrival, player.state.isPlaying]);
 
   const restoreStem = useCallback(
     async (id: string) => {
@@ -693,6 +714,17 @@ function PaperstemApp({
 
   return (
     <div className="app-shell">
+      {arrival && (
+        <ShareArrivalBanner
+          time={arrival.time}
+          categories={arrival.categories}
+          onPlay={() => {
+            setArrival(null);
+            void player.togglePlay();
+          }}
+          onDismiss={() => setArrival(null)}
+        />
+      )}
       <AppHeader
         userEmail={user.email}
         userInitials={initialsFromEmail(user.email)}
