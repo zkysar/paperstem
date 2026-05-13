@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, ChevronDown, ExternalLink, Library, MessageSquare } from 'lucide-react';
+import { Bug, ChevronDown, ExternalLink, KeyRound, Library, MessageSquare } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
 
@@ -20,12 +20,14 @@ type Props = {
   onSignOut(): void;
   onReportBug(): void;
   onRenamePractice(name: string): void;
+  onOpenTokens(): void;
 };
 
 export function AppHeader({
   userEmail, userInitials, practiceTitle, stemCount, duration,
   driveFolderId, annotationsOpen, hasPractice, canRename, appVersion, appEnv,
   onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenamePractice,
+  onOpenTokens,
 }: Props) {
   const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -175,6 +177,13 @@ export function AppHeader({
               onClick={() => { setAvatarOpen(false); onReportBug(); }}
             >
               <Bug size={14} strokeWidth={2} aria-hidden="true" /> Report a bug
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { setAvatarOpen(false); onOpenTokens(); }}
+            >
+              <KeyRound size={14} strokeWidth={2} aria-hidden="true" /> Import tokens
             </button>
             <button type="button" role="menuitem" onClick={onSignOut}>
               Sign out

@@ -30,6 +30,8 @@ export const sessionMiddleware: MiddlewareHandler<{ Variables: AuthVariables }> 
       display_name: row.display_name,
     });
     c.set('sessionId', sessionId);
+    // Touch last_used_at, rate-limited to one write per 60s per session.
+    stmts.touchSessionLastUsed.run(nowSec, sessionId, nowSec - 60);
     return next();
   };
 

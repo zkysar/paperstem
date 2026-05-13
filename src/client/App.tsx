@@ -24,6 +24,7 @@ import {
   BugReportDrawer,
   type BugReportPrefill,
 } from './components/BugReportDrawer';
+import { TokensDrawer } from './components/TokensDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FilePicker } from './components/FilePicker';
 import { Player } from './components/Player';
@@ -165,6 +166,7 @@ function PaperstemApp({
   // matching row/popover pulses, then cleared by a timeout so the emphasis
   // doesn't persist as the user navigates.
   const [emphasizedCommentId, setEmphasizedCommentId] = useState<string | null>(null);
+  const [tokensOpen, setTokensOpen] = useState(false);
 
   const openBugReport = useCallback((prefill: BugReportPrefill | null = null) => {
     setBugReportPrefill(prefill);
@@ -814,6 +816,7 @@ function PaperstemApp({
         onToggleAnnotations={toggleDrawer}
         onSignOut={onLogout}
         onReportBug={() => openBugReport()}
+        onOpenTokens={() => setTokensOpen(true)}
         onRenamePractice={(name) => {
           // In draft mode there's no server practice yet — just update the
           // player title. The new title becomes the default upload name on
@@ -1066,6 +1069,7 @@ function PaperstemApp({
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
       />
+      <TokensDrawer open={tokensOpen} onClose={() => setTokensOpen(false)} />
     </div>
   );
 }
