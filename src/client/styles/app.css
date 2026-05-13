@@ -328,17 +328,19 @@ kbd {
   box-shadow: 1px 0 0 var(--rule-2);
   /* Stay anchored at the left edge when the .viewport scrolls horizontally
      so track names and M/S controls remain visible while panning a zoomed
-     timeline. z-index sits above the wave but below the sticky ruler row. */
+     timeline. z-index sits above annotation markers (z 7) and loop region
+     (z 6) so those overlays are hidden by the rail instead of painting on
+     top of the track names when they extend into the rail column. */
   position: sticky;
   left: 0;
-  z-index: 3;
+  z-index: 8;
 }
 /* Same sticky anchoring for the ruler's left-column spacer so the ruler
    bar lines up with the visible wave start instead of scrolling away. */
 .ruler-rail-spacer {
   position: sticky;
   left: 0;
-  z-index: 3;
+  z-index: 8;
   background: var(--bg);
 }
 
@@ -611,8 +613,8 @@ button.track-name:disabled { cursor: default; }
   cursor: move;
   box-sizing: border-box;
   touch-action: none;
-  /* Above the rail (z 5) so the loop's borders + handles remain visible
-     and grabbable when the rail overlay covers the loop's start/end. */
+  /* Below the rail (z 8) so the loop, like annotation markers, is hidden
+     by the track names when it would otherwise bleed into the rail area. */
   z-index: 6;
 }
 .loop-region.disabled {
