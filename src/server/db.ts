@@ -221,6 +221,11 @@ export const stmts = {
     `DELETE FROM sessions
       WHERE token_public_id = ? AND user_id = ? AND label IS NOT NULL`,
   ),
+  touchSessionLastUsed: db.prepare<[number, string, number]>(
+    `UPDATE sessions SET last_used_at = ?
+       WHERE id = ?
+         AND (last_used_at IS NULL OR last_used_at < ?)`,
+  ),
   findBandById: db.prepare<[string], BandRow>(
     'SELECT * FROM bands WHERE id = ?',
   ),

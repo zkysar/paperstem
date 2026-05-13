@@ -26,6 +26,8 @@ export type ImportTask = {
   trackPositions: number[];
   /** Sample range to extract; null = encode whole file. */
   segment: Segment | null;
+  /** Total samples in the source files (same for all track files in the folder). */
+  totalSamples: number;
   lastModified: Date;
   defaultPracticeName: string;
   /** YYYY-MM-DD or null if undetermined */

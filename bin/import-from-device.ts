@@ -1,13 +1,16 @@
 import {
+  closeSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
   readdirSync,
   rmSync,
   unlinkSync,
 } from 'node:fs';
 import { hostname, tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
   resolveImporter,
@@ -25,7 +28,7 @@ import {
   compressToMp3,
   ffmpegAvailable,
 } from '../src/server/import/audio-compress-local.js';
-import type { ImportTask } from '../src/server/import/types.js';
+import type { DeviceImporter, ImportTask } from '../src/server/import/types.js';
 
 export type Config = {
   device: string;
@@ -51,11 +54,14 @@ export type RunOpts = {
   fetchImpl?: typeof fetch;
   encodeFn?: EncodeFn;
   now?: () => number;
+  /** Defaults to ~/.cache/paperstem-import/lock; pass false to skip locking (tests). */
+  lockPath?: string | false;
 };
 
 export type RunResult =
   | { status: 'no-card' }
   | { status: 'ok' }
+  | { status: 'locked' }
   | { status: 'error'; message: string };
 
 const DEFAULT_THRESHOLD_MIN = 5;
@@ -107,6 +113,36 @@ function cookieNameFor(baseUrl: string): string {
     : 'paperstem_session_dev';
 }
 
+function defaultLockPath(): string {
+  const cacheRoot =
+    process.env.XDG_CACHE_HOME ??
+    join(process.env.HOME ?? tmpdir(), '.cache');
+  return join(cacheRoot, 'paperstem-import', 'lock');
+}
+
+/** Acquire an exclusive lockfile. Returns the fd, or null if already held. */
+function tryAcquireLock(path: string): number | null {
+  mkdirSync(dirname(path), { recursive: true });
+  try {
+    return openSync(path, 'wx');
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') return null;
+    throw err;
+  }
+}
+
+function releaseLock(fd: number, path: string): void {
+  try {
+    closeSync(fd);
+  } finally {
+    try {
+      unlinkSync(path);
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 function ensureMarker(
   task: ImportTask,
   host: string,
@@ -125,7 +161,7 @@ function ensureMarker(
           index: 1,
           of: 1,
           start_sample: 0,
-          end_sample: 0,
+          end_sample: task.totalSamples,
           name: task.defaultPracticeName,
           practice_id: null,
           uploaded_at: null,
@@ -156,6 +192,9 @@ function syncMarkerSegment(marker: Marker, task: ImportTask): MarkerSegment {
     slot.start_sample = task.segment.startSample;
     slot.end_sample = task.segment.endSample;
     slot.of = task.segment.totalInFolder;
+  } else {
+    slot.start_sample = 0;
+    slot.end_sample = task.totalSamples;
   }
   if (!slot.name) slot.name = task.defaultPracticeName;
   return slot;
@@ -251,6 +290,39 @@ export async function runImporter(opts: RunOpts): Promise<RunResult> {
     };
   }
 
+  // Process lock — launchd may fire a second tick while the first is still
+  // running on a multi-GB dump. Two concurrent ticks on the same SD card
+  // would race on the marker file.
+  const lockPath = opts.lockPath === false ? null : (opts.lockPath ?? defaultLockPath());
+  const lockFd = lockPath ? tryAcquireLock(lockPath) : null;
+  if (lockPath && lockFd === null) return { status: 'locked' };
+
+  try {
+    return await runImporterInner({
+      cfg,
+      defaults,
+      fetchImpl,
+      encode,
+      now,
+      token: opts.token,
+      importer,
+    });
+  } finally {
+    if (lockPath && lockFd !== null) releaseLock(lockFd, lockPath);
+  }
+}
+
+async function runImporterInner(args: {
+  cfg: Config;
+  defaults: ResolvedDefaults;
+  fetchImpl: typeof fetch;
+  encode: EncodeFn;
+  now: () => number;
+  token: string;
+  importer: DeviceImporter;
+}): Promise<RunResult> {
+  const { cfg, defaults, fetchImpl, encode, now, token, importer } = args;
+
   const tasks = await importer.scan(cfg.sd_card_path, {
     stillRecordingThresholdMs:
       defaults.still_recording_threshold_minutes * 60 * 1000,
@@ -287,7 +359,7 @@ export async function runImporter(opts: RunOpts): Promise<RunResult> {
           bandId: cfg.band_id,
           name: task.defaultPracticeName,
           recordedOn: task.recordedOn,
-          token: opts.token,
+          token,
           fetchImpl,
         });
         slot.practice_id = practiceId;
@@ -299,14 +371,19 @@ export async function runImporter(opts: RunOpts): Promise<RunResult> {
           ? await getExistingStemPositions({
               baseUrl: cfg.paperstem_url,
               practiceId,
-              token: opts.token,
+              token,
               fetchImpl,
             })
           : new Set<number>();
 
       const tmp = mkdtempSync(join(tmpdir(), 'paperstem-encode-'));
+      let segmentTimedOut = false;
       try {
         for (let i = 0; i < task.trackFiles.length; i++) {
+          if (now() - tickStart > tickBudgetMs) {
+            segmentTimedOut = true;
+            break;
+          }
           const inputPath = task.trackFiles[i]!;
           const position = task.trackPositions[i]!;
           if (existingPositions.has(position)) continue;
@@ -330,15 +407,18 @@ export async function runImporter(opts: RunOpts): Promise<RunResult> {
             filePath: outputPath,
             stemName,
             position,
-            token: opts.token,
+            token,
             fetchImpl,
           });
         }
-        slot.uploaded_at = nowIso(now);
-        writeMarker(folderPath, marker);
+        if (!segmentTimedOut) {
+          slot.uploaded_at = nowIso(now);
+          writeMarker(folderPath, marker);
+        }
       } finally {
         rmSync(tmp, { recursive: true, force: true });
       }
+      if (segmentTimedOut) return { status: 'ok' };
     }
 
     promoteToImported(folderPath);
@@ -350,7 +430,7 @@ export async function runImporter(opts: RunOpts): Promise<RunResult> {
       graceDays: defaults.delete_after_import,
       now,
       paperstemUrl: cfg.paperstem_url,
-      token: opts.token,
+      token,
       fetchImpl,
     });
   }

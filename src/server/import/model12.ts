@@ -20,15 +20,22 @@ const TRACK_RE = /^01_\d{6}_\d{4}_TR(\d{2})\.wav$/i;
 const SONG_FOLDER_RE = /^\d{6}_\d{4}$/;
 const SAMPLE_RATE = 44100;
 
+function localIsoDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localIsoDate(new Date());
 }
 
 function safeRecordedOn(mtime: Date): string {
-  const year = mtime.getUTCFullYear();
-  const cur = new Date().getUTCFullYear();
+  const year = mtime.getFullYear();
+  const cur = new Date().getFullYear();
   if (year >= 2020 && year <= cur + 1) {
-    return mtime.toISOString().slice(0, 10);
+    return localIsoDate(mtime);
   }
   return todayIso();
 }
@@ -165,6 +172,7 @@ export const model12: DeviceImporter = {
           trackFiles,
           trackPositions,
           segment: seg,
+          totalSamples: endSample,
           lastModified,
           defaultPracticeName: defaultName,
           recordedOn,

@@ -112,6 +112,10 @@ On your laptop:
    ```
    Load with `launchctl load -w ~/Library/LaunchAgents/com.you.paperstem-import.plist`.
 
+### Permissions
+
+The importer creates practices via `POST /api/practices`, which is currently restricted to the **band owner**. Non-owner members can't use the importer against a band they don't own — the API returns 403. If you're not the owner of the `band_id` in your config, ask the owner to mint a token for you and stash it locally, or relax the route to any member (`src/server/practices.ts:239`).
+
 ### Reclaiming SD card space
 
 By default, the importer never deletes files from the card. To enable automatic deletion after a successful import, set `"delete_after_import": true` in the config — that waits 30 days before deletion so you have time to spot a bad upload and `rm` the `.paperstem-imported` marker to re-import. Pass an integer to override the grace period in days, or `0` to delete on the next tick.
