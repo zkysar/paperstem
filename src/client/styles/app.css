@@ -2325,3 +2325,18 @@ body.env-non-prod[data-env="local"]::before {
 .shortcuts-row dt { margin: 0; }
 .shortcuts-row dd { margin: 0; font-size: 0.9rem; }
 .shortcuts-note { color: var(--muted); }
+
+.follow-pill {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--rule-2);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.follow-pill.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-tint);
+}
