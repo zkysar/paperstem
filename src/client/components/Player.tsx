@@ -14,6 +14,7 @@ import { LoopRegion } from './LoopRegion';
 import { Playhead } from './Playhead';
 import { Ruler } from './Ruler';
 import { Track } from './Track';
+import { DEFAULT_TRACK_H } from '../hooks/useViewport';
 
 const DRAG_THRESHOLD_PX = 4;
 const MIN_LOOP_SEC = 0.05;
@@ -407,6 +408,7 @@ export function Player({
               durationRef={duration}
               waveformNormalization={waveformNormalization}
               canMutate={canMutate}
+              trackHeight={DEFAULT_TRACK_H}
               onFocus={player.focusStem}
               onToggleMute={player.toggleMute}
               onToggleSolo={player.toggleSolo}

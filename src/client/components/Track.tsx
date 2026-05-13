@@ -14,6 +14,7 @@ type Props = {
   durationRef: number; // total song length, for clip width
   waveformNormalization: WaveformNormalization;
   canMutate: boolean;
+  trackHeight: number;
   onFocus(idx: number): void;
   onToggleMute(idx: number): void;
   onToggleSolo(idx: number): void;
@@ -31,6 +32,7 @@ export function Track({
   durationRef,
   waveformNormalization,
   canMutate,
+  trackHeight,
   onFocus,
   onToggleMute,
   onToggleSolo,
@@ -115,7 +117,7 @@ export function Track({
         container: clipRef.current,
         media: stem.audio,
         url: stem.audio.src,
-        height: 28,
+        height: Math.max(8, trackHeight - 16),
         waveColor: stem.color,
         progressColor: mix(stem.color, '#2a2723', 0.35),
         cursorColor: 'transparent',
@@ -191,6 +193,17 @@ export function Track({
     }
   }, [waveformNormalization]);
 
+  // Sync wave height when the viewport's track height changes.
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws) return;
+    try {
+      ws.setOptions({ height: Math.max(8, trackHeight - 16) });
+    } catch {
+      // ignore
+    }
+  }, [trackHeight]);
+
   // Hide-and-fade across container resizes (e.g., comments panel toggling
   // the rail-annotations column). WaveSurfer auto-redraws on resize; we hide
   // synchronously so the snap isn't visible, then fade back in once width is
@@ -233,8 +246,13 @@ export function Track({
     onFocus(idx);
   }
 
+  const tierClass =
+    trackHeight < 32 ? 'tier-min'
+    : trackHeight < 44 ? 'tier-mid'
+    : 'tier-full';
+
   return (
-    <div className={'track' + (focused ? ' focused' : '')} onPointerDown={handlePointerDown}>
+    <div className={'track ' + tierClass + (focused ? ' focused' : '')} onPointerDown={handlePointerDown}>
       {unavailable ? (
         <div className="track-rail track-rail-unavailable">
           <span className="swatch swatch-muted" />
