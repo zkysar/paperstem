@@ -249,15 +249,17 @@ export function AppToolbar(props: Props) {
         >
           <Maximize2 size={14} aria-hidden="true" />
         </button>
-        <button
-          type="button"
-          className="atb-btn"
-          onClick={onOpenShortcuts}
-          aria-label="Keyboard shortcuts"
-          title="Keyboard shortcuts (?)"
-        >
-          <HelpCircle size={14} aria-hidden="true" />
-        </button>
+        {isWide && (
+          <button
+            type="button"
+            className="atb-btn"
+            onClick={onOpenShortcuts}
+            aria-label="Keyboard shortcuts"
+            title="Keyboard shortcuts (?)"
+          >
+            <HelpCircle size={14} aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       <span className="atb-divider" />
