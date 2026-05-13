@@ -7,6 +7,13 @@ type Props = {
   scrollLeft: number;
   viewportWidth: number;
   innerWidth: number;
+  /** Width of the song (wave) area in viewport-inner coords — i.e.
+   *  innerWidth - railWidth. The minimap's strip represents the full song
+   *  mapped over this length, NOT the full innerWidth (which would include
+   *  the unrelated rail column). */
+  waveWidth: number;
+  /** Visible wave area width on screen (stageWidth - railWidth). */
+  visibleWaveWidth: number;
   annotations: Annotation[];
   loop: { start: number; end: number } | null;
   currentTime: number;
@@ -21,6 +28,8 @@ export function Minimap({
   scrollLeft,
   viewportWidth,
   innerWidth,
+  waveWidth,
+  visibleWaveWidth,
   annotations,
   loop,
   currentTime,
@@ -34,20 +43,28 @@ export function Minimap({
 
   if (!duration) return null;
 
-  // Geometry: the strip represents the full song width (innerWidth scaled to
-  // 100%). The viewport rect is a window over that.
-  const rectLeftPct = innerWidth > 0 ? (scrollLeft / innerWidth) * 100 : 0;
-  const rectWidthPct = hZoom > 0 ? (1 / hZoom) * 100 : 100;
+  // Geometry: the strip's width represents the full song (waveWidth in the
+  // main timeline's content coords). The viewport rect is a window over
+  // that, sized to match the currently visible wave area.
+  const rectLeftPct = waveWidth > 0 ? (scrollLeft / waveWidth) * 100 : 0;
+  const rectWidthPct = waveWidth > 0
+    ? Math.min(100, (visibleWaveWidth / waveWidth) * 100)
+    : 100;
   const playheadPct = (currentTime / duration) * 100;
+  // Suppress unused-prop warnings — these are still in the contract for
+  // callers but the math no longer needs them here.
+  void hZoom; void innerWidth; void viewportWidth;
 
   function clickToScroll(clientX: number) {
     const strip = stripRef.current;
     if (!strip) return;
     const rect = strip.getBoundingClientRect();
     const fracX = (clientX - rect.left) / rect.width;
-    // Target = center the rect on this fraction.
-    const target = fracX * innerWidth - viewportWidth / 2;
-    const max = Math.max(0, innerWidth - viewportWidth);
+    // fracX is the song-time fraction the user clicked. Scroll so that
+    // time fraction lands at the center of the visible wave area.
+    const targetX = fracX * waveWidth;
+    const target = targetX - visibleWaveWidth / 2;
+    const max = Math.max(0, waveWidth - visibleWaveWidth);
     onScrollTo(Math.max(0, Math.min(max, target)));
   }
 
@@ -72,8 +89,8 @@ export function Minimap({
         const r = strip2.getBoundingClientRect();
         const newLeftPx = ev.clientX - r.left - drag.offsetWithinRect;
         const fracLeft = newLeftPx / r.width;
-        const next = fracLeft * innerWidth;
-        const max = Math.max(0, innerWidth - viewportWidth);
+        const next = fracLeft * waveWidth;
+        const max = Math.max(0, waveWidth - visibleWaveWidth);
         onScrollTo(Math.max(0, Math.min(max, next)));
       };
       const onUp = (ev: PointerEvent) => {

@@ -2532,6 +2532,14 @@ body.env-non-prod[data-env="local"]::before {
   border-bottom: 1px solid var(--rule-2);
   cursor: pointer;
   overflow: hidden;
+  /* Align with the main timeline's wave column. The rail occupies the first
+     --rail-w pixels of the stage; the minimap must skip that space so t=0
+     in the minimap lines up with t=0 in the main timeline. */
+  margin-left: var(--rail-w, 260px);
+}
+.player.rail-collapsed .minimap-strip,
+.player .minimap-strip.rail-collapsed {
+  margin-left: 0;
 }
 .minimap-rect {
   position: absolute;

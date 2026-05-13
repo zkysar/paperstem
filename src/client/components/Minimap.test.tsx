@@ -2,12 +2,18 @@ import { render, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { Minimap } from './Minimap';
 
+// At hZoom=2, stageWidth=800, railWidth=260:
+//   innerWidth = stageWidth * hZoom = 1600
+//   waveWidth = innerWidth - railWidth = 1340
+//   visibleWaveWidth = stageWidth - railWidth = 540
 const baseProps = {
   duration: 60,
   hZoom: 2,
   scrollLeft: 0,
   viewportWidth: 800,
   innerWidth: 1600,
+  waveWidth: 1340,
+  visibleWaveWidth: 540,
   annotations: [],
   loop: null,
   currentTime: 15,
@@ -15,15 +21,16 @@ const baseProps = {
 };
 
 describe('Minimap', () => {
-  it('renders viewport rect proportional to scroll/zoom', () => {
+  it('renders viewport rect sized to visible wave / wave width', () => {
     const { container } = render(
       <Minimap {...baseProps} onSeek={vi.fn()} onScrollTo={vi.fn()} />,
     );
     const rect = container.querySelector('.minimap-rect') as HTMLElement;
-    // At scrollLeft=0, hZoom=2 → rect is 50% wide, at left=0
+    // visibleWaveWidth/waveWidth = 540/1340 ≈ 40.30%
     expect(rect).not.toBeNull();
     expect(rect.style.left).toBe('0%');
-    expect(rect.style.width).toBe('50%');
+    // Accept either rounded form for stability against floating-point quirks
+    expect(rect.style.width).toMatch(/^40\.[0-9]+%$/);
   });
 
   it('renders playhead at proportional time', () => {

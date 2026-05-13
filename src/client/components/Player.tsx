@@ -187,6 +187,12 @@ export function Player({
     wasPlayingRef.current = playing;
   }, [player.state.isPlaying, viewport]);
 
+  // Keep a ref of the live player state so the rAF tick reads isPlaying
+  // without depending on `player` in its effect deps (which would tear
+  // down and rebuild the rAF loop on every play/pause).
+  const playerStateRef = useRef(player.state);
+  playerStateRef.current = player.state;
+
   // Smooth/page-flip follow. Runs only while playing and followActive.
   useEffect(() => {
     if (!viewport.state.followActive) return;
@@ -201,10 +207,9 @@ export function Player({
         return;
       }
       // Only follow while audio is actually playing — pausing freezes follow.
-      const playing = player.state.stems.some(
-        (s: { audio: HTMLAudioElement }) => !s.audio.paused,
-      );
-      if (!playing) {
+      // Read state via ref so the closure sees the current value without
+      // having to re-create the effect every play/pause transition.
+      if (!playerStateRef.current.isPlaying) {
         raf = requestAnimationFrame(tick);
         return;
       }
@@ -491,6 +496,8 @@ export function Player({
           scrollLeft={viewport.state.scrollLeft}
           viewportWidth={stageWidth}
           innerWidth={innerWidth}
+          waveWidth={waveWidth}
+          visibleWaveWidth={Math.max(0, stageWidth - railWidth)}
           annotations={annotations}
           loop={loop}
           currentTime={currentTime}
