@@ -129,11 +129,33 @@ describe('Track delete', () => {
 });
 
 describe('Track unavailable state', () => {
-  it('shows unavailable state when audio errors', async () => {
+  it('shows the alert icon when audio errors and reveals detail on click', async () => {
+    const user = userEvent.setup();
     const stem = makeStem({ name: 'broken.wav' });
     render(<Track {...defaultProps({ stem })} />);
-    // Simulate the audio element's error event.
     fireEvent.error(stem.audio);
-    expect(screen.queryByText(/stem unavailable/i)).not.toBeNull();
+
+    const icon = screen.getByRole('button', { name: /stem unavailable/i });
+    expect(icon).not.toBeNull();
+    // Detail is not in the document until the icon is clicked or hovered.
+    expect(screen.queryByRole('tooltip')).toBeNull();
+
+    await user.click(icon);
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip.textContent).toMatch(/missing in Drive/i);
+    expect(icon.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('Escape closes the pinned-open unavailable popover', async () => {
+    const user = userEvent.setup();
+    const stem = makeStem({ name: 'broken.wav' });
+    render(<Track {...defaultProps({ stem })} />);
+    fireEvent.error(stem.audio);
+
+    const icon = screen.getByRole('button', { name: /stem unavailable/i });
+    await user.click(icon);
+    expect(screen.queryByRole('tooltip')).not.toBeNull();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('tooltip')).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { AlertCircle, Trash2 } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import type { LoadedStem, WaveformNormalization } from '../data/types';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
@@ -50,6 +50,36 @@ export function Track({
   const [draft, setDraft] = useState(stem.displayName);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
+  const [unavailableHover, setUnavailableHover] = useState(false);
+  const [unavailablePinned, setUnavailablePinned] = useState(false);
+  const unavailableBtnRef = useRef<HTMLButtonElement>(null);
+  const unavailablePopRef = useRef<HTMLDivElement>(null);
+  const unavailablePopId = useId();
+  const unavailableOpen = unavailableHover || unavailablePinned;
+
+  // While the unavailable popover is pinned open, dismiss on outside click or Escape.
+  useEffect(() => {
+    if (!unavailablePinned) return;
+    function onDocPointerDown(e: PointerEvent) {
+      const t = e.target as Node;
+      if (unavailableBtnRef.current?.contains(t)) return;
+      if (unavailablePopRef.current?.contains(t)) return;
+      setUnavailablePinned(false);
+      setUnavailableHover(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setUnavailablePinned(false);
+        setUnavailableHover(false);
+      }
+    }
+    document.addEventListener('pointerdown', onDocPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDocPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [unavailablePinned]);
 
   // Esc dismisses the delete-confirm modal when it's open.
   useEffect(() => {
@@ -242,11 +272,35 @@ export function Track({
             <span className="track-name muted" title={stem.displayName}>
               {stem.displayName}
             </span>
-            <span className="track-meta-muted">
-              Stem unavailable — the audio file is missing in Drive.
-            </span>
           </div>
           <span className="ms-pills">
+            <span
+              className="unavailable-anchor"
+              onPointerEnter={() => setUnavailableHover(true)}
+              onPointerLeave={() => setUnavailableHover(false)}
+            >
+              <button
+                ref={unavailableBtnRef}
+                type="button"
+                className="pill unavailable-icon"
+                aria-label="Stem unavailable — the audio file is missing in Drive"
+                aria-expanded={unavailableOpen}
+                aria-describedby={unavailableOpen ? unavailablePopId : undefined}
+                onClick={() => setUnavailablePinned((p) => !p)}
+              >
+                <AlertCircle size={14} strokeWidth={2} aria-hidden="true" />
+              </button>
+              {unavailableOpen && (
+                <div
+                  ref={unavailablePopRef}
+                  id={unavailablePopId}
+                  role="tooltip"
+                  className="unavailable-popover"
+                >
+                  Stem unavailable. The audio file is missing in Drive.
+                </div>
+              )}
+            </span>
             <button
               type="button"
               className="pill trash"
