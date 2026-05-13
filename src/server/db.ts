@@ -47,6 +47,14 @@ for (const col of ['deleted_at', 'deleted_by', 'deleted_reason']) {
 if (tableExists('stems') && !columnExists('stems', 'peaks')) {
   db.exec('ALTER TABLE stems ADD COLUMN peaks TEXT');
 }
+if (tableExists('sessions')) {
+  if (!columnExists('sessions', 'label')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN label TEXT');
+  }
+  if (!columnExists('sessions', 'last_used_at')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN last_used_at INTEGER');
+  }
+}
 
 db.exec(schema);
 
@@ -69,6 +77,16 @@ export type SessionRow = {
   user_id: string;
   expires_at: number;
   created_at: number;
+  label: string | null;
+  last_used_at: number | null;
+};
+
+export type TokenListRow = {
+  id: string;
+  label: string;
+  created_at: number;
+  expires_at: number;
+  last_used_at: number | null;
 };
 
 export type BandRow = {
@@ -186,6 +204,19 @@ export const stmts = {
       WHERE s.id = ?`,
   ),
   deleteSession: db.prepare<[string]>('DELETE FROM sessions WHERE id = ?'),
+  listUserTokens: db.prepare<[string], TokenListRow>(
+    `SELECT id, label, created_at, expires_at, last_used_at
+       FROM sessions
+      WHERE user_id = ? AND label IS NOT NULL
+      ORDER BY created_at DESC`,
+  ),
+  createToken: db.prepare<[string, string, string, number, number]>(
+    `INSERT INTO sessions (id, user_id, label, expires_at, created_at)
+     VALUES (?, ?, ?, ?, ?)`,
+  ),
+  revokeToken: db.prepare<[string, string]>(
+    'DELETE FROM sessions WHERE id = ? AND user_id = ? AND label IS NOT NULL',
+  ),
   findBandById: db.prepare<[string], BandRow>(
     'SELECT * FROM bands WHERE id = ?',
   ),

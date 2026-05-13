@@ -14,12 +14,16 @@ CREATE TABLE IF NOT EXISTS magic_links (
 CREATE INDEX IF NOT EXISTS idx_magic_links_email ON magic_links(email);
 
 CREATE TABLE IF NOT EXISTS sessions (
-  id          TEXT PRIMARY KEY,
-  user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  expires_at  INTEGER NOT NULL,
-  created_at  INTEGER NOT NULL
+  id            TEXT PRIMARY KEY,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at    INTEGER NOT NULL,
+  created_at    INTEGER NOT NULL,
+  label         TEXT,
+  last_used_at  INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_tokens
+  ON sessions(user_id, created_at DESC) WHERE label IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS bands (
   id                 TEXT PRIMARY KEY,
