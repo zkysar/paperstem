@@ -163,10 +163,7 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         referenceIdx = nextStems.length
           ? nextStems.reduce(
               (best, s, i, arr) =>
-                (isFinite(s.audio.duration) ? s.audio.duration : 0) >
-                (isFinite(arr[best].audio.duration) ? arr[best].audio.duration : 0)
-                  ? i
-                  : best,
+                stemDuration(s) > stemDuration(arr[best]) ? i : best,
               0,
             )
           : 0;
@@ -179,6 +176,11 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       return { ...state, stems: nextStems, referenceIdx, focusedIdx };
     }
   }
+}
+
+function stemDuration(s: LoadedStem): number {
+  if (s.audioBuffer && isFinite(s.audioBuffer.duration)) return s.audioBuffer.duration;
+  return isFinite(s.audio.duration) ? s.audio.duration : 0;
 }
 
 function updateStem(state: PlayerState, idx: number, fn: (s: LoadedStem) => LoadedStem): PlayerState {
@@ -472,37 +474,26 @@ export function usePlayer(): PlayerControls {
 
     const errored: string[] = [];
 
-    // Parallel: wait for HTMLAudioElement metadata (for duration/WaveSurfer) AND
-    // for AudioBuffer decode (for playback). Each stem reports load-progress once
-    // both complete (or either errors).
+    // Decode each stem's audio into an AudioBuffer; that's the only thing we
+    // need to play (and gives us a duration). The HTMLAudioElement is bound for
+    // WaveSurfer but we intentionally don't wait on its `loadedmetadata` — on
+    // mobile Safari, a muted <audio> with preload="auto" often doesn't fire
+    // that event until a play() inside a user gesture, which would hang load()
+    // forever.
     await Promise.all(
       built.map(async (s, i) => {
-        const metaP = new Promise<void>((res) => {
-          if (s.audio.readyState >= 1) return res();
-          s.audio.addEventListener('loadedmetadata', () => res(), { once: true });
-          s.audio.addEventListener(
-            'error',
-            () => {
-              errored.push(s.name);
-              res();
-            },
-            { once: true },
-          );
-        });
-        const decodeP = decodeStem(graph.ctx, input.sources[i].src).then((buf) => {
-          if (buf) {
-            // Mutate in place — the array is local and not yet in state.
-            built[i].audioBuffer = buf;
-          } else if (!errored.includes(s.name)) {
-            errored.push(s.name);
-          }
-        });
-        await Promise.all([metaP, decodeP]);
+        const buf = await decodeStem(graph.ctx, input.sources[i].src);
+        if (buf) {
+          // Mutate in place — the array is local and not yet in state.
+          built[i].audioBuffer = buf;
+        } else {
+          errored.push(s.name);
+        }
         dispatch({ type: 'LOAD_PROGRESS' });
       }),
     );
 
-    const durations = built.map((s) => s.audio.duration);
+    const durations = built.map((s) => stemDuration(s));
     const duration = durations.reduce((m, d) => Math.max(m, isFinite(d) ? d : 0), 0);
     const referenceIdx = longestStemIdx(durations);
 

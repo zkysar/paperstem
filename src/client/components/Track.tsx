@@ -139,11 +139,11 @@ export function Track({
     setWaveLoading(true);
     // When we have pre-computed peaks, hand them to WaveSurfer and skip the
     // audio decode entirely — the waveform renders immediately. Duration must
-    // also be supplied; we read it from the audio element (which has had
-    // `loadedmetadata` fire by the time Track mounts, courtesy of the
-    // LOAD_PROGRESS → LOADED handshake in usePlayer).
+    // also be supplied; prefer the decoded AudioBuffer's duration since
+    // mobile Safari may never fire `loadedmetadata` on the muted <audio>.
+    const knownDuration = stem.audioBuffer?.duration ?? stem.audio.duration;
     const usePrecomputed =
-      stem.peaks !== null && stem.peaks.length > 0 && isFinite(stem.audio.duration);
+      stem.peaks !== null && stem.peaks.length > 0 && isFinite(knownDuration);
     try {
       ws = WaveSurfer.create({
         container: clipRef.current,
@@ -160,7 +160,7 @@ export function Track({
         normalize: normRef.current === 'per-track',
         interact: true,
         ...(usePrecomputed
-          ? { peaks: [stem.peaks as number[]], duration: stem.audio.duration }
+          ? { peaks: [stem.peaks as number[]], duration: knownDuration }
           : {}),
       });
     } catch {
@@ -279,7 +279,8 @@ export function Track({
     };
   }, []);
 
-  const stemDuration = isFinite(stem.audio.duration) ? stem.audio.duration : durationRef;
+  const stemDur = stem.audioBuffer?.duration ?? stem.audio.duration;
+  const stemDuration = isFinite(stemDur) ? stemDur : durationRef;
   const widthPct = durationRef ? Math.max(1, Math.min(100, (stemDuration / durationRef) * 100)) : 100;
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
