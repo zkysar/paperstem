@@ -1,7 +1,13 @@
-import { render, screen } from '@testing-library/react';
+import { render, renderHook, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { AppToolbar } from './AppToolbar';
+import { useViewport } from '../hooks/useViewport';
+
+function vp() {
+  const { result } = renderHook(() => useViewport());
+  return result.current;
+}
 
 const baseProps = {
   hasPractice: true,
@@ -28,6 +34,8 @@ const baseProps = {
   onToggleMarkersVisible: vi.fn(),
   onSetMasterVolume: vi.fn(),
   onToggleRailCollapsed: vi.fn(),
+  viewport: vp(),
+  onOpenShortcuts: vi.fn(),
   onShare: vi.fn(() => null),
 };
 
@@ -125,5 +133,39 @@ describe('AppToolbar', () => {
     expect(onShare).toHaveBeenCalledOnce();
     expect(writeText).toHaveBeenCalledWith('https://x.app/#p=abc&t=10.00&l=1.00-2.00');
     expect(screen.getByRole('status').textContent).toMatch(/Copied — includes loop/);
+  });
+});
+
+describe('AppToolbar zoom group', () => {
+  it('renders zoom buttons and percentage', () => {
+    render(<AppToolbar {...baseProps} viewport={vp()} />);
+    expect(screen.getByLabelText('Zoom out')).not.toBeNull();
+    expect(screen.getByLabelText('Zoom in')).not.toBeNull();
+    expect(screen.getByLabelText('Fit to window')).not.toBeNull();
+    expect(screen.getByText('100%')).not.toBeNull();
+  });
+
+  it('clicking zoom in calls viewport.zoomH("in")', () => {
+    const viewport = vp();
+    const zoomH = vi.spyOn(viewport, 'zoomH');
+    render(<AppToolbar {...baseProps} viewport={viewport} />);
+    fireEvent.click(screen.getByLabelText('Zoom in'));
+    expect(zoomH).toHaveBeenCalledWith('in', expect.any(Object));
+  });
+
+  it('clicking ? button calls onOpenShortcuts', () => {
+    const onOpenShortcuts = vi.fn();
+    render(<AppToolbar {...baseProps} viewport={vp()} onOpenShortcuts={onOpenShortcuts} />);
+    fireEvent.click(screen.getByLabelText('Keyboard shortcuts'));
+    expect(onOpenShortcuts).toHaveBeenCalledOnce();
+  });
+
+  it('does not render a minimap toggle button', () => {
+    // Minimap lives in the timeline area and is always present — no toolbar
+    // toggle. (Previously the button cycled auto/off/pinned.)
+    render(<AppToolbar {...baseProps} viewport={vp()} />);
+    expect(screen.queryByLabelText('Hide minimap')).toBeNull();
+    expect(screen.queryByLabelText('Always show minimap')).toBeNull();
+    expect(screen.queryByLabelText('Reset minimap to auto')).toBeNull();
   });
 });

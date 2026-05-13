@@ -28,6 +28,7 @@ import { TokensDrawer } from './components/TokensDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FilePicker } from './components/FilePicker';
 import { Player } from './components/Player';
+import { ShortcutsOverlay } from './components/ShortcutsOverlay';
 import { UploadDrawer } from './components/UploadDrawer';
 import {
   listAnnotations,
@@ -41,6 +42,7 @@ import { decodePeaks } from './lib/peaks';
 import { useAppVersion } from './hooks/useAppVersion';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
+import { useViewport } from './hooks/useViewport';
 import { buildUserColorMap } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
 import type { Annotation, User } from '../shared/types';
@@ -99,9 +101,27 @@ function PaperstemApp({
   appInfo: ReturnType<typeof useAppVersion>;
 }) {
   const player = usePlayer();
+  const viewport = useViewport();
   const shareLink = useShareLink();
   const pendingShareStateRef = useRef(shareLink.initial);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [showZoomHint, setShowZoomHint] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('paperstem.hints.zoom.seen') !== '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const dismissZoomHint = useCallback(() => {
+    setShowZoomHint(false);
+    try {
+      localStorage.setItem('paperstem.hints.zoom.seen', '1');
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
   const activeBand = bands[0] ?? null;
@@ -214,6 +234,7 @@ function PaperstemApp({
     drawerOpen,
     popoverOpen: activeCommentId !== null,
     annotationCreateMode,
+    viewport,
     onTogglePicker: () => (pickerOpen ? closePicker() : openPicker()),
     onClosePicker: closePicker,
     onCloseDrawer: closeDrawer,
@@ -222,6 +243,7 @@ function PaperstemApp({
       setAnnotationCreateMode(false);
       setPendingDraft(null);
     },
+    onToggleShortcuts: () => setShortcutsOpen((v) => !v),
   });
 
   const userColorMap = useMemo(
@@ -831,6 +853,8 @@ function PaperstemApp({
         onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}
         onSetMasterVolume={player.setMasterVolume}
         onToggleRailCollapsed={() => setRailCollapsed((v) => !v)}
+        viewport={viewport}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
         onShare={handleShareSnapshot}
       />
       {activePracticeId === null && draftFiles.length > 0 && (
@@ -869,8 +893,22 @@ function PaperstemApp({
             onOpenPicker={openPicker}
             onRenameStem={(id, name) => void renameStem(id, name)}
             onDeleteStem={(id) => void deleteStem(id)}
+            viewport={viewport}
           />
         </ErrorBoundary>
+        {showZoomHint && player.state.stems.length > 0 && (
+          <div className="zoom-hint" role="status" onClick={dismissZoomHint}>
+            <span>Hold <kbd>⌥</kbd> and scroll to zoom in. Press <kbd>?</kbd> for shortcuts.</span>
+            <button
+              type="button"
+              className="zoom-hint-close"
+              onClick={dismissZoomHint}
+              aria-label="Dismiss hint"
+            >
+              ×
+            </button>
+          </div>
+        )}
         {(() => {
           const active = annotations.find((a) => a.id === activeCommentId) ?? null;
           const isNarrow = railCollapsed;
@@ -1026,6 +1064,10 @@ function PaperstemApp({
           pickerOpen,
         }}
         onClose={closeBugReport}
+      />
+      <ShortcutsOverlay
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
       />
       <TokensDrawer open={tokensOpen} onClose={() => setTokensOpen(false)} />
     </div>

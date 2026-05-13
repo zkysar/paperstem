@@ -10,10 +10,13 @@ import type { Annotation } from '../../shared/types';
 import type { PlayerControls } from '../hooks/usePlayer';
 import { pixelToTime } from '../lib/format';
 import { AnnotationMarkers } from './AnnotationMarkers';
+import { FollowPill } from './FollowPill';
 import { LoopRegion } from './LoopRegion';
+import { Minimap } from './Minimap';
 import { Playhead } from './Playhead';
 import { Ruler } from './Ruler';
 import { Track } from './Track';
+import type { ViewportControls } from '../hooks/useViewport';
 
 const DRAG_THRESHOLD_PX = 4;
 const MIN_LOOP_SEC = 0.05;
@@ -54,6 +57,7 @@ type Props = {
   onOpenPicker(): void;
   onRenameStem(serverId: string, name: string): void;
   onDeleteStem(serverId: string): void;
+  viewport: ViewportControls;
 };
 
 export function Player({
@@ -74,6 +78,7 @@ export function Player({
   onOpenPicker,
   onRenameStem,
   onDeleteStem,
+  viewport,
 }: Props) {
   const { state, currentTime } = player;
   const {
@@ -89,6 +94,7 @@ export function Player({
   const stageRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
 
   // Wave area geometry: re-measured on each render so overlay positions
   // (playhead, loop region, annotation markers) follow size changes. A
@@ -116,6 +122,132 @@ export function Player({
   useLayoutEffect(() => {
     forceRender((n) => n + 1);
   }, [railCollapsed]);
+
+  // Keep the DOM scrollLeft in sync with viewport state when something other
+  // than user-scroll changed it (e.g. zoom anchor math, fit-to-window).
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    if (Math.abs(el.scrollLeft - viewport.state.scrollLeft) > 0.5) {
+      el.scrollLeft = viewport.state.scrollLeft;
+    }
+  }, [viewport.state.scrollLeft]);
+
+  // Non-passive wheel listener for ⌥-scroll (horizontal zoom) and
+  // ⇧-scroll (horizontal pan). We attach via addEventListener — React's
+  // synthetic onWheel is passive-by-default and can't preventDefault.
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if (e.altKey) {
+        e.preventDefault();
+        const stage = stageRef.current;
+        if (!stage) return;
+        const stageRect = stage.getBoundingClientRect();
+        const anchorX = e.clientX - stageRect.left;
+        // Scale the zoom factor by deltaY magnitude. A trackpad can fire 30+
+        // wheel events per gesture; a fixed-step multiplier compounds way
+        // too fast. With factor = exp(-deltaY * 0.0025), a full gesture
+        // (cumulative deltaY ≈ -300) reaches ~2.1× zoom, not 17×. Keyboard
+        // shortcuts still use the larger ZOOM_FACTOR (1.5×) via zoomH().
+        const factor = Math.exp(-e.deltaY * 0.0025);
+        viewport.zoomHBy(factor, {
+          stageWidth: stageRect.width,
+          anchorX,
+        });
+        // Manual zoom suspends auto-follow.
+        if (viewport.state.followActive) viewport.setFollowActive(false);
+      } else if (e.shiftKey && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        // Shift converts vertical wheel to horizontal pan.
+        e.preventDefault();
+        const target = el.scrollLeft + e.deltaY;
+        viewport.setScrollLeft(target, el.scrollWidth - el.clientWidth);
+        if (viewport.state.followActive) viewport.setFollowActive(false);
+      }
+      // Otherwise let the browser handle: native vertical scroll on the
+      // viewport (when tracks overflow vertically), and native horizontal
+      // pan (trackpad two-finger swipe → e.deltaX without shift).
+    }
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [viewport]);
+
+  // When playback transitions from paused → playing, re-engage follow. The
+  // user's mental model is that hitting play should bring the playhead back
+  // into view, even if a prior zoom/scroll gesture suspended follow. We
+  // only trigger on the rising edge — playing→paused must NOT toggle it
+  // back off (the user may have paused to inspect something off-screen).
+  const wasPlayingRef = useRef(player.state.isPlaying);
+  useEffect(() => {
+    const playing = player.state.isPlaying;
+    if (playing && !wasPlayingRef.current) {
+      viewport.setFollowActive(true);
+    }
+    wasPlayingRef.current = playing;
+  }, [player.state.isPlaying, viewport]);
+
+  // Keep a ref of the live player state so the rAF tick reads isPlaying
+  // without depending on `player` in its effect deps (which would tear
+  // down and rebuild the rAF loop on every play/pause).
+  const playerStateRef = useRef(player.state);
+  playerStateRef.current = player.state;
+
+  // Smooth/page-flip follow. Runs only while playing and followActive.
+  useEffect(() => {
+    if (!viewport.state.followActive) return;
+    if (!player.state.stems.length || !duration) return;
+
+    let raf = 0;
+    function tick() {
+      const inner = viewportRef.current;
+      const stage = stageRef.current;
+      if (!inner || !stage) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      // Only follow while audio is actually playing — pausing freezes follow.
+      // Read state via ref so the closure sees the current value without
+      // having to re-create the effect every play/pause transition.
+      if (!playerStateRef.current.isPlaying) {
+        raf = requestAnimationFrame(tick);
+        return;
+      }
+      const w = stage.getBoundingClientRect().width;
+      const rail = railCollapsed ? 0 : 260;
+      const wave = Math.max(0, w * viewport.state.hZoom - rail);
+      const waveVisibleW = Math.max(0, w - rail);
+      const t = player.currentTime;
+      // playheadInner mirrors the render formula (rail offset + wave fraction);
+      // this is the .viewport-inner-relative x where the playhead is drawn.
+      const playheadInner = duration ? rail + (t / duration) * wave : 0;
+      const sl = inner.scrollLeft;
+      const visibleR = sl + w;
+      if (viewport.state.followMode === 'smooth') {
+        // Keep the playhead ~25% into the visible wave area (past the rail).
+        const target = Math.max(0, playheadInner - rail - waveVisibleW * 0.25);
+        if (Math.abs(target - sl) > 0.5) {
+          inner.scrollLeft = target;
+        }
+      } else {
+        // page-flip: jump only when playhead crosses the right edge
+        if (playheadInner > visibleR - 10) {
+          inner.scrollLeft = Math.max(0, playheadInner - rail - waveVisibleW * 0.05);
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [viewport.state.followActive, viewport.state.followMode, viewport.state.hZoom, duration, player, railCollapsed]);
+
+  function getStageInnerWidth(): number {
+    const stage = stageRef.current;
+    if (!stage) return 0;
+    return stage.getBoundingClientRect().width;
+  }
+  const stageWidth = getStageInnerWidth();
+  const innerWidth = stageWidth * viewport.state.hZoom;
 
   function getWaveRect(): { left: number; width: number } {
     const stage = stageRef.current;
@@ -295,12 +427,26 @@ export function Player({
     e.preventDefault();
   }
 
-  const wr = getWaveRect();
+  // Overlays (playhead, loop region, annotation markers, annotation preview)
+  // live INSIDE .viewport-inner, so their `left` is measured from the inner
+  // content's left edge. The grid puts the rail in column 1 (railWidth px)
+  // and the wave in column 2 (waveWidth px). Overlays must offset by
+  // railWidth so they don't extend under the sticky rail / track names.
+  // When the rail is collapsed (mobile), railWidth = 0 and the wave fills
+  // the full row.
+  const railWidth = railCollapsed ? 0 : 260; // matches --rail-w in app.css
+  const waveWidth = Math.max(0, innerWidth - railWidth);
+  // Nudge the playhead 2px past the rail's box-shadow edge so it stays
+  // visible at t=0 (where its true position coincides with the rail's
+  // right border). 2px over a multi-second timeline is sub-pixel-percent
+  // — imperceptible — and prevents the rail from clipping the playhead at
+  // the song start.
+  const PLAYHEAD_EDGE_OFFSET = 2;
   const playheadLeft = duration
-    ? wr.left + (Math.min(currentTime, duration) / duration) * wr.width
+    ? railWidth + PLAYHEAD_EDGE_OFFSET + (Math.min(currentTime, duration) / duration) * Math.max(0, waveWidth - PLAYHEAD_EDGE_OFFSET)
     : 0;
-  const loopLeft = loop && duration ? wr.left + (loop.start / duration) * wr.width : 0;
-  const loopWidth = loop && duration ? ((loop.end - loop.start) / duration) * wr.width : 0;
+  const loopLeft = loop && duration ? railWidth + (loop.start / duration) * waveWidth : 0;
+  const loopWidth = loop && duration ? ((loop.end - loop.start) / duration) * waveWidth : 0;
   const previewSource = (() => {
     if (!duration) return null;
     if (annotationDragPreview) {
@@ -320,12 +466,12 @@ export function Player({
     return null;
   })();
   const previewLeft = previewSource && duration
-    ? wr.left + (previewSource.startMs / 1000 / duration) * wr.width
+    ? railWidth + (previewSource.startMs / 1000 / duration) * waveWidth
     : 0;
   const previewWidth = previewSource && duration
     ? Math.max(
         previewSource.isPoint ? 3 : 2,
-        ((previewSource.endMs - previewSource.startMs) / 1000 / duration) * wr.width,
+        ((previewSource.endMs - previewSource.startMs) / 1000 / duration) * waveWidth,
       )
     : 0;
 
@@ -341,122 +487,178 @@ export function Player({
       }
     >
       <div className="stage" ref={stageRef}>
-        {annotationCreateMode && duration > 0 && (
+        {/* Minimap is always rendered (no toolbar toggle). The viewport rect
+            is full-width and visually subtle at hZoom=1; once you zoom in,
+            it shows the visible window and you can drag/click to pan. */}
+        <Minimap
+          duration={duration}
+          hZoom={viewport.state.hZoom}
+          scrollLeft={viewport.state.scrollLeft}
+          viewportWidth={stageWidth}
+          innerWidth={innerWidth}
+          waveWidth={waveWidth}
+          visibleWaveWidth={Math.max(0, stageWidth - railWidth)}
+          annotations={annotations}
+          loop={loop}
+          currentTime={currentTime}
+          userColorMap={userColorMap}
+          onSeek={player.seek}
+          onScrollTo={(px) => viewport.setScrollLeft(px, innerWidth - stageWidth)}
+        />
+        <div
+          className="viewport"
+          ref={viewportRef}
+          style={{
+            // At zoom=1 the inner content is exactly the viewport width, but
+            // sub-pixel rounding can still trigger a stray horizontal
+            // scrollbar. Hide it when there's nothing to scroll to.
+            overflowX: viewport.state.hZoom > 1 ? 'auto' : 'hidden',
+          }}
+          onScroll={(e) => {
+            const sl = (e.currentTarget as HTMLDivElement).scrollLeft;
+            if (sl !== viewport.state.scrollLeft) {
+              viewport.setScrollLeft(sl);
+            }
+          }}
+        >
           <div
-            className="annotation-create-overlay"
-            style={{ left: `${wr.left}px`, width: `${wr.width}px` }}
-            onPointerDown={(e) => {
-              if (e.button !== 0) return;
-              startAnnotationDrag(e.clientX, e.pointerId);
-              e.preventDefault();
-            }}
-            aria-label="Click for point annotation, drag for region"
-          />
-        )}
-        <div className="tracks" ref={tracksRef}>
-          <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
-          {!stems.length && !loading && (
-            <div className="empty-stage">
-              <p>No practice loaded.</p>
-              <button
-                type="button"
-                className="empty-stage-cta"
-                onClick={onOpenPicker}
-              >
-                Open the file picker (⌘K)
-              </button>
-            </div>
-          )}
-          {!stems.length && loading && (
-            <>
-              {loading.displayNames.map((name, i) => (
-                <div className="track track-skeleton" key={`skel-${i}`} aria-hidden="true">
-                  <div className="track-rail">
-                    <span className="swatch" style={{ background: loading.colors[i] }} />
-                    <div className="track-info">
-                      <span className="track-name" title={name}>{name}</span>
+            className="viewport-inner"
+            style={{
+              width: viewport.state.hZoom > 1 ? `${innerWidth}px` : '100%',
+              '--track-h': `${viewport.state.trackHeight}px`,
+            } as React.CSSProperties}
+          >
+            {annotationCreateMode && duration > 0 && (
+              <div
+                className="annotation-create-overlay"
+                style={{ left: `${railWidth}px`, width: `${waveWidth}px` }}
+                onPointerDown={(e) => {
+                  if (e.button !== 0) return;
+                  startAnnotationDrag(e.clientX, e.pointerId);
+                  e.preventDefault();
+                }}
+                aria-label="Click for point annotation, drag for region"
+              />
+            )}
+            <div className="tracks" ref={tracksRef}>
+              <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
+              {!stems.length && !loading && (
+                <div className="empty-stage">
+                  <p>No practice loaded.</p>
+                  <button
+                    type="button"
+                    className="empty-stage-cta"
+                    onClick={onOpenPicker}
+                  >
+                    Open the file picker (⌘K)
+                  </button>
+                </div>
+              )}
+              {!stems.length && loading && (
+                <>
+                  {loading.displayNames.map((name, i) => (
+                    <div className="track track-skeleton" key={`skel-${i}`} aria-hidden="true">
+                      <div className="track-rail">
+                        <span className="swatch" style={{ background: loading.colors[i] }} />
+                        <div className="track-info">
+                          <span className="track-name" title={name}>{name}</span>
+                        </div>
+                      </div>
+                      <div className="wave">
+                        <div className="clip wave-skel" />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="player-loading-overlay" role="status" aria-live="polite">
+                    <div className="player-loading-card">
+                      <div className="player-loading-title">
+                        Loading {loading.displayNames.length} stem{loading.displayNames.length === 1 ? '' : 's'}
+                      </div>
+                      <div className="player-loading-progress">
+                        <div
+                          className="player-loading-bar"
+                          style={{
+                            width: `${(loading.loaded / Math.max(1, loading.displayNames.length)) * 100}%`,
+                          }}
+                        />
+                      </div>
+                      <div className="player-loading-count">
+                        {loading.loaded} / {loading.displayNames.length}
+                      </div>
                     </div>
                   </div>
-                  <div className="wave">
-                    <div className="clip wave-skel" />
-                  </div>
-                </div>
+                </>
+              )}
+              {stems.map((stem, i) => (
+                <Track
+                  key={stem.serverId ?? `${stem.practiceId ?? 'local'}-${stem.name}`}
+                  stem={stem}
+                  idx={i}
+                  focused={i === focusedIdx}
+                  effectiveMuted={anySolo ? !stem.soloed : stem.userMuted}
+                  durationRef={duration}
+                  waveformNormalization={waveformNormalization}
+                  canMutate={canMutate}
+                  trackHeight={viewport.state.trackHeight}
+                  onFocus={player.focusStem}
+                  onToggleMute={player.toggleMute}
+                  onToggleSolo={player.toggleSolo}
+                  onSetVolume={player.setVolume}
+                  onSeek={player.seek}
+                  onRenameStem={onRenameStem}
+                  onDeleteStem={onDeleteStem}
+                />
               ))}
-              <div className="player-loading-overlay" role="status" aria-live="polite">
-                <div className="player-loading-card">
-                  <div className="player-loading-title">
-                    Loading {loading.displayNames.length} stem{loading.displayNames.length === 1 ? '' : 's'}
-                  </div>
-                  <div className="player-loading-progress">
-                    <div
-                      className="player-loading-bar"
-                      style={{
-                        width: `${(loading.loaded / Math.max(1, loading.displayNames.length)) * 100}%`,
-                      }}
-                    />
-                  </div>
-                  <div className="player-loading-count">
-                    {loading.loaded} / {loading.displayNames.length}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-          {stems.map((stem, i) => (
-            <Track
-              key={stem.serverId ?? `${stem.practiceId ?? 'local'}-${stem.name}`}
-              stem={stem}
-              idx={i}
-              focused={i === focusedIdx}
-              effectiveMuted={anySolo ? !stem.soloed : stem.userMuted}
-              durationRef={duration}
-              waveformNormalization={waveformNormalization}
-              canMutate={canMutate}
-              onFocus={player.focusStem}
-              onToggleMute={player.toggleMute}
-              onToggleSolo={player.toggleSolo}
-              onSetVolume={player.setVolume}
-              onSeek={player.seek}
-              onRenameStem={onRenameStem}
-              onDeleteStem={onDeleteStem}
+            </div>
+            <LoopRegion
+              visible={!!loop}
+              enabled={!!loop?.enabled}
+              leftPx={loopLeft}
+              widthPx={loopWidth}
+              onPointerDown={onLoopPointerDown}
             />
-          ))}
+            <AnnotationMarkers
+              annotations={annotations}
+              duration={duration}
+              userColorMap={userColorMap}
+              visible={markersVisible}
+              waveLeftPx={railWidth}
+              waveWidthPx={waveWidth}
+              onSelect={onAnnotationSelected}
+              hoveredId={hoveredAnnotationId}
+              onHover={onHoverAnnotation}
+              onLoopAnnotation={onLoopAnnotation}
+              createMode={annotationCreateMode}
+            />
+            {previewSource && (
+              <div
+                className={
+                  'annotation-drag-preview' +
+                  (previewSource.isPoint ? ' point' : '') +
+                  (annotationDragPreview ? ' dragging' : ' pending')
+                }
+                style={{
+                  left: `${previewLeft}px`,
+                  width: `${previewWidth}px`,
+                }}
+                aria-hidden="true"
+              />
+            )}
+            {/* Hide the playhead when it would draw inside the sticky-rail
+                column. The rail occupies screen-x [0, railWidth]; in
+                .viewport-inner coords that's [scrollLeft, scrollLeft +
+                railWidth]. Without this guard the playhead (z:5) would
+                draw on top of the track names. */}
+            <Playhead
+              visible={
+                !!stems.length &&
+                !!duration &&
+                playheadLeft >= viewport.state.scrollLeft + railWidth
+              }
+              leftPx={playheadLeft}
+            />
+          </div>
         </div>
-        <LoopRegion
-          visible={!!loop}
-          enabled={!!loop?.enabled}
-          leftPx={loopLeft}
-          widthPx={loopWidth}
-          onPointerDown={onLoopPointerDown}
-        />
-        <AnnotationMarkers
-          annotations={annotations}
-          duration={duration}
-          userColorMap={userColorMap}
-          visible={markersVisible}
-          waveLeftPx={wr.left}
-          waveWidthPx={wr.width}
-          onSelect={onAnnotationSelected}
-          hoveredId={hoveredAnnotationId}
-          onHover={onHoverAnnotation}
-          onLoopAnnotation={onLoopAnnotation}
-          createMode={annotationCreateMode}
-        />
-        {previewSource && (
-          <div
-            className={
-              'annotation-drag-preview' +
-              (previewSource.isPoint ? ' point' : '') +
-              (annotationDragPreview ? ' dragging' : ' pending')
-            }
-            style={{
-              left: `${previewLeft}px`,
-              width: `${previewWidth}px`,
-            }}
-            aria-hidden="true"
-          />
-        )}
-        <Playhead visible={!!stems.length && !!duration} leftPx={playheadLeft} />
       </div>
 
       {annotationCreateMode && (
@@ -474,12 +676,18 @@ export function Player({
         </div>
       )}
 
-      <div className="status">{status}</div>
+      <div className="status-row">
+        <div className="status">{status}</div>
+        {viewport.state.hZoom > 1 && (
+          <FollowPill
+            active={viewport.state.followActive}
+            onToggle={() => viewport.setFollowActive(!viewport.state.followActive)}
+          />
+        )}
+      </div>
 
       <div className="keys-hint">
-        <strong>Keys:</strong> <kbd>Space</kbd> play/pause &middot; <kbd>L</kbd> loop on/off
-        &middot; <kbd>Esc</kbd> clear loop &middot; <kbd>M</kbd>/<kbd>S</kbd> mute/solo focused
-        track &middot; drag the ruler to set a loop region
+        Press <kbd>?</kbd> for keyboard shortcuts.
       </div>
     </main>
   );

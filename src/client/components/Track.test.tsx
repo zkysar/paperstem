@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Track } from './Track';
+import { DEFAULT_TRACK_H } from '../hooks/useViewport';
 import type { LoadedStem } from '../data/types';
 
 function makeStem(overrides: Partial<LoadedStem> = {}): LoadedStem {
@@ -31,6 +32,7 @@ function defaultProps(overrides: Record<string, unknown> = {}) {
     durationRef: 60,
     waveformNormalization: 'global' as const,
     canMutate: true,
+    trackHeight: DEFAULT_TRACK_H,
     onFocus: vi.fn(),
     onToggleMute: vi.fn(),
     onToggleSolo: vi.fn(),
@@ -135,5 +137,28 @@ describe('Track unavailable state', () => {
     // Simulate the audio element's error event.
     fireEvent.error(stem.audio);
     expect(screen.queryByText(/stem unavailable/i)).not.toBeNull();
+  });
+});
+
+describe('Track tier class by height', () => {
+  it('applies tier-min class when trackHeight is below 32', () => {
+    const { container } = render(
+      <Track {...defaultProps({ trackHeight: 24 })} />,
+    );
+    expect(container.querySelector('.track')?.classList.contains('tier-min')).toBe(true);
+  });
+
+  it('applies tier-mid class between 32 and 43', () => {
+    const { container } = render(
+      <Track {...defaultProps({ trackHeight: 36 })} />,
+    );
+    expect(container.querySelector('.track')?.classList.contains('tier-mid')).toBe(true);
+  });
+
+  it('applies tier-full class at 44 and above', () => {
+    const { container } = render(
+      <Track {...defaultProps({ trackHeight: 60 })} />,
+    );
+    expect(container.querySelector('.track')?.classList.contains('tier-full')).toBe(true);
   });
 });
