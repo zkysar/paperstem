@@ -40,6 +40,7 @@ function defaultViewport() {
       minimapPref: 'auto' as const,
     },
     zoomH: vi.fn(),
+    zoomHBy: vi.fn(),
     zoomV: vi.fn(),
     setScrollLeft: vi.fn(),
     fitToWindow: vi.fn(),

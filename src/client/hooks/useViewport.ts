@@ -6,6 +6,10 @@ export const DEFAULT_TRACK_H = 44;
 export const MIN_HZOOM = 1;
 export const MAX_HZOOM = 32;
 export const ZOOM_FACTOR = 1.5;
+/** Per-event step for trackpad/wheel zoom. Smaller than the keyboard step
+ *  (ZOOM_FACTOR) because trackpads emit many wheel events per gesture; using
+ *  the keyboard factor here makes scroll-zoom feel runaway-fast. */
+export const WHEEL_ZOOM_FACTOR = 1.1;
 
 export type FollowMode = 'smooth' | 'page-flip';
 export type MinimapPref = 'auto' | 'off';
@@ -28,6 +32,10 @@ export type ZoomHOpts = {
 export type ViewportControls = {
   state: ViewportState;
   zoomH(dir: ZoomDir, opts: ZoomHOpts): void;
+  /** Zoom horizontally by an arbitrary multiplier (used by trackpad/wheel
+   *  zoom, where a small per-event factor avoids the runaway-zoom feel of
+   *  the 1.5× keyboard step). */
+  zoomHBy(factor: number, opts: ZoomHOpts): void;
   zoomV(dir: ZoomDir): void;
   setScrollLeft(px: number, maxScroll?: number): void;
   fitToWindow(): void;
@@ -50,26 +58,37 @@ export function useViewport(): ViewportControls {
     minimapPref: 'auto',
   });
 
+  const applyHorizontalZoom = (
+    prev: ViewportState,
+    factor: number,
+    opts: ZoomHOpts,
+  ): ViewportState => {
+    const oldZoom = prev.hZoom;
+    const target = oldZoom * factor;
+    const newZoom = clamp(target, MIN_HZOOM, MAX_HZOOM);
+    if (newZoom === oldZoom) return prev;
+    const { stageWidth, anchorX } = opts;
+    const oldInner = stageWidth * oldZoom;
+    const newInner = stageWidth * newZoom;
+    const contentX = anchorX + prev.scrollLeft;
+    const rawScroll = oldInner > 0
+      ? (contentX / oldInner) * newInner - anchorX
+      : 0;
+    const maxScroll = Math.max(0, newInner - stageWidth);
+    return {
+      ...prev,
+      hZoom: newZoom,
+      scrollLeft: clamp(rawScroll, 0, maxScroll),
+    };
+  };
+
   const zoomH = useCallback((dir: ZoomDir, opts: ZoomHOpts) => {
-    setState((prev) => {
-      const oldZoom = prev.hZoom;
-      const target = dir === 'in' ? oldZoom * ZOOM_FACTOR : oldZoom / ZOOM_FACTOR;
-      const newZoom = clamp(target, MIN_HZOOM, MAX_HZOOM);
-      if (newZoom === oldZoom) return prev;
-      const { stageWidth, anchorX } = opts;
-      const oldInner = stageWidth * oldZoom;
-      const newInner = stageWidth * newZoom;
-      const contentX = anchorX + prev.scrollLeft;
-      const rawScroll = oldInner > 0
-        ? (contentX / oldInner) * newInner - anchorX
-        : 0;
-      const maxScroll = Math.max(0, newInner - stageWidth);
-      return {
-        ...prev,
-        hZoom: newZoom,
-        scrollLeft: clamp(rawScroll, 0, maxScroll),
-      };
-    });
+    const factor = dir === 'in' ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
+    setState((prev) => applyHorizontalZoom(prev, factor, opts));
+  }, []);
+
+  const zoomHBy = useCallback((factor: number, opts: ZoomHOpts) => {
+    setState((prev) => applyHorizontalZoom(prev, factor, opts));
   }, []);
 
   const zoomV = useCallback((dir: ZoomDir) => {
@@ -115,6 +134,7 @@ export function useViewport(): ViewportControls {
   return {
     state,
     zoomH,
+    zoomHBy,
     zoomV,
     setScrollLeft,
     fitToWindow,

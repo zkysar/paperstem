@@ -17,6 +17,7 @@ import { Playhead } from './Playhead';
 import { Ruler } from './Ruler';
 import { Track } from './Track';
 import type { ViewportControls } from '../hooks/useViewport';
+import { WHEEL_ZOOM_FACTOR } from '../hooks/useViewport';
 
 const DRAG_THRESHOLD_PX = 4;
 const MIN_LOOP_SEC = 0.05;
@@ -146,7 +147,11 @@ export function Player({
         if (!stage) return;
         const stageRect = stage.getBoundingClientRect();
         const anchorX = e.clientX - stageRect.left;
-        viewport.zoomH(e.deltaY < 0 ? 'in' : 'out', {
+        // Use the smaller wheel-zoom factor so trackpad scrolls don't blow
+        // through several zoom levels per gesture. The keyboard zoom-in/out
+        // shortcuts still use the larger ZOOM_FACTOR step via zoomH().
+        const factor = e.deltaY < 0 ? WHEEL_ZOOM_FACTOR : 1 / WHEEL_ZOOM_FACTOR;
+        viewport.zoomHBy(factor, {
           stageWidth: stageRect.width,
           anchorX,
         });

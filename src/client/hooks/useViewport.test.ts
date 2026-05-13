@@ -51,6 +51,34 @@ describe('useViewport.zoomH', () => {
   });
 });
 
+describe('useViewport.zoomHBy', () => {
+  it('multiplies hZoom by the given factor', () => {
+    const { result } = renderHook(() => useViewport());
+    act(() => result.current.zoomHBy(1.1, { stageWidth: 1000, anchorX: 0 }));
+    expect(result.current.state.hZoom).toBeCloseTo(1.1);
+  });
+
+  it('clamps hZoom at 1.0 when factor would drop below it', () => {
+    const { result } = renderHook(() => useViewport());
+    act(() => result.current.zoomHBy(0.9, { stageWidth: 1000, anchorX: 0 }));
+    expect(result.current.state.hZoom).toBe(1);
+  });
+
+  it('clamps hZoom at MAX_HZOOM', () => {
+    const { result } = renderHook(() => useViewport());
+    for (let i = 0; i < 100; i++) {
+      act(() => result.current.zoomHBy(1.1, { stageWidth: 1000, anchorX: 0 }));
+    }
+    expect(result.current.state.hZoom).toBe(MAX_HZOOM);
+  });
+
+  it('keeps the anchor pixel stable when zooming with cursor at right edge', () => {
+    const { result } = renderHook(() => useViewport());
+    act(() => result.current.zoomHBy(1.5, { stageWidth: 1000, anchorX: 1000 }));
+    expect(result.current.state.scrollLeft).toBe(500);
+  });
+});
+
 describe('useViewport.zoomV', () => {
   it('grows track height by 1.5x on zoomIn, clamped to MAX_TRACK_H', () => {
     const { result } = renderHook(() => useViewport());
