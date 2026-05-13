@@ -657,7 +657,9 @@ button.track-name:disabled { cursor: default; }
   z-index: 6;
 }
 .loop-region.disabled {
-  background: rgba(193, 116, 70, 0.04);
+  bottom: auto;
+  height: 22px;
+  background: transparent;
   border-color: rgba(193, 116, 70, 0.4);
 }
 .loop-handle {
