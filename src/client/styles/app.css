@@ -2349,3 +2349,45 @@ body.env-non-prod[data-env="local"]::before {
   }
 }
 
+
+/* Share-link arrival banner — shown when a recipient opens a share URL with
+ * non-trivial state (loop, mix, focused comment, etc). Anchored at the top
+ * of the practice view; dismisses on first play or explicit dismiss. */
+.share-arrival {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--accent-tint);
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--fs-md);
+}
+.share-arrival-text { flex: 1; min-width: 0; }
+.share-arrival-headline { font-weight: var(--fw-semi); }
+.share-arrival-cats { color: var(--ink-2); }
+.share-arrival-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--accent);
+  color: var(--paper);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+}
+.share-arrival-play:hover { filter: brightness(1.06); }
+.share-arrival-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+}
+.share-arrival-dismiss:hover { color: var(--ink); }
