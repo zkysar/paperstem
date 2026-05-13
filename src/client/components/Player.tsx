@@ -209,27 +209,32 @@ export function Player({
         return;
       }
       const w = stage.getBoundingClientRect().width;
-      const innerW = w * viewport.state.hZoom;
+      const rail = railCollapsed ? 0 : 260;
+      const wave = Math.max(0, w * viewport.state.hZoom - rail);
+      const waveVisibleW = Math.max(0, w - rail);
       const t = player.currentTime;
-      const playheadInner = duration ? (t / duration) * innerW : 0;
+      // playheadInner mirrors the render formula (rail offset + wave fraction);
+      // this is the .viewport-inner-relative x where the playhead is drawn.
+      const playheadInner = duration ? rail + (t / duration) * wave : 0;
       const sl = inner.scrollLeft;
       const visibleR = sl + w;
       if (viewport.state.followMode === 'smooth') {
-        const target = Math.max(0, playheadInner - w * 0.25);
+        // Keep the playhead ~25% into the visible wave area (past the rail).
+        const target = Math.max(0, playheadInner - rail - waveVisibleW * 0.25);
         if (Math.abs(target - sl) > 0.5) {
           inner.scrollLeft = target;
         }
       } else {
         // page-flip: jump only when playhead crosses the right edge
         if (playheadInner > visibleR - 10) {
-          inner.scrollLeft = Math.max(0, playheadInner - w * 0.05);
+          inner.scrollLeft = Math.max(0, playheadInner - rail - waveVisibleW * 0.05);
         }
       }
       raf = requestAnimationFrame(tick);
     }
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [viewport.state.followActive, viewport.state.followMode, viewport.state.hZoom, duration, player]);
+  }, [viewport.state.followActive, viewport.state.followMode, viewport.state.hZoom, duration, player, railCollapsed]);
 
   function getStageInnerWidth(): number {
     const stage = stageRef.current;
