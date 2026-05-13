@@ -12,6 +12,7 @@ import { pixelToTime } from '../lib/format';
 import { AnnotationMarkers } from './AnnotationMarkers';
 import { FollowPill } from './FollowPill';
 import { LoopRegion } from './LoopRegion';
+import { Minimap } from './Minimap';
 import { Playhead } from './Playhead';
 import { Ruler } from './Ruler';
 import { Track } from './Track';
@@ -437,6 +438,21 @@ export function Player({
       }
     >
       <div className="stage" ref={stageRef}>
+        {viewport.state.hZoom > 1 && viewport.state.minimapPref === 'auto' && (
+          <Minimap
+            duration={duration}
+            hZoom={viewport.state.hZoom}
+            scrollLeft={viewport.state.scrollLeft}
+            viewportWidth={stageWidth}
+            innerWidth={innerWidth}
+            annotations={annotations}
+            loop={loop}
+            currentTime={currentTime}
+            userColorMap={userColorMap}
+            onSeek={player.seek}
+            onScrollTo={(px) => viewport.setScrollLeft(px, innerWidth - stageWidth)}
+          />
+        )}
         <div
           className="viewport"
           ref={viewportRef}
