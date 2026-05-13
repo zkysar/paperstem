@@ -7,6 +7,7 @@ import { handleAuthRequest } from './auth/request.js';
 import { handleAuthVerify } from './auth/verify.js';
 import { handleAuthLogout } from './auth/logout.js';
 import { handleDevLogin, isDevLoginEnabled } from './auth/dev-login.js';
+import { seedDevBandIfNeeded } from './auth/dev-seed.js';
 import { handleMe } from './auth/me.js';
 import {
   handleListTokens,
@@ -99,6 +100,12 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 const port = Number(process.env.PORT ?? 8787);
+
+if (isDevLoginEnabled()) {
+  await seedDevBandIfNeeded().catch((err) => {
+    console.error('[dev-seed] failed:', err);
+  });
+}
 
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`paperstem server listening on http://localhost:${info.port}`);
