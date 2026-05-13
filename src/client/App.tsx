@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LoginScreen } from './auth/LoginScreen';
 import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
+import { PENDING_SHARE_HASH_KEY, useShareLink } from './hooks/useShareLink';
 import { CommentsDrawer, type DraftSpec } from './components/CommentsDrawer';
 import { CommentsFab } from './components/CommentsFab';
 import { CommentPopover } from './components/CommentPopover';
@@ -57,6 +58,21 @@ export default function App() {
     }
   }, [appInfo?.env]);
 
+  // Magic-link login is a fresh server navigation that drops the fragment.
+  // Stash it in sessionStorage before rendering LoginScreen so PaperstemApp
+  // can pick it up after auth completes.
+  useEffect(() => {
+    if (loading || user) return;
+    const hash = window.location.hash;
+    if (hash && hash !== '#') {
+      try {
+        sessionStorage.setItem(PENDING_SHARE_HASH_KEY, hash);
+      } catch {
+        // sessionStorage may be unavailable — best-effort.
+      }
+    }
+  }, [loading, user]);
+
   if (loading) return null;
   if (!user) return <LoginScreen />;
   return <PaperstemApp user={user} onLogout={logout} appInfo={appInfo} />;
@@ -72,6 +88,8 @@ function PaperstemApp({
   appInfo: ReturnType<typeof useAppVersion>;
 }) {
   const player = usePlayer();
+  const shareLink = useShareLink();
+  const pendingShareStateRef = useRef(shareLink.initial);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
@@ -87,7 +105,9 @@ function PaperstemApp({
   const [trashError, setTrashError] = useState<string | null>(null);
   const [practicesLoading, setPracticesLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
+  const [activePracticeId, setActivePracticeId] = useState<string | null>(
+    shareLink.initial?.practiceId ?? null,
+  );
   const [downloading, setDownloading] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   // Draft mode: when the user picks a folder via "+ New practice", the audio
@@ -148,6 +168,12 @@ function PaperstemApp({
     // intentionally fires once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Live-sync the address bar to `#p=<id>` whenever the active practice
+  // changes. The hook's syncPracticeId is stable.
+  useEffect(() => {
+    shareLink.syncPracticeId(activePracticeId);
+  }, [activePracticeId, shareLink]);
 
   // When activePracticeId transitions to null (e.g. the active practice was
   // deleted), reset the player so the header and waveform don't point at a
@@ -396,6 +422,21 @@ function PaperstemApp({
     if (!activePracticeId) return;
     await loadPractice(activePracticeId, { resetUiState: false });
   }, [activePracticeId, loadPractice]);
+
+  // On mount, if a share link supplied a practice ID, load it. The picker's
+  // auto-open effect already skipped because activePracticeId was non-null
+  // from the share link. We just need to fetch the practice.
+  const didInitialShareLoadRef = useRef(false);
+  useEffect(() => {
+    if (didInitialShareLoadRef.current) return;
+    const initial = pendingShareStateRef.current;
+    if (!initial || !repo) return;
+    didInitialShareLoadRef.current = true;
+    // Don't reset UI state — we want the share link's focused comment etc. to
+    // survive once Task 4 wires the drain. resetUiState: true is safe here
+    // because the share state hasn't been applied yet.
+    void loadPractice(initial.practiceId, { resetUiState: true });
+  }, [repo, loadPractice]);
 
   const restoreStem = useCallback(
     async (id: string) => {
