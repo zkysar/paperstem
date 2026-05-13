@@ -652,6 +652,31 @@ button.track-name:disabled { cursor: default; }
      inside the sticky rail's column. */
   z-index: 5;
 }
+/* Grabbable handle at the top of the playhead. Sits in the 22px ruler band.
+   Down-pointing pentagon centered on the 1px line. The ::after gives it a
+   generous invisible hit zone so it's easy to grab on touch and with a
+   sloppy mouse — same trick as .loop-handle. */
+.playhead-handle {
+  position: absolute;
+  top: 0;
+  left: -7px;
+  width: 14px;
+  height: 16px;
+  background: var(--accent);
+  clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%);
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+  border-radius: 1px;
+}
+.playhead-handle:active {
+  cursor: grabbing;
+}
+.playhead-handle::after {
+  content: "";
+  position: absolute;
+  inset: -8px -10px;
+}
 
 /* ===== Footer bits ===== */
 .status-row {
@@ -950,6 +975,11 @@ button.track-name:disabled { cursor: default; }
 .player.annotating .loop-region,
 .player.annotating .annotation-marker {
   opacity: 0.25;
+  pointer-events: none;
+}
+/* pointer-events isn't inherited — child .playhead-handle has its own
+   auto setting, so disable it explicitly in annotation mode. */
+.player.annotating .playhead-handle {
   pointer-events: none;
 }
 

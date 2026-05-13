@@ -656,6 +656,16 @@ export function Player({
                 playheadLeft >= viewport.state.scrollLeft + railWidth
               }
               leftPx={playheadLeft}
+              clientXToLeftPx={(clientX) => {
+                const t = xToTime(clientX);
+                return duration
+                  ? railWidth +
+                      PLAYHEAD_EDGE_OFFSET +
+                      (t / duration) * Math.max(0, waveWidth - PLAYHEAD_EDGE_OFFSET)
+                  : 0;
+              }}
+              clientXToTime={xToTime}
+              onSeek={player.seek}
             />
           </div>
         </div>
