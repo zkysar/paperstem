@@ -1,5 +1,5 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
-import { Pencil, Star, Trash2 } from 'lucide-react';
+import { Link2, Pencil, Star, Trash2 } from 'lucide-react';
 import type { Annotation } from '../../shared/types';
 import { SELF_ANNOTATION_COLOR } from '../lib/colors';
 import { fmt } from '../lib/format';
@@ -15,12 +15,23 @@ type Props = {
   annotations: Annotation[];
   selfUserId: string;
   activeId: string | null;
+  /**
+   * Comment id that arrived via a share link's `fc=` param. The matching row
+   * gets a sustained pulse to draw the recipient's eye beyond normal
+   * selection emphasis.
+   */
+  emphasizedId?: string | null;
   userColorMap: Map<string, string>;
   canEdit: boolean;
   onSelect(annotation: Annotation): void;
   onToggleStar(annotation: Annotation): void;
   onSaveEdit(annotation: Annotation, body: string): void;
   onDelete(annotation: Annotation): void;
+  /**
+   * "Copy link to this comment" — captures practice + comment + its timestamp
+   * and writes a share URL to the clipboard.
+   */
+  onCopyLink(annotation: Annotation): void;
 };
 
 function authorLabel(a: Annotation): string {
@@ -42,12 +53,14 @@ export function CommentList({
   annotations,
   selfUserId,
   activeId,
+  emphasizedId,
   userColorMap,
   canEdit,
   onSelect,
   onToggleStar,
   onSaveEdit,
   onDelete,
+  onCopyLink,
 }: Props) {
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -129,13 +142,18 @@ export function CommentList({
           {filtered.map((a) => {
             const color = userColorMap.get(a.user_id) ?? SELF_ANNOTATION_COLOR;
             const isActive = a.id === activeId;
+            const isEmphasized = !!emphasizedId && a.id === emphasizedId;
             const isEditing = a.id === editingId;
             const isOwn = a.user_id === selfUserId;
             return (
               <li
                 key={a.id}
                 data-testid={`list-card-${a.id}`}
-                className={'cl-card' + (isActive ? ' active' : '')}
+                className={
+                  'cl-card' +
+                  (isActive ? ' active' : '') +
+                  (isEmphasized ? ' share-arrival-emphasis' : '')
+                }
                 style={{ borderLeftColor: color }}
                 onClick={() => onSelect(a)}
               >
@@ -152,6 +170,13 @@ export function CommentList({
                   ) : (
                     a.starred && <span className="cl-star on" aria-hidden="true"><Star size={14} strokeWidth={2} fill="currentColor" aria-hidden="true" /></span>
                   )}
+                  <button
+                    type="button"
+                    className="cl-iconbtn cl-copy-link"
+                    aria-label="Copy link to this comment"
+                    title="Copy link to this comment"
+                    onClick={(e) => { e.stopPropagation(); onCopyLink(a); }}
+                  ><Link2 size={14} strokeWidth={2} aria-hidden="true" /></button>
                 </div>
                 {isEditing ? (
                   <div className="cl-edit" onClick={(e) => e.stopPropagation()}>

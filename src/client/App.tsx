@@ -2,6 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LoginScreen } from './auth/LoginScreen';
 import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
+import { PENDING_SHARE_HASH_KEY, useShareLink } from './hooks/useShareLink';
+import { applyShareState } from './lib/apply-share-state';
+import {
+  ShareArrivalBanner,
+  type ShareArrivalCategory,
+} from './components/ShareArrivalBanner';
+import {
+  buildShareUrl,
+  describeShareCategories,
+  snapshotShareState,
+} from './lib/share-url';
 import { CommentsDrawer, type DraftSpec } from './components/CommentsDrawer';
 import { CommentsFab } from './components/CommentsFab';
 import { CommentPopover } from './components/CommentPopover';
@@ -59,6 +70,21 @@ export default function App() {
     }
   }, [appInfo?.env]);
 
+  // Magic-link login is a fresh server navigation that drops the fragment.
+  // Stash it in sessionStorage before rendering LoginScreen so PaperstemApp
+  // can pick it up after auth completes.
+  useEffect(() => {
+    if (loading || user) return;
+    const hash = window.location.hash;
+    if (hash && hash !== '#') {
+      try {
+        sessionStorage.setItem(PENDING_SHARE_HASH_KEY, hash);
+      } catch {
+        // sessionStorage may be unavailable — best-effort.
+      }
+    }
+  }, [loading, user]);
+
   if (loading) return null;
   if (!user) return <LoginScreen />;
   return <PaperstemApp user={user} onLogout={logout} appInfo={appInfo} />;
@@ -75,6 +101,8 @@ function PaperstemApp({
 }) {
   const player = usePlayer();
   const viewport = useViewport();
+  const shareLink = useShareLink();
+  const pendingShareStateRef = useRef(shareLink.initial);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [showZoomHint, setShowZoomHint] = useState<boolean>(() => {
@@ -107,9 +135,15 @@ function PaperstemApp({
   const [trashError, setTrashError] = useState<string | null>(null);
   const [practicesLoading, setPracticesLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activePracticeId, setActivePracticeId] = useState<string | null>(null);
+  const [activePracticeId, setActivePracticeId] = useState<string | null>(
+    shareLink.initial?.practiceId ?? null,
+  );
   const [downloading, setDownloading] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  // Draft mode: when the user picks a folder via "+ New practice", the audio
+  // plays from local File objects (object URLs). We keep the underlying Files
+  // around so "Save to band" can hand them to UploadDrawer for promotion.
+  const [draftFiles, setDraftFiles] = useState<File[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [annotationCreateMode, setAnnotationCreateMode] = useState(false);
@@ -122,6 +156,15 @@ function PaperstemApp({
   );
   const [bugReportOpen, setBugReportOpen] = useState(false);
   const [bugReportPrefill, setBugReportPrefill] = useState<BugReportPrefill | null>(null);
+  // Arrival banner state — populated when a share link applies non-trivial
+  // player state. Cleared on first manual play or explicit dismiss.
+  const [arrival, setArrival] = useState<
+    { time: number | null; categories: ShareArrivalCategory[] } | null
+  >(null);
+  // The comment id that arrived via `fc=` on a share link. Set briefly so the
+  // matching row/popover pulses, then cleared by a timeout so the emphasis
+  // doesn't persist as the user navigates.
+  const [emphasizedCommentId, setEmphasizedCommentId] = useState<string | null>(null);
 
   const openBugReport = useCallback((prefill: BugReportPrefill | null = null) => {
     setBugReportPrefill(prefill);
@@ -164,6 +207,12 @@ function PaperstemApp({
     // intentionally fires once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Live-sync the address bar to `#p=<id>` whenever the active practice
+  // changes. The hook's syncPracticeId is stable.
+  useEffect(() => {
+    shareLink.syncPracticeId(activePracticeId);
+  }, [activePracticeId, shareLink]);
 
   // When activePracticeId transitions to null (e.g. the active practice was
   // deleted), reset the player so the header and waveform don't point at a
@@ -296,6 +345,7 @@ function PaperstemApp({
 
   async function handleUploaded(practiceId: string) {
     setUploadOpen(false);
+    setDraftFiles([]);
     try {
       await refreshPractices();
       await selectPractice(practiceId);
@@ -414,6 +464,54 @@ function PaperstemApp({
     await loadPractice(activePracticeId, { resetUiState: false });
   }, [activePracticeId, loadPractice]);
 
+  // On mount, if a share link supplied a practice ID, load it. The picker's
+  // auto-open effect already skipped because activePracticeId was non-null
+  // from the share link. We just need to fetch the practice.
+  const didInitialShareLoadRef = useRef(false);
+  useEffect(() => {
+    if (didInitialShareLoadRef.current) return;
+    const initial = pendingShareStateRef.current;
+    if (!initial || !repo) return;
+    didInitialShareLoadRef.current = true;
+    // Don't reset UI state — we want the share link's focused comment etc. to
+    // survive once Task 4 wires the drain. resetUiState: true is safe here
+    // because the share state hasn't been applied yet.
+    void loadPractice(initial.practiceId, { resetUiState: true });
+  }, [repo, loadPractice]);
+
+  // Drain pendingShareStateRef once the active practice is fully loaded
+  // (stems decoded). Player stays paused; recipient drives playback.
+  // Sets arrival banner state when anything beyond `p` was applied.
+  useEffect(() => {
+    const pending = pendingShareStateRef.current;
+    if (!pending) return;
+    if (player.state.practiceId !== pending.practiceId) return;
+    if (player.state.stems.length === 0) return;
+
+    const result = applyShareState(pending, {
+      player,
+      onFocusComment: (id) => {
+        setActiveCommentId(id);
+        setEmphasizedCommentId(id);
+        window.setTimeout(() => setEmphasizedCommentId(null), 3000);
+      },
+      onOpenDrawer: () => openDrawer(),
+    });
+    pendingShareStateRef.current = null;
+
+    const hasNonTrivial =
+      (result.time != null && result.time > 0) || result.appliedCategories.length > 0;
+    if (hasNonTrivial) {
+      setArrival({ time: result.time, categories: result.appliedCategories });
+    }
+  }, [player, openDrawer]);
+
+  // Auto-dismiss the arrival banner once playback starts (either via the
+  // banner's ▶ Listen button or any manual play).
+  useEffect(() => {
+    if (arrival && player.state.isPlaying) setArrival(null);
+  }, [arrival, player.state.isPlaying]);
+
   const restoreStem = useCallback(
     async (id: string) => {
       if (!repo) return;
@@ -490,6 +588,7 @@ function PaperstemApp({
     async (id: string) => {
       if (!repo) return;
       setActivePracticeId(id);
+      setDraftFiles([]);
       await loadPractice(id, { resetUiState: true });
     },
     [repo, loadPractice],
@@ -544,6 +643,44 @@ function PaperstemApp({
     [player],
   );
 
+  // Snapshot current player + UI state into a full share URL. Called by the
+  // AppToolbar Share button (which then writes the URL to the clipboard).
+  // Returns null when nothing is loaded — the toolbar treats that as a no-op.
+  const handleShareSnapshot = useCallback(() => {
+    if (!activePracticeId) return null;
+    const state = snapshotShareState({
+      practiceId: activePracticeId,
+      player: player.state,
+      currentTime: player.currentTime,
+      activeCommentId,
+    });
+    const url = buildShareUrl(state, window.location.href);
+    return { fullUrl: url, categories: describeShareCategories(state) };
+  }, [activePracticeId, player.state, player.currentTime, activeCommentId]);
+
+  // "Copy link to this comment" — overrides the time and focused comment to
+  // pin the URL to the annotation rather than the live playhead. The
+  // clipboard write may reject in insecure contexts; v1 just logs and the
+  // user can re-try via the toolbar's fallback popover if needed.
+  const handleCopyCommentLink = useCallback(async (a: Annotation) => {
+    if (!activePracticeId) return;
+    const state = snapshotShareState(
+      {
+        practiceId: activePracticeId,
+        player: player.state,
+        currentTime: player.currentTime,
+        activeCommentId,
+      },
+      { time: a.start_ms / 1000, focusedCommentId: a.id },
+    );
+    const url = buildShareUrl(state, window.location.href);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch (err) {
+      console.warn('Failed to copy comment link', err);
+    }
+  }, [activePracticeId, player.state, player.currentTime, activeCommentId]);
+
   async function handleToggleStar(a: Annotation): Promise<void> {
     const prev = annotations;
     const optimistic = annotations.map((x) =>
@@ -589,6 +726,7 @@ function PaperstemApp({
 
   function loadFolder(files: File[], folderName: string) {
     if (!files.length) {
+      setDraftFiles([]);
       void player.load({
         practiceId: null,
         title: folderName || 'Local folder',
@@ -602,6 +740,7 @@ function PaperstemApp({
       return { name: f.name, src: url, revoke: () => URL.revokeObjectURL(url) };
     });
     setActivePracticeId(null);
+    setDraftFiles(files);
     void player.load({
       practiceId: `local:${folderName}`,
       title: folderName,
@@ -648,6 +787,17 @@ function PaperstemApp({
 
   return (
     <div className="app-shell">
+      {arrival && (
+        <ShareArrivalBanner
+          time={arrival.time}
+          categories={arrival.categories}
+          onPlay={() => {
+            setArrival(null);
+            void player.togglePlay();
+          }}
+          onDismiss={() => setArrival(null)}
+        />
+      )}
       <AppHeader
         userEmail={user.email}
         userInitials={initialsFromEmail(user.email)}
@@ -657,7 +807,7 @@ function PaperstemApp({
         driveFolderId={player.state.driveFolderId ?? null}
         annotationsOpen={drawerOpen}
         hasPractice={player.state.stems.length > 0}
-        canRename={Boolean(activePracticeId)}
+        canRename={player.state.stems.length > 0}
         appVersion={appInfo?.version ?? null}
         appEnv={appInfo?.env ?? null}
         onOpenPicker={openPicker}
@@ -665,7 +815,14 @@ function PaperstemApp({
         onSignOut={onLogout}
         onReportBug={() => openBugReport()}
         onRenamePractice={(name) => {
-          if (activePracticeId) void renamePractice(activePracticeId, name);
+          // In draft mode there's no server practice yet — just update the
+          // player title. The new title becomes the default upload name on
+          // promote.
+          if (activePracticeId) {
+            void renamePractice(activePracticeId, name);
+          } else {
+            player.setTitle(name.trim());
+          }
         }}
       />
       <AppToolbar
@@ -695,7 +852,24 @@ function PaperstemApp({
         onToggleRailCollapsed={() => setRailCollapsed((v) => !v)}
         viewport={viewport}
         onOpenShortcuts={() => setShortcutsOpen(true)}
+        onShare={handleShareSnapshot}
       />
+      {activePracticeId === null && draftFiles.length > 0 && (
+        <div className="draft-banner" role="status">
+          <span className="draft-banner-label">
+            Local draft — only on this device.
+          </span>
+          {showUploadButton && (
+            <button
+              type="button"
+              className="draft-banner-save"
+              onClick={() => setUploadOpen(true)}
+            >
+              Save to your band
+            </button>
+          )}
+        </div>
+      )}
       <div className="app-body">
         <ErrorBoundary onReportBug={openBugReport}>
           <Player
@@ -712,7 +886,7 @@ function PaperstemApp({
             hoveredAnnotationId={hoveredAnnotationId}
             onHoverAnnotation={setHoveredAnnotationId}
             railCollapsed={railCollapsed}
-            canMutate={Boolean(activePracticeId)}
+            canMutate={player.state.stems.length > 0}
             onOpenPicker={openPicker}
             onRenameStem={(id, name) => void renameStem(id, name)}
             onDeleteStem={(id) => void deleteStem(id)}
@@ -748,6 +922,7 @@ function PaperstemApp({
                 annotations={annotations}
                 userColorMap={userColorMap}
                 activeId={activeCommentId}
+                emphasizedId={emphasizedCommentId}
                 pendingDraft={pendingDraft}
                 onClose={closeDrawer}
                 onSelect={handleAnnotationSelected}
@@ -756,6 +931,7 @@ function PaperstemApp({
                 onToggleStar={(a) => void handleToggleStar(a)}
                 onSaveEdit={(a, body) => void handleSaveEdit(a, body)}
                 onDelete={(a) => void handleDelete(a)}
+                onCopyLink={(a) => void handleCopyCommentLink(a)}
               />
               {!drawerOpen && (
                 <CommentsFab
@@ -774,10 +950,12 @@ function PaperstemApp({
                     canEdit={activePracticeId !== null}
                     isOwn={active.user_id === user.id}
                     drawerOpen={drawerOpen}
+                    emphasize={emphasizedCommentId === active.id}
                     onLoopRegion={() => handleLoopAnnotation(active)}
                     onToggleStar={() => void handleToggleStar(active)}
                     onSaveEdit={(body) => void handleSaveEdit(active, body)}
                     onDelete={() => void handleDelete(active)}
+                    onCopyLink={() => void handleCopyCommentLink(active)}
                     onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
                   />,
                   document.body,
@@ -830,7 +1008,6 @@ function PaperstemApp({
           loadFolder(files, folderName);
           closePicker();
         }}
-        onUploadClick={() => setUploadOpen(true)}
         onRetry={() => {
           setPracticesLoading(true);
           void refreshPractices().catch(() => {});
@@ -857,6 +1034,10 @@ function PaperstemApp({
         <UploadDrawer
           bandId={activeBandId}
           open={uploadOpen}
+          prefilledFiles={draftFiles}
+          prefilledName={
+            draftFiles.length > 0 ? player.state.title || null : null
+          }
           onClose={() => setUploadOpen(false)}
           onUploaded={(id) => void handleUploaded(id)}
         />

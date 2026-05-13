@@ -11,6 +11,7 @@ function makeStem(overrides: Partial<LoadedStem> = {}): LoadedStem {
     displayName: 'old.wav',
     color: '#888',
     audio: new Audio(),
+    audioBuffer: null,
     userMuted: false,
     soloed: false,
     userVolume: 100,

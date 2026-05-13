@@ -14,6 +14,7 @@ import {
   Pause,
   Play,
   Repeat,
+  Share2,
   SkipBack,
   Volume2,
   VolumeX,
@@ -51,6 +52,12 @@ type Props = {
   onToggleRailCollapsed(): void;
   viewport: ViewportControls;
   onOpenShortcuts(): void;
+  /**
+   * Builds a share-snapshot URL of the current player state and returns it
+   * (plus the non-trivial category list for the "Copied — includes X" hint).
+   * Returns `null` when there is no practice to share.
+   */
+  onShare(): { fullUrl: string; categories: Array<'loop' | 'mix' | 'stem' | 'comment'> } | null;
 };
 
 export function AppToolbar(props: Props) {
@@ -63,7 +70,45 @@ export function AppToolbar(props: Props) {
     onToggleWaveformNormalization, onToggleAnnotationCreate,
     onToggleMarkersVisible, onSetMasterVolume, onToggleRailCollapsed,
     viewport, onOpenShortcuts,
+    onShare,
   } = props;
+
+  // Share button state — flips to "Copied — includes X" for ~2s after click.
+  // Fallback popover surfaces the URL for manual selection when clipboard
+  // writes fail (insecure contexts, denied permissions).
+  const [shareLabel, setShareLabel] = useState<string | null>(null);
+  const [shareFallback, setShareFallback] = useState<string | null>(null);
+  const shareLabelTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (shareLabelTimerRef.current != null) {
+        window.clearTimeout(shareLabelTimerRef.current);
+      }
+    };
+  }, []);
+
+  async function handleShareClick() {
+    const snap = onShare();
+    if (!snap) return;
+    try {
+      await navigator.clipboard.writeText(snap.fullUrl);
+      const cats = snap.categories.length
+        ? ` — includes ${snap.categories.join(', ')}`
+        : '';
+      setShareLabel(`Copied${cats}`);
+    } catch {
+      setShareLabel('Copy failed');
+      setShareFallback(snap.fullUrl);
+    }
+    if (shareLabelTimerRef.current != null) {
+      window.clearTimeout(shareLabelTimerRef.current);
+    }
+    shareLabelTimerRef.current = window.setTimeout(() => {
+      setShareLabel(null);
+      shareLabelTimerRef.current = null;
+    }, 2000);
+  }
 
   return (
     <div className="app-toolbar">
@@ -94,6 +139,35 @@ export function AppToolbar(props: Props) {
           ? <Loader2 size={16} strokeWidth={2} className="atb-spin" aria-hidden="true" />
           : <Download size={16} strokeWidth={2} aria-hidden="true" />}
       </button>
+      <div className="atb-share-wrap">
+        <button type="button" className="atb-btn"
+          aria-label="Copy share link"
+          disabled={!hasPractice}
+          onClick={handleShareClick}>
+          <Share2 size={16} strokeWidth={2} aria-hidden="true" />
+        </button>
+        {shareLabel && (
+          <span className="atb-share-label" role="status">{shareLabel}</span>
+        )}
+        {shareFallback && (
+          <div className="atb-share-fallback">
+            <input
+              type="text"
+              readOnly
+              value={shareFallback}
+              onFocus={(e) => e.currentTarget.select()}
+              autoFocus
+              aria-label="Share URL"
+            />
+            <button
+              type="button"
+              className="atb-share-fallback-close"
+              aria-label="Close share URL"
+              onClick={() => setShareFallback(null)}
+            >×</button>
+          </div>
+        )}
+      </div>
       <button type="button" className={'atb-btn' + (waveformNormalization === 'global' ? ' on' : '')}
         aria-label="Toggle waveform scale"
         aria-pressed={waveformNormalization === 'global'}

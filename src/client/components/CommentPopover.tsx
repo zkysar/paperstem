@@ -5,7 +5,7 @@ import {
   type CSSProperties,
   type KeyboardEvent,
 } from 'react';
-import { Pencil, Repeat, Star, Trash2, X } from 'lucide-react';
+import { Link2, Pencil, Repeat, Star, Trash2, X } from 'lucide-react';
 import type { Annotation } from '../../shared/types';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
@@ -18,10 +18,13 @@ type Props = {
   canEdit: boolean;
   isOwn: boolean;
   drawerOpen?: boolean;
+  /** True when this popover came from a share link arrival; adds a pulse. */
+  emphasize?: boolean;
   onLoopRegion(): void;
   onToggleStar(): void;
   onSaveEdit(body: string): void;
   onDelete(): void;
+  onCopyLink(): void;
   onClose(): void;
 };
 
@@ -38,10 +41,12 @@ export function CommentPopover({
   canEdit,
   isOwn,
   drawerOpen = false,
+  emphasize = false,
   onLoopRegion,
   onToggleStar,
   onSaveEdit,
   onDelete,
+  onCopyLink,
   onClose,
 }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
@@ -104,7 +109,11 @@ export function CommentPopover({
   return (
     <div
       ref={cardRef}
-      className={'comment-popover placement-' + placement}
+      className={
+        'comment-popover placement-' +
+        placement +
+        (emphasize ? ' share-arrival-emphasis' : '')
+      }
       style={style}
       role="dialog"
       aria-label="Comment"
@@ -140,6 +149,15 @@ export function CommentPopover({
             <Star size={14} strokeWidth={2} fill={annotation.starred ? 'currentColor' : 'none'} aria-hidden="true" />
           </button>
         )}
+        <button
+          type="button"
+          className="cp-iconbtn"
+          aria-label="Copy link to this comment"
+          title="Copy link to this comment"
+          onClick={(e) => { e.stopPropagation(); onCopyLink(); }}
+        >
+          <Link2 size={14} strokeWidth={2} aria-hidden="true" />
+        </button>
         <button
           type="button"
           className="cp-iconbtn cp-close"

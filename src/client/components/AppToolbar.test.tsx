@@ -36,6 +36,7 @@ const baseProps = {
   onToggleRailCollapsed: vi.fn(),
   viewport: vp(),
   onOpenShortcuts: vi.fn(),
+  onShare: vi.fn(() => null),
 };
 
 describe('AppToolbar', () => {
@@ -109,6 +110,29 @@ describe('AppToolbar', () => {
     render(<AppToolbar {...baseProps} isWide={false} />);
     await user.click(screen.getByLabelText('Master volume'));
     expect(screen.getByLabelText('Master volume slider')).not.toBeNull();
+  });
+
+  it('Share button is disabled when no practice loaded', () => {
+    render(<AppToolbar {...baseProps} hasPractice={false} />);
+    expect((screen.getByLabelText('Copy share link') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('Share button writes to clipboard and shows a Copied label', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const onShare = vi.fn(() => ({
+      fullUrl: 'https://x.app/#p=abc&t=10.00&l=1.00-2.00',
+      categories: ['loop' as const],
+    }));
+    render(<AppToolbar {...baseProps} onShare={onShare} />);
+    await user.click(screen.getByLabelText('Copy share link'));
+    expect(onShare).toHaveBeenCalledOnce();
+    expect(writeText).toHaveBeenCalledWith('https://x.app/#p=abc&t=10.00&l=1.00-2.00');
+    expect(screen.getByRole('status').textContent).toMatch(/Copied — includes loop/);
   });
 });
 
