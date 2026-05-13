@@ -637,6 +637,16 @@ button.track-name:disabled { cursor: default; }
 }
 .login-card .brand { margin-bottom: 4px; }
 .login-card .brand-tag { margin-bottom: 24px; }
+.login-hint {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  color: var(--ink-2);
+  font-size: var(--fs-md);
+  line-height: 1.4;
+}
 .login-form { display: flex; flex-direction: column; gap: 8px; }
 .login-label {
   font-size: var(--fs-xs);
@@ -2349,3 +2359,107 @@ body.env-non-prod[data-env="local"]::before {
   }
 }
 
+
+/* Share-link arrival banner — shown when a recipient opens a share URL with
+ * non-trivial state (loop, mix, focused comment, etc). Anchored at the top
+ * of the practice view; dismisses on first play or explicit dismiss. */
+.share-arrival {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--accent-tint);
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--fs-md);
+}
+.share-arrival-text { flex: 1; min-width: 0; }
+.share-arrival-headline { font-weight: var(--fw-semi); }
+.share-arrival-cats { color: var(--ink-2); }
+.share-arrival-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--accent);
+  color: var(--paper);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+}
+.share-arrival-play:hover { filter: brightness(1.06); }
+.share-arrival-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+}
+.share-arrival-dismiss:hover { color: var(--ink); }
+
+/* Share button + transient "Copied — includes X" label + clipboard
+ * fallback popover. Lives in the AppToolbar after the download button. */
+.atb-share-wrap { position: relative; display: inline-flex; align-items: center; }
+.atb-share-label {
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: var(--accent-tint);
+  color: var(--ink);
+  border: 1px solid var(--accent-tint-2);
+  border-radius: 3px;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+}
+.atb-share-fallback {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  min-width: 320px;
+}
+.atb-share-fallback input {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  border: 1px solid var(--rule);
+  background: var(--bg);
+  color: var(--ink);
+  padding: 4px 6px;
+  border-radius: 3px;
+}
+.atb-share-fallback-close {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: var(--fs-lg);
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+}
+.atb-share-fallback-close:hover { color: var(--ink); }
+
+/* Sustained-emphasis pulse for a comment that arrived via a share link's
+ * `fc=` param. Distinct from normal selection so the recipient registers
+ * "this is the one the sender pinned" beyond the normal active highlight.
+ * Fades over ~3s (App.tsx clears `emphasizedCommentId` on a timeout). */
+.cl-card.share-arrival-emphasis,
+.comment-popover.share-arrival-emphasis {
+  animation: share-arrival-pulse 1.5s ease-out 2;
+}
+@keyframes share-arrival-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(193, 116, 70, 0); }
+  50%      { box-shadow: 0 0 0 4px rgba(193, 116, 70, 0.55); }
+}

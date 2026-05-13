@@ -30,6 +30,7 @@ const baseProps = {
   onToggleStar: vi.fn(),
   onSaveEdit: vi.fn(),
   onDelete: vi.fn(),
+  onCopyLink: vi.fn(),
 };
 
 describe('CommentList', () => {

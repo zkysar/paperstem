@@ -29,6 +29,7 @@ const baseProps = {
   onToggleStar: vi.fn(),
   onSaveEdit: vi.fn(),
   onDelete: vi.fn(),
+  onCopyLink: vi.fn(),
   onClose: vi.fn(),
 };
 

@@ -1,4 +1,20 @@
 import { useState } from 'react';
+import { PENDING_SHARE_HASH_KEY } from '../hooks/useShareLink';
+
+/**
+ * True when there's a share link in flight — either still in `location.hash`
+ * or already stashed by App.tsx into sessionStorage. The magic-link round
+ * trip drops the fragment, so we need to check both.
+ */
+function hasPendingShareLink(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (window.location.hash && window.location.hash !== '#') return true;
+  try {
+    return !!sessionStorage.getItem(PENDING_SHARE_HASH_KEY);
+  } catch {
+    return false;
+  }
+}
 
 export function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -42,6 +58,11 @@ export function LoginScreen() {
       <div className="login-card">
         <h1 className="brand">Paperstem</h1>
         <div className="brand-tag">Sign in</div>
+        {hasPendingShareLink() && (
+          <p className="login-hint">
+            You&rsquo;ll be taken to the shared moment after you log in.
+          </p>
+        )}
         {submitted ? (
           <>
             <p className="login-msg">
