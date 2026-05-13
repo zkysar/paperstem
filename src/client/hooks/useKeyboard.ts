@@ -136,9 +136,48 @@ export function useKeyboard(opts: KeyboardOpts): void {
       } else if ((e.key === 'm' || e.key === 'M') && state.focusedIdx >= 0) {
         e.preventDefault();
         player.toggleMute(state.focusedIdx);
-      } else if ((e.key === 's' || e.key === 'S') && state.focusedIdx >= 0) {
+      } else if ((e.key === 'o' || e.key === 'O') && state.focusedIdx >= 0) {
+        // Solo focused track (was 'S', moved to 'O' to free S for WASD).
         e.preventDefault();
         player.toggleSolo(state.focusedIdx);
+      } else if (
+        e.key === 'w' || e.key === 'W' ||
+        e.key === 'a' || e.key === 'A' ||
+        e.key === 's' || e.key === 'S' ||
+        e.key === 'd' || e.key === 'D'
+      ) {
+        // WASD pan/scroll. Step = ~1/6 of the viewport (so a few keystrokes
+        // traverse the visible window). Holding the key triggers OS key-repeat
+        // for continuous panning.
+        const viewportEl = document.querySelector('.viewport') as HTMLDivElement | null;
+        if (!viewportEl) return;
+        e.preventDefault();
+        const step = Math.round(viewportEl.clientWidth / 6);
+        switch (e.key.toLowerCase()) {
+          case 'a':
+            opts.viewport.setScrollLeft(
+              viewportEl.scrollLeft - step,
+              viewportEl.scrollWidth - viewportEl.clientWidth,
+            );
+            if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
+            break;
+          case 'd':
+            opts.viewport.setScrollLeft(
+              viewportEl.scrollLeft + step,
+              viewportEl.scrollWidth - viewportEl.clientWidth,
+            );
+            if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
+            break;
+          case 'w':
+            viewportEl.scrollTop = Math.max(0, viewportEl.scrollTop - step);
+            break;
+          case 's':
+            viewportEl.scrollTop = Math.min(
+              viewportEl.scrollHeight - viewportEl.clientHeight,
+              viewportEl.scrollTop + step,
+            );
+            break;
+        }
       }
     }
     document.addEventListener('keydown', onKey);

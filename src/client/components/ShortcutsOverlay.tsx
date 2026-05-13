@@ -49,7 +49,7 @@ export function ShortcutsOverlay({ open, onClose, forceMac }: Props) {
       title: 'Focused track',
       items: [
         { keys: k(['M']), label: 'Mute / unmute', note: 'click a track to focus it' },
-        { keys: k(['S']), label: 'Solo / unsolo', note: 'click a track to focus it' },
+        { keys: k(['O']), label: 'Solo / unsolo', note: 'click a track to focus it' },
       ],
     },
     {
@@ -59,6 +59,7 @@ export function ShortcutsOverlay({ open, onClose, forceMac }: Props) {
         { keys: <><kbd>{m}{plus}=</kbd> / <kbd>{m}{plus}-</kbd></>, label: 'Horizontal zoom (playhead-anchored)' },
         { keys: <><kbd>{s}{plus}{m}{plus}=</kbd> / <kbd>{s}{plus}{m}{plus}-</kbd></>, label: 'Vertical zoom (track height)' },
         { keys: <><kbd>{m}{plus}0</kbd></>, label: 'Fit to window (reset zoom)' },
+        { keys: <><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd></>, label: 'Pan: up / left / down / right' },
         { keys: <><kbd>{s}{plus}scroll</kbd></>, label: 'Pan horizontally when zoomed' },
       ],
     },

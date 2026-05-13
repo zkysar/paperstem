@@ -270,3 +270,91 @@ describe('useKeyboard zoom chords', () => {
     document.body.removeChild(input);
   });
 });
+
+describe('useKeyboard WASD pan/scroll', () => {
+  function withViewport(): HTMLDivElement {
+    const el = document.createElement('div');
+    el.className = 'viewport';
+    Object.defineProperty(el, 'clientWidth', { value: 600, configurable: true });
+    Object.defineProperty(el, 'clientHeight', { value: 400, configurable: true });
+    Object.defineProperty(el, 'scrollWidth', { value: 1800, configurable: true });
+    Object.defineProperty(el, 'scrollHeight', { value: 800, configurable: true });
+    el.scrollLeft = 600;
+    el.scrollTop = 200;
+    document.body.appendChild(el);
+    return el;
+  }
+
+  it('A pans the viewport left via viewport.setScrollLeft', () => {
+    const viewport = defaultViewport();
+    const el = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
+    expect(viewport.setScrollLeft).toHaveBeenCalled();
+    const call = viewport.setScrollLeft.mock.calls[0];
+    expect(call[0]).toBe(600 - 100); // scrollLeft - step (600/6 = 100)
+    document.body.removeChild(el);
+  });
+
+  it('D pans the viewport right', () => {
+    const viewport = defaultViewport();
+    const el = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
+    expect(viewport.setScrollLeft).toHaveBeenCalled();
+    const call = viewport.setScrollLeft.mock.calls[0];
+    expect(call[0]).toBe(600 + 100);
+    document.body.removeChild(el);
+  });
+
+  it('W scrolls viewport up', () => {
+    const viewport = defaultViewport();
+    const el = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
+    expect(el.scrollTop).toBe(200 - 100);
+    document.body.removeChild(el);
+  });
+
+  it('S scrolls viewport down', () => {
+    const viewport = defaultViewport();
+    const el = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 's' }));
+    expect(el.scrollTop).toBe(200 + 100);
+    document.body.removeChild(el);
+  });
+
+  it('A and D suspend auto-follow', () => {
+    const viewport = defaultViewport();
+    const el = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
+    expect(viewport.setFollowActive).toHaveBeenCalledWith(false);
+    document.body.removeChild(el);
+  });
+
+  it('WASD does not fire in text inputs', () => {
+    const viewport = defaultViewport();
+    const el = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
+    expect(viewport.setScrollLeft).not.toHaveBeenCalled();
+    document.body.removeChild(input);
+    document.body.removeChild(el);
+  });
+});
+
+describe('useKeyboard solo (O)', () => {
+  it('O calls player.toggleSolo when a track is focused', () => {
+    const player = stubPlayer();
+    player.state.focusedIdx = 2;
+    player.state.stems = [{}, {}, {}] as any;
+    renderHook(() => useKeyboard({ ...defaultOpts(), player }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'o' }));
+    expect(player.toggleSolo).toHaveBeenCalledWith(2);
+  });
+});
