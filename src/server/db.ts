@@ -54,6 +54,9 @@ if (tableExists('sessions')) {
   if (!columnExists('sessions', 'last_used_at')) {
     db.exec('ALTER TABLE sessions ADD COLUMN last_used_at INTEGER');
   }
+  if (!columnExists('sessions', 'token_public_id')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN token_public_id TEXT');
+  }
 }
 
 db.exec(schema);
@@ -82,7 +85,7 @@ export type SessionRow = {
 };
 
 export type TokenListRow = {
-  id: string;
+  id: string; // token_public_id (NOT the cookie/secret value)
   label: string;
   created_at: number;
   expires_at: number;
@@ -205,17 +208,18 @@ export const stmts = {
   ),
   deleteSession: db.prepare<[string]>('DELETE FROM sessions WHERE id = ?'),
   listUserTokens: db.prepare<[string], TokenListRow>(
-    `SELECT id, label, created_at, expires_at, last_used_at
+    `SELECT token_public_id AS id, label, created_at, expires_at, last_used_at
        FROM sessions
       WHERE user_id = ? AND label IS NOT NULL
       ORDER BY created_at DESC`,
   ),
-  createToken: db.prepare<[string, string, string, number, number]>(
-    `INSERT INTO sessions (id, user_id, label, expires_at, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
+  createToken: db.prepare<[string, string, string, string, number, number]>(
+    `INSERT INTO sessions (id, user_id, label, token_public_id, expires_at, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   ),
   revokeToken: db.prepare<[string, string]>(
-    'DELETE FROM sessions WHERE id = ? AND user_id = ? AND label IS NOT NULL',
+    `DELETE FROM sessions
+      WHERE token_public_id = ? AND user_id = ? AND label IS NOT NULL`,
   ),
   findBandById: db.prepare<[string], BandRow>(
     'SELECT * FROM bands WHERE id = ?',
