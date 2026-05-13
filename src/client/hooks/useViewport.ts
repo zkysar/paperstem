@@ -35,6 +35,8 @@ export type ViewportControls = {
    *  the 1.5× keyboard step). */
   zoomHBy(factor: number, opts: ZoomHOpts): void;
   zoomV(dir: ZoomDir): void;
+  /** Vertical-zoom analogue of zoomHBy — multiplies trackHeight directly. */
+  zoomVBy(factor: number): void;
   setScrollLeft(px: number, maxScroll?: number): void;
   fitToWindow(): void;
   setFollowActive(active: boolean): void;
@@ -87,15 +89,20 @@ export function useViewport(): ViewportControls {
     setState((prev) => applyHorizontalZoom(prev, factor, opts));
   }, []);
 
+  const applyVerticalZoom = (prev: ViewportState, factor: number): ViewportState => {
+    const target = prev.trackHeight * factor;
+    const newHeight = Math.round(clamp(target, MIN_TRACK_H, MAX_TRACK_H));
+    if (newHeight === prev.trackHeight) return prev;
+    return { ...prev, trackHeight: newHeight };
+  };
+
   const zoomV = useCallback((dir: ZoomDir) => {
-    setState((prev) => {
-      const target = dir === 'in'
-        ? prev.trackHeight * ZOOM_FACTOR
-        : prev.trackHeight / ZOOM_FACTOR;
-      const newHeight = Math.round(clamp(target, MIN_TRACK_H, MAX_TRACK_H));
-      if (newHeight === prev.trackHeight) return prev;
-      return { ...prev, trackHeight: newHeight };
-    });
+    const factor = dir === 'in' ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
+    setState((prev) => applyVerticalZoom(prev, factor));
+  }, []);
+
+  const zoomVBy = useCallback((factor: number) => {
+    setState((prev) => applyVerticalZoom(prev, factor));
   }, []);
 
   const setScrollLeft = useCallback((px: number, maxScroll?: number) => {
@@ -128,6 +135,7 @@ export function useViewport(): ViewportControls {
     zoomH,
     zoomHBy,
     zoomV,
+    zoomVBy,
     setScrollLeft,
     fitToWindow,
     setFollowActive,

@@ -147,9 +147,10 @@ export function useKeyboard(opts: KeyboardOpts): void {
         e.key === 'd' || e.key === 'D'
       ) {
         // WASD: W/S = horizontal zoom in/out (like a map), A/D = horizontal
-        // pan. Holding the key triggers OS key-repeat for continuous
-        // zoom/pan. Pan step = ~1/6 of the viewport so a few keystrokes
-        // traverse the visible window.
+        // pan. Shift modifies W/S to vertical zoom (track height) — pairs
+        // with the ⌘= vs ⇧⌘= chord convention. Holding the key triggers OS
+        // key-repeat for continuous zoom/pan. Pan step = ~1/6 of the viewport
+        // so a few keystrokes traverse the visible window.
         const viewportEl = document.querySelector('.viewport') as HTMLDivElement | null;
         const stage = document.querySelector('.stage') as HTMLDivElement | null;
         if (!viewportEl || !stage) return;
@@ -158,12 +159,20 @@ export function useKeyboard(opts: KeyboardOpts): void {
         const step = Math.round(viewportEl.clientWidth / 6);
         switch (e.key.toLowerCase()) {
           case 'w':
-            opts.viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
-            if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
+            if (e.shiftKey) {
+              opts.viewport.zoomV('in');
+            } else {
+              opts.viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+              if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
+            }
             break;
           case 's':
-            opts.viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
-            if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
+            if (e.shiftKey) {
+              opts.viewport.zoomV('out');
+            } else {
+              opts.viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+              if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
+            }
             break;
           case 'a':
             opts.viewport.setScrollLeft(

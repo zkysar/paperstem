@@ -41,6 +41,7 @@ function defaultViewport() {
     zoomH: vi.fn(),
     zoomHBy: vi.fn(),
     zoomV: vi.fn(),
+    zoomVBy: vi.fn(),
     setScrollLeft: vi.fn(),
     fitToWindow: vi.fn(),
     setFollowActive: vi.fn(),
@@ -313,6 +314,28 @@ describe('useKeyboard WASD navigation', () => {
     renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 's' }));
     expect(viewport.zoomH).toHaveBeenCalledWith('out', expect.any(Object));
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
+
+  it('Shift+W calls viewport.zoomV("in") instead of horizontal zoom', () => {
+    const viewport = defaultViewport();
+    const { viewportEl, stageEl } = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'W', shiftKey: true }));
+    expect(viewport.zoomV).toHaveBeenCalledWith('in');
+    expect(viewport.zoomH).not.toHaveBeenCalled();
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
+
+  it('Shift+S calls viewport.zoomV("out") instead of horizontal zoom', () => {
+    const viewport = defaultViewport();
+    const { viewportEl, stageEl } = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'S', shiftKey: true }));
+    expect(viewport.zoomV).toHaveBeenCalledWith('out');
+    expect(viewport.zoomH).not.toHaveBeenCalled();
     document.body.removeChild(viewportEl);
     document.body.removeChild(stageEl);
   });

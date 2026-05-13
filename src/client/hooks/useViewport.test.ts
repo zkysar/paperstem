@@ -94,6 +94,26 @@ describe('useViewport.zoomV', () => {
   });
 });
 
+describe('useViewport.zoomVBy', () => {
+  it('multiplies trackHeight by the given factor', () => {
+    const { result } = renderHook(() => useViewport());
+    act(() => result.current.zoomVBy(1.5));
+    expect(result.current.state.trackHeight).toBe(Math.round(44 * 1.5));
+  });
+
+  it('clamps to MIN_TRACK_H on aggressive shrink', () => {
+    const { result } = renderHook(() => useViewport());
+    act(() => result.current.zoomVBy(0.01));
+    expect(result.current.state.trackHeight).toBe(MIN_TRACK_H);
+  });
+
+  it('clamps to MAX_TRACK_H on aggressive growth', () => {
+    const { result } = renderHook(() => useViewport());
+    act(() => result.current.zoomVBy(100));
+    expect(result.current.state.trackHeight).toBe(160);
+  });
+});
+
 describe('useViewport.fitToWindow', () => {
   it('resets hZoom, scrollLeft, and trackHeight but not followMode', () => {
     const { result } = renderHook(() => useViewport());
