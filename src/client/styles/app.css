@@ -244,18 +244,24 @@ kbd {
   grid-template-columns: 1fr;
 }
 /* Pin the ruler at the top of the scrolling tracks area so the timeline
-   stays visible regardless of scroll position. z-index sits above tracks
-   but below the playhead/loop/marker overlays (which live in .stage). */
+   stays visible regardless of scroll position. Crucially this element has
+   NO z-index — adding one creates a stacking context that traps the
+   .ruler-rail-spacer (z 8) below the loop/marker overlays (z 6/7) which
+   then bleed into the rail column at the ruler band. The job of staying
+   above tracks during vertical scroll is delegated to the .ruler child. */
 .ruler-row {
   position: sticky;
   top: 0;
-  z-index: 4;
   background: var(--bg);
 }
 
 .ruler {
   height: 22px;
   position: relative;
+  /* Above the unpositioned wave content of scrolled-up tracks. Sibling
+     overlays (loop z:6, markers z:7) sit higher so they remain visible
+     through the ruler band. */
+  z-index: 4;
   background: var(--bg);
   border-bottom: 1px solid var(--rule);
   cursor: crosshair;
