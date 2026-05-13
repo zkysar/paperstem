@@ -461,6 +461,12 @@ export function Player({
         <div
           className="viewport"
           ref={viewportRef}
+          style={{
+            // At zoom=1 the inner content is exactly the viewport width, but
+            // sub-pixel rounding can still trigger a stray horizontal
+            // scrollbar. Hide it when there's nothing to scroll to.
+            overflowX: viewport.state.hZoom > 1 ? 'auto' : 'hidden',
+          }}
           onScroll={(e) => {
             const sl = (e.currentTarget as HTMLDivElement).scrollLeft;
             if (sl !== viewport.state.scrollLeft) {

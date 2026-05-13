@@ -74,7 +74,8 @@ kbd {
   flex: 1;
   display: grid;
   grid-template-columns: 1fr;
-  max-width: 1200px;
+  /* Let the player use the full viewport width — the DAW-style zoom feature
+     wants every pixel of timeline real-estate, not a centered 1200px column. */
   width: 100%;
   margin: 0 auto;
   padding: 16px 16px 0;
@@ -311,6 +312,20 @@ kbd {
   padding: 4px 6px 4px 4px;
   min-width: 0;
   box-shadow: 1px 0 0 var(--rule-2);
+  /* Stay anchored at the left edge when the .viewport scrolls horizontally
+     so track names and M/S controls remain visible while panning a zoomed
+     timeline. z-index sits above the wave but below the sticky ruler row. */
+  position: sticky;
+  left: 0;
+  z-index: 3;
+}
+/* Same sticky anchoring for the ruler's left-column spacer so the ruler
+   bar lines up with the visible wave start instead of scrolling away. */
+.ruler-rail-spacer {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--bg);
 }
 
 /* ===== Rail-collapsed state: hide the rail entirely so the wave occupies
@@ -430,10 +445,25 @@ button.track-name:disabled { cursor: default; }
 }
 .pill.mute.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .pill.solo.on { background: var(--accent); color: var(--paper); border-color: var(--accent); }
+/* Pill sizing drops with track tier so M/S stay readable but don't overflow
+   the 22px-tall row at min tier. */
+.track.tier-min .pill {
+  min-height: 18px;
+  min-width: 18px;
+  padding: 2px 4px;
+  font-size: 10px;
+}
+.track.tier-mid .pill {
+  min-height: 22px;
+}
 
 .wave {
   position: relative;
-  height: 36px;
+  /* Fill the parent .track row, which is sized by --track-h (driven by
+     viewport.state.trackHeight). The WaveSurfer canvas inside .clip is sized
+     to max(8, trackHeight - 16) by Track.tsx, so it always fits cleanly
+     inside the 4px top/bottom inset. */
+  height: 100%;
   min-width: 0;
   width: 100%;
 }
@@ -449,6 +479,9 @@ button.track-name:disabled { cursor: default; }
   opacity: 1;
   transition: opacity 180ms ease-out;
 }
+/* At the smallest track tier the 4px insets eat too much of the row; tighten
+   them so the waveform has room to breathe. */
+.track.tier-min .clip { top: 2px; bottom: 2px; }
 .clip.muted { opacity: 0.3; }
 /* While WaveSurfer is decoding/quantizing (initial load before peaks come in,
    or a container-resize re-render), hide the canvas children and shimmer the
@@ -2473,8 +2506,11 @@ body.env-non-prod[data-env="local"]::before {
 .minimap-strip {
   position: relative;
   height: 24px;
-  background: var(--bg-2, #1a1816);
-  border-bottom: 1px solid var(--rule-2);
+  /* Match the paper/cream palette of the rest of the app instead of the
+     dark DAW look — readable in the light theme. */
+  background: var(--rule-2);
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
   cursor: pointer;
   overflow: hidden;
 }
@@ -2482,8 +2518,8 @@ body.env-non-prod[data-env="local"]::before {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: var(--accent-tint);
+  border: 1px solid var(--ink);
   border-radius: 2px;
   cursor: grab;
 }
@@ -2508,7 +2544,7 @@ body.env-non-prod[data-env="local"]::before {
   top: 0;
   bottom: 0;
   width: 1px;
-  background: var(--playhead, #ffaa33);
+  background: var(--accent);
   pointer-events: none;
 }
 @media (max-width: 720px) {
