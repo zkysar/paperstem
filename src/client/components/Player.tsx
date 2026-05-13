@@ -600,6 +600,7 @@ export function Player({
                   waveformNormalization={waveformNormalization}
                   canMutate={canMutate}
                   trackHeight={viewport.state.trackHeight}
+                  hZoom={viewport.state.hZoom}
                   onFocus={player.focusStem}
                   onToggleMute={player.toggleMute}
                   onToggleSolo={player.toggleSolo}
