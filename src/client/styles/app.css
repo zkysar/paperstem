@@ -644,13 +644,11 @@ button.track-name:disabled { cursor: default; }
   width: 1px;
   background: var(--accent);
   pointer-events: none;
-  /* Below the sticky track-rail (z:3) and ruler-row (z:4) so the playhead
-     line is clipped by them when its position falls within the rail's
-     column (e.g. when horizontally scrolled past the playhead's time). The
-     playhead is still drawn above the wave content (z:0). Loop region
-     (z:6) still floats above the rail intentionally — its handles must
-     remain grabbable. */
-  z-index: 2;
+  /* Above the ruler-row (z:4) so the playhead line cuts through the
+     timeline labels. Rail-area overlap is handled in JS — Player.tsx
+     suppresses rendering when the playhead's screen position would fall
+     inside the sticky rail's column. */
+  z-index: 5;
 }
 
 /* ===== Footer bits ===== */

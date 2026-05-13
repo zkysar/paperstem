@@ -632,7 +632,19 @@ export function Player({
                 aria-hidden="true"
               />
             )}
-            <Playhead visible={!!stems.length && !!duration} leftPx={playheadLeft} />
+            {/* Hide the playhead when it would draw inside the sticky-rail
+                column. The rail occupies screen-x [0, railWidth]; in
+                .viewport-inner coords that's [scrollLeft, scrollLeft +
+                railWidth]. Without this guard the playhead (z:5) would
+                draw on top of the track names. */}
+            <Playhead
+              visible={
+                !!stems.length &&
+                !!duration &&
+                playheadLeft >= viewport.state.scrollLeft + railWidth
+              }
+              leftPx={playheadLeft}
+            />
           </div>
         </div>
       </div>
