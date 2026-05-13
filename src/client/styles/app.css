@@ -163,9 +163,22 @@ kbd {
   font-size: 0.85rem;
 }
 
+.tracks {
+  /* Default track height; overridden by Player when viewport state changes. */
+  --track-h: 44px;
+}
 .track {
-  height: 44px;
+  height: var(--track-h, 44px);
   border-bottom: 1px solid var(--rule-2);
+}
+
+/* Track content collapse tiers, driven by the className that Track.tsx
+   sets based on its current height. Each tier hides the previous tier's
+   most-collapsible content. */
+.track.tier-min .vol-row,
+.track.tier-min .pill.trash,
+.track.tier-mid .vol-row {
+  display: none;
 }
 .track:last-child { border-bottom: none; }
 .track.focused .track-rail {
