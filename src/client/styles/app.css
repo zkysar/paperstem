@@ -662,6 +662,9 @@ button.track-name:disabled { cursor: default; }
   background: transparent;
   border-color: rgba(193, 116, 70, 0.4);
 }
+.loop-region.disabled .loop-handle {
+  background: rgba(193, 116, 70, 0.4);
+}
 .loop-handle {
   position: absolute;
   top: 4px;
