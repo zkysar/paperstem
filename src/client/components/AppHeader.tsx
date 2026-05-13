@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, ChevronDown, ExternalLink, KeyRound, Library, MessageSquare } from 'lucide-react';
+import { Bug, ChevronDown, ExternalLink, KeyRound, Library, LogOut, MessageSquare } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
 
@@ -186,7 +186,7 @@ export function AppHeader({
               <KeyRound size={14} strokeWidth={2} aria-hidden="true" /> Import tokens
             </button>
             <button type="button" role="menuitem" onClick={onSignOut}>
-              Sign out
+              <LogOut size={14} strokeWidth={2} aria-hidden="true" /> Sign out
             </button>
             {appVersion && (
               <a
