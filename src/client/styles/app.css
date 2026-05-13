@@ -244,30 +244,52 @@ kbd {
   grid-template-columns: 1fr;
 }
 /* Pin the ruler at the top of the scrolling tracks area so the timeline
-   stays visible regardless of scroll position. Crucially this element has
-   NO z-index — adding one creates a stacking context that traps the
-   .ruler-rail-spacer (z 8) below the loop/marker overlays (z 6/7) which
-   then bleed into the rail column at the ruler band. The job of staying
-   above tracks during vertical scroll is delegated to the .ruler child. */
+   stays visible regardless of scroll position. z-index sits above tracks
+   but below the playhead/loop/marker overlays — those need to remain
+   visible through the ruler band over the wave column. The rail-column
+   portion of the band is masked by .ruler-rail-mask (a sibling of the
+   overlays, which can escape this element's sticky-induced stacking
+   context). */
 .ruler-row {
   position: sticky;
   top: 0;
+  z-index: 4;
   background: var(--bg);
 }
 
 .ruler {
   height: 22px;
   position: relative;
-  /* Above the unpositioned wave content of scrolled-up tracks. Sibling
-     overlays (loop z:6, markers z:7) sit higher so they remain visible
-     through the ruler band. */
-  z-index: 4;
   background: var(--bg);
   border-bottom: 1px solid var(--rule);
   cursor: crosshair;
   user-select: none;
   touch-action: none;
 }
+
+/* Sticky mask that pins to the top-left of the viewport and hides any
+   overlay (loop region, annotation markers, etc.) that would otherwise
+   bleed into the rail column at the ruler band. We can't rely on
+   .ruler-rail-spacer for this — `position: sticky` on .ruler-row
+   creates a stacking context that traps the spacer's z-index below
+   sibling overlays, no matter how high we set it. Rendering this mask
+   as a sibling of the overlays inside .viewport-inner side-steps that.
+   The negative margin keeps it from pushing the rest of the timeline
+   down by 22px. */
+.ruler-rail-mask {
+  position: sticky;
+  top: 0;
+  left: 0;
+  width: var(--rail-w);
+  height: 22px;
+  background: var(--bg);
+  z-index: 9;
+  pointer-events: none;
+  margin-bottom: -22px;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+.player.rail-collapsed .ruler-rail-mask { display: none; }
 .ruler-label {
   position: absolute;
   top: 4px;

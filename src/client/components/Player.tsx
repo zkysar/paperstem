@@ -532,6 +532,13 @@ export function Player({
               '--track-h': `${viewport.state.trackHeight}px`,
             } as React.CSSProperties}
           >
+            {/* Pinned to the top-left of the viewport to mask any overlay
+                (loop region, annotation marker region) whose left edge
+                extends into the rail column at the ruler band. Lives
+                outside .ruler-row so it can stack above sibling overlays
+                — .ruler-row's sticky-induced stacking context traps its
+                own spacer below them. */}
+            <div className="ruler-rail-mask" aria-hidden="true" />
             {annotationCreateMode && duration > 0 && (
               <div
                 className="annotation-create-overlay"
