@@ -252,12 +252,37 @@ export function AppToolbar(props: Props) {
         </button>
         <button
           type="button"
-          className={'atb-btn' + (viewport.state.minimapPref === 'off' ? ' off' : '')}
-          onClick={() =>
-            viewport.setMinimapPref(viewport.state.minimapPref === 'auto' ? 'off' : 'auto')
+          className={
+            'atb-btn' +
+            (viewport.state.minimapPref === 'off' ? ' off' : '') +
+            (viewport.state.minimapPref === 'pinned' ? ' on' : '')
           }
-          aria-label={viewport.state.minimapPref === 'auto' ? 'Hide minimap' : 'Show minimap (auto)'}
-          title={viewport.state.minimapPref === 'auto' ? 'Minimap: auto (click to hide)' : 'Minimap: off (click to enable auto)'}
+          onClick={() => {
+            // Tri-state cycle: auto → off → pinned → auto. Lets the user
+            // force-show the minimap even at fit-to-window (where 'auto'
+            // hides it because there is no scrollable window).
+            const next: typeof viewport.state.minimapPref =
+              viewport.state.minimapPref === 'auto'
+                ? 'off'
+                : viewport.state.minimapPref === 'off'
+                  ? 'pinned'
+                  : 'auto';
+            viewport.setMinimapPref(next);
+          }}
+          aria-label={
+            viewport.state.minimapPref === 'auto'
+              ? 'Hide minimap'
+              : viewport.state.minimapPref === 'off'
+                ? 'Always show minimap'
+                : 'Reset minimap to auto'
+          }
+          title={
+            viewport.state.minimapPref === 'auto'
+              ? 'Minimap: auto (click to hide)'
+              : viewport.state.minimapPref === 'off'
+                ? 'Minimap: off (click to always show)'
+                : 'Minimap: pinned (click to reset to auto)'
+          }
         >
           <MapIcon size={14} aria-hidden="true" />
         </button>

@@ -172,6 +172,20 @@ export function Player({
     return () => el.removeEventListener('wheel', onWheel);
   }, [viewport]);
 
+  // When playback transitions from paused → playing, re-engage follow. The
+  // user's mental model is that hitting play should bring the playhead back
+  // into view, even if a prior zoom/scroll gesture suspended follow. We
+  // only trigger on the rising edge — playing→paused must NOT toggle it
+  // back off (the user may have paused to inspect something off-screen).
+  const wasPlayingRef = useRef(player.state.isPlaying);
+  useEffect(() => {
+    const playing = player.state.isPlaying;
+    if (playing && !wasPlayingRef.current) {
+      viewport.setFollowActive(true);
+    }
+    wasPlayingRef.current = playing;
+  }, [player.state.isPlaying, viewport]);
+
   // Smooth/page-flip follow. Runs only while playing and followActive.
   useEffect(() => {
     if (!viewport.state.followActive) return;
@@ -448,7 +462,8 @@ export function Player({
       }
     >
       <div className="stage" ref={stageRef}>
-        {viewport.state.hZoom > 1 && viewport.state.minimapPref === 'auto' && (
+        {((viewport.state.hZoom > 1 && viewport.state.minimapPref === 'auto') ||
+          viewport.state.minimapPref === 'pinned') && (
           <Minimap
             duration={duration}
             hZoom={viewport.state.hZoom}

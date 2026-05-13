@@ -160,12 +160,37 @@ describe('AppToolbar zoom group', () => {
     expect(onOpenShortcuts).toHaveBeenCalledOnce();
   });
 
-  it('minimap toggle cycles auto -> off', () => {
-    const viewport = vp();
-    const setMinimapPref = vi.spyOn(viewport, 'setMinimapPref');
-    render(<AppToolbar {...baseProps} viewport={viewport} />);
-    // minimapPref defaults to 'auto', so label is "Hide minimap"
+  it('minimap toggle cycles auto -> off -> pinned -> auto', () => {
+    // Use stub viewports so we can drive the rendered state explicitly across
+    // re-renders (the real useViewport state is a useState snapshot — we'd
+    // need to actually invoke setMinimapPref to advance it).
+    function stubViewport(pref: 'auto' | 'off' | 'pinned') {
+      return {
+        state: {
+          hZoom: 1, trackHeight: 44, scrollLeft: 0,
+          followMode: 'smooth' as const, followActive: true,
+          minimapPref: pref,
+        },
+        zoomH: vi.fn(), zoomHBy: vi.fn(), zoomV: vi.fn(),
+        setScrollLeft: vi.fn(), fitToWindow: vi.fn(),
+        setFollowActive: vi.fn(), setFollowMode: vi.fn(),
+        setMinimapPref: vi.fn(),
+      };
+    }
+
+    const v1 = stubViewport('auto');
+    const { rerender } = render(<AppToolbar {...baseProps} viewport={v1 as any} />);
     fireEvent.click(screen.getByLabelText('Hide minimap'));
-    expect(setMinimapPref).toHaveBeenCalledWith('off');
+    expect(v1.setMinimapPref).toHaveBeenCalledWith('off');
+
+    const v2 = stubViewport('off');
+    rerender(<AppToolbar {...baseProps} viewport={v2 as any} />);
+    fireEvent.click(screen.getByLabelText('Always show minimap'));
+    expect(v2.setMinimapPref).toHaveBeenCalledWith('pinned');
+
+    const v3 = stubViewport('pinned');
+    rerender(<AppToolbar {...baseProps} viewport={v3 as any} />);
+    fireEvent.click(screen.getByLabelText('Reset minimap to auto'));
+    expect(v3.setMinimapPref).toHaveBeenCalledWith('auto');
   });
 });

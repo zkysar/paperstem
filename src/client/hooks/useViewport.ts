@@ -12,7 +12,13 @@ export const ZOOM_FACTOR = 1.5;
 export const WHEEL_ZOOM_FACTOR = 1.1;
 
 export type FollowMode = 'smooth' | 'page-flip';
-export type MinimapPref = 'auto' | 'off';
+/** Minimap visibility preference, cycled by the toolbar button:
+ *  - `auto`: shown only when hZoom > 1 (the default, since there's nothing
+ *    to pan at fit-to-window)
+ *  - `off`: never shown
+ *  - `pinned`: always shown, even at hZoom === 1 — useful for jumping with
+ *    a single click to a song region when not yet zoomed in */
+export type MinimapPref = 'auto' | 'off' | 'pinned';
 export type ZoomDir = 'in' | 'out';
 
 export type ViewportState = {
