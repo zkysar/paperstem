@@ -1202,6 +1202,11 @@ button.track-name:disabled { cursor: default; }
 .annotation-marker.region {
   top: 0;
   height: 22px;
+  /* Without border-box, the 2px border-top adds to the height — the
+     marker would extend 2px below the 22px ruler band, painting a thin
+     colored line over the top of the first track-rail (visible because
+     the ruler-rail-mask is only 22px tall). */
+  box-sizing: border-box;
   opacity: 0.3;
   border-top: 2px solid currentColor;
   cursor: pointer;
