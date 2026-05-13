@@ -271,80 +271,101 @@ describe('useKeyboard zoom chords', () => {
   });
 });
 
-describe('useKeyboard WASD pan/scroll', () => {
-  function withViewport(): HTMLDivElement {
-    const el = document.createElement('div');
-    el.className = 'viewport';
-    Object.defineProperty(el, 'clientWidth', { value: 600, configurable: true });
-    Object.defineProperty(el, 'clientHeight', { value: 400, configurable: true });
-    Object.defineProperty(el, 'scrollWidth', { value: 1800, configurable: true });
-    Object.defineProperty(el, 'scrollHeight', { value: 800, configurable: true });
-    el.scrollLeft = 600;
-    el.scrollTop = 200;
-    document.body.appendChild(el);
-    return el;
+describe('useKeyboard WASD navigation', () => {
+  function withViewport(): { viewportEl: HTMLDivElement; stageEl: HTMLDivElement } {
+    const viewportEl = document.createElement('div');
+    viewportEl.className = 'viewport';
+    Object.defineProperty(viewportEl, 'clientWidth', { value: 600, configurable: true });
+    Object.defineProperty(viewportEl, 'clientHeight', { value: 400, configurable: true });
+    Object.defineProperty(viewportEl, 'scrollWidth', { value: 1800, configurable: true });
+    Object.defineProperty(viewportEl, 'scrollHeight', { value: 800, configurable: true });
+    viewportEl.scrollLeft = 600;
+    viewportEl.scrollTop = 200;
+    document.body.appendChild(viewportEl);
+
+    const stageEl = document.createElement('div');
+    stageEl.className = 'stage';
+    stageEl.getBoundingClientRect = () => ({
+      left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    document.body.appendChild(stageEl);
+
+    return { viewportEl, stageEl };
   }
+
+  it('W calls viewport.zoomH("in") with center anchor', () => {
+    const viewport = defaultViewport();
+    const { viewportEl, stageEl } = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
+    expect(viewport.zoomH).toHaveBeenCalledWith('in', expect.objectContaining({
+      stageWidth: 600,
+      anchorX: 300,
+    }));
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
+
+  it('S calls viewport.zoomH("out")', () => {
+    const viewport = defaultViewport();
+    const { viewportEl, stageEl } = withViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 's' }));
+    expect(viewport.zoomH).toHaveBeenCalledWith('out', expect.any(Object));
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
 
   it('A pans the viewport left via viewport.setScrollLeft', () => {
     const viewport = defaultViewport();
-    const el = withViewport();
+    const { viewportEl, stageEl } = withViewport();
     renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
     expect(viewport.setScrollLeft).toHaveBeenCalled();
     const call = viewport.setScrollLeft.mock.calls[0];
-    expect(call[0]).toBe(600 - 100); // scrollLeft - step (600/6 = 100)
-    document.body.removeChild(el);
+    expect(call[0]).toBe(600 - 100); // scrollLeft - step (clientWidth/6 = 100)
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
   });
 
   it('D pans the viewport right', () => {
     const viewport = defaultViewport();
-    const el = withViewport();
+    const { viewportEl, stageEl } = withViewport();
     renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'd' }));
     expect(viewport.setScrollLeft).toHaveBeenCalled();
     const call = viewport.setScrollLeft.mock.calls[0];
     expect(call[0]).toBe(600 + 100);
-    document.body.removeChild(el);
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
   });
 
-  it('W scrolls viewport up', () => {
-    const viewport = defaultViewport();
-    const el = withViewport();
-    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
-    expect(el.scrollTop).toBe(200 - 100);
-    document.body.removeChild(el);
-  });
-
-  it('S scrolls viewport down', () => {
-    const viewport = defaultViewport();
-    const el = withViewport();
-    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 's' }));
-    expect(el.scrollTop).toBe(200 + 100);
-    document.body.removeChild(el);
-  });
-
-  it('A and D suspend auto-follow', () => {
-    const viewport = defaultViewport();
-    const el = withViewport();
-    renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a' }));
-    expect(viewport.setFollowActive).toHaveBeenCalledWith(false);
-    document.body.removeChild(el);
+  it('all four WASD keys suspend auto-follow', () => {
+    for (const key of ['w', 'a', 's', 'd']) {
+      const viewport = defaultViewport();
+      const { viewportEl, stageEl } = withViewport();
+      renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
+      document.dispatchEvent(new KeyboardEvent('keydown', { key }));
+      expect(viewport.setFollowActive).toHaveBeenCalledWith(false);
+      document.body.removeChild(viewportEl);
+      document.body.removeChild(stageEl);
+    }
   });
 
   it('WASD does not fire in text inputs', () => {
     const viewport = defaultViewport();
-    const el = withViewport();
+    const { viewportEl, stageEl } = withViewport();
     renderHook(() => useKeyboard({ ...defaultOpts(), viewport }));
     const input = document.createElement('input');
     document.body.appendChild(input);
     input.focus();
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
     expect(viewport.setScrollLeft).not.toHaveBeenCalled();
+    expect(viewport.zoomH).not.toHaveBeenCalled();
     document.body.removeChild(input);
-    document.body.removeChild(el);
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
   });
 });
 

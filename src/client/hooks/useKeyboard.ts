@@ -146,14 +146,25 @@ export function useKeyboard(opts: KeyboardOpts): void {
         e.key === 's' || e.key === 'S' ||
         e.key === 'd' || e.key === 'D'
       ) {
-        // WASD pan/scroll. Step = ~1/6 of the viewport (so a few keystrokes
-        // traverse the visible window). Holding the key triggers OS key-repeat
-        // for continuous panning.
+        // WASD: W/S = horizontal zoom in/out (like a map), A/D = horizontal
+        // pan. Holding the key triggers OS key-repeat for continuous
+        // zoom/pan. Pan step = ~1/6 of the viewport so a few keystrokes
+        // traverse the visible window.
         const viewportEl = document.querySelector('.viewport') as HTMLDivElement | null;
-        if (!viewportEl) return;
+        const stage = document.querySelector('.stage') as HTMLDivElement | null;
+        if (!viewportEl || !stage) return;
         e.preventDefault();
+        const sw = stage.getBoundingClientRect().width || 800;
         const step = Math.round(viewportEl.clientWidth / 6);
         switch (e.key.toLowerCase()) {
+          case 'w':
+            opts.viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+            if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
+            break;
+          case 's':
+            opts.viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+            if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
+            break;
           case 'a':
             opts.viewport.setScrollLeft(
               viewportEl.scrollLeft - step,
@@ -167,15 +178,6 @@ export function useKeyboard(opts: KeyboardOpts): void {
               viewportEl.scrollWidth - viewportEl.clientWidth,
             );
             if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
-            break;
-          case 'w':
-            viewportEl.scrollTop = Math.max(0, viewportEl.scrollTop - step);
-            break;
-          case 's':
-            viewportEl.scrollTop = Math.min(
-              viewportEl.scrollHeight - viewportEl.clientHeight,
-              viewportEl.scrollTop + step,
-            );
             break;
         }
       }
