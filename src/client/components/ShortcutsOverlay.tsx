@@ -55,13 +55,36 @@ export function ShortcutsOverlay({ open, onClose, forceMac }: Props) {
     {
       title: 'Zoom & navigation',
       items: [
-        { keys: <><kbd>{a}{plus}scroll</kbd></>, label: 'Horizontal zoom (mouse-anchored)' },
-        { keys: <><kbd>{m}{plus}=</kbd> / <kbd>{m}{plus}-</kbd></>, label: 'Horizontal zoom (playhead-anchored)' },
-        { keys: <><kbd>{s}{plus}{m}{plus}=</kbd> / <kbd>{s}{plus}{m}{plus}-</kbd></>, label: 'Vertical zoom (track height)' },
+        {
+          keys: <>
+            <kbd>W</kbd> / <kbd>S</kbd>
+            {' · '}
+            <kbd>{m}{plus}=</kbd> / <kbd>{m}{plus}-</kbd>
+            {' · '}
+            <kbd>{a}{plus}scroll</kbd>
+          </>,
+          label: 'Horizontal zoom in / out',
+          note: 'scroll is mouse-anchored; keys are playhead-anchored',
+        },
+        {
+          keys: <>
+            <kbd>{s}{plus}W</kbd> / <kbd>{s}{plus}S</kbd>
+            {' · '}
+            <kbd>{s}{plus}{m}{plus}=</kbd> / <kbd>{s}{plus}{m}{plus}-</kbd>
+            {' · '}
+            <kbd>{a}{plus}{s}{plus}scroll</kbd>
+          </>,
+          label: 'Vertical zoom in / out (track height)',
+        },
+        {
+          keys: <>
+            <kbd>A</kbd> / <kbd>D</kbd>
+            {' · '}
+            <kbd>{s}{plus}scroll</kbd>
+          </>,
+          label: 'Pan left / right (when zoomed)',
+        },
         { keys: <><kbd>{m}{plus}0</kbd></>, label: 'Fit to window (reset zoom)' },
-        { keys: <><kbd>W</kbd> / <kbd>S</kbd></>, label: 'Zoom in / out (horizontal)' },
-        { keys: <><kbd>A</kbd> / <kbd>D</kbd></>, label: 'Pan left / right' },
-        { keys: <><kbd>{s}{plus}scroll</kbd></>, label: 'Pan horizontally when zoomed' },
       ],
     },
     {

@@ -140,7 +140,13 @@ export function Player({
     const el = viewportRef.current;
     if (!el) return;
     function onWheel(e: WheelEvent) {
-      if (e.altKey) {
+      if (e.altKey && e.shiftKey) {
+        // ⌥⇧+scroll → vertical zoom (track height). Same deltaY→factor curve
+        // as horizontal zoom for consistent gesture feel.
+        e.preventDefault();
+        const factor = Math.exp(-e.deltaY * 0.0025);
+        viewport.zoomVBy(factor);
+      } else if (e.altKey) {
         e.preventDefault();
         const stage = stageRef.current;
         if (!stage) return;
