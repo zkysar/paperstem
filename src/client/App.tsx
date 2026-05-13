@@ -141,6 +141,10 @@ function PaperstemApp({
   const [arrival, setArrival] = useState<
     { time: number | null; categories: ShareArrivalCategory[] } | null
   >(null);
+  // The comment id that arrived via `fc=` on a share link. Set briefly so the
+  // matching row/popover pulses, then cleared by a timeout so the emphasis
+  // doesn't persist as the user navigates.
+  const [emphasizedCommentId, setEmphasizedCommentId] = useState<string | null>(null);
 
   const openBugReport = useCallback((prefill: BugReportPrefill | null = null) => {
     setBugReportPrefill(prefill);
@@ -464,7 +468,11 @@ function PaperstemApp({
 
     const result = applyShareState(pending, {
       player,
-      onFocusComment: (id) => setActiveCommentId(id),
+      onFocusComment: (id) => {
+        setActiveCommentId(id);
+        setEmphasizedCommentId(id);
+        window.setTimeout(() => setEmphasizedCommentId(null), 3000);
+      },
       onOpenDrawer: () => openDrawer(),
     });
     pendingShareStateRef.current = null;
@@ -626,6 +634,29 @@ function PaperstemApp({
     });
     const url = buildShareUrl(state, window.location.href);
     return { fullUrl: url, categories: describeShareCategories(state) };
+  }, [activePracticeId, player.state, player.currentTime, activeCommentId]);
+
+  // "Copy link to this comment" — overrides the time and focused comment to
+  // pin the URL to the annotation rather than the live playhead. The
+  // clipboard write may reject in insecure contexts; v1 just logs and the
+  // user can re-try via the toolbar's fallback popover if needed.
+  const handleCopyCommentLink = useCallback(async (a: Annotation) => {
+    if (!activePracticeId) return;
+    const state = snapshotShareState(
+      {
+        practiceId: activePracticeId,
+        player: player.state,
+        currentTime: player.currentTime,
+        activeCommentId,
+      },
+      { time: a.start_ms / 1000, focusedCommentId: a.id },
+    );
+    const url = buildShareUrl(state, window.location.href);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch (err) {
+      console.warn('Failed to copy comment link', err);
+    }
   }, [activePracticeId, player.state, player.currentTime, activeCommentId]);
 
   async function handleToggleStar(a: Annotation): Promise<void> {
@@ -853,6 +884,7 @@ function PaperstemApp({
                 annotations={annotations}
                 userColorMap={userColorMap}
                 activeId={activeCommentId}
+                emphasizedId={emphasizedCommentId}
                 pendingDraft={pendingDraft}
                 onClose={closeDrawer}
                 onSelect={handleAnnotationSelected}
@@ -861,6 +893,7 @@ function PaperstemApp({
                 onToggleStar={(a) => void handleToggleStar(a)}
                 onSaveEdit={(a, body) => void handleSaveEdit(a, body)}
                 onDelete={(a) => void handleDelete(a)}
+                onCopyLink={(a) => void handleCopyCommentLink(a)}
               />
               {!drawerOpen && (
                 <CommentsFab
@@ -879,10 +912,12 @@ function PaperstemApp({
                     canEdit={activePracticeId !== null}
                     isOwn={active.user_id === user.id}
                     drawerOpen={drawerOpen}
+                    emphasize={emphasizedCommentId === active.id}
                     onLoopRegion={() => handleLoopAnnotation(active)}
                     onToggleStar={() => void handleToggleStar(active)}
                     onSaveEdit={(body) => void handleSaveEdit(active, body)}
                     onDelete={() => void handleDelete(active)}
+                    onCopyLink={() => void handleCopyCommentLink(active)}
                     onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
                   />,
                   document.body,

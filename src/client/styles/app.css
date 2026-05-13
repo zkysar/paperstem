@@ -2440,3 +2440,16 @@ body.env-non-prod[data-env="local"]::before {
   cursor: pointer;
 }
 .atb-share-fallback-close:hover { color: var(--ink); }
+
+/* Sustained-emphasis pulse for a comment that arrived via a share link's
+ * `fc=` param. Distinct from normal selection so the recipient registers
+ * "this is the one the sender pinned" beyond the normal active highlight.
+ * Fades over ~3s (App.tsx clears `emphasizedCommentId` on a timeout). */
+.cl-card.share-arrival-emphasis,
+.comment-popover.share-arrival-emphasis {
+  animation: share-arrival-pulse 1.5s ease-out 2;
+}
+@keyframes share-arrival-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(193, 116, 70, 0); }
+  50%      { box-shadow: 0 0 0 4px rgba(193, 116, 70, 0.55); }
+}

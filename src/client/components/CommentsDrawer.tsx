@@ -15,6 +15,7 @@ type Props = {
   annotations: Annotation[];
   userColorMap: Map<string, string>;
   activeId: string | null;
+  emphasizedId?: string | null;
   pendingDraft: DraftSpec | null;
   onClose(): void;
   onSelect(annotation: Annotation): void;
@@ -23,6 +24,7 @@ type Props = {
   onToggleStar(annotation: Annotation): void;
   onSaveEdit(annotation: Annotation, body: string): void;
   onDelete(annotation: Annotation): void;
+  onCopyLink(annotation: Annotation): void;
 };
 
 const SUBMIT_HINT = isMac ? '⌘↵' : 'Ctrl+↵';
@@ -34,9 +36,9 @@ function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
 
 export function CommentsDrawer({
   open, isNarrow, selfUserId, canEdit,
-  annotations, userColorMap, activeId, pendingDraft,
+  annotations, userColorMap, activeId, emphasizedId, pendingDraft,
   onClose, onSelect, onCreate, onDraftCancel,
-  onToggleStar, onSaveEdit, onDelete,
+  onToggleStar, onSaveEdit, onDelete, onCopyLink,
 }: Props) {
   const [draftBody, setDraftBody] = useState('');
 
@@ -134,12 +136,14 @@ export function CommentsDrawer({
           annotations={annotations}
           selfUserId={selfUserId}
           activeId={activeId}
+          emphasizedId={emphasizedId ?? null}
           userColorMap={userColorMap}
           canEdit={canEdit}
           onSelect={onSelect}
           onToggleStar={onToggleStar}
           onSaveEdit={onSaveEdit}
           onDelete={onDelete}
+          onCopyLink={onCopyLink}
         />
 
         {!isNarrow && !pendingDraft && (
