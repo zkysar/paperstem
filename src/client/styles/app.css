@@ -246,6 +246,7 @@ kbd {
 .ruler {
   height: 22px;
   position: relative;
+  background: var(--bg);
   border-bottom: 1px solid var(--rule);
   cursor: crosshair;
   user-select: none;
@@ -269,7 +270,6 @@ kbd {
 }
 
 .tracks {
-  padding-top: 4px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -2570,11 +2570,13 @@ body.env-non-prod[data-env="local"]::before {
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(20, 20, 20, 0.92);
-  color: #fff;
+  background: var(--paper);
+  color: var(--ink);
   padding: 8px 12px;
+  border: 1px solid var(--rule);
   border-radius: 6px;
-  font-size: 0.85rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  font-size: var(--fs-sm);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -2584,11 +2586,13 @@ body.env-non-prod[data-env="local"]::before {
 .zoom-hint-close {
   background: transparent;
   border: 0;
-  color: inherit;
+  color: var(--muted);
   font-size: 1.1rem;
   cursor: pointer;
   padding: 0 4px;
+  line-height: 1;
 }
+.zoom-hint-close:hover { color: var(--ink); }
 
 /* Share-link arrival banner — shown when a recipient opens a share URL with
  * non-trivial state (loop, mix, focused comment, etc). Anchored at the top
