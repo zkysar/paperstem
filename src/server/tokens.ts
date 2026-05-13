@@ -68,6 +68,7 @@ export async function handleRevokeToken(
 ) {
   const user = requireUser(c);
   const id = c.req.param('id');
+  if (!id) return c.json({ error: 'not_found' }, 404);
   const result = stmts.revokeToken.run(id, user.id);
   if (result.changes === 0) {
     return c.json({ error: 'not_found' }, 404);
