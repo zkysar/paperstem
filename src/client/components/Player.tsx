@@ -426,8 +426,14 @@ export function Player({
   // the full row.
   const railWidth = railCollapsed ? 0 : 260; // matches --rail-w in app.css
   const waveWidth = Math.max(0, innerWidth - railWidth);
+  // Nudge the playhead 2px past the rail's box-shadow edge so it stays
+  // visible at t=0 (where its true position coincides with the rail's
+  // right border). 2px over a multi-second timeline is sub-pixel-percent
+  // — imperceptible — and prevents the rail from clipping the playhead at
+  // the song start.
+  const PLAYHEAD_EDGE_OFFSET = 2;
   const playheadLeft = duration
-    ? railWidth + (Math.min(currentTime, duration) / duration) * waveWidth
+    ? railWidth + PLAYHEAD_EDGE_OFFSET + (Math.min(currentTime, duration) / duration) * Math.max(0, waveWidth - PLAYHEAD_EDGE_OFFSET)
     : 0;
   const loopLeft = loop && duration ? railWidth + (loop.start / duration) * waveWidth : 0;
   const loopWidth = loop && duration ? ((loop.end - loop.start) / duration) * waveWidth : 0;
