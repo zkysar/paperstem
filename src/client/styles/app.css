@@ -283,6 +283,8 @@ kbd {
   padding: 4px 6px 4px 4px;
   min-width: 0;
   box-shadow: 1px 0 0 var(--rule-2);
+  position: relative;
+  z-index: 8;
 }
 
 /* ===== Rail-collapsed state: hide the rail entirely so the wave occupies
@@ -534,8 +536,8 @@ button.track-name:disabled { cursor: default; }
   cursor: move;
   box-sizing: border-box;
   touch-action: none;
-  /* Above the rail (z 5) so the loop's borders + handles remain visible
-     and grabbable when the rail overlay covers the loop's start/end. */
+  /* Below the rail (z 8) so the loop, like annotation markers, is hidden
+     by the track names when it would otherwise bleed into the rail area. */
   z-index: 6;
 }
 .loop-region.disabled {
