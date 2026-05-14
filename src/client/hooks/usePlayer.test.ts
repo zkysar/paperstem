@@ -116,7 +116,7 @@ describe('usePlayer', () => {
       await result.current.load({
         projectId: 'p1',
         title: 'unused',
-        driveFolderId: null,
+        folderId: null,
         sources: [],
       });
     });
@@ -131,14 +131,13 @@ describe('usePlayer', () => {
       await result.current.load({
         projectId: 'proj-1',
         title: 'My Song',
-        driveFolderId: 'drive-xyz',
+        folderId: 'folder-xyz',
         sources: makeSources('drums.mp3', 'bass.mp3'),
       });
     });
     expect(result.current.state.stems).toHaveLength(2);
     expect(result.current.state.projectId).toBe('proj-1');
     expect(result.current.state.title).toBe('My Song');
-    expect(result.current.state.driveFolderId).toBe('drive-xyz');
     // FakeAudioContext.decodeAudioData returns duration=60.
     expect(result.current.state.duration).toBe(60);
     expect(result.current.state.stems[0].audioBuffer).not.toBeNull();
