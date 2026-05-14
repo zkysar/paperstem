@@ -237,9 +237,14 @@ export function usePlayer(): PlayerControls {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [currentTime, setCurrentTime] = useState(0);
   // iOS audio diagnostics — surfaced in the UI so the user can read the
-  // actual context state from their phone. Updated at page-unlock fire and
-  // each togglePlay. Format: "key1:val1 key2:val2 …"
-  const [debugInfo, setDebugInfo] = useState('');
+  // actual context state from their phone. Two slots so the page-unlock
+  // line isn't clobbered when togglePlay fires. Promise resolutions from
+  // ctx.resume() and HTMLAudio.play() update their lines asynchronously,
+  // so the user gets the actual post-transition state, not the synchronous
+  // (and still 'suspended') reading from immediately after calling resume.
+  const [unlockLine, setUnlockLine] = useState('');
+  const [playLine, setPlayLine] = useState('');
+  const debugInfo = [unlockLine, playLine].filter(Boolean).join('\n');
 
   // Refs that the rAF / interval callbacks read live, so they don't capture
   // stale state.
@@ -443,18 +448,15 @@ export function usePlayer(): PlayerControls {
   useEffect(() => {
     const unlock = (): void => {
       const graph = ensureAudioGraph();
-      let preState = '-';
-      let postState = '-';
+      let preState: string = '-';
       let sampleRate = 0;
+      let resumePromise: Promise<void> | null = null;
       if (graph) {
         preState = graph.ctx.state;
-        if (graph.ctx.state !== 'running') {
-          graph.ctx.resume().catch(() => {
-            // ignore
-          });
-        }
-        postState = graph.ctx.state;
         sampleRate = graph.ctx.sampleRate;
+        if (graph.ctx.state !== 'running') {
+          resumePromise = graph.ctx.resume();
+        }
         playUnlockBuffer(graph.ctx);
       }
       if (!unlockAudioRef.current) {
@@ -462,24 +464,42 @@ export function usePlayer(): PlayerControls {
         a.preload = 'auto';
         unlockAudioRef.current = a;
       }
-      let htmlPlay = 'pending';
-      void unlockAudioRef.current
-        .play()
-        .then(() => {
-          htmlPlay = 'ok';
-          setDebugInfo(
-            `pg-unlock fired · ctx:${preState}→${postState} · sr:${sampleRate} · htmlAudio:${htmlPlay}`,
-          );
+      const htmlPromise = unlockAudioRef.current.play();
+      // Shared mutable status; the .then/.catch handlers update them and
+      // re-render the line.
+      const status = {
+        postState: preState,
+        resumeResult: resumePromise ? 'pending' : 'skip',
+        htmlAudio: 'pending',
+      };
+      const render = (): void => {
+        setUnlockLine(
+          `pg-unlock fired · ctx:${preState}→${status.postState} · resume:${status.resumeResult} · sr:${sampleRate} · htmlAudio:${status.htmlAudio}`,
+        );
+      };
+      render();
+      if (resumePromise) {
+        resumePromise
+          .then(() => {
+            status.resumeResult = 'ok';
+            if (graph) status.postState = graph.ctx.state;
+            render();
+          })
+          .catch((err: unknown) => {
+            status.resumeResult = `rej(${(err as Error)?.name ?? 'err'})`;
+            if (graph) status.postState = graph.ctx.state;
+            render();
+          });
+      }
+      void htmlPromise
+        ?.then(() => {
+          status.htmlAudio = 'ok';
+          render();
         })
-        .catch((err) => {
-          htmlPlay = `rej(${(err as Error)?.name ?? 'err'})`;
-          setDebugInfo(
-            `pg-unlock fired · ctx:${preState}→${postState} · sr:${sampleRate} · htmlAudio:${htmlPlay}`,
-          );
+        .catch((err: unknown) => {
+          status.htmlAudio = `rej(${(err as Error)?.name ?? 'err'})`;
+          render();
         });
-      setDebugInfo(
-        `pg-unlock fired · ctx:${preState}→${postState} · sr:${sampleRate} · htmlAudio:${htmlPlay}`,
-      );
       document.removeEventListener('pointerdown', unlock);
       document.removeEventListener('touchend', unlock);
     };
@@ -636,26 +656,16 @@ export function usePlayer(): PlayerControls {
       a.preload = 'auto';
       unlockAudioRef.current = a;
     }
-    let htmlPlay = 'pending';
-    void unlockAudioRef.current
-      .play()
-      .then(() => {
-        htmlPlay = 'ok';
-      })
-      .catch((err) => {
-        htmlPlay = `rej(${(err as Error)?.name ?? 'err'})`;
-      });
+    const htmlPromise = unlockAudioRef.current.play();
     const ctx = audioCtxRef.current;
-    const preState = ctx?.state ?? 'no-ctx';
+    const preState: string = ctx?.state ?? 'no-ctx';
+    let resumePromise: Promise<void> | null = null;
     if (ctx) {
       if (ctx.state !== 'running') {
-        ctx.resume().catch(() => {
-          // ignore — startSourcesAt will surface failure
-        });
+        resumePromise = ctx.resume();
       }
       playUnlockBuffer(ctx);
     }
-    const postState = ctx?.state ?? 'no-ctx';
     dispatch({ type: 'SET_PLAYING', isPlaying: true });
     stateRef.current = { ...stateRef.current, isPlaying: true };
     isPlayingInternalRef.current = true;
@@ -664,9 +674,39 @@ export function usePlayer(): PlayerControls {
     const stems = stateRef.current.stems;
     const decodedCount = stems.filter((stem) => stem.audioBuffer != null).length;
     const srcCount = sourcesRef.current?.length ?? 0;
-    setDebugInfo(
-      `play · ctx:${preState}→${postState} · bufs:${decodedCount}/${stems.length} · srcs:${srcCount} · ok:${ok ? 'y' : 'n'} · htmlAudio:${htmlPlay}`,
-    );
+    const status = {
+      postState: preState,
+      resumeResult: resumePromise ? 'pending' : 'skip',
+      htmlAudio: 'pending',
+    };
+    const render = (): void => {
+      setPlayLine(
+        `play · ctx:${preState}→${status.postState} · resume:${status.resumeResult} · bufs:${decodedCount}/${stems.length} · srcs:${srcCount} · ok:${ok ? 'y' : 'n'} · htmlAudio:${status.htmlAudio}`,
+      );
+    };
+    render();
+    if (resumePromise) {
+      resumePromise
+        .then(() => {
+          status.resumeResult = 'ok';
+          if (ctx) status.postState = ctx.state;
+          render();
+        })
+        .catch((err: unknown) => {
+          status.resumeResult = `rej(${(err as Error)?.name ?? 'err'})`;
+          if (ctx) status.postState = ctx.state;
+          render();
+        });
+    }
+    void htmlPromise
+      ?.then(() => {
+        status.htmlAudio = 'ok';
+        render();
+      })
+      .catch((err: unknown) => {
+        status.htmlAudio = `rej(${(err as Error)?.name ?? 'err'})`;
+        render();
+      });
     if (!ok) {
       dispatch({ type: 'SET_PLAYING', isPlaying: false });
       stateRef.current = { ...stateRef.current, isPlaying: false };
