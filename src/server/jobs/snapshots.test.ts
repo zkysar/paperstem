@@ -236,6 +236,52 @@ describe('runSnapshotsNow', () => {
     updateSpy.mockRestore();
   });
 
+  it('a project whose folder is missing on disk is logged and skipped, healthy projects still snapshot', async () => {
+    // Regression for the stale-folder_id case: if a project's folder_id
+    // points to a path that no longer exists on the volume (out-of-band
+    // delete, restore drift, etc.), runSnapshotsNow must NOT silently
+    // re-create the directory and drop an orphan _meta.json into it —
+    // it must log and move on.
+    const owner = createUser('missing@example.com');
+    const bandId = createBand('Band Missing', owner);
+
+    // Project 1: folder_id encodes a path that we never mkdir.
+    const ghostFolder = 'proj-ghost-folder';
+    const ghostFolderId = Buffer.from(ghostFolder, 'utf8').toString('base64url');
+    const ghostProjectId = insertProject(bandId, owner, 'Ghost Song', ghostFolderId);
+
+    // Project 2: folder_id encodes a real on-disk folder.
+    const okFolder = 'proj-ok-folder';
+    mkdirSync(join(audioRoot, okFolder), { recursive: true });
+    const okFolderId = Buffer.from(okFolder, 'utf8').toString('base64url');
+    insertProject(bandId, owner, 'OK Song', okFolderId);
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(snapMod.runSnapshotsNow()).resolves.toBeUndefined();
+
+    // The ghost folder must NOT have been auto-created, and no orphan
+    // _meta.json must exist for it.
+    expect(existsSync(join(audioRoot, ghostFolder))).toBe(false);
+
+    // The healthy project still got its snapshot.
+    expect(existsSync(join(audioRoot, okFolder, '_meta.json'))).toBe(true);
+
+    // The failure was logged with band/project identification.
+    const loggedForGhost = errorSpy.mock.calls.some((call) => {
+      const msg = call[0];
+      return (
+        typeof msg === 'string' && msg.includes(bandId) && msg.includes(ghostProjectId)
+      );
+    });
+    expect(
+      loggedForGhost,
+      'console.error must identify the band/project with the missing folder',
+    ).toBe(true);
+
+    errorSpy.mockRestore();
+  });
+
   it('a per-band failure does not prevent other bands from being snapshotted', async () => {
     const storageMod = await import('../storage.js');
 

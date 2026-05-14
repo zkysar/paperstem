@@ -95,6 +95,21 @@ describe('uploadFile', () => {
     const onDisk = await readFile(join(root, 'band-a', 'a.wav'));
     expect(onDisk.equals(body)).toBe(true);
   });
+
+  // Strict contract: uploadFile does NOT silently mkdir the parent. If the
+  // parent_folder_id points to a path that doesn't exist on disk (stale DB
+  // state, volume restore drift, manually deleted folder), the upload must
+  // fail loudly so callers can surface the inconsistency rather than write
+  // orphan files into a re-created ghost directory.
+  it('throws when the parent folder does not exist and does not create it', async () => {
+    const ghostId = encode('does-not-exist');
+    await expect(
+      storage.uploadFile(ghostId, 'a.mp3', 'audio/mpeg', Buffer.from('x')),
+    ).rejects.toThrow();
+    await expect(stat(join(root, 'does-not-exist'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  });
 });
 
 describe('getFile', () => {
