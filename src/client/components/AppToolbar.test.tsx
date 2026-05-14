@@ -42,6 +42,11 @@ describe('AppToolbar', () => {
     // Reset navigator.share between tests — defaults to clipboard path.
     // Individual tests can opt into the Web Share path.
     Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
+    // Reset userAgent — the native share path is gated on iPhone.
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+    });
   });
 
   it('renders all transport buttons', () => {
@@ -151,10 +156,14 @@ describe('AppToolbar', () => {
     expect(wrap?.className).toContain('atb-share-wrap');
   });
 
-  it('prefers navigator.share() when available, with title and URL', async () => {
+  it('prefers navigator.share() on iPhone when available, with title and URL', async () => {
     const user = userEvent.setup();
     const shareSpy = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'share', { configurable: true, value: shareSpy });
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+    });
     const onShare = vi.fn(() => ({
       fullUrl: 'http://x.test/p/abc',
       categories: [] as Array<'loop' | 'mix' | 'comment'>,
@@ -166,6 +175,30 @@ describe('AppToolbar', () => {
       title: 'Tuesday rehearsal 5/12',
       url: 'http://x.test/p/abc',
     });
+  });
+
+  it('ignores navigator.share() off-iPhone and uses clipboard instead', async () => {
+    const user = userEvent.setup();
+    const shareSpy = vi.fn().mockResolvedValue(undefined);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'share', { configurable: true, value: shareSpy });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    // userAgent reset in beforeEach is non-iPhone — explicit for clarity:
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit/605.1.15',
+    });
+    const onShare = vi.fn(() => ({
+      fullUrl: 'http://x.test/p/abc',
+      categories: [] as Array<'loop' | 'mix' | 'comment'>,
+    }));
+    render(<AppToolbar {...baseProps} onShare={onShare} />);
+    await user.click(screen.getByLabelText('Copy share link'));
+    expect(shareSpy).not.toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledWith('http://x.test/p/abc');
   });
 
   it('falls back to clipboard when navigator.share is unavailable', async () => {
@@ -223,6 +256,10 @@ describe('AppToolbar', () => {
     const err = Object.assign(new Error('cancelled'), { name: 'AbortError' });
     const shareSpy = vi.fn().mockRejectedValue(err);
     Object.defineProperty(navigator, 'share', { configurable: true, value: shareSpy });
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+    });
     const onShare = vi.fn(() => ({
       fullUrl: 'http://x.test/p/abc',
       categories: [] as Array<'loop' | 'mix' | 'comment'>,
