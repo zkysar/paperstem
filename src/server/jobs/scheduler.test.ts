@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import {
-  msUntilNextDailyUtc,
-  msUntilNextWeeklyUtc,
-} from './scheduler.js';
+
+// scheduler.ts pulls in disk-usage.ts → mailer.ts, which throws at import
+// time if GMAIL_* are unset. This file only tests pure helpers, but the
+// transitive import still needs the env to be set.
+process.env.GMAIL_USER ||= 'test@example.com';
+process.env.GMAIL_APP_PASSWORD ||= 'test-pass';
+
+const { msUntilNextDailyUtc, msUntilNextWeeklyUtc } = await import('./scheduler.js');
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
