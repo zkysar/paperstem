@@ -52,7 +52,7 @@ type Props = {
    * (plus the non-trivial category list for the "Copied — includes X" hint).
    * Returns `null` when there is no project to share.
    */
-  onShare(): { fullUrl: string; categories: Array<'loop' | 'mix' | 'comment'> } | null;
+  onShare(): { fullUrl: string; categories: Array<'loop' | 'mix' | 'comment'>; title?: string } | null;
 };
 
 export function AppToolbar(props: Props) {
@@ -86,6 +86,18 @@ export function AppToolbar(props: Props) {
   async function handleShareClick() {
     const snap = onShare();
     if (!snap) return;
+    const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+    if (canNativeShare) {
+      try {
+        await navigator.share({ title: snap.title ?? 'Paperstem', url: snap.fullUrl });
+        // Native sheet provides its own confirmation UI — no toast needed.
+        return;
+      } catch (e) {
+        const name = (e as { name?: string } | null | undefined)?.name;
+        if (name === 'AbortError') return; // user cancelled
+        // Any other error: fall through to clipboard fallback below.
+      }
+    }
     try {
       await navigator.clipboard.writeText(snap.fullUrl);
       const cats = snap.categories.length

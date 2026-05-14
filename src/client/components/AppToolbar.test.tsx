@@ -1,6 +1,6 @@
 import { render, renderHook, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AppToolbar } from './AppToolbar';
 import { useViewport } from '../hooks/useViewport';
 
@@ -38,6 +38,12 @@ const baseProps = {
 };
 
 describe('AppToolbar', () => {
+  beforeEach(() => {
+    // Reset navigator.share between tests — defaults to clipboard path.
+    // Individual tests can opt into the Web Share path.
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
+  });
+
   it('renders all transport buttons', () => {
     render(<AppToolbar {...baseProps} />);
     expect(screen.getByLabelText('Restart')).not.toBeNull();
@@ -162,6 +168,54 @@ describe('AppToolbar', () => {
     // The toast must be a child of .atb-share-wrap (the anchor), not a sibling of share neighbors.
     const wrap = toast.parentElement;
     expect(wrap?.className).toContain('atb-share-wrap');
+  });
+
+  it('prefers navigator.share() when available, with title and URL', async () => {
+    const user = userEvent.setup();
+    const shareSpy = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'share', { configurable: true, value: shareSpy });
+    const onShare = vi.fn(() => ({
+      fullUrl: 'http://x.test/p/abc',
+      categories: [] as Array<'loop' | 'mix' | 'comment'>,
+      title: 'Tuesday rehearsal 5/12',
+    }));
+    render(<AppToolbar {...baseProps} onShare={onShare} />);
+    await user.click(screen.getByLabelText('Copy share link'));
+    expect(shareSpy).toHaveBeenCalledWith({
+      title: 'Tuesday rehearsal 5/12',
+      url: 'http://x.test/p/abc',
+    });
+  });
+
+  it('falls back to clipboard when navigator.share is unavailable', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const onShare = vi.fn(() => ({
+      fullUrl: 'http://x.test/p/abc',
+      categories: ['loop' as const],
+    }));
+    render(<AppToolbar {...baseProps} onShare={onShare} />);
+    await user.click(screen.getByLabelText('Copy share link'));
+    expect(writeText).toHaveBeenCalledWith('http://x.test/p/abc');
+  });
+
+  it('treats AbortError from navigator.share() as a silent user cancel', async () => {
+    const user = userEvent.setup();
+    const err = Object.assign(new Error('cancelled'), { name: 'AbortError' });
+    const shareSpy = vi.fn().mockRejectedValue(err);
+    Object.defineProperty(navigator, 'share', { configurable: true, value: shareSpy });
+    const onShare = vi.fn(() => ({
+      fullUrl: 'http://x.test/p/abc',
+      categories: [] as Array<'loop' | 'mix' | 'comment'>,
+    }));
+    render(<AppToolbar {...baseProps} onShare={onShare} />);
+    await user.click(screen.getByLabelText('Copy share link'));
+    // No toast on user cancel
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });
 

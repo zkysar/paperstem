@@ -669,7 +669,11 @@ function PaperstemApp({
       },
     });
     const url = buildShareUrl(state, window.location.href);
-    return { fullUrl: url, categories: describeShareCategories(state) };
+    return {
+      fullUrl: url,
+      categories: describeShareCategories(state),
+      title: player.state.title ?? undefined,
+    };
   }, [activeProjectId, player.state, player.currentTime, activeCommentId, viewport.state]);
 
   // "Copy link to this comment" — overrides the time and focused comment to
