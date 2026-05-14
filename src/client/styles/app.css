@@ -354,13 +354,19 @@ kbd {
 }
 
 .tracks {
-  flex: 1;
-  min-height: 0;
-  /* No overflow here — the parent .viewport is the single scroll container
+  /* Basis: auto so .tracks measures to the sum of its children (ruler +
+     each .track at --track-h). Grow: 1 so it still fills the viewport
+     when content is short. Shrink: 0 so children never overflow .tracks
+     — that's what made .viewport-inner stay viewport-tall, which in turn
+     clipped the playhead's `bottom: 0` to the visible bottom instead of
+     the bottom of the track list.
+
+     No overflow here — the parent .viewport is the single scroll container
      for both axes. Keeping `overflow-y: auto` here would make .tracks a
      vertical scroll context, which causes `.track-rail { position: sticky }`
      to anchor to .tracks (whose own left edge scrolls horizontally with
      .viewport) instead of to .viewport, breaking the sticky rail. */
+  flex: 1 0 auto;
 }
 .empty {
   color: var(--muted);
