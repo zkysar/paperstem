@@ -37,7 +37,7 @@ Prefer inline literals or small helper builders over fixture files. The repo cur
 - [Server migrations](#server-migrations)
 - [Server jobs](#server-jobs)
 - [Server import](#server-import)
-- Server auth
+- [Server auth](#server-auth)
 - Client components
 - Client hooks
 - Client libs
@@ -665,3 +665,128 @@ For skip-path tests (already-imported marker, still-recording mtime), assert `re
 - **Do not construct ad-hoc byte arrays inline inside an `it` block.** Each parsing test file defines a `buildWav()` helper at the top that produces a well-formed RIFF/WAVE buffer from parameters. Use it. Inlining raw `Buffer.alloc` writes in a test body obscures intent and makes it easy to produce a malformed buffer that the function under test rejects before the assertion is ever reached.
 - **Do not use real ffmpeg in orchestration tests.** `compressToMp3` is injectable via `encodeFn`. Calling the real encoder requires ffmpeg on PATH, takes ~100ms per file, and is already covered by `audio-compress-local.test.ts`. Pass an `encodeFn` stub that writes a placeholder buffer.
 - **Do not omit `utimesSync` when mtime matters.** `model12.scan` uses file mtime to decide `recordedOn` and whether a task is still-recording. If you write a WAV file without setting mtime, the OS assigns the current time, which will trigger the still-recording guard and cause the orchestrator to skip the task silently.
+
+### Server auth
+
+This category covers the auth helpers in `src/server/auth/`. These files sit between a pure lib test and a full route-handler test: most depend on `NODE_ENV` at module-load time or exercise Hono route handlers that require a running DB.
+
+**Canonical examples:**
+
+- `src/server/auth/cookie.test.ts` — uses `vi.resetModules()` + `freshImport()` to test `setSessionCookie` and `SESSION_COOKIE_NAME` under both `NODE_ENV=development` and `NODE_ENV=production`. The module evaluates `NODE_ENV` when it is first imported, so a fresh module registry is required for each env variant.
+- `src/server/auth/dev-login.test.ts` — auth route handler using the same Hono harness as the [route-handler category](#server-route-handlers). It additionally requires the `PAPERSTEM_DEV_AUTO_LOGIN` env var to be set/unset per test and asserts on cookie headers and DB side effects. See [Server route handlers](#server-route-handlers) for the full harness setup.
+- `src/server/auth/rate-limit.test.ts` — pure class with an injectable clock. No env prelude, no DB. Covered in full under [Server libs](#server-libs); listed here because it is in the auth package.
+
+#### The `freshImport` pattern
+
+Use `freshImport()` whenever the module under test reads `process.env.*` or other global state at module initialisation time (i.e. at the top level, outside any function). `vi.resetModules()` discards the module registry so the next `import()` re-executes the module top level with the current env.
+
+```typescript
+const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
+
+async function freshImport() {
+  vi.resetModules();
+  return await import('./cookie.js');
+}
+
+afterEach(() => {
+  if (ORIGINAL_NODE_ENV === undefined) delete process.env.NODE_ENV;
+  else process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+});
+
+describe('cookie module — dev', () => {
+  beforeEach(() => {
+    process.env.NODE_ENV = 'development';
+  });
+
+  it('sets the cookie without Secure flag and with HttpOnly + SameSite=Lax', async () => {
+    const mod = await freshImport();
+    const c = makeContext();
+    mod.setSessionCookie(c, 'abc123');
+    const setCookie = c._headers.get('set-cookie') ?? '';
+    expect(setCookie).toContain('paperstem_session_dev=abc123');
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('SameSite=Lax');
+    expect(setCookie).toContain('Path=/');
+    expect(setCookie).not.toContain('Secure');
+  });
+});
+```
+
+**When to use it:** any time a module's exported values or behavior depend on env vars (or any other process-level state) that are read at the top level of the module, not inside a function. `cookie.ts` selects its cookie name constant at init time based on `NODE_ENV`, so each `describe` block that changes `NODE_ENV` must call `freshImport()` before exercising the module.
+
+This is distinct from a module that reads `process.env` inside a function call — that does not require `freshImport()` because the env is read at call time, not load time.
+
+**Always restore the original env value in `afterEach`.** Capture it before any `describe` block mutates it, and restore it unconditionally (including the `undefined` case, which requires `delete` not assignment).
+
+#### What to assert
+
+For cookie-setting code, assert on the raw `Set-Cookie` header string rather than a parsed cookie object. Hono's `setCookie` serialises directly to the `set-cookie` header; checking the string confirms that the serialised form that browsers receive is correct:
+
+```typescript
+// From cookie.test.ts — prod case
+const setCookie = c._headers.get('set-cookie') ?? '';
+expect(setCookie).toContain('__Host-paperstem_session=abc123');
+expect(setCookie).toContain('HttpOnly');
+expect(setCookie).toContain('Secure');
+expect(setCookie).toContain('SameSite=Lax');
+expect(setCookie).toContain('Path=/');
+```
+
+For auth route handlers, assert on the HTTP response shape — status code, `location` header on redirects, and that `set-cookie` contains the session cookie name:
+
+```typescript
+// From dev-login.test.ts — happy path
+expect(res.status).toBe(302);
+expect(res.headers.get('location')).toBe('/');
+const setCookie = res.headers.get('set-cookie') ?? '';
+expect(setCookie).toContain(cookieMod.SESSION_COOKIE_NAME);
+```
+
+Also verify DB side effects for routes that create users or sessions:
+
+```typescript
+const user = dbMod.stmts.findUserByEmail.get('dev@example.com');
+expect(user).toBeDefined();
+expect(user?.email).toBe('dev@example.com');
+```
+
+#### Env-var gating on auth routes
+
+`dev-login.test.ts` covers two guard conditions that are specific to auth routes:
+
+```typescript
+it('returns 404 when env var is unset', async () => {
+  delete process.env.PAPERSTEM_DEV_AUTO_LOGIN;
+  const res = await app.fetch(new Request('http://x/api/auth/dev-login'));
+  expect(res.status).toBe(404);
+});
+
+it('returns 404 when NODE_ENV is production', async () => {
+  process.env.PAPERSTEM_DEV_AUTO_LOGIN = 'dev@example.com';
+  process.env.NODE_ENV = 'production';
+  const res = await app.fetch(new Request('http://x/api/auth/dev-login'));
+  expect(res.status).toBe(404);
+});
+```
+
+Unlike `cookie.ts`, `dev-login.ts` reads `NODE_ENV` and `PAPERSTEM_DEV_AUTO_LOGIN` inside the handler at request time — not at module-load time — so `freshImport()` is not needed. Instead, restore both env vars in `afterEach`:
+
+```typescript
+afterEach(() => {
+  if (ORIGINAL_AUTO_LOGIN === undefined) delete process.env.PAPERSTEM_DEV_AUTO_LOGIN;
+  else process.env.PAPERSTEM_DEV_AUTO_LOGIN = ORIGINAL_AUTO_LOGIN;
+  if (ORIGINAL_NODE_ENV === undefined) delete process.env.NODE_ENV;
+  else process.env.NODE_ENV = ORIGINAL_NODE_ENV;
+});
+```
+
+#### What not to do
+
+- **Do not share module state across `describe` blocks that override `NODE_ENV`.** `cookie.ts` reads `NODE_ENV` at the top level. If two `describe` blocks test different env values using the same imported module (no `freshImport()`), they will both see the value that was current when the module was first loaded — whichever `describe` ran first wins, and the other tests silently test the wrong behavior.
+- **Do not call `freshImport()` for modules that read env vars inside functions** (not at the top level). Doing so adds unnecessary overhead and obscures which modules actually have load-time env dependencies.
+- **Do not skip `afterEach` env restoration.** A missing restore leaves `NODE_ENV` or `PAPERSTEM_DEV_AUTO_LOGIN` mutated for subsequent test files that run in the same vitest worker. This can cause test-ordering-dependent failures that are hard to diagnose.
+
+#### Cross-references
+
+- For the injectable-clock pure-function pattern used in `rate-limit.test.ts`, see [Server libs](#server-libs).
+- For the full route-handler harness (env prelude, dynamic imports, `beforeAll`, `reset()`, helper factories) that `dev-login.test.ts` uses, see [Server route handlers](#server-route-handlers).
