@@ -26,7 +26,7 @@ Tests live next to the code they cover, named `<file>.test.ts` or `<file>.test.t
 
 ## Fixtures vs. inline literals
 
-Prefer inline literals (object constructors, hand-rolled buffers) over fixture files for anything under ~50 bytes or trivially generated. Use fixture files in `src/<area>/__fixtures__/` only when the input is a real binary blob that's expensive to construct in code (e.g. WAV files for the import tests).
+Prefer inline literals or small helper builders over fixture files. The repo currently has no `__fixtures__/` directories — even the binary WAV tests build their data via local helpers like `buildWav()` (see `src/server/import/wav-cue.test.ts`). If you add real fixture files later, put them in `src/<area>/__fixtures__/` and document the convention here.
 
 ## Categories
 
