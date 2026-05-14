@@ -525,6 +525,37 @@ describe('POST /api/projects/:id/stems', () => {
     expect(getData.stems[0].peaks).toBe(peaksStr);
   });
 
+  it('accepts v2: prefixed peaks (the format the post-fix client emits)', async () => {
+    const owner = createUser('owner@example.com');
+    const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);
+    const { id: projectId } = createProject(bandId, bandFolderId, owner);
+    const sid = createSession(owner);
+
+    const peaksStr = 'v2:0,64,128,192,255';
+    const { contentType, body } = buildMultipart(
+      [
+        { name: 'position', value: '0' },
+        { name: 'peaks', value: peaksStr },
+      ],
+      {
+        fieldName: 'file',
+        filename: 'guitar.mp3',
+        mime: 'audio/mpeg',
+        body: Buffer.from('synthetic'),
+      },
+    );
+    const res = await app.fetch(
+      new Request(`http://x/api/projects/${projectId}/stems`, {
+        method: 'POST',
+        headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
+        body,
+      }),
+    );
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { stem: { peaks: string | null } };
+    expect(data.stem.peaks).toBe(peaksStr);
+  });
+
   it('rejects malformed peaks and stores null', async () => {
     const owner = createUser('owner@example.com');
     const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);

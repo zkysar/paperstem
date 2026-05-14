@@ -18,12 +18,16 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // 2000 bins ≈ 8KB; cap at 8000 bins for safety. Stored as comma-separated ints.
 const MAX_PEAKS_BINS = 8000;
 const MAX_PEAKS_BYTES = MAX_PEAKS_BINS * 5;
-const PEAKS_RE = /^(?:[0-9]{1,3})(?:,[0-9]{1,3})*$/;
+// Either bare CSV (legacy v1) or "v2:"-prefixed CSV. The server doesn't care
+// which — clients post-fix only emit v2, but stored v1 rows from before the
+// fix need to round-trip through GETs until the client backfills them.
+const PEAKS_RE = /^(?:v2:)?[0-9]{1,3}(?:,[0-9]{1,3})*$/;
 
 function validatePeaksString(raw: string): string | null {
   if (!raw || raw.length > MAX_PEAKS_BYTES) return null;
   if (!PEAKS_RE.test(raw)) return null;
-  for (const part of raw.split(',')) {
+  const body = raw.startsWith('v2:') ? raw.slice(3) : raw;
+  for (const part of body.split(',')) {
     const n = Number(part);
     if (!Number.isInteger(n) || n < 0 || n > 255) return null;
   }

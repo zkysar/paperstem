@@ -55,7 +55,7 @@ async function computeStemPeaks(file: File): Promise<string | null> {
     const buf = await file.arrayBuffer();
     ctx = new Ctor();
     const audio = await ctx.decodeAudioData(buf);
-    const peaks = computePeaks(audio, PLAYER_PEAK_BINS);
+    const peaks = computePeaks(audio, PLAYER_PEAK_BINS, { normalize: false });
     return encodePeaks(peaks);
   } catch {
     return null;

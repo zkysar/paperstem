@@ -54,6 +54,17 @@ describe('computePeaks', () => {
     const peaks = computePeaks(makeBuffer([new Array(0)]), 4);
     expect(peaks).toEqual([0, 0, 0, 0]);
   });
+
+  it('returns raw absolute amplitudes when normalize: false', () => {
+    // With normalization off, a buffer that maxes at 0.4 should produce a
+    // peak < 1 — this is what lets WaveSurfer's `normalize` option meaningfully
+    // distinguish global from per-track at render time.
+    const samples = new Array(2048).fill(0).map((_, i) => (i < 1024 ? 0.25 : 0.4));
+    const peaks = computePeaks(makeBuffer([samples]), 8, { normalize: false });
+    const max = Math.max(...peaks);
+    expect(max).toBeCloseTo(0.4, 5);
+    expect(Math.min(...peaks)).toBeCloseTo(0.25, 5);
+  });
 });
 
 describe('peaks cache', () => {
@@ -91,6 +102,10 @@ describe('peaks cache', () => {
 });
 
 describe('encodePeaks / decodePeaks (wire format)', () => {
+  it('emits a v2: prefix', () => {
+    expect(encodePeaks([0, 0.5, 1])).toMatch(/^v2:/);
+  });
+
   it('round-trips with bounded loss', () => {
     const original = [0, 0.25, 0.5, 0.75, 1];
     const encoded = encodePeaks(original);
@@ -107,7 +122,16 @@ describe('encodePeaks / decodePeaks (wire format)', () => {
   });
 
   it('returns null on malformed input', () => {
-    expect(decodePeaks('not,numbers')).toBeNull();
+    expect(decodePeaks('v2:not,numbers')).toBeNull();
+  });
+
+  it('rejects legacy bare-CSV (v1) so the Track backfill rewrites it as v2', () => {
+    // Pre-fix peaks were stored as bare CSV with values pre-normalized
+    // per-stem, which silently no-op'd the global/per-track toggle. Returning
+    // null here makes App treat the stem as having no precomputed peaks, so
+    // WaveSurfer decodes the audio and Track.tsx's backfill writes fresh v2
+    // peaks to the server.
+    expect(decodePeaks('0,64,128,255')).toBeNull();
   });
 
   it('clamps out-of-range values when encoding', () => {

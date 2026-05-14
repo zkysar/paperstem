@@ -184,7 +184,7 @@ export function Track({
       try {
         const decoded = wsRefForReady.getDecodedData();
         if (!decoded) return;
-        const peaks = computePeaks(decoded, PLAYER_PEAK_BINS);
+        const peaks = computePeaks(decoded, PLAYER_PEAK_BINS, { normalize: false });
         const encoded = encodePeaks(peaks);
         void fetch(`/api/stems/${encodeURIComponent(sidForBackfill)}/peaks`, {
           method: 'PUT',
