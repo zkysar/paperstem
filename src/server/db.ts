@@ -521,4 +521,20 @@ export const stmts = {
        (id, created_at, user_id, user_email, action, resource_type, resource_id, band_id, metadata)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ),
+  deleteAuditOlderThan: db.prepare<[number]>(
+    'DELETE FROM audit_log WHERE created_at < ?',
+  ),
+  // Drops everything past the most-recent `keepRows` entries. LIMIT -1 means
+  // "no upper bound" in SQLite; combined with OFFSET this selects the tail.
+  trimAuditOverflow: db.prepare<[number]>(
+    `DELETE FROM audit_log
+      WHERE id IN (
+        SELECT id FROM audit_log
+        ORDER BY created_at DESC, id DESC
+        LIMIT -1 OFFSET ?
+      )`,
+  ),
+  countAuditLog: db.prepare<[], { c: number }>(
+    'SELECT COUNT(*) AS c FROM audit_log',
+  ),
 };
