@@ -69,7 +69,7 @@ A pre-push hook in [scripts/git-hooks/pre-push](scripts/git-hooks/pre-push) runs
 
 ## Tests
 
-Conventions for adding tests live in [docs/testing.md](docs/testing.md). Read that before writing new test files — it covers the harness setup per category and the canonical examples to copy from.
+Before writing a new test file, open [docs/testing.md](docs/testing.md), find the matching category (server route handler, server lib, client component, client hook, etc.), and copy from the canonical example named in that section. Don't invent a new harness shape — the env-var prelude, dynamic-import ordering, helper factories, and `reset()` pattern are load-bearing and already documented.
 
 ## Shipping changes — PRs only
 
