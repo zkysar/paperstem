@@ -31,10 +31,10 @@ export async function handleGetAudio(
   } catch (err) {
     if (err instanceof StorageNotFoundError) {
       stmts.markStemGhost.run(Math.floor(Date.now() / 1000), stemId);
-      console.warn('[audio] drive 404, marked stem as drive_missing', { stemId });
+      console.warn('[audio] storage 404, marked stem as drive_missing', { stemId });
       return c.json({ error: 'drive_missing' }, 410);
     }
-    console.error('[audio] drive fetch failed', { stemId, err });
+    console.error('[audio] storage fetch failed', { stemId, err });
     return c.json({ error: 'upstream_error' }, 502);
   }
 

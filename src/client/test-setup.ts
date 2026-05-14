@@ -45,8 +45,8 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// happy-dom logs resource-fetch failures (e.g. anchor hrefs to drive.google.com)
-// even though tests never click them. Filter that noise out across all sinks.
+// happy-dom logs resource-fetch failures for cross-origin anchor hrefs even
+// though tests never click them. Filter that noise out across all sinks.
 const noiseRe = /^GET https?:\/\/.* \d{3} /;
 const wrap = (orig: (...args: unknown[]) => void) =>
   (...args: unknown[]) => {

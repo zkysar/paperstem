@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ExternalLink, FolderOpen, Pencil, Trash2, X } from 'lucide-react';
+import { FolderOpen, Pencil, Trash2, X } from 'lucide-react';
 import type { Project, TrashList } from '../data/types';
 import { AUDIO_EXT } from '../lib/audio';
 import { WaveformThumb } from './WaveformThumb';
@@ -363,19 +363,6 @@ function FilePickerBody({
                   <Pencil size={14} strokeWidth={2} aria-hidden="true" />
                 </button>
               )}
-              {p.driveFolderId && (
-                <a
-                  className="fp-drive-link"
-                  href={`https://drive.google.com/drive/folders/${encodeURIComponent(p.driveFolderId)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  title="Open in Drive"
-                  aria-label="Open in Drive"
-                >
-                  <ExternalLink size={14} strokeWidth={2} aria-hidden="true" />
-                </a>
-              )}
               {!isEditing && (
                 <button
                   type="button"
@@ -446,7 +433,7 @@ function TrashBody({
           <span className="fp-meta">Project</span>
           <span className="fp-meta">{p.deleted_by_email ?? '—'}</span>
           <span className="fp-meta">
-            {p.deleted_reason === 'drive_missing' ? 'Drive file missing' : ''}
+            {p.deleted_reason === 'drive_missing' ? 'File missing' : ''}
           </span>
           <button
             type="button"
@@ -464,7 +451,7 @@ function TrashBody({
           <span className="fp-meta">Stem · {s.project_name}</span>
           <span className="fp-meta">{s.deleted_by_email ?? '—'}</span>
           <span className="fp-meta">
-            {s.deleted_reason === 'drive_missing' ? 'Drive file missing' : ''}
+            {s.deleted_reason === 'drive_missing' ? 'File missing' : ''}
           </span>
           <button
             type="button"

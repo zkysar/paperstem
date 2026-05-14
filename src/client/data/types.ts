@@ -4,7 +4,7 @@ export type Project = {
   folder: string;
   stems: ProjectStem[];
   stemCount: number;
-  driveFolderId: string | null;
+  folderId: string | null;
   referenceStemId: string | null;
 };
 
@@ -94,7 +94,7 @@ export type PlayerLoading = {
 export type PlayerState = {
   projectId: string | null;
   title: string;
-  driveFolderId: string | null;
+  folderId: string | null;
   stems: LoadedStem[];
   duration: number;
   referenceIdx: number;

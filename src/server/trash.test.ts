@@ -56,7 +56,7 @@ function createUser(email: string): string {
 function createBand(name: string, ownerId: string): string {
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  dbMod.stmts.insertBand.run(id, name, 'drive-folder-x', ownerId, now);
+  dbMod.stmts.insertBand.run(id, name, 'folder-x', ownerId, now);
   dbMod.stmts.insertMembership.run(id, ownerId, 'owner', now);
   return id;
 }

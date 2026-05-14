@@ -44,7 +44,7 @@ export async function seedDevBandIfNeeded(): Promise<void> {
   stmts.insertMembership.run(bandId, user.id, 'owner', nowSec);
 
   console.log(
-    `[dev-seed] created band '${bandName}' (${bandId}) for ${email}, drive=${bandFolder.id}`,
+    `[dev-seed] created band '${bandName}' (${bandId}) for ${email}, folder=${bandFolder.id}`,
   );
 
   await seedSampleProject(bandId, bandFolder.id, user.id, nowSec);

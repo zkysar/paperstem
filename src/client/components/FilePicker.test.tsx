@@ -61,9 +61,9 @@ describe('FilePicker', () => {
   });
 
   const fixtureProjects: Project[] = [
-    { id: 'p1', title: 'Project 2026-04-28', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'c', name: 'c' }], stemCount: 3, driveFolderId: 'd1', referenceStemId: null },
-    { id: 'p2', title: 'Project 2026-04-21', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }], stemCount: 2, driveFolderId: 'd2', referenceStemId: null },
-    { id: 'p3', title: 'Project 2026-03-31', folder: '2026/03', stems: [{ id: 'a', name: 'a' }], stemCount: 1, driveFolderId: null, referenceStemId: null },
+    { id: 'p1', title: 'Project 2026-04-28', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'c', name: 'c' }], stemCount: 3, folderId: 'd1', referenceStemId: null },
+    { id: 'p2', title: 'Project 2026-04-21', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }], stemCount: 2, folderId: 'd2', referenceStemId: null },
+    { id: 'p3', title: 'Project 2026-03-31', folder: '2026/03', stems: [{ id: 'a', name: 'a' }], stemCount: 1, folderId: null, referenceStemId: null },
   ];
 
   it('renders one row per project', () => {
@@ -152,36 +152,11 @@ describe('FilePicker', () => {
     expect(click).toHaveBeenCalled();
   });
 
-  it('renders Drive ↗ link per row when driveFolderId set', () => {
-    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
-    const row = screen.getByTestId('fp-row-p1');
-    const link = row.querySelector('.fp-drive-link') as HTMLAnchorElement;
-    expect(link).toBeTruthy();
-    expect(link.href).toContain('drive.google.com/drive/folders/d1');
-    expect(link.target).toBe('_blank');
-  });
-
-  it('hides Drive ↗ when driveFolderId is null', () => {
-    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
-    const row = screen.getByTestId('fp-row-p3');
-    expect(row.querySelector('.fp-drive-link')).toBeNull();
-  });
-
-  it('clicking Drive ↗ does not trigger row onSelect', async () => {
-    const onSelect = vi.fn();
-    const user = userEvent.setup();
-    render(<FilePicker {...baseProps} projects={fixtureProjects} onSelect={onSelect} />);
-    const row = screen.getByTestId('fp-row-p1');
-    const link = row.querySelector('.fp-drive-link') as HTMLAnchorElement;
-    await user.click(link);
-    expect(onSelect).not.toHaveBeenCalled();
-  });
-
   it('renames a project via inline edit', async () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onRenameProject={onRename} />,
@@ -197,7 +172,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onRenameProject={onRename} />,
@@ -212,7 +187,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onSelect={onSelect} />,
@@ -225,7 +200,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onDeleteProject={onDelete} />,
@@ -240,7 +215,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onDeleteProject={onDelete} />,
@@ -303,7 +278,7 @@ describe('FilePicker', () => {
     const onClose = vi.fn();
     const onDelete = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker

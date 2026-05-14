@@ -144,7 +144,7 @@ export async function handleRenameProject(
   try {
     await renameItem(project.folder_id, name);
   } catch (err) {
-    console.warn('[projects] drive rename failed; DB updated', { id, err });
+    console.warn('[projects] storage rename failed; DB updated', { id, err });
   }
 
   return c.json({ ok: true, name });
@@ -169,7 +169,7 @@ export async function handleDeleteProject(
   try {
     await trashItem(project.folder_id);
   } catch (err) {
-    console.warn('[projects] drive trash failed; DB updated', { id, err });
+    console.warn('[projects] storage trash failed; DB updated', { id, err });
   }
 
   return c.json({ ok: true });
@@ -197,7 +197,7 @@ export async function handleRestoreProject(
   try {
     await untrashItem(project.folder_id);
   } catch (err) {
-    console.warn('[projects] drive untrash failed; DB updated', { id, err });
+    console.warn('[projects] storage untrash failed; DB updated', { id, err });
   }
 
   return c.json({ ok: true });

@@ -34,7 +34,7 @@ export async function handleRenameStem(
   try {
     await renameItem(stem.file_id, name);
   } catch (err) {
-    console.warn('[stems] drive rename failed; DB updated', { id, err });
+    console.warn('[stems] storage rename failed; DB updated', { id, err });
   }
 
   return c.json({ ok: true, name });
@@ -59,7 +59,7 @@ export async function handleDeleteStem(
   try {
     await trashItem(stem.file_id);
   } catch (err) {
-    console.warn('[stems] drive trash failed; DB updated', { id, err });
+    console.warn('[stems] storage trash failed; DB updated', { id, err });
   }
 
   return c.json({ ok: true });
@@ -87,7 +87,7 @@ export async function handleRestoreStem(
   try {
     await untrashItem(stem.file_id);
   } catch (err) {
-    console.warn('[stems] drive untrash failed; DB updated', { id, err });
+    console.warn('[stems] storage untrash failed; DB updated', { id, err });
   }
 
   return c.json({ ok: true });

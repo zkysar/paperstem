@@ -51,7 +51,7 @@ function makePlayer(stems: LoadedStem[], duration = 60): PlayerState {
   return {
     projectId: 'p',
     title: 't',
-    driveFolderId: null,
+    folderId: null,
     stems,
     duration,
     referenceIdx: 0,

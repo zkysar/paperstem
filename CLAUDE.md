@@ -4,7 +4,7 @@ Notes for Claude — kept terse. Read [README.md](README.md) for product context
 
 ## Architecture in one paragraph
 
-Two-process app. **Hono server** ([src/server/](src/server/)) on default port `8787` serves the API and, in prod, the built client. Storage: **SQLite** at `./dev.sqlite` (path overridable via `DATABASE_PATH`), audio in **Google Drive** (or a local folder in dev — see below). **Vite + React** ([src/client/](src/client/)) on default port `5173`, proxies `/api/*` and `/auth/callback` to the API. Magic-link auth → DB-backed sessions in a cookie. Tests: `vitest`, split into client + server projects.
+Two-process app. **Hono server** ([src/server/](src/server/)) on default port `8787` serves the API and, in prod, the built client. Storage: **SQLite** at `./dev.sqlite` (path overridable via `DATABASE_PATH`), audio under `$PAPERSTEM_AUDIO_ROOT` (a Fly volume in production, a local folder in dev). **Vite + React** ([src/client/](src/client/)) on default port `5173`, proxies `/api/*` and `/auth/callback` to the API. Magic-link auth → DB-backed sessions in a cookie. Tests: `vitest`, split into client + server projects.
 
 ## Running locally
 
@@ -22,7 +22,7 @@ That's it. The launcher ([bin/dev.ts](bin/dev.ts)) picks two free ports from the
 
 Open the UI URL the launcher prints. Don't hardcode `5173` or `8787` in your head — read the printed URLs each time.
 
-`with-secrets.sh` runs in front of the launcher and pulls `GMAIL_*` / `GOOGLE_*` from macOS Keychain, so secrets never live in env files or shell history.
+`with-secrets.sh` runs in front of the launcher and pulls `GMAIL_*` from macOS Keychain, so secrets never live in env files or shell history.
 
 The relevant env knobs (set automatically by the launcher; only override if you want a fixed port):
 
@@ -31,6 +31,7 @@ The relevant env knobs (set automatically by the launcher; only override if you 
 | `PORT` | Hono API listen port |
 | `PAPERSTEM_VITE_PORT` | Vite dev server port |
 | `PAPERSTEM_API_PORT` | Where Vite's `/api` and `/auth/callback` proxy points (must match `PORT`) |
+| `PAPERSTEM_AUDIO_ROOT` | Root directory for audio storage (defaults to `${cwd}/audio-dev`) |
 
 `npm run dev:client` and `npm run dev:server` are still available for running one process in isolation.
 
@@ -54,9 +55,9 @@ identity, set the env var to that email; to disable, set it to empty
 (`PAPERSTEM_DEV_AUTO_LOGIN= npm run dev`). The route is only registered when
 `NODE_ENV !== 'production'` and the env var is non-empty.
 
-## Audio storage (local filesystem)
+## Audio storage
 
-`npm run dev` defaults `PAPERSTEM_AUDIO_ROOT` to `${cwd}/audio-dev` (and `mkdir -p`s it). The launcher prints `Audio: <path>` in its header. All storage ops (`createFolder`, `uploadFile`, `getFile`, `listFolder`, `find*`, `deleteFile`, `updateFile`) read/write under that root. IDs are bare `base64url(relpath)`. HTTP Range is honored, so audio seeking works.
+Audio lives on the local filesystem under `$PAPERSTEM_AUDIO_ROOT`. In production this is a Fly volume mounted into the container; in dev `npm run dev` defaults the var to `${cwd}/audio-dev` (and `mkdir -p`s it). The launcher prints `Audio: <path>` in its header. All storage ops (`createFolder`, `uploadFile`, `getFile`, `listFolder`, `find*`, `deleteFile`, `updateFile`) read/write under that root. IDs are bare `base64url(relpath)`. HTTP Range is honored, so audio seeking works.
 
 ## Verifying changes
 
@@ -96,13 +97,12 @@ Both use the same [Dockerfile](Dockerfile). The `APP_VERSION` build arg is baked
 fly apps create paperstem-dev
 fly volumes create paperstem_dev_data --region sjc --size 1 -a paperstem-dev
 
-# Secrets — both apps need GMAIL_* (mailer.ts crashes at import without them)
-# and GOOGLE_* (Drive API). Repeat for -a paperstem.
+# Secrets — both apps need GMAIL_* (mailer.ts crashes at import without them).
+# Repeat for -a paperstem.
 # BUG_REPORT_TO is optional — bug-report emails are sent to GMAIL_USER if
 # unset. Set it to redirect them to a different inbox.
 fly secrets set -a paperstem-dev \
   GMAIL_USER=... GMAIL_APP_PASSWORD=... \
-  GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... GOOGLE_REFRESH_TOKEN=... \
   BUG_REPORT_TO=...
 
 # GitHub Actions token (one token works for both apps)

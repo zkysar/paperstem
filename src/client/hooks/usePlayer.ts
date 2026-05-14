@@ -63,7 +63,7 @@ type Action =
       referenceIdx: number;
       projectId: string | null;
       title: string;
-      driveFolderId: string | null;
+      folderId: string | null;
       status: string;
     }
   | { type: 'SET_PLAYING'; isPlaying: boolean }
@@ -82,7 +82,7 @@ type Action =
 const initialState: PlayerState = {
   projectId: null,
   title: '—',
-  driveFolderId: null,
+  folderId: null,
   stems: [],
   duration: 0,
   referenceIdx: 0,
@@ -127,7 +127,7 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         ...state,
         projectId: action.projectId,
         title: action.title,
-        driveFolderId: action.driveFolderId,
+        folderId: action.folderId,
         stems: action.stems,
         duration: action.duration,
         referenceIdx: action.referenceIdx,
@@ -210,7 +210,7 @@ export type PlayerControls = {
   load(input: {
     projectId: string | null;
     title: string;
-    driveFolderId: string | null;
+    folderId: string | null;
     sources: StemSource[];
   }): Promise<void>;
   togglePlay(): void;
@@ -571,7 +571,7 @@ export function usePlayer(): PlayerControls {
       referenceIdx,
       projectId: input.projectId,
       title: input.title,
-      driveFolderId: input.driveFolderId,
+      folderId: input.folderId,
       status,
     });
   }, []);

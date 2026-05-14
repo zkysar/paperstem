@@ -102,7 +102,7 @@ for (let i = 0; i < filePaths.length; i++) {
     null,
   );
   console.log(
-    `uploaded ${filename} (${uploaded.size} bytes) -> drive=${uploaded.id} stem=${stemId}`,
+    `uploaded ${filename} (${uploaded.size} bytes) -> file=${uploaded.id} stem=${stemId}`,
   );
   stemSummaries.push({ id: stemId, name: stemName, size: uploaded.size });
 }

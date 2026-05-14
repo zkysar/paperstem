@@ -6,15 +6,15 @@ A DAW-style stem player for sharing rough mixes with bandmates.
 
 ## UI
 
-A Google-Docs-style shell: an `AppHeader` (brand · ▦ files · project title · Drive ↗ · 💬 comments · avatar), a flat `AppToolbar` (transport · download · waveform-scale · annotation-create · marker visibility · master volume · time), and the song timeline below. The project list lives behind `⌘K` / the ▦ button as a `FilePicker` overlay rather than a persistent sidebar; comments open in a right-side push column. See `~/projects/plans/2026-05-07-paperstem-ui-redesign.md` for the full design.
+A Google-Docs-style shell: an `AppHeader` (brand · ▦ files · project title · 💬 comments · avatar), a flat `AppToolbar` (transport · download · waveform-scale · annotation-create · marker visibility · master volume · time), and the song timeline below. The project list lives behind `⌘K` / the ▦ button as a `FilePicker` overlay rather than a persistent sidebar; comments open in a right-side push column. See `~/projects/plans/2026-05-07-paperstem-ui-redesign.md` for the full design.
 
 ## Architecture
 
 - **Frontend**: Vite + React + TypeScript + WaveSurfer (`src/client/`)
 - **Backend**: Hono on Node, SQLite-on-volume (`src/server/`)
-- **Audio**: stems live in Google Drive (OAuth-as-me); the server streams them via a Range-supported `/api/audio/:id` proxy
+- **Audio**: stems live on a Fly volume under `$PAPERSTEM_AUDIO_ROOT`; the server streams them via a Range-supported `/api/audio/:id` proxy
 - **Auth**: magic link via Gmail SMTP, `__Host-` session cookie, 30-day expiry
-- **Backups**: daily per-project annotation snapshot to Drive, weekly per-band SQLite dump (8-week retention)
+- **Backups**: daily per-project annotation snapshot, weekly per-band SQLite dump (8-week retention) — both on the Fly volume
 - **Hosting**: a single always-on Fly.io machine in `sjc`, ~$3/mo
 
 See `~/projects/plans/2026-05-04-paperstem-deployment-design.md` for the full design.
@@ -24,7 +24,7 @@ See `~/projects/plans/2026-05-04-paperstem-deployment-design.md` for the full de
 ```bash
 # Two terminals:
 npm run dev          # Vite on :5173
-npm run dev:server   # Hono on :8787 (pulls Gmail + Google secrets from Keychain)
+npm run dev:server   # Hono on :8787 (pulls Gmail secrets from Keychain)
 ```
 
 Vite proxies `/api/*` and `/auth/*` to the Hono server. Visit http://localhost:5173.
@@ -36,9 +36,6 @@ You'll need a user row to log in: `npm run add-user -- --email you@example.com`.
 ```bash
 # Onboard a band (creates DB rows, optionally sends invite mails)
 flyctl ssh console --app paperstem --command 'node /app/dist/server/bin/onboard-band.js --name "..." --owner-email "..." --member-emails "..."'
-
-# Backfill a band's Drive folder (creates and shares with members silently)
-flyctl ssh console --app paperstem --command 'node /app/dist/server/bin/backfill-band-folder.js --band-id <uuid>'
 
 # Manually trigger backup or snapshot job (mostly for verification)
 flyctl ssh console --app paperstem --command 'node /app/dist/server/bin/run-job.js [snapshots|backups]'
@@ -126,8 +123,8 @@ By default, the importer never deletes files from the card. To enable automatic 
 flyctl deploy --app paperstem
 ```
 
-The Fly machine builds the Docker image remotely on linux/amd64. Secrets (`GMAIL_USER`, `GMAIL_APP_PASSWORD`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `SESSION_COOKIE_SECRET`) are set via `flyctl secrets set`.
+The Fly machine builds the Docker image remotely on linux/amd64. Secrets (`GMAIL_USER`, `GMAIL_APP_PASSWORD`, `SESSION_COOKIE_SECRET`) are set via `flyctl secrets set`.
 
 ## History
 
-Originally hosted on GitHub Pages as a static demo with a JSON-backed project list and gitignored audio. Migrated to Fly.io with the React + Hono + SQLite + Drive architecture above; GH Pages decommissioned in Phase 7.
+Originally hosted on GitHub Pages as a static demo with a JSON-backed project list and gitignored audio. Migrated to Fly.io with the React + Hono + SQLite + Fly-volume architecture above; GH Pages decommissioned in Phase 7.
