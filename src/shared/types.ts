@@ -30,6 +30,25 @@ export type BandMember = {
   role: BandRole;
 };
 
+export type Reaction = {
+  emoji: string;
+  count: number;
+  user_ids: string[];
+  reacted_by_self: boolean;
+};
+
+export type AnnotationReply = {
+  id: string;
+  annotation_id: string;
+  user_id: string;
+  user_email: string;
+  user_display_name: string | null;
+  body: string;
+  created_at: number;
+  updated_at: number;
+  reactions: Reaction[];
+};
+
 export type Annotation = {
   id: string;
   project_id: string;
@@ -42,4 +61,10 @@ export type Annotation = {
   starred: boolean;
   created_at: number;
   updated_at: number;
+  reply_count: number;
+  reactions: Reaction[];
 };
+
+export type ReactionTarget =
+  | { kind: 'annotation'; id: string }
+  | { kind: 'reply'; id: string };
