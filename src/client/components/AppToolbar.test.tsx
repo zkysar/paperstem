@@ -12,7 +12,6 @@ function vp() {
 const baseProps = {
   hasProject: true,
   isPlaying: false,
-  hasLoop: true,
   loopEnabled: false,
   waveformNormalization: 'per-track' as const,
   masterVolume: 50,

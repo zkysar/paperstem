@@ -100,6 +100,10 @@ export type PlayerState = {
   referenceIdx: number;
   isPlaying: boolean;
   loop: LoopRegion | null;
+  // True when the user has turned looping on but no region exists yet.
+  // The next ruler drag will create one; clicking the loop toggle again
+  // (or successfully creating a region) disarms it.
+  loopArmed: boolean;
   status: string;
   loading: PlayerLoading | null;
   waveformNormalization: WaveformNormalization;

@@ -85,6 +85,7 @@ export function Player({
     stems,
     duration,
     loop,
+    loopArmed,
     status,
     loading,
     waveformNormalization,
@@ -361,10 +362,10 @@ export function Player({
     if (e.button !== 0) return;
     if (annotationCreateMode) return;
     const t = xToTime(e.clientX);
-    // When looping is off (no region defined, or region is disabled), a drag
-    // on the ruler just scrubs the playhead. Loop creation is reserved for
-    // when looping is actively on — explicit gesture, no accidental loops.
-    const mode: DragMode = loop?.enabled ? 'create' : 'scrub';
+    // When looping is off (no region, region disabled, and not armed), a
+    // drag on the ruler scrubs the playhead. Loop creation needs either an
+    // active region or the loop button armed — explicit, no accidents.
+    const mode: DragMode = loop?.enabled || loopArmed ? 'create' : 'scrub';
     startDrag(
       {
         mode,

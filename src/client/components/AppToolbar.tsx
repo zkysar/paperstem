@@ -20,7 +20,6 @@ import { ToolbarOverflowMenu } from './ToolbarOverflowMenu';
 type Props = {
   hasProject: boolean;
   isPlaying: boolean;
-  hasLoop: boolean;
   loopEnabled: boolean;
   waveformNormalization: 'per-track' | 'global';
   masterVolume: number;
@@ -52,7 +51,7 @@ type Props = {
 
 export function AppToolbar(props: Props) {
   const {
-    hasProject, isPlaying, hasLoop, loopEnabled,
+    hasProject, isPlaying, loopEnabled,
     waveformNormalization, masterVolume, currentTime, duration,
     annotationCreateMode, canCreateAnnotations, markersVisible,
     railCollapsed, showRailToggle, isWide,
@@ -128,7 +127,7 @@ export function AppToolbar(props: Props) {
       </button>
       <button type="button" className={'atb-btn' + (loopEnabled ? ' loop-on' : '')}
         aria-label="Toggle loop"
-        disabled={!hasLoop}
+        disabled={!hasProject}
         onClick={onToggleLoopEnabled}><Repeat size={16} strokeWidth={2} aria-hidden="true" /></button>
 
       {isWide && (
