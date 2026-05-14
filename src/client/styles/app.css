@@ -747,11 +747,13 @@ button.track-name:disabled { cursor: default; }
   width: 1px;
   background: var(--accent);
   pointer-events: none;
-  /* Above the ruler-row (z:4) so the playhead line cuts through the
-     timeline labels. Rail-area overlap is handled in JS — Player.tsx
+  /* Above the ruler-row (z:4), the rail (z:8) and the ruler-rail-mask
+     (z:9). The 1px line is kept out of the rail by Player.tsx, which
      suppresses rendering when the playhead's screen position would fall
-     inside the sticky rail's column. */
-  z-index: 5;
+     inside the sticky rail's column. The high z-index is for the handle:
+     it extends 7px left of the line and would otherwise be clipped by
+     the rail/mask when the playhead sits right at the rail edge (t=0). */
+  z-index: 10;
 }
 /* Grabbable handle at the top of the playhead. Sits in the 22px ruler band.
    Down-pointing pentagon centered on the 1px line. The ::after gives it a
