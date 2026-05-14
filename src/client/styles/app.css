@@ -515,6 +515,11 @@ button.track-name:disabled { cursor: default; }
   background: var(--accent-tint-3);
   border-radius: 3px;
   border: 1px solid var(--accent-tint-2);
+  /* Without border-box, the 1px border on each side adds 2px past `width: 100%`,
+     which leaks past .wave's grid column and inflates .viewport-inner's
+     scrollWidth by 2 — enough for WASD pan to scroll right at hZoom=1 even
+     though the timeline appears fully zoomed out. */
+  box-sizing: border-box;
   overflow: hidden;
   touch-action: pan-y;
   opacity: 1;
