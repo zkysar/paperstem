@@ -4,6 +4,7 @@ import type { Annotation } from '../../shared/types';
 import { CommentList } from './CommentList';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 export type DraftSpec = { start_ms: number; end_ms: number | null };
 
@@ -41,6 +42,7 @@ export function CommentsDrawer({
   onToggleStar, onSaveEdit, onDelete, onCopyLink,
 }: Props) {
   const [draftBody, setDraftBody] = useState('');
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!pendingDraft) setDraftBody('');
@@ -133,7 +135,7 @@ export function CommentsDrawer({
                 className="cd-save"
                 disabled={draftBody.trim().length === 0}
                 onClick={handleSaveDraft}
-              >Save ({SUBMIT_HINT})</button>
+              >{isMobile ? 'Save' : `Save (${SUBMIT_HINT})`}</button>
             </div>
           </div>
         )}

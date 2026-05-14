@@ -8,6 +8,7 @@ import {
 } from 'react';
 import type { Annotation } from '../../shared/types';
 import type { PlayerControls } from '../hooks/usePlayer';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { pixelToTime } from '../lib/format';
 import { attachPinchZoom } from '../lib/touch-pinch';
 import { AnnotationMarkers } from './AnnotationMarkers';
@@ -91,6 +92,8 @@ export function Player({
     loading,
     waveformNormalization,
   } = state;
+
+  const isMobile = useIsMobile();
 
   const stageRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
@@ -611,7 +614,7 @@ export function Player({
                     className="empty-stage-cta"
                     onClick={onOpenPicker}
                   >
-                    Open the file picker (⌘K)
+                    {isMobile ? 'Open the file picker' : 'Open the file picker (⌘K)'}
                   </button>
                 </div>
               )}
