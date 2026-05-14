@@ -669,7 +669,11 @@ function PaperstemApp({
       },
     });
     const url = buildShareUrl(state, window.location.href);
-    return { fullUrl: url, categories: describeShareCategories(state) };
+    return {
+      fullUrl: url,
+      categories: describeShareCategories(state),
+      title: player.state.title ?? undefined,
+    };
   }, [activeProjectId, player.state, player.currentTime, activeCommentId, viewport.state]);
 
   // "Copy link to this comment" — overrides the time and focused comment to
@@ -825,17 +829,19 @@ function PaperstemApp({
         projectTitle={player.state.title || null}
         stemCount={player.state.stems.length}
         duration={player.state.duration}
-        driveFolderId={player.state.driveFolderId ?? null}
         annotationsOpen={drawerOpen}
         hasProject={player.state.stems.length > 0}
         canRename={player.state.stems.length > 0}
+        isWide={isWide}
         appVersion={appInfo?.version ?? null}
         appEnv={appInfo?.env ?? null}
+        downloading={downloading}
         onOpenPicker={openPicker}
         onToggleAnnotations={toggleDrawer}
         onSignOut={onLogout}
         onReportBug={() => openBugReport()}
         onOpenTokens={() => setTokensOpen(true)}
+        onDownloadAll={onDownloadAll}
         onRenameProject={(name) => {
           // In draft mode there's no server project yet — just update the
           // player title. The new title becomes the default upload name on
@@ -852,7 +858,6 @@ function PaperstemApp({
         isPlaying={player.state.isPlaying}
         hasLoop={!!player.state.loop}
         loopEnabled={!!player.state.loop?.enabled}
-        downloading={downloading}
         waveformNormalization={player.state.waveformNormalization}
         masterVolume={player.state.masterVolume}
         currentTime={player.currentTime}
@@ -866,7 +871,6 @@ function PaperstemApp({
         onSeek={player.seek}
         onTogglePlay={() => void player.togglePlay()}
         onToggleLoopEnabled={player.toggleLoopEnabled}
-        onDownloadAll={onDownloadAll}
         onToggleWaveformNormalization={player.toggleWaveformNormalization}
         onToggleAnnotationCreate={handleAddButton}
         onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}

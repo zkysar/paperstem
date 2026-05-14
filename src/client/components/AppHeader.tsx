@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, ChevronDown, ExternalLink, KeyRound, Library, LogOut, MessageSquare } from 'lucide-react';
+import { Bug, ChevronDown, Download, KeyRound, Loader2, LogOut, MessageSquare } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
 
@@ -9,25 +9,27 @@ type Props = {
   projectTitle: string | null;
   stemCount: number;
   duration: number;
-  driveFolderId: string | null;
   annotationsOpen: boolean;
   hasProject: boolean;
   canRename: boolean;
+  isWide: boolean;
   appVersion: string | null;
   appEnv: string | null;
+  downloading: boolean;
   onOpenPicker(): void;
   onToggleAnnotations(): void;
   onSignOut(): void;
   onReportBug(): void;
   onRenameProject(name: string): void;
   onOpenTokens(): void;
+  onDownloadAll(): void;
 };
 
 export function AppHeader({
   userEmail, userInitials, projectTitle, stemCount, duration,
-  driveFolderId, annotationsOpen, hasProject, canRename, appVersion, appEnv,
+  annotationsOpen, hasProject, canRename, isWide, appVersion, appEnv, downloading,
   onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenameProject,
-  onOpenTokens,
+  onOpenTokens, onDownloadAll,
 }: Props) {
   const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -61,19 +63,10 @@ export function AppHeader({
     setDraft(projectTitle ?? '');
   }
 
-  const titleEditable = hasProject && canRename;
+  const titleEditable = hasProject && canRename && isWide;
 
   return (
     <header className="app-header">
-      <button
-        type="button"
-        className="ah-files"
-        onClick={onOpenPicker}
-        title="Open projects (⌘K)"
-        aria-label="Open projects"
-      >
-        <Library size={16} strokeWidth={2} aria-hidden="true" />
-      </button>
       <h1 className="ah-brand">Paperstem</h1>
       {envBadge && (
         <span
@@ -110,9 +103,15 @@ export function AppHeader({
             <button
               type="button"
               className={'ah-title-name' + (titleEditable ? ' ah-title-name-editable' : '')}
-              onClick={() => { if (titleEditable) setEditing(true); }}
-              disabled={!titleEditable}
-              title={titleEditable ? 'Click to rename' : undefined}
+              onClick={() => {
+                if (titleEditable) {
+                  setEditing(true);
+                } else if (hasProject) {
+                  onOpenPicker();
+                }
+              }}
+              disabled={!hasProject}
+              title={titleEditable ? 'Click to rename' : 'Switch project'}
             >
               {projectTitle ?? 'No project'}
             </button>
@@ -133,22 +132,22 @@ export function AppHeader({
           {stemCount} stems · {fmt(duration)}
         </span>
       )}
-      {driveFolderId && (
-        <a
-          className="ah-iconbtn"
-          href={`https://drive.google.com/drive/folders/${encodeURIComponent(driveFolderId)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Open in Drive"
-          aria-label="Open in Drive"
-        >
-          <ExternalLink size={16} strokeWidth={2} aria-hidden="true" />
-        </a>
-      )}
+      <button
+        type="button"
+        className="ah-iconbtn"
+        aria-label="Download all stems"
+        disabled={!hasProject || downloading}
+        onClick={onDownloadAll}
+        title="Download all stems"
+      >
+        {downloading
+          ? <Loader2 size={16} strokeWidth={2} className="atb-spin" aria-hidden="true" />
+          : <Download size={16} strokeWidth={2} aria-hidden="true" />}
+      </button>
       {hasProject && (
         <button
           type="button"
-          className={'ah-iconbtn' + (annotationsOpen ? ' active' : '')}
+          className={'ah-iconbtn ah-hide-on-mobile' + (annotationsOpen ? ' active' : '')}
           onClick={onToggleAnnotations}
           aria-pressed={annotationsOpen}
           title="Comments"

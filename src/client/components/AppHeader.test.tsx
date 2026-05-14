@@ -9,18 +9,20 @@ const baseProps = {
   projectTitle: 'Project 2026-04-28',
   stemCount: 9,
   duration: 272.5,
-  driveFolderId: 'drive-1',
   annotationsOpen: false,
   hasProject: true,
   canRename: true,
+  isWide: true,
   appVersion: 'test-1.0.0',
   appEnv: null,
+  downloading: false,
   onOpenPicker: vi.fn(),
   onToggleAnnotations: vi.fn(),
   onSignOut: vi.fn(),
   onReportBug: vi.fn(),
   onRenameProject: vi.fn(),
   onOpenTokens: vi.fn(),
+  onDownloadAll: vi.fn(),
 };
 
 describe('AppHeader', () => {
@@ -31,12 +33,14 @@ describe('AppHeader', () => {
     expect(screen.getByText(/9 stems/)).not.toBeNull();
   });
 
-  it('clicking ▦ calls onOpenPicker', async () => {
-    const onOpen = vi.fn();
-    const user = userEvent.setup();
-    render(<AppHeader {...baseProps} onOpenPicker={onOpen} />);
-    await user.click(screen.getByLabelText('Open projects'));
-    expect(onOpen).toHaveBeenCalledOnce();
+  it('does not render a standalone Library button anymore', () => {
+    render(<AppHeader {...baseProps} />);
+    expect(screen.queryByLabelText('Open projects')).toBeNull();
+  });
+
+  it('does not render a Drive folder link', () => {
+    render(<AppHeader {...baseProps} />);
+    expect(screen.queryByLabelText('Open in Drive')).toBeNull();
   });
 
   it('clicking ▾ caret calls onOpenPicker', async () => {
@@ -56,7 +60,7 @@ describe('AppHeader', () => {
   });
 
   it('hides 💬 and metadata when no project loaded', () => {
-    render(<AppHeader {...baseProps} hasProject={false} projectTitle={null} stemCount={0} duration={0} driveFolderId={null} />);
+    render(<AppHeader {...baseProps} hasProject={false} projectTitle={null} stemCount={0} duration={0} />);
     expect(screen.queryByTitle('Comments')).toBeNull();
     expect(screen.queryByText(/stems/)).toBeNull();
   });
@@ -97,6 +101,37 @@ describe('AppHeader', () => {
     rerender(<AppHeader {...baseProps} appVersion="dev" />);
     const fallback = screen.getByRole('link', { name: 'dev' }) as HTMLAnchorElement;
     expect(fallback.href).toBe('https://github.com/zkysar/paperstem');
+  });
+
+  it('renders a Download button', () => {
+    render(<AppHeader {...baseProps} />);
+    expect(screen.getByLabelText('Download all stems')).not.toBeNull();
+  });
+
+  it('Download button calls onDownloadAll when clicked', async () => {
+    const onDownload = vi.fn();
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} onDownloadAll={onDownload} />);
+    await user.click(screen.getByLabelText('Download all stems'));
+    expect(onDownload).toHaveBeenCalledOnce();
+  });
+
+  it('Download button is disabled when no project loaded', () => {
+    render(<AppHeader {...baseProps} hasProject={false} />);
+    expect((screen.getByLabelText('Download all stems') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('Download button shows a spinner while downloading', () => {
+    render(<AppHeader {...baseProps} downloading={true} />);
+    const btn = screen.getByLabelText('Download all stems') as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    expect(btn.querySelector('.atb-spin')).not.toBeNull();
+  });
+
+  it('header comments button has a class that hides it on mobile', () => {
+    render(<AppHeader {...baseProps} />);
+    const btn = screen.getByLabelText('Toggle comments');
+    expect(btn.className).toContain('ah-hide-on-mobile');
   });
 
   it('clicking outside the avatar menu closes it', async () => {
@@ -204,9 +239,36 @@ describe('AppHeader inline rename', () => {
     await waitFor(() => expect(onRename).toHaveBeenCalledWith('Keyboard name'));
   });
 
-  it('rename trigger is disabled when canRename is false', () => {
-    render(<AppHeader {...baseProps} canRename={false} />);
+  it('rename trigger is disabled when no project is loaded', () => {
+    render(<AppHeader {...baseProps} hasProject={false} />);
     const trigger = screen.getByRole('button', { name: 'Project 2026-04-28' });
     expect((trigger as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('on mobile, clicking the project title opens the picker (no inline rename)', async () => {
+    const onOpen = vi.fn();
+    const onRename = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...baseProps}
+        isWide={false}
+        onOpenPicker={onOpen}
+        onRenameProject={onRename}
+      />,
+    );
+    await user.click(screen.getByText('Project 2026-04-28'));
+    expect(onOpen).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('textbox', { name: /rename project/i })).toBeNull();
+    expect(onRename).not.toHaveBeenCalled();
+  });
+
+  it('on desktop, clicking the title still opens the inline rename input', async () => {
+    const onOpen = vi.fn();
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} isWide={true} onOpenPicker={onOpen} />);
+    await user.click(screen.getByText('Project 2026-04-28'));
+    expect(screen.getByRole('textbox', { name: /rename project/i })).not.toBeNull();
+    expect(onOpen).not.toHaveBeenCalled();
   });
 });
