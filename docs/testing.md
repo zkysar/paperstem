@@ -38,7 +38,7 @@ Prefer inline literals or small helper builders over fixture files. The repo cur
 - [Server jobs](#server-jobs)
 - [Server import](#server-import)
 - [Server auth](#server-auth)
-- Client components
+- [Client components](#client-components)
 - Client hooks
 - Client libs
 - Bin scripts
@@ -790,3 +790,126 @@ afterEach(() => {
 
 - For the injectable-clock pure-function pattern used in `rate-limit.test.ts`, see [Server libs](#server-libs).
 - For the full route-handler harness (env prelude, dynamic imports, `beforeAll`, `reset()`, helper factories) that `dev-login.test.ts` uses, see [Server route handlers](#server-route-handlers).
+
+### Client components
+
+**Canonical example:** `src/client/components/CommentList.test.tsx`. It has a focused render (no App wrapper, no provider), a factory helper (`ann()`), both tab-interaction and callback-assertion tests, and uses `getByRole`, `getByTestId`, and `getByLabelText` — covering the full query-preference hierarchy in a single file.
+
+#### Harness setup
+
+The client vitest project loads `src/client/test-setup.ts` automatically before any test file runs. That module installs an in-memory `localStorage` polyfill, stubs `window.confirm` to return `false`, filters happy-dom network-fetch noise, and registers `afterEach(cleanup)` so the DOM is torn down between every test. You do not need to import it or call `cleanup()` yourself.
+
+Component tests import directly from `@testing-library/react` and the component under test:
+
+```typescript
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi } from 'vitest';
+import { CommentList } from './CommentList';
+
+const baseProps = {
+  annotations,
+  selfUserId: 'u1',
+  activeId: null as string | null,
+  onSelect: vi.fn(),
+  onToggleStar: vi.fn(),
+  // ...
+};
+
+describe('CommentList', () => {
+  it('renders a card per annotation', () => {
+    render(<CommentList {...baseProps} />);
+    expect(screen.getAllByTestId(/^list-card-/)).toHaveLength(3);
+  });
+});
+```
+
+No `beforeAll`, no env prelude, no dynamic imports. All state the component needs comes in through props; callbacks are `vi.fn()`.
+
+Where props are more complex, tests define a factory helper at the top of the file rather than repeating large inline literals:
+
+```typescript
+// From CommentList.test.tsx
+function ann(over: Partial<Annotation>): Annotation {
+  return {
+    id: 'x', project_id: 'p1', user_id: 'u1',
+    user_email: 'u@example.com', user_display_name: 'Sam',
+    start_ms: 0, end_ms: null, body: 'b',
+    starred: false, created_at: 0, updated_at: 0,
+    ...over,
+  };
+}
+
+// From Track.test.tsx
+function makeStem(overrides: Partial<LoadedStem> = {}): LoadedStem {
+  return {
+    name: 'old.wav', displayName: 'old.wav', color: '#888',
+    audio: new Audio(), audioBuffer: null, userMuted: false,
+    soloed: false, userVolume: 100, projectId: 'project-1',
+    serverId: 'stem-1', gain: null, peaks: null,
+    ...overrides,
+  };
+}
+```
+
+#### Query preference order
+
+The codebase uses these queries in order of preference:
+
+1. **`getByRole`** — first choice for interactive elements (buttons, links, textboxes, sliders, dialogs, tabs, menu items). Matches what the accessibility tree exposes. Use with `{ name: /label/i }` to disambiguate when multiple elements share a role.
+2. **`getByLabelText`** — for form inputs and icon-only buttons where the accessible label is the clearest selector (e.g. `getByLabelText('Add annotation')`, `getByLabelText(/rename stem/i)`).
+3. **`getByText`** — for non-interactive content: headings, counters, body text. Used when checking that specific text is rendered.
+4. **`getByTestId`** — last resort. Used in this codebase for elements that have no accessible role or label and where `getByText` would be ambiguous — row anchors like `list-card-<id>`, `fp-row-<id>`, `annotation-marker-<id>`, and backdrop/scrim elements. When adding a `data-testid`, prefer it over `container.querySelector` for standard element lookups.
+
+#### Interactions
+
+Prefer `userEvent.setup()` + `await user.click(...)` over bare `fireEvent.click(...)` for user-initiated interactions. `userEvent` simulates the full browser event sequence (pointerdown, mousedown, focus, click, etc.) and catches bugs that `fireEvent` misses.
+
+```typescript
+import userEvent from '@testing-library/user-event';
+
+it('clicking ＋ toggles annotation create-mode', async () => {
+  const onToggle = vi.fn();
+  const user = userEvent.setup();
+  render(<AppToolbar {...baseProps} onToggleAnnotationCreate={onToggle} />);
+  await user.click(screen.getByLabelText('Add annotation'));
+  expect(onToggle).toHaveBeenCalledOnce();
+});
+```
+
+`fireEvent` is used deliberately for low-level pointer and DOM events that have no `userEvent` equivalent: `fireEvent.pointerDown`, `fireEvent.pointerMove`, `fireEvent.pointerUp` for drag sequences (Playhead, Minimap), `fireEvent.error` to trigger Audio element error handlers (Track), and `fireEvent.keyDown(document, ...)` for global keyboard listeners. Do not mix `fireEvent` and `userEvent` in the same test for the same interaction path.
+
+#### Async assertions
+
+Two patterns appear in this codebase:
+
+- **`await screen.findByText(...)`** — use when a component fetches data on mount and you're waiting for the result to appear in the DOM. `findByX` returns a promise that retries until the element appears or times out. Used in `TokensDrawer.test.tsx` because the drawer fetches `/api/me/tokens` on open.
+- **`await waitFor(() => expect(...).toHaveBeenCalledWith(...))`** — use for state assertions where there is no element to query directly, such as waiting for a debounced or async callback to fire. Used in `AppHeader.test.tsx` for the rename flow where `onRenameProject` fires after blur/Enter.
+
+```typescript
+// findByX — waiting for rendered text after a fetch
+await screen.findByText(/no import tokens/i);
+
+// waitFor — waiting for a callback to fire
+await waitFor(() => expect(onRename).toHaveBeenCalledWith('New name'));
+```
+
+If the element you're waiting for has a query equivalent, prefer `findByX` — it's shorter and clearer. Use `waitFor` only when you need to assert on a callback or state value, not a DOM element.
+
+#### What to assert
+
+Assert behavior that is visible to the user or observable through the component's public interface:
+
+- **Text rendered** — `expect(screen.getByText('1 / 3')).not.toBeNull()`
+- **Role state** — `expect((btn as HTMLButtonElement).disabled).toBe(true)`, `expect(icon.getAttribute('aria-expanded')).toBe('true')`
+- **Callbacks fired with expected args** — `expect(onToggleStar).toHaveBeenCalledWith(annotations[0])`, `expect(onSaveEdit).toHaveBeenCalledWith(annotations[0], 'updated')`
+- **Element presence/absence** — `expect(screen.queryByLabelText('Hide track controls')).toBeNull()`
+
+The most common callback assertion is `toHaveBeenCalledOnce()` (no args check) for simple toggle buttons, and `toHaveBeenCalledWith(...)` when the argument value is the thing under test.
+
+#### What not to do
+
+- **Do not render `<App />` to test a leaf component.** Every test in this codebase renders the component under test directly. Components are designed to accept all data as props; wrapping in App to test a leaf is never necessary.
+- **Do not use `container.querySelector` when `getByRole` or `getByLabelText` would work.** `querySelector` is used in this codebase only when querying by CSS class for visual/layout assertions (`container.querySelector('.track')?.classList.contains('tier-min')`) or for elements with no role/label that have no `data-testid` (e.g. `container.querySelector('.minimap-rect')`). For buttons, inputs, and labeled elements, always prefer a role or label query.
+- **Do not mix `fireEvent` and `userEvent` in the same test for the same interaction path.** Use `userEvent.setup()` + `await user.*` for user-initiated clicks, types, and keyboard input. Reserve `fireEvent` for low-level pointer sequences and DOM events that have no `userEvent` equivalent.
+- **Do not assert on class names as a proxy for behavior when a role or callback assertion exists.** The `tier-*` class tests in `Track.test.tsx` are an acceptable exception because they specifically test layout-tier CSS logic. For most behavior (disabled state, visibility, callback arguments), query the accessible state or the callback directly.
