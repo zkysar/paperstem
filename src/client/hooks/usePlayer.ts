@@ -41,11 +41,13 @@ function playUnlockBuffer(ctx: AudioContext): void {
 }
 
 // Short silent MP3 used to activate the iOS audio session inside a tap
-// handler. HTMLAudioElement.play() unlocks the device-level session more
-// reliably than scheduling a Web Audio BufferSource alone; we run both for
+// handler. iOS Safari refuses to load data: URL audio sources (.play()
+// returns a forever-pending promise — confirmed via on-device diagnostic
+// reading htmlAudio:pending), so we serve a real ~2KB MP3 from origin.
+// HTMLAudioElement.play() unlocks the device-level session more reliably
+// than scheduling a Web Audio BufferSource alone; we run both for
 // belt-and-suspenders coverage.
-const SILENT_AUDIO_DATA_URL =
-  'data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxOQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=';
+const SILENT_AUDIO_URL = '/silent.mp3';
 
 type Action =
   | { type: 'TEARDOWN' }
@@ -460,7 +462,7 @@ export function usePlayer(): PlayerControls {
         playUnlockBuffer(graph.ctx);
       }
       if (!unlockAudioRef.current) {
-        const a = new Audio(SILENT_AUDIO_DATA_URL);
+        const a = new Audio(SILENT_AUDIO_URL);
         a.preload = 'auto';
         unlockAudioRef.current = a;
       }
@@ -652,7 +654,7 @@ export function usePlayer(): PlayerControls {
     // buffer and fire resume() (no await — awaiting would consume the
     // gesture token) as belt-and-suspenders.
     if (!unlockAudioRef.current) {
-      const a = new Audio(SILENT_AUDIO_DATA_URL);
+      const a = new Audio(SILENT_AUDIO_URL);
       a.preload = 'auto';
       unlockAudioRef.current = a;
     }
