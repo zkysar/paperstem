@@ -556,7 +556,15 @@ export function usePlayer(): PlayerControls {
     });
     const ctx = audioCtxRef.current;
     if (ctx) {
-      if (ctx.state === 'suspended') {
+      // iOS Safari has a non-standard 'interrupted' state in addition to
+      // 'suspended' (entered when the tab loses focus, the screen locks,
+      // headphones unplug, or a call comes in). resume() recovers from
+      // both, but only if we actually call it — checking only for
+      // 'suspended' leaves an 'interrupted' context stuck until some
+      // other tap on the device incidentally reactivates the audio
+      // session. Resume on anything that isn't already 'running'.
+      // ('closed' resume rejects harmlessly; caught below.)
+      if (ctx.state !== 'running') {
         ctx.resume().catch(() => {
           // ignore — startSourcesAt will surface failure
         });
