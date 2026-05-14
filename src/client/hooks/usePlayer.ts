@@ -20,6 +20,7 @@ import {
   volumeToGain,
 } from '../lib/audio';
 import { fmt, longestStemIdx } from '../lib/format';
+import { isIOS } from '../lib/platform';
 
 const LOOP_TAIL = 0.005;
 const END_TAIL = 0.02;
@@ -700,12 +701,14 @@ export function usePlayer(): PlayerControls {
     // HTMLAudio.play() promise on a small same-origin source never
     // settles (the element hangs in HAVE_NOTHING). Under normal
     // conditions it resolves in well under a second. Race it against a
-    // timeout to drive the audio-suppressed banner.
+    // timeout to drive the audio-suppressed banner. iOS-only — macOS
+    // Safari can momentarily stall the same probe with no user-visible
+    // suppression, which would produce false-positive banners.
     const myGen = ++dndProbeGenRef.current;
-    const probeAudio = new Audio(SILENT_AUDIO_URL);
-    probeAudio.volume = 0;
-    const probePromise = probeAudio.play();
-    let probeSettled = false;
+    const probeAudio = isIOS() ? new Audio(SILENT_AUDIO_URL) : null;
+    if (probeAudio) probeAudio.volume = 0;
+    const probePromise = probeAudio?.play() ?? null;
+    let probeSettled = !probeAudio;
     void probePromise
       ?.then(() => {
         probeSettled = true;
@@ -718,10 +721,12 @@ export function usePlayer(): PlayerControls {
         // same gesture. Leave audioSuppressed as it was.
         probeSettled = true;
       });
-    window.setTimeout(() => {
-      if (myGen !== dndProbeGenRef.current) return;
-      if (!probeSettled) setAudioSuppressed(true);
-    }, DND_PROBE_TIMEOUT_MS);
+    if (probeAudio) {
+      window.setTimeout(() => {
+        if (myGen !== dndProbeGenRef.current) return;
+        if (!probeSettled) setAudioSuppressed(true);
+      }, DND_PROBE_TIMEOUT_MS);
+    }
     // Dev diagnostic — gated to dev environments at the render site.
     const stems = stateRef.current.stems;
     const decodedCount = stems.filter((stem) => stem.audioBuffer != null).length;
