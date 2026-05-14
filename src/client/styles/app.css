@@ -864,42 +864,6 @@ button.track-name:disabled { cursor: default; }
   .ah-hide-on-mobile {
     display: none !important;
   }
-
-  /* Pin the toolbar to the bottom of the viewport on mobile (Task 13). */
-  .app-toolbar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 40;
-    background: var(--paper);
-    border-top: 1px solid var(--rule);
-    border-bottom: none;
-    padding-bottom: max(env(safe-area-inset-bottom), 4px);
-    padding-left: max(env(safe-area-inset-left), 8px);
-    padding-right: max(env(safe-area-inset-right), 8px);
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
-  }
-
-  /* CommentsFab lifts above the new bottom toolbar. */
-  .comments-fab {
-    bottom: calc(56px + env(safe-area-inset-bottom) + 12px);
-  }
-
-  /* Popovers anchored inside the toolbar grow UPWARD on mobile. */
-  .atb-overflow-menu,
-  .atb-master-pop {
-    bottom: calc(100% + 6px);
-    top: auto;
-  }
-
-  /* Reserve scrollable canvas space so content doesn't sit under the bar.
-     .app-shell is the flex column that previously had the sticky toolbar
-     in flow; padding-bottom here shrinks the inner .viewport scroller so
-     it ends at the top of the fixed toolbar. */
-  .app-shell {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom));
-  }
 }
 
 /* ===== Login screen ===== */
@@ -3010,4 +2974,53 @@ body.env-non-prod[data-env="local"]::before {
   min-width: 40px;
   text-align: center;
   color: var(--ink-2);
+}
+
+/* ===== Mobile toolbar overrides — must come AFTER base .app-toolbar /
+   .comments-fab / .atb-overflow-menu / .atb-master-pop rules so these win
+   the cascade at equal specificity. ===== */
+@media (max-width: 720px) {
+  /* Pin the toolbar to the bottom of the viewport. */
+  .app-toolbar {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    background: var(--paper);
+    border-top: 1px solid var(--rule);
+    border-bottom: none;
+    padding-bottom: max(env(safe-area-inset-bottom), 4px);
+    padding-left: max(env(safe-area-inset-left), 8px);
+    padding-right: max(env(safe-area-inset-right), 8px);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+    gap: 2px;
+  }
+
+  /* Hide visual dividers on mobile — they consume ~12px each (1px + 4+4 margin
+     + 4 gap on each side) and push the rightmost buttons off the viewport. */
+  .app-toolbar .atb-divider {
+    display: none;
+  }
+
+  /* CommentsFab lifts above the new bottom toolbar. */
+  .comments-fab {
+    bottom: calc(56px + env(safe-area-inset-bottom) + 12px);
+  }
+
+  /* Popovers anchored inside the toolbar grow UPWARD. */
+  .atb-overflow-menu,
+  .atb-master-pop {
+    top: auto;
+    bottom: calc(100% + 6px);
+  }
+
+  /* Reserve scrollable canvas space so content doesn't sit under the bar.
+     .app-shell is the flex column that previously held the sticky toolbar
+     in flow; padding-bottom here shrinks the inner .viewport scroller so
+     it ends at the top of the fixed toolbar. */
+  .app-shell {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
 }
