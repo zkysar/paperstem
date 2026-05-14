@@ -190,7 +190,7 @@ export type PlayerControls = {
     driveFolderId: string | null;
     sources: StemSource[];
   }): Promise<void>;
-  togglePlay(): Promise<void>;
+  togglePlay(): void;
   pause(): void;
   seek(t: number): void;
   setVolume(idx: number, vol: number): void;
@@ -517,24 +517,39 @@ export function usePlayer(): PlayerControls {
     isPlayingInternalRef.current = false;
   }, []);
 
-  const togglePlay = useCallback(async () => {
+  const togglePlay = useCallback(() => {
     const s = stateRef.current;
     if (!s.stems.length) return;
     if (s.isPlaying) {
       pause();
       return;
     }
+    // iOS Safari only unlocks the audio session when the gesture handler
+    // schedules audio synchronously. Awaiting ctx.resume() consumes the
+    // user-activation token before we get to startSourcesAt, leaving the
+    // context "running" but the speaker silent until some other tap on the
+    // device unlocks it. So: fire resume without awaiting, and play a
+    // one-sample silent buffer in the same gesture to force the unlock.
+    const ctx = audioCtxRef.current;
+    if (ctx) {
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {
+          // ignore — startSourcesAt will surface failure
+        });
+      }
+      try {
+        const silent = ctx.createBuffer(1, 1, 22050);
+        const unlock = ctx.createBufferSource();
+        unlock.buffer = silent;
+        unlock.connect(ctx.destination);
+        unlock.start(0);
+      } catch {
+        // ignore — the real sources below are what matter
+      }
+    }
     dispatch({ type: 'SET_PLAYING', isPlaying: true });
     stateRef.current = { ...stateRef.current, isPlaying: true };
     isPlayingInternalRef.current = true;
-    const ctx = audioCtxRef.current;
-    if (ctx && ctx.state === 'suspended') {
-      try {
-        await ctx.resume();
-      } catch {
-        // ignore — startSourcesAt will surface failure
-      }
-    }
     const offset = pausedOffsetRef.current;
     const ok = startSourcesAt(offset);
     if (!ok) {
@@ -545,10 +560,6 @@ export function usePlayer(): PlayerControls {
         type: 'SET_STATUS',
         status: 'Playback blocked — click the page once and try again.',
       });
-    }
-    // Honor a pause that arrived while we were awaiting resume().
-    if (!stateRef.current.isPlaying) {
-      stopSources();
     }
   }, [pause]);
 
