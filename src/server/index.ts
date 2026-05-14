@@ -45,6 +45,12 @@ import {
   handleListReplies,
   handlePatchReply,
 } from './annotation-replies.js';
+import {
+  handleAddAnnotationReaction,
+  handleAddReplyReaction,
+  handleRemoveAnnotationReaction,
+  handleRemoveReplyReaction,
+} from './annotation-reactions.js';
 import { handleSnapshotsHealth } from './health.js';
 import { handleVersion } from './version.js';
 import { handleBugReport } from './bug-report.js';
@@ -94,6 +100,10 @@ app.get('/api/annotations/:annotationId/replies', handleListReplies);
 app.post('/api/annotations/:annotationId/replies', handleCreateReply);
 app.patch('/api/annotation-replies/:id', handlePatchReply);
 app.delete('/api/annotation-replies/:id', handleDeleteReply);
+app.post('/api/annotations/:annotationId/reactions', handleAddAnnotationReaction);
+app.delete('/api/annotations/:annotationId/reactions', handleRemoveAnnotationReaction);
+app.post('/api/annotation-replies/:replyId/reactions', handleAddReplyReaction);
+app.delete('/api/annotation-replies/:replyId/reactions', handleRemoveReplyReaction);
 app.get('/api/health/snapshots', handleSnapshotsHealth);
 app.get('/api/version', handleVersion);
 app.post('/api/bug-report', handleBugReport);
