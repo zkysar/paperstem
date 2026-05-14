@@ -33,7 +33,7 @@ Prefer inline literals (object constructors, hand-rolled buffers) over fixture f
 (Filled in by subsequent tasks.)
 
 - [Server route handlers](#server-route-handlers)
-- Server libs
+- [Server libs](#server-libs)
 - Server migrations
 - Server jobs
 - Server import
@@ -201,3 +201,57 @@ No significant anti-patterns were spotted across the nine files. A few minor not
 
 - `bands.test.ts` names its reset function `resetTables()` instead of `reset()`. This is cosmetic but inconsistent with the other files; prefer `reset()` for uniformity.
 - `annotations.test.ts` omits `driveMod._resetTokenCacheForTests()` and `vi.restoreAllMocks()` from its `reset()` — acceptable because annotations routes never call Drive, but it means the function signature diverges from the canonical pattern. If Drive calls are ever added to annotations, the omission will be easy to miss.
+
+### Server libs
+
+**Canonical example:** `src/server/auth/rate-limit.test.ts`. It is the purest example in the category: a plain import, no DB, no Hono app, no `beforeEach`/`afterEach` setup, just `describe`/`it` with direct assertions against a single class.
+
+> **Note on the task spec:** The task asked to use `src/server/audio.test.ts` and `src/server/tokens.test.ts` as references. Both are actually route-handler tests — they spin up a Hono app, open a real SQLite DB, and use `beforeAll`/`beforeEach` session setup. The actual server lib tests live in `src/server/auth/`.
+
+#### Harness setup
+
+None. These tests import the module under test directly and exercise it inline.
+
+```typescript
+import { describe, expect, it } from 'vitest';
+import { TokenBucketLimiter } from './rate-limit.js';
+
+describe('TokenBucketLimiter', () => {
+  it('allows the first request and blocks the second within the window', () => {
+    // ...
+  });
+});
+```
+
+No `beforeAll`, no DB path, no env prelude, no fixture helpers.
+
+#### What to assert
+
+Test representative inputs, boundary values, and refill/capacity behavior. From `rate-limit.test.ts`:
+
+```typescript
+// Boundary: refill triggers exactly at the interval, not one ms before
+now += 59_999;
+expect(limiter.tryConsume('a')).toBe(false);
+now += 1;
+expect(limiter.tryConsume('a')).toBe(true);
+
+// Capacity cap: long idle does not accumulate tokens beyond capacity
+now += 600_000;
+expect(limiter.tryConsume('a')).toBe(true);
+expect(limiter.tryConsume('a')).toBe(true);
+expect(limiter.tryConsume('a')).toBe(false);
+```
+
+Where the class accepts an injectable clock (`() => now`), use it — it removes real-time dependency and lets tests advance time without `sleep`.
+
+`src/server/auth/cookie.test.ts` is a near-lib test: it exercises `setSessionCookie` and `SESSION_COOKIE_NAME` against a hand-rolled Hono context stub, with `beforeEach` flipping `NODE_ENV`. It is slightly more involved than a pure lib test because the function under test depends on env state and writes to a response object.
+
+#### What not to do
+
+Don't reach for mocks or fakes when the function is pure. If the unit you're testing is not pure — it calls the DB, calls Drive, or handles HTTP — it belongs in another category:
+
+- Has a `c: Context` parameter and returns a `Response`? Route handler.
+- Runs in a scheduler loop, reads from DB, writes back? Job.
+- Reads a raw binary buffer to produce structured data? Server import.
+- Opens and mutates a SQLite schema? Migration.
