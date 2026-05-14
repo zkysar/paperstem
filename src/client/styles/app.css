@@ -1343,6 +1343,46 @@ button.ah-title-name:disabled { cursor: default; }
   font-weight: var(--fw-semi); font-size: var(--fs-2xs);
   border: none; cursor: pointer;
 }
+.atb-overflow-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.atb-overflow-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  min-width: 220px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+}
+
+.atb-overflow-menu button[role="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-size: var(--fs-md);
+  color: var(--ink);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.atb-overflow-menu button[role="menuitem"]:hover,
+.atb-overflow-menu button[role="menuitem"]:focus-visible {
+  background: var(--rule-2);
+  outline: none;
+}
+
 .ah-avatar-menu {
   position: absolute; top: 100%; right: 0;
   margin-top: 6px;

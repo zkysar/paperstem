@@ -62,35 +62,16 @@ describe('AppToolbar', () => {
     expect(screen.queryByLabelText('Download all stems')).toBeNull();
   });
 
-  it('keeps ▥ ◉ enabled even without project (user prefs)', () => {
-    render(<AppToolbar {...baseProps} hasProject={false} canCreateAnnotations={false} />);
-    expect((screen.getByLabelText('Toggle waveform scale') as HTMLButtonElement).disabled).toBe(false);
-    expect((screen.getByLabelText('Toggle marker visibility') as HTMLButtonElement).disabled).toBe(false);
-  });
-
   it('disables ＋ when canCreateAnnotations is false', () => {
     render(<AppToolbar {...baseProps} canCreateAnnotations={false} />);
     expect((screen.getByLabelText('Add annotation') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('hides rail-toggle when showRailToggle is false', () => {
-    render(<AppToolbar {...baseProps} showRailToggle={false} />);
-    expect(screen.queryByLabelText('Hide track controls')).toBeNull();
-    expect(screen.queryByLabelText('Show track controls')).toBeNull();
-  });
-
-  it('renders rail-toggle on narrow viewports when showRailToggle is true', () => {
-    // Stems live in the rail; narrow-viewport users still need a way to open
-    // it to access stem rename/delete actions.
-    render(
-      <AppToolbar
-        {...baseProps}
-        isWide={false}
-        railCollapsed={true}
-        showRailToggle={true}
-      />,
-    );
-    expect(screen.getByLabelText('Show track controls')).not.toBeNull();
+  it('renders rail-toggle inside the overflow menu when showRailToggle is true', async () => {
+    const user = userEvent.setup();
+    render(<AppToolbar {...baseProps} showRailToggle={true} />);
+    await user.click(screen.getByLabelText('More options'));
+    expect(screen.getByRole('menuitem', { name: /track controls/i })).not.toBeNull();
   });
 
   it('renders 0:00 / 0:00 when duration is 0', () => {
@@ -234,13 +215,6 @@ describe('AppToolbar zoom group', () => {
     render(<AppToolbar {...baseProps} viewport={viewport} />);
     fireEvent.click(screen.getByLabelText('Zoom in'));
     expect(zoomH).toHaveBeenCalledWith('in', expect.any(Object));
-  });
-
-  it('clicking ? button calls onOpenShortcuts', () => {
-    const onOpenShortcuts = vi.fn();
-    render(<AppToolbar {...baseProps} viewport={vp()} onOpenShortcuts={onOpenShortcuts} />);
-    fireEvent.click(screen.getByLabelText('Keyboard shortcuts'));
-    expect(onOpenShortcuts).toHaveBeenCalledOnce();
   });
 
   it('does not render a minimap toggle button', () => {

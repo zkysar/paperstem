@@ -1,13 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  AudioWaveform,
-  Eye,
-  EyeOff,
-  HelpCircle,
   Maximize2,
   MessageSquarePlus,
-  PanelRightClose,
-  PanelRightOpen,
   Pause,
   Play,
   Repeat,
@@ -21,6 +15,7 @@ import {
 import { fmt } from '../lib/format';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
 import type { ViewportControls } from '../hooks/useViewport';
+import { ToolbarOverflowMenu } from './ToolbarOverflowMenu';
 
 type Props = {
   hasProject: boolean;
@@ -171,11 +166,6 @@ export function AppToolbar(props: Props) {
           </div>
         )}
       </div>
-      <button type="button" className={'atb-btn' + (waveformNormalization === 'global' ? ' on' : '')}
-        aria-label="Toggle waveform scale"
-        aria-pressed={waveformNormalization === 'global'}
-        onClick={onToggleWaveformNormalization}><AudioWaveform size={16} strokeWidth={2} aria-hidden="true" /></button>
-
       <span className="atb-divider" />
 
       <button type="button"
@@ -184,30 +174,6 @@ export function AppToolbar(props: Props) {
         aria-pressed={annotationCreateMode}
         disabled={!canCreateAnnotations}
         onClick={onToggleAnnotationCreate}><MessageSquarePlus size={16} strokeWidth={2} aria-hidden="true" /></button>
-      <button type="button"
-        className={'atb-btn' + (markersVisible ? ' on' : '')}
-        aria-label="Toggle marker visibility"
-        aria-pressed={markersVisible}
-        onClick={onToggleMarkersVisible}>
-        {markersVisible
-          ? <Eye size={16} strokeWidth={2} aria-hidden="true" />
-          : <EyeOff size={16} strokeWidth={2} aria-hidden="true" />}
-      </button>
-
-      {showRailToggle && (
-        <>
-          <span className="atb-divider" />
-          <button type="button"
-            className={'atb-btn' + (railCollapsed ? ' on' : '')}
-            aria-label={railCollapsed ? 'Show track controls' : 'Hide track controls'}
-            aria-pressed={railCollapsed}
-            onClick={onToggleRailCollapsed}>
-            {railCollapsed
-              ? <PanelRightOpen size={16} strokeWidth={2} aria-hidden="true" />
-              : <PanelRightClose size={16} strokeWidth={2} aria-hidden="true" />}
-          </button>
-        </>
-      )}
 
       <span className="atb-divider" />
 
@@ -253,17 +219,6 @@ export function AppToolbar(props: Props) {
         >
           <Maximize2 size={14} aria-hidden="true" />
         </button>
-        {isWide && (
-          <button
-            type="button"
-            className="atb-btn"
-            onClick={onOpenShortcuts}
-            aria-label="Keyboard shortcuts"
-            title="Keyboard shortcuts (?)"
-          >
-            <HelpCircle size={14} aria-hidden="true" />
-          </button>
-        )}
       </div>
 
       <span className="atb-divider" />
@@ -288,6 +243,17 @@ export function AppToolbar(props: Props) {
           onSetMasterVolume={onSetMasterVolume}
         />
       )}
+
+      <ToolbarOverflowMenu
+        waveformNormalization={waveformNormalization}
+        markersVisible={markersVisible}
+        railCollapsed={railCollapsed}
+        showRailToggle={showRailToggle}
+        onToggleWaveformNormalization={onToggleWaveformNormalization}
+        onToggleMarkersVisible={onToggleMarkersVisible}
+        onToggleRailCollapsed={onToggleRailCollapsed}
+        onOpenShortcuts={onOpenShortcuts}
+      />
     </div>
   );
 }
