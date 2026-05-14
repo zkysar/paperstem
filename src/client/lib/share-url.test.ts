@@ -86,6 +86,29 @@ describe('share-url', () => {
   it('ignores unknown keys (forward compat)', () => {
     expect(decodeShareUrl('p=x&future_key=hello')).toEqual({ projectId: 'x' });
   });
+
+  it('round-trips a view (timeLeft/timeRight) and trackHeight', () => {
+    const fragment = encodeShareUrl({
+      projectId: 'x',
+      view: { timeLeft: 12, timeRight: 18 },
+      trackHeight: 80,
+    });
+    expect(fragment).toBe('p=x&tl=12.00&tr=18.00&tz=80');
+    expect(decodeShareUrl(fragment)).toEqual({
+      projectId: 'x',
+      view: { timeLeft: 12, timeRight: 18 },
+      trackHeight: 80,
+    });
+  });
+
+  it('omits trackHeight at default', () => {
+    expect(encodeShareUrl({ projectId: 'x', trackHeight: 44 })).toBe('p=x');
+  });
+
+  it('drops an inverted or negative view', () => {
+    expect(decodeShareUrl('p=x&tl=10&tr=5')).toEqual({ projectId: 'x' });
+    expect(decodeShareUrl('p=x&tl=-1&tr=5')).toEqual({ projectId: 'x' });
+  });
 });
 
 function makeStem(over: Partial<LoadedStem>): LoadedStem {
@@ -176,6 +199,65 @@ describe('snapshotShareState', () => {
     expect(s.time).toBe(20);
     expect(s.focusedCommentId).toBe('cmt2');
   });
+
+  it('captures the visible time window when zoomed in', () => {
+    // duration=60, stageWidth=1000, rail=200, hZoom=4 → inner=4000, wave=3800,
+    // visible wave = 800. scrollLeft=500 maps to tl = 500/3800*60 ≈ 7.894,
+    // tr = (500+800)/3800*60 ≈ 20.526.
+    const s = snapshotShareState({
+      projectId: 'p1',
+      player: makePlayer({ duration: 60 }),
+      currentTime: 0,
+      activeCommentId: null,
+      viewport: {
+        hZoom: 4,
+        trackHeight: 44,
+        scrollLeft: 500,
+        stageWidth: 1000,
+        railWidth: 200,
+      },
+    });
+    expect(s.view).toBeDefined();
+    expect(s.view!.timeLeft).toBeCloseTo(7.894, 2);
+    expect(s.view!.timeRight).toBeCloseTo(20.526, 2);
+    expect(s.trackHeight).toBeUndefined();
+  });
+
+  it('omits view at hZoom=1 (fit-to-window)', () => {
+    const s = snapshotShareState({
+      projectId: 'p1',
+      player: makePlayer(),
+      currentTime: 0,
+      activeCommentId: null,
+      viewport: {
+        hZoom: 1,
+        trackHeight: 44,
+        scrollLeft: 0,
+        stageWidth: 1000,
+        railWidth: 200,
+      },
+    });
+    expect(s.view).toBeUndefined();
+    expect(s.trackHeight).toBeUndefined();
+  });
+
+  it('captures trackHeight when non-default even at hZoom=1', () => {
+    const s = snapshotShareState({
+      projectId: 'p1',
+      player: makePlayer(),
+      currentTime: 0,
+      activeCommentId: null,
+      viewport: {
+        hZoom: 1,
+        trackHeight: 80,
+        scrollLeft: 0,
+        stageWidth: 1000,
+        railWidth: 200,
+      },
+    });
+    expect(s.view).toBeUndefined();
+    expect(s.trackHeight).toBe(80);
+  });
 });
 
 describe('buildShareUrl', () => {
@@ -198,7 +280,14 @@ describe('describeShareCategories', () => {
         loop: { start: 0, end: 1, enabled: true },
         mix: [{ stemId: 'a', muted: true }],
         focusedCommentId: 'c',
+        view: { timeLeft: 1, timeRight: 2 },
       }),
-    ).toEqual(['loop', 'mix', 'comment']);
+    ).toEqual(['loop', 'mix', 'comment', 'view']);
+  });
+
+  it('lists view when only trackHeight is set', () => {
+    expect(
+      describeShareCategories({ projectId: 'x', trackHeight: 80 }),
+    ).toEqual(['view']);
   });
 });

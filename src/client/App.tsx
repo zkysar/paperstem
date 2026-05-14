@@ -489,9 +489,14 @@ function PaperstemApp({
     if (!pending) return;
     if (player.state.projectId !== pending.projectId) return;
     if (player.state.stems.length === 0) return;
+    // If the share state carries a view (zoom + scroll), wait for the player
+    // stage to be measured so the recipient lands on the exact same time
+    // window the sharer was looking at, regardless of screen size.
+    if ((pending.view || pending.trackHeight != null) && viewport.state.stageWidth === 0) return;
 
     const result = applyShareState(pending, {
       player,
+      viewport,
       onFocusComment: (id) => {
         setActiveCommentId(id);
         setEmphasizedCommentId(id);
@@ -506,7 +511,7 @@ function PaperstemApp({
     if (hasNonTrivial) {
       setArrival({ time: result.time, categories: result.appliedCategories });
     }
-  }, [player, openDrawer]);
+  }, [player, openDrawer, viewport]);
 
   // Auto-dismiss the arrival banner once playback starts (either via the
   // banner's ▶ Listen button or any manual play).
@@ -655,10 +660,17 @@ function PaperstemApp({
       player: player.state,
       currentTime: player.currentTime,
       activeCommentId,
+      viewport: {
+        hZoom: viewport.state.hZoom,
+        trackHeight: viewport.state.trackHeight,
+        scrollLeft: viewport.state.scrollLeft,
+        stageWidth: viewport.state.stageWidth,
+        railWidth: viewport.state.railWidth,
+      },
     });
     const url = buildShareUrl(state, window.location.href);
     return { fullUrl: url, categories: describeShareCategories(state) };
-  }, [activeProjectId, player.state, player.currentTime, activeCommentId]);
+  }, [activeProjectId, player.state, player.currentTime, activeCommentId, viewport.state]);
 
   // "Copy link to this comment" — overrides the time and focused comment to
   // pin the URL to the annotation rather than the live playhead. The
@@ -672,6 +684,13 @@ function PaperstemApp({
         player: player.state,
         currentTime: player.currentTime,
         activeCommentId,
+        viewport: {
+          hZoom: viewport.state.hZoom,
+          trackHeight: viewport.state.trackHeight,
+          scrollLeft: viewport.state.scrollLeft,
+          stageWidth: viewport.state.stageWidth,
+          railWidth: viewport.state.railWidth,
+        },
       },
       { time: a.start_ms / 1000, focusedCommentId: a.id },
     );
@@ -681,7 +700,7 @@ function PaperstemApp({
     } catch (err) {
       console.warn('Failed to copy comment link', err);
     }
-  }, [activeProjectId, player.state, player.currentTime, activeCommentId]);
+  }, [activeProjectId, player.state, player.currentTime, activeCommentId, viewport.state]);
 
   async function handleToggleStar(a: Annotation): Promise<void> {
     const prev = annotations;

@@ -105,15 +105,20 @@ export function Player({
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
-    const ro = new ResizeObserver(() => forceRender((n) => n + 1));
+    const ro = new ResizeObserver(() => {
+      forceRender((n) => n + 1);
+      const s = stageRef.current;
+      if (s) viewport.setStageWidth(s.getBoundingClientRect().width);
+    });
     ro.observe(stage);
+    viewport.setStageWidth(stage.getBoundingClientRect().width);
     // Also watch the ruler: when the tracks area gets a scrollbar (or loses
     // one), .stage's outer width is unchanged but the wave column inside it
     // shrinks, so overlay positions need to re-measure off the ruler's rect.
     const ruler = rulerRef.current;
     if (ruler) ro.observe(ruler);
     return () => ro.disconnect();
-  }, []);
+  }, [viewport]);
   // ResizeObserver fires async after layout, so the first render under a new
   // `railCollapsed` className still uses pre-commit DOM. Re-measure
   // synchronously so the overlay snaps in place rather than drifting for one
@@ -441,6 +446,11 @@ export function Player({
   // the full row.
   const railWidth = railCollapsed ? 0 : 260; // matches --rail-w in app.css
   const waveWidth = Math.max(0, innerWidth - railWidth);
+  // Mirror railWidth into viewport state so share-link snapshot/apply can read
+  // it without re-deriving from railCollapsed.
+  useEffect(() => {
+    viewport.setRailWidth(railWidth);
+  }, [railWidth, viewport]);
   // Playhead uses the same linear t → x mapping as the loop region,
   // annotation markers, and minimap. Z-index (5) places it above the
   // sticky rail (3), so the 1px line stays visible at t=0 even though
