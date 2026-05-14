@@ -1670,6 +1670,7 @@ body.env-non-prod[data-env="local"]::before {
   width: 28px; height: 28px;
   background: var(--rule-2); border: none; border-radius: 5px;
   color: var(--ink); cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .fp-tabs {
   display: flex; gap: 18px;
@@ -1707,6 +1708,9 @@ body.env-non-prod[data-env="local"]::before {
   color: var(--muted);
   border-bottom: 1px solid var(--rule);
 }
+/* Right-align the numeric Stems column so header and count share a baseline edge */
+.fp-row-head > :nth-child(4),
+.fp-row-main > :nth-child(4) { text-align: right; }
 .fp-row-data {
   /* Row is a flex/grid container, not a button — Task 9 nests button + link */
   cursor: default;
@@ -1899,6 +1903,17 @@ body.env-non-prod[data-env="local"]::before {
   .fp-header { flex-wrap: wrap; }
   .fp-header .fp-search { order: 99; flex: 1 1 100%; margin-top: 8px; }
   .fp-header .fp-upload-btn { display: none; }
+  /* Drop the date column and shrink the waveform thumb so the name has real
+     room. Without this, fixed columns sum > viewport and the 1fr name column
+     collapses to min-content, wrapping one word per line. */
+  .fp-row {
+    grid-template-columns: 1fr 64px auto 52px;
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .fp-row-head > :nth-child(3),
+  .fp-row-main > :nth-child(3) { display: none; }
+  .fp-name { overflow-wrap: anywhere; }
 }
 .fp-upload-bottom { display: none; }
 @media (max-width: 720px) {
