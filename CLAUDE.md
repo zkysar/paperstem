@@ -75,6 +75,10 @@ Walks `bands` and points each at a real local folder. Skips already-`local:` row
 
 A pre-push hook in [scripts/git-hooks/pre-push](scripts/git-hooks/pre-push) runs `npm run build` and `vitest` before any push and blocks if either fails (matches CI). It also refuses direct pushes to `main` — open a PR instead (see below). New checkouts must opt in once: `git config core.hooksPath scripts/git-hooks`. Bypass with `git push --no-verify`.
 
+## Tests
+
+Conventions for adding tests live in [docs/testing.md](docs/testing.md). Read that before writing new test files — it covers the harness setup per category and the canonical examples to copy from.
+
 ## Shipping changes — PRs only
 
 **Do not merge work into `main` locally and push.** Every change lands through a GitHub PR, even tiny ones. `main` has branch protection requiring a PR; the local pre-push hook also refuses direct `main` pushes. This keeps history reviewable and CI honest.
