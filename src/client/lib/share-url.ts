@@ -1,10 +1,21 @@
 import type { PlayerState } from '../data/types';
+import { DEFAULT_TRACK_H, MIN_HZOOM } from '../hooks/useViewport';
 
 export type ShareMixEntry = {
   stemId: string;
   muted?: boolean;
   soloed?: boolean;
   volume?: number; // integer 0..200, undefined = at default (100)
+};
+
+/**
+ * The visible time window on the timeline at share time. Encoded as the
+ * start (`tl`) and end (`tr`) times in seconds rather than scrollLeft +
+ * hZoom so recipients see the same time range regardless of screen size.
+ */
+export type ShareView = {
+  timeLeft: number;
+  timeRight: number;
 };
 
 export type ShareState = {
@@ -14,6 +25,10 @@ export type ShareState = {
   masterVolume?: number; // integer 0..200, undefined = at default
   focusedCommentId?: string;
   mix?: ShareMixEntry[];
+  /** Horizontal zoom + scroll, expressed as a visible time window. */
+  view?: ShareView;
+  /** Vertical zoom (track height in px). */
+  trackHeight?: number;
 };
 
 export function encodeShareUrl(state: ShareState): string {
@@ -41,6 +56,13 @@ export function encodeShareUrl(state: ShareState): string {
       return s;
     });
     params.push(`mix=${parts.join(',')}`);
+  }
+  if (state.view) {
+    params.push(`tl=${state.view.timeLeft.toFixed(2)}`);
+    params.push(`tr=${state.view.timeRight.toFixed(2)}`);
+  }
+  if (state.trackHeight != null && state.trackHeight !== DEFAULT_TRACK_H) {
+    params.push(`tz=${Math.round(state.trackHeight)}`);
   }
   return params.join('&');
 }
@@ -95,14 +117,37 @@ export function decodeShareUrl(fragment: string): ShareState | null {
     }
     if (entries.length) state.mix = entries;
   }
+  const tl = sp.get('tl');
+  const tr = sp.get('tr');
+  if (tl != null && tr != null) {
+    const a = Number(tl);
+    const b = Number(tr);
+    if (Number.isFinite(a) && Number.isFinite(b) && b > a && a >= 0) {
+      state.view = { timeLeft: a, timeRight: b };
+    }
+  }
+  const tz = sp.get('tz');
+  if (tz != null) {
+    const n = Number(tz);
+    if (Number.isFinite(n) && n > 0) state.trackHeight = Math.round(n);
+  }
   return state;
 }
+
+export type SnapshotViewport = {
+  hZoom: number;
+  trackHeight: number;
+  scrollLeft: number;
+  stageWidth: number;
+  railWidth: number;
+};
 
 export type SnapshotInput = {
   projectId: string;
   player: PlayerState;
   currentTime: number;
   activeCommentId: string | null;
+  viewport?: SnapshotViewport;
 };
 
 export type SnapshotOverrides = {
@@ -145,6 +190,22 @@ export function snapshotShareState(
   }
   if (mix.length) state.mix = mix;
 
+  if (input.viewport && player.duration > 0) {
+    const v = input.viewport;
+    const wave = Math.max(0, v.stageWidth * v.hZoom - v.railWidth);
+    const waveVisible = Math.max(0, v.stageWidth - v.railWidth);
+    if (v.hZoom > MIN_HZOOM && wave > 0) {
+      const tl = (v.scrollLeft / wave) * player.duration;
+      const tr = ((v.scrollLeft + waveVisible) / wave) * player.duration;
+      const tlC = Math.max(0, Math.min(player.duration, tl));
+      const trC = Math.max(tlC + 0.01, Math.min(player.duration, tr));
+      state.view = { timeLeft: tlC, timeRight: trC };
+    }
+    if (v.trackHeight !== DEFAULT_TRACK_H) {
+      state.trackHeight = v.trackHeight;
+    }
+  }
+
   return state;
 }
 
@@ -157,10 +218,11 @@ export function buildShareUrl(state: ShareState, baseUrl: string): string {
 /** Human-readable list of what's in the share state beyond project + time. */
 export function describeShareCategories(
   state: ShareState,
-): Array<'loop' | 'mix' | 'comment'> {
-  const cats: Array<'loop' | 'mix' | 'comment'> = [];
+): Array<'loop' | 'mix' | 'comment' | 'view'> {
+  const cats: Array<'loop' | 'mix' | 'comment' | 'view'> = [];
   if (state.loop) cats.push('loop');
   if (state.mix && state.mix.length) cats.push('mix');
   if (state.focusedCommentId) cats.push('comment');
+  if (state.view || state.trackHeight != null) cats.push('view');
   return cats;
 }

@@ -1,13 +1,15 @@
 import type { PlayerControls } from '../hooks/usePlayer';
+import type { ViewportControls } from '../hooks/useViewport';
 import type { ShareState } from './share-url';
 
 export type ApplyResult = {
-  appliedCategories: Array<'loop' | 'mix' | 'comment'>;
+  appliedCategories: Array<'loop' | 'mix' | 'comment' | 'view'>;
   time: number | null;
 };
 
 export type ApplyContext = {
   player: PlayerControls;
+  viewport: ViewportControls;
   onFocusComment: (id: string) => void;
   onOpenDrawer: () => void;
 };
@@ -22,8 +24,8 @@ export type ApplyContext = {
  * the recipient is responsible for starting playback.
  */
 export function applyShareState(state: ShareState, ctx: ApplyContext): ApplyResult {
-  const { player } = ctx;
-  const cats: Array<'loop' | 'mix' | 'comment'> = [];
+  const { player, viewport } = ctx;
+  const cats: Array<'loop' | 'mix' | 'comment' | 'view'> = [];
 
   if (state.loop) {
     player.setLoop(state.loop.start, state.loop.end);
@@ -55,6 +57,39 @@ export function applyShareState(state: ShareState, ctx: ApplyContext): ApplyResu
     ctx.onFocusComment(state.focusedCommentId);
     ctx.onOpenDrawer();
     cats.push('comment');
+  }
+
+  // View (zoom + scroll) applied before seek so the smooth-follow loop, when
+  // playback starts, animates from the shared view rather than a fit-to-window
+  // state. The visible time window is reconstructed using the recipient's
+  // own stage/rail measurements so the same time range is visible regardless
+  // of screen size.
+  let viewApplied = false;
+  const setView: { hZoom?: number; trackHeight?: number; scrollLeft?: number } = {};
+  if (state.view) {
+    const { stageWidth, railWidth } = viewport.state;
+    const duration = player.state.duration;
+    const span = state.view.timeRight - state.view.timeLeft;
+    if (stageWidth > 0 && duration > 0 && span > 0) {
+      const waveVisible = Math.max(1, stageWidth - railWidth);
+      // wave = waveVisible × duration / span — the wave-area width that maps
+      // the requested time span onto the visible wave column.
+      const wave = (waveVisible * duration) / span;
+      const innerWidth = wave + railWidth;
+      const hZoom = innerWidth / stageWidth;
+      const scrollLeft = (state.view.timeLeft / duration) * wave;
+      setView.hZoom = hZoom;
+      setView.scrollLeft = scrollLeft;
+      viewApplied = true;
+    }
+  }
+  if (state.trackHeight != null) {
+    setView.trackHeight = state.trackHeight;
+    viewApplied = true;
+  }
+  if (viewApplied) {
+    viewport.setView(setView);
+    cats.push('view');
   }
 
   let appliedTime: number | null = null;

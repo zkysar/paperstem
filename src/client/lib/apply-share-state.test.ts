@@ -2,6 +2,34 @@ import { describe, expect, it, vi } from 'vitest';
 import { applyShareState } from './apply-share-state';
 import type { ShareState } from './share-url';
 import type { LoadedStem, PlayerState } from '../data/types';
+import type { ViewportControls, ViewportState } from '../hooks/useViewport';
+
+function makeViewport(over: Partial<ViewportState> = {}): ViewportControls {
+  const state: ViewportState = {
+    hZoom: 1,
+    trackHeight: 44,
+    scrollLeft: 0,
+    followMode: 'smooth',
+    followActive: true,
+    stageWidth: 1000,
+    railWidth: 200,
+    ...over,
+  };
+  return {
+    state,
+    zoomH: vi.fn(),
+    zoomHBy: vi.fn(),
+    zoomV: vi.fn(),
+    zoomVBy: vi.fn(),
+    setScrollLeft: vi.fn(),
+    fitToWindow: vi.fn(),
+    setFollowActive: vi.fn(),
+    setFollowMode: vi.fn(),
+    setStageWidth: vi.fn(),
+    setRailWidth: vi.fn(),
+    setView: vi.fn(),
+  };
+}
 
 function makeStem(over: Partial<LoadedStem>): LoadedStem {
   return {
@@ -68,6 +96,7 @@ describe('applyShareState', () => {
     const result = applyShareState(state, {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       player: player as any,
+      viewport: makeViewport(),
       onFocusComment,
       onOpenDrawer,
     });
@@ -102,6 +131,7 @@ describe('applyShareState', () => {
       {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         player: player as any,
+        viewport: makeViewport(),
         onFocusComment: vi.fn(),
         onOpenDrawer: vi.fn(),
       },
@@ -126,6 +156,7 @@ describe('applyShareState', () => {
       {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         player: player as any,
+        viewport: makeViewport(),
         onFocusComment: vi.fn(),
         onOpenDrawer: vi.fn(),
       },
@@ -150,10 +181,77 @@ describe('applyShareState', () => {
       {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         player: player as any,
+        viewport: makeViewport(),
         onFocusComment: vi.fn(),
         onOpenDrawer,
       },
     );
     expect(onOpenDrawer).not.toHaveBeenCalled();
+  });
+
+  it('applies view (hZoom + scrollLeft) from time window using recipient stage', () => {
+    const stems = [makeStem({ serverId: 'a' })];
+    const player = {
+      state: makePlayer(stems, 60),
+      setLoop: vi.fn(),
+      setLoopEnabled: vi.fn(),
+      setVolume: vi.fn(),
+      toggleMute: vi.fn(),
+      toggleSolo: vi.fn(),
+      setMasterVolume: vi.fn(),
+      seek: vi.fn(),
+    };
+    // Recipient stage: stageWidth=1000, rail=200, duration=60.
+    // Requested window [12, 18] → span=6, waveVisible=800,
+    // wave = 800*60/6 = 8000, innerWidth = 8200, hZoom = 8.2,
+    // scrollLeft = 12/60 * 8000 = 1600.
+    const viewport = makeViewport({ stageWidth: 1000, railWidth: 200 });
+    const state: ShareState = {
+      projectId: 'p',
+      view: { timeLeft: 12, timeRight: 18 },
+      trackHeight: 80,
+    };
+
+    const result = applyShareState(state, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      player: player as any,
+      viewport,
+      onFocusComment: vi.fn(),
+      onOpenDrawer: vi.fn(),
+    });
+
+    expect(viewport.setView).toHaveBeenCalledOnce();
+    const arg = (viewport.setView as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(arg.hZoom).toBeCloseTo(8.2, 2);
+    expect(arg.scrollLeft).toBeCloseTo(1600, 0);
+    expect(arg.trackHeight).toBe(80);
+    expect(result.appliedCategories).toContain('view');
+  });
+
+  it('skips view when stageWidth is not yet measured', () => {
+    const stems = [makeStem({ serverId: 'a' })];
+    const player = {
+      state: makePlayer(stems, 60),
+      setLoop: vi.fn(),
+      setLoopEnabled: vi.fn(),
+      setVolume: vi.fn(),
+      toggleMute: vi.fn(),
+      toggleSolo: vi.fn(),
+      setMasterVolume: vi.fn(),
+      seek: vi.fn(),
+    };
+    const viewport = makeViewport({ stageWidth: 0, railWidth: 0 });
+    const result = applyShareState(
+      { projectId: 'p', view: { timeLeft: 1, timeRight: 2 } },
+      {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        player: player as any,
+        viewport,
+        onFocusComment: vi.fn(),
+        onOpenDrawer: vi.fn(),
+      },
+    );
+    expect(viewport.setView).not.toHaveBeenCalled();
+    expect(result.appliedCategories).not.toContain('view');
   });
 });

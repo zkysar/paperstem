@@ -20,6 +20,12 @@ export type ViewportState = {
   scrollLeft: number;
   followMode: FollowMode;
   followActive: boolean;
+  /** Outer .stage width in px, kept here so share-link snapshot/apply can
+   *  read it without owning the DOM ref. Populated by Player via setStageWidth.
+   *  0 until first measurement. */
+  stageWidth: number;
+  /** Width of the sticky track-name rail in px (0 when collapsed). */
+  railWidth: number;
 };
 
 export type ZoomHOpts = {
@@ -41,6 +47,11 @@ export type ViewportControls = {
   fitToWindow(): void;
   setFollowActive(active: boolean): void;
   setFollowMode(mode: FollowMode): void;
+  setStageWidth(px: number): void;
+  setRailWidth(px: number): void;
+  /** Apply an absolute viewport state — used by share-link arrival to land
+   *  the recipient at the sharer's zoom + scroll position. */
+  setView(opts: { hZoom?: number; trackHeight?: number; scrollLeft?: number }): void;
 };
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -54,6 +65,8 @@ export function useViewport(): ViewportControls {
     scrollLeft: 0,
     followMode: 'smooth',
     followActive: true,
+    stageWidth: 0,
+    railWidth: 0,
   });
 
   const applyHorizontalZoom = (
@@ -130,6 +143,35 @@ export function useViewport(): ViewportControls {
     setState((prev) => ({ ...prev, followMode: mode }));
   }, []);
 
+  const setStageWidth = useCallback((px: number) => {
+    setState((prev) => (prev.stageWidth === px ? prev : { ...prev, stageWidth: px }));
+  }, []);
+
+  const setRailWidth = useCallback((px: number) => {
+    setState((prev) => (prev.railWidth === px ? prev : { ...prev, railWidth: px }));
+  }, []);
+
+  const setView = useCallback(
+    (opts: { hZoom?: number; trackHeight?: number; scrollLeft?: number }) => {
+      setState((prev) => {
+        const next = { ...prev };
+        if (opts.hZoom != null) {
+          next.hZoom = clamp(opts.hZoom, MIN_HZOOM, MAX_HZOOM);
+        }
+        if (opts.trackHeight != null) {
+          next.trackHeight = Math.round(clamp(opts.trackHeight, MIN_TRACK_H, MAX_TRACK_H));
+        }
+        if (opts.scrollLeft != null) {
+          const inner = next.stageWidth * next.hZoom;
+          const maxScroll = Math.max(0, inner - next.stageWidth);
+          next.scrollLeft = clamp(opts.scrollLeft, 0, maxScroll);
+        }
+        return next;
+      });
+    },
+    [],
+  );
+
   return {
     state,
     zoomH,
@@ -140,5 +182,8 @@ export function useViewport(): ViewportControls {
     fitToWindow,
     setFollowActive,
     setFollowMode,
+    setStageWidth,
+    setRailWidth,
+    setView,
   };
 }
