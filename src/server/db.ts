@@ -169,6 +169,49 @@ export type AnnotationJoinedRow = AnnotationRow & {
   user_display_name: string | null;
 };
 
+export type AnnotationReplyRow = {
+  id: string;
+  annotation_id: string;
+  user_id: string;
+  body: string;
+  created_at: number;
+  updated_at: number;
+};
+
+export type AnnotationReplyJoinedRow = AnnotationReplyRow & {
+  user_email: string;
+  user_display_name: string | null;
+};
+
+export type ReactionRow = {
+  user_id: string;
+  emoji: string;
+  created_at: number;
+};
+
+export type ReplyReactionRow = ReactionRow & { reply_id: string };
+
+export type AnnotationReactionAggRow = {
+  annotation_id: string;
+  emoji: string;
+  count: number;
+  user_ids_json: string;        // JSON array string from SQLite
+  reacted_by_self: number;       // 0/1
+};
+
+export type ReplyReactionAggRow = {
+  reply_id: string;
+  emoji: string;
+  count: number;
+  user_ids_json: string;
+  reacted_by_self: number;
+};
+
+export type AnnotationReplyCountRow = {
+  annotation_id: string;
+  reply_count: number;
+};
+
 export const stmts = {
   findUserByEmail: db.prepare<[string], UserRow>(
     'SELECT * FROM users WHERE email = ?',
@@ -466,5 +509,108 @@ export const stmts = {
     `DELETE FROM stems
       WHERE project_id IN (SELECT id FROM projects WHERE band_id = ?)
         AND deleted_at IS NOT NULL AND deleted_at < ?`,
+  ),
+
+  // --- replies ---
+  findRepliesForAnnotation: db.prepare<[string], AnnotationReplyJoinedRow>(
+    `SELECT r.id, r.annotation_id, r.user_id, r.body, r.created_at, r.updated_at,
+            u.email AS user_email, u.display_name AS user_display_name
+       FROM annotation_replies r
+       JOIN users u ON u.id = r.user_id
+      WHERE r.annotation_id = ?
+      ORDER BY r.created_at ASC`,
+  ),
+  findReplyById: db.prepare<[string], AnnotationReplyRow>(
+    'SELECT * FROM annotation_replies WHERE id = ?',
+  ),
+  findReplyByIdJoined: db.prepare<[string], AnnotationReplyJoinedRow>(
+    `SELECT r.id, r.annotation_id, r.user_id, r.body, r.created_at, r.updated_at,
+            u.email AS user_email, u.display_name AS user_display_name
+       FROM annotation_replies r
+       JOIN users u ON u.id = r.user_id
+      WHERE r.id = ?`,
+  ),
+  insertReply: db.prepare<
+    [string, string, string, string, number, number]
+  >(
+    `INSERT INTO annotation_replies
+       (id, annotation_id, user_id, body, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ),
+  updateReply: db.prepare<[string, number, string]>(
+    `UPDATE annotation_replies SET body = ?, updated_at = ? WHERE id = ?`,
+  ),
+  deleteReply: db.prepare<[string]>(
+    'DELETE FROM annotation_replies WHERE id = ?',
+  ),
+  countRepliesForProject: db.prepare<[string], AnnotationReplyCountRow>(
+    `SELECT a.id AS annotation_id, COUNT(r.id) AS reply_count
+       FROM annotations a
+       LEFT JOIN annotation_replies r ON r.annotation_id = a.id
+      WHERE a.project_id = ?
+      GROUP BY a.id`,
+  ),
+
+  // --- reactions: comments ---
+  findReactionsForProject: db.prepare<
+    [string, string],
+    AnnotationReactionAggRow
+  >(
+    `SELECT ar.annotation_id, ar.emoji,
+            COUNT(*) AS count,
+            json_group_array(ar.user_id) AS user_ids_json,
+            MAX(CASE WHEN ar.user_id = ?2 THEN 1 ELSE 0 END) AS reacted_by_self
+       FROM annotation_reactions ar
+       JOIN annotations a ON a.id = ar.annotation_id
+      WHERE a.project_id = ?1
+      GROUP BY ar.annotation_id, ar.emoji
+      ORDER BY ar.annotation_id, ar.emoji`,
+  ),
+  findReactionsForAnnotation: db.prepare<
+    [string, string],
+    AnnotationReactionAggRow
+  >(
+    `SELECT annotation_id, emoji,
+            COUNT(*) AS count,
+            json_group_array(user_id) AS user_ids_json,
+            MAX(CASE WHEN user_id = ?2 THEN 1 ELSE 0 END) AS reacted_by_self
+       FROM annotation_reactions
+      WHERE annotation_id = ?1
+      GROUP BY emoji
+      ORDER BY emoji`,
+  ),
+  insertReaction: db.prepare<[string, string, string, number]>(
+    `INSERT OR IGNORE INTO annotation_reactions
+       (annotation_id, user_id, emoji, created_at)
+     VALUES (?, ?, ?, ?)`,
+  ),
+  deleteReaction: db.prepare<[string, string, string]>(
+    `DELETE FROM annotation_reactions
+       WHERE annotation_id = ? AND user_id = ? AND emoji = ?`,
+  ),
+
+  // --- reactions: replies ---
+  findReactionsForReplies: db.prepare<
+    [string, string],
+    ReplyReactionAggRow
+  >(
+    `SELECT rr.reply_id, rr.emoji,
+            COUNT(*) AS count,
+            json_group_array(rr.user_id) AS user_ids_json,
+            MAX(CASE WHEN rr.user_id = ?2 THEN 1 ELSE 0 END) AS reacted_by_self
+       FROM annotation_reply_reactions rr
+       JOIN annotation_replies r ON r.id = rr.reply_id
+      WHERE r.annotation_id = ?1
+      GROUP BY rr.reply_id, rr.emoji
+      ORDER BY rr.reply_id, rr.emoji`,
+  ),
+  insertReplyReaction: db.prepare<[string, string, string, number]>(
+    `INSERT OR IGNORE INTO annotation_reply_reactions
+       (reply_id, user_id, emoji, created_at)
+     VALUES (?, ?, ?, ?)`,
+  ),
+  deleteReplyReaction: db.prepare<[string, string, string]>(
+    `DELETE FROM annotation_reply_reactions
+       WHERE reply_id = ? AND user_id = ? AND emoji = ?`,
   ),
 };
