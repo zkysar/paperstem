@@ -194,6 +194,7 @@ function PaperstemApp({
 
   const lastPickerTriggerRef = useRef<HTMLElement | null>(null);
   const lastDrawerTriggerRef = useRef<HTMLElement | null>(null);
+  const pendingReactionsRef = useRef<Set<string>>(new Set());
 
   const openPicker = useCallback(() => {
     lastPickerTriggerRef.current = document.activeElement as HTMLElement | null;
@@ -389,6 +390,7 @@ function PaperstemApp({
         setActiveCommentId(null);
         setPopoverAnchor(null);
         setAnnotations([]);
+        setReplies(() => new Map());
       }
       try {
         await repo.deleteProject(id);
@@ -442,6 +444,7 @@ function PaperstemApp({
       if (!repo) return;
       if (opts.resetUiState) {
         setAnnotations([]);
+        setReplies(() => new Map());
         setPendingDraft(null);
         setAnnotationCreateMode(false);
         setActiveCommentId(null);
@@ -876,7 +879,41 @@ function PaperstemApp({
     target: ReactionTarget,
     emoji: string,
   ): Promise<void> {
+    const key = `${target.kind}:${target.id}:${emoji}`;
+    if (pendingReactionsRef.current.has(key)) return;
+    pendingReactionsRef.current.add(key);
+
     const selfId = user.id;
+
+    function applyReactionToState(d: 1 | -1): void {
+      if (target.kind === 'annotation') {
+        setAnnotations((list) =>
+          list.map((a) =>
+            a.id === target.id
+              ? { ...a, reactions: applyReactionDelta(a.reactions, emoji, selfId, d) }
+              : a,
+          ),
+        );
+      } else {
+        setReplies((m) => {
+          const next = new Map(m);
+          for (const [annId, arr] of next.entries()) {
+            if (arr.some((r) => r.id === target.id)) {
+              next.set(
+                annId,
+                arr.map((r) =>
+                  r.id === target.id
+                    ? { ...r, reactions: applyReactionDelta(r.reactions, emoji, selfId, d) }
+                    : r,
+                ),
+              );
+              break;
+            }
+          }
+          return next;
+        });
+      }
+    }
 
     let isOn = false;
     if (target.kind === 'annotation') {
@@ -897,67 +934,17 @@ function PaperstemApp({
     }
     const delta: 1 | -1 = isOn ? -1 : 1;
 
-    if (target.kind === 'annotation') {
-      setAnnotations((list) =>
-        list.map((a) =>
-          a.id === target.id
-            ? { ...a, reactions: applyReactionDelta(a.reactions, emoji, selfId, delta) }
-            : a,
-        ),
-      );
-    } else {
-      setReplies((m) => {
-        const next = new Map(m);
-        for (const [annId, arr] of next.entries()) {
-          if (arr.some((r) => r.id === target.id)) {
-            next.set(
-              annId,
-              arr.map((r) =>
-                r.id === target.id
-                  ? { ...r, reactions: applyReactionDelta(r.reactions, emoji, selfId, delta) }
-                  : r,
-              ),
-            );
-            break;
-          }
-        }
-        return next;
-      });
-    }
+    applyReactionToState(delta);
 
     try {
       if (delta === 1) await addReaction(target, emoji);
       else await removeReaction(target, emoji);
     } catch (err) {
       const roll: 1 | -1 = delta === 1 ? -1 : 1;
-      if (target.kind === 'annotation') {
-        setAnnotations((list) =>
-          list.map((a) =>
-            a.id === target.id
-              ? { ...a, reactions: applyReactionDelta(a.reactions, emoji, selfId, roll) }
-              : a,
-          ),
-        );
-      } else {
-        setReplies((m) => {
-          const next = new Map(m);
-          for (const [annId, arr] of next.entries()) {
-            if (arr.some((r) => r.id === target.id)) {
-              next.set(
-                annId,
-                arr.map((r) =>
-                  r.id === target.id
-                    ? { ...r, reactions: applyReactionDelta(r.reactions, emoji, selfId, roll) }
-                    : r,
-                ),
-              );
-              break;
-            }
-          }
-          return next;
-        });
-      }
+      applyReactionToState(roll);
       console.error('toggleReaction failed', err);
+    } finally {
+      pendingReactionsRef.current.delete(key);
     }
   }
 
