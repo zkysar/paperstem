@@ -96,3 +96,27 @@ CREATE TABLE IF NOT EXISTS annotations (
 );
 CREATE INDEX IF NOT EXISTS idx_annotations_project_user ON annotations(project_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_annotations_project_start ON annotations(project_id, start_ms);
+
+-- Append-only audit log for destructive operations on projects, stems, and
+-- annotations. Records soft-deletes via routes plus hard-deletes from the
+-- trash purge (where a CASCADE on projects wipes stem rows with no
+-- deleted_by). user_id is intentionally NOT a foreign key — audit rows must
+-- survive user deletion. resource_id is not a FK either, since the row it
+-- describes is usually gone by the time you query the log.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id            TEXT PRIMARY KEY,
+  created_at    INTEGER NOT NULL,
+  user_id       TEXT,
+  user_email    TEXT,
+  action        TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id   TEXT NOT NULL,
+  band_id       TEXT,
+  metadata      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_resource
+  ON audit_log(resource_type, resource_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_band
+  ON audit_log(band_id, created_at DESC) WHERE band_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_audit_log_action
+  ON audit_log(action, created_at DESC);

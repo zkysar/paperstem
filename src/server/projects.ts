@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import type { Context } from 'hono';
 import busboy from 'busboy';
 import { stmts } from './db.js';
+import { recordAudit } from './audit.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
 import {
   createFolder,
@@ -169,6 +170,15 @@ export async function handleDeleteProject(
 
   const now = Math.floor(Date.now() / 1000);
   stmts.softDeleteProject.run(now, user.id, id);
+
+  recordAudit({
+    action: 'project.soft_delete',
+    resource_type: 'project',
+    resource_id: id,
+    actor: { id: user.id, email: user.email },
+    band_id: project.band_id,
+    metadata: { name: project.name, folder_id: project.folder_id },
+  });
 
   try {
     await trashItem(project.folder_id);
