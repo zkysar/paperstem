@@ -226,6 +226,30 @@ describe('useKeyboard zoom chords', () => {
     expect(viewport.zoomV).toHaveBeenCalledWith('out');
   });
 
+  it('cmd-= anchors at the playhead when it is visible', () => {
+    const viewport = defaultViewport();
+    viewport.state.hZoom = 2;
+    const stage = document.createElement('div');
+    stage.className = 'stage';
+    stage.getBoundingClientRect = () => ({
+      left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    document.body.appendChild(stage);
+    const player = stubPlayer();
+    player.state.duration = 100;
+    player.currentTime = 25; // visible: anchor at 300
+    renderHook(() => useKeyboard({ ...defaultOpts(), player, viewport }));
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '=', metaKey: true }),
+    );
+    expect(viewport.zoomH).toHaveBeenCalledWith('in', expect.objectContaining({
+      stageWidth: 600,
+      anchorX: 300,
+    }));
+    document.body.removeChild(stage);
+  });
+
   it('cmd-0 calls viewport.fitToWindow', () => {
     const viewport = defaultViewport();
     renderHook(() =>
@@ -359,6 +383,41 @@ describe('useKeyboard WASD navigation', () => {
     expect(viewport.setScrollLeft).toHaveBeenCalled();
     const call = viewport.setScrollLeft.mock.calls[0];
     expect(call[0]).toBe(600 + 100);
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
+
+  it('W anchors zoom at the playhead when it is visible', () => {
+    const viewport = defaultViewport();
+    viewport.state.hZoom = 2; // inner = 1200, scrollLeft 0 → visible 0..600
+    const { viewportEl, stageEl } = withViewport();
+    const player = stubPlayer();
+    player.state.duration = 100;
+    player.currentTime = 25; // 25/100 * 1200 = 300 inner, 300 - 0 scroll = 300 stageX
+    renderHook(() => useKeyboard({ ...defaultOpts(), player, viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
+    expect(viewport.zoomH).toHaveBeenCalledWith('in', expect.objectContaining({
+      stageWidth: 600,
+      anchorX: 300,
+    }));
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
+
+  it('W falls back to center anchor when playhead is offscreen', () => {
+    const viewport = defaultViewport();
+    viewport.state.hZoom = 4; // inner = 2400
+    viewport.state.scrollLeft = 0; // visible 0..600
+    const { viewportEl, stageEl } = withViewport();
+    const player = stubPlayer();
+    player.state.duration = 100;
+    player.currentTime = 50; // 50/100 * 2400 = 1200 inner → stageX 1200 (offscreen)
+    renderHook(() => useKeyboard({ ...defaultOpts(), player, viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
+    expect(viewport.zoomH).toHaveBeenCalledWith('in', expect.objectContaining({
+      stageWidth: 600,
+      anchorX: 300,
+    }));
     document.body.removeChild(viewportEl);
     document.body.removeChild(stageEl);
   });

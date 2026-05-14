@@ -2,6 +2,30 @@ import { useEffect } from 'react';
 import type { PlayerControls } from './usePlayer';
 import type { ViewportControls } from './useViewport';
 
+/**
+ * Anchor for keyboard zoom: the playhead's pixel position inside the stage
+ * when it lies within the visible viewport, otherwise the stage center.
+ * Cursor-driven zoom (Alt+scroll, pinch) anchors at the actual pointer;
+ * keyboard zoom has no pointer, so the playhead — the place the user is
+ * already listening to — is the next-most-specific signal.
+ */
+function playheadAnchorX(
+  stageWidth: number,
+  player: PlayerControls,
+  viewport: ViewportControls,
+): number {
+  const duration = player.state.duration;
+  const hZoom = viewport.state.hZoom;
+  if (!duration || stageWidth <= 0) return stageWidth / 2;
+  const innerWidth = stageWidth * hZoom;
+  const playheadInnerX = (player.currentTime / duration) * innerWidth;
+  const playheadStageX = playheadInnerX - viewport.state.scrollLeft;
+  if (playheadStageX < 0 || playheadStageX > stageWidth) {
+    return stageWidth / 2;
+  }
+  return playheadStageX;
+}
+
 export type KeyboardOpts = {
   player: PlayerControls;
   pickerOpen: boolean;
@@ -63,7 +87,8 @@ export function useKeyboard(opts: KeyboardOpts): void {
         if (e.shiftKey) {
           opts.viewport.zoomV('in');
         } else {
-          opts.viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+          const anchorX = playheadAnchorX(sw, player, opts.viewport);
+          opts.viewport.zoomH('in', { stageWidth: sw, anchorX });
         }
         return;
       }
@@ -75,7 +100,8 @@ export function useKeyboard(opts: KeyboardOpts): void {
         if (e.shiftKey) {
           opts.viewport.zoomV('out');
         } else {
-          opts.viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+          const anchorX = playheadAnchorX(sw, player, opts.viewport);
+          opts.viewport.zoomH('out', { stageWidth: sw, anchorX });
         }
         return;
       }
@@ -160,7 +186,8 @@ export function useKeyboard(opts: KeyboardOpts): void {
             if (e.shiftKey) {
               opts.viewport.zoomV('in');
             } else {
-              opts.viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+              const anchorX = playheadAnchorX(sw, player, opts.viewport);
+              opts.viewport.zoomH('in', { stageWidth: sw, anchorX });
               if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
             }
             break;
@@ -168,7 +195,8 @@ export function useKeyboard(opts: KeyboardOpts): void {
             if (e.shiftKey) {
               opts.viewport.zoomV('out');
             } else {
-              opts.viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+              const anchorX = playheadAnchorX(sw, player, opts.viewport);
+              opts.viewport.zoomH('out', { stageWidth: sw, anchorX });
               if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
             }
             break;
