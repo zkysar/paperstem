@@ -19,7 +19,7 @@
 //   the next togglePlay/pause cycle.
 
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 class FakeGainNode {
   gain = { value: 1, setValueAtTime: () => {} };
@@ -340,5 +340,285 @@ describe('usePlayer', () => {
     // Note: the reducer does NOT clamp the stored masterVolume value; clamping
     // happens in volumeToGain when the value is applied to the gain node. This
     // test pins the current contract — change it deliberately if clamping moves.
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase A — rAF / time-driven behaviors
+//
+// These tests require two harness improvements over Phase 1:
+//   1. A controllable rAF queue — callbacks are collected and flushed manually
+//      so we can advance time one tick at a time without relying on real timers.
+//   2. A capturable AudioContext — we grab the instance the hook creates so we
+//      can advance ctx.currentTime and observe scheduling side-effects.
+//
+// LOOP_TAIL = 0.005 and END_TAIL = 0.02 are constants in usePlayer.ts.
+// FakeAudioContext.decodeAudioData returns duration = 60.
+// ---------------------------------------------------------------------------
+
+// Extend FakeAudioContext so we can capture the instance the hook creates and
+// mutate ctx.currentTime between ticks. The capture reference lives in the
+// outer describe closure so each beforeEach can reset it.
+class CapturingAudioContext extends FakeAudioContext {
+  static last: CapturingAudioContext | null = null;
+  constructor() {
+    super();
+    CapturingAudioContext.last = this;
+  }
+  // Override createBufferSource to count start() calls for seek-coalescing test.
+  startCallCount = 0;
+  override createBufferSource() {
+    const src = super.createBufferSource();
+    const origStart = src.start.bind(src);
+    src.start = (...args: Parameters<typeof src.start>) => {
+      this.startCallCount++;
+      origStart(...args);
+    };
+    return src;
+  }
+}
+
+describe('usePlayer Phase A — rAF / time-driven behaviors', () => {
+  // ---------------------------------------------------------------------------
+  // rAF queue
+  // ---------------------------------------------------------------------------
+  let rafQueue: Array<FrameRequestCallback> = [];
+  let rafIdCounter = 0;
+
+  function flushRaf(): void {
+    // Drain the current queue in one pass; callbacks that re-schedule are
+    // collected into rafQueue for the next flushRaf() call.
+    const batch = rafQueue.splice(0);
+    for (const cb of batch) cb(0);
+  }
+
+  beforeEach(() => {
+    rafQueue = [];
+    rafIdCounter = 0;
+    CapturingAudioContext.last = null;
+
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      rafQueue.push(cb);
+      return ++rafIdCounter;
+    });
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+      // Remove by id is not tracked — for these tests we stop flushing instead.
+      void id;
+    });
+    vi.stubGlobal('AudioContext', CapturingAudioContext);
+    vi.stubGlobal('webkitAudioContext', CapturingAudioContext);
+  });
+
+  afterEach(() => {
+    // Restore to Phase 1 stubs so the describe blocks don't interfere.
+    vi.stubGlobal('AudioContext', FakeAudioContext);
+    vi.stubGlobal('webkitAudioContext', FakeAudioContext);
+    vi.stubGlobal('requestAnimationFrame', (_cb: FrameRequestCallback) => 0);
+    vi.stubGlobal('cancelAnimationFrame', (_id: number) => {});
+  });
+
+  // Helper: load one stem and start playback. Returns the hook result.
+  async function loadAndPlay(hookResult: ReturnType<typeof renderHook<ReturnType<typeof usePlayer>, unknown>>['result']) {
+    await act(async () => {
+      await hookResult.current.load({
+        projectId: 'p',
+        title: 't',
+        folderId: null,
+        sources: makeSources('a.mp3'),
+      });
+    });
+    await act(async () => {
+      await hookResult.current.togglePlay();
+    });
+    expect(hookResult.current.state.isPlaying).toBe(true);
+  }
+
+  // ---------------------------------------------------------------------------
+  // rAF tick advancing currentTime
+  // ---------------------------------------------------------------------------
+  it('rAF tick updates currentTime when playing', async () => {
+    const { result } = renderHook(() => usePlayer());
+    await loadAndPlay(result);
+
+    const ctx = CapturingAudioContext.last!;
+    expect(ctx).not.toBeNull();
+
+    // After togglePlay, startSourcesAt sets playStartCtxTimeRef = ctx.currentTime + 0.05.
+    // Advance ctx.currentTime by 5 seconds so computeCurrentTime = 5 - 0.05 = 4.95.
+    ctx.currentTime = 5;
+
+    act(() => {
+      flushRaf();
+    });
+
+    // currentTime should reflect the elapsed playback time (4.95 s).
+    // We check > 0 and < duration rather than exact equality to avoid tying
+    // the test to the 50 ms lookahead constant.
+    expect(result.current.currentTime).toBeGreaterThan(0);
+    expect(result.current.currentTime).toBeLessThan(60);
+  });
+
+  it('rAF tick does not update currentTime while paused', async () => {
+    const { result } = renderHook(() => usePlayer());
+    await loadAndPlay(result);
+
+    // Pause so isPlayingInternalRef = false.
+    act(() => {
+      result.current.pause();
+    });
+
+    const ctx = CapturingAudioContext.last!;
+    ctx.currentTime = 10;
+
+    act(() => {
+      flushRaf();
+    });
+
+    // pause() captures pausedOffset at the time of pause (≈0 since ctx.currentTime
+    // was 0 when we paused). After flush, currentTime must not have advanced.
+    expect(result.current.currentTime).toBe(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Loop wrap on rAF tick
+  // ---------------------------------------------------------------------------
+  it('rAF tick wraps playhead to loop.start when crossing loop.end', async () => {
+    const { result } = renderHook(() => usePlayer());
+    await loadAndPlay(result);
+
+    // Set a loop: [10, 30].  LOOP_TAIL = 0.005, so wrap fires when t >= 29.995.
+    act(() => {
+      result.current.setLoop(10, 30);
+    });
+
+    const ctx = CapturingAudioContext.last!;
+
+    // Advance so computeCurrentTime crosses 29.995 in a single tick.
+    // playStartCtxTimeRef = 0.05 (set by startSourcesAt at ctx.currentTime=0),
+    // playStartOffsetRef = 0.
+    // We need playStartOffset + (ctx.currentTime - 0.05) >= 29.995
+    // => ctx.currentTime >= 30.
+    ctx.currentTime = 31;
+
+    act(() => {
+      flushRaf();
+    });
+
+    // After wrap, currentTime should be reset to loop.start = 10.
+    expect(result.current.currentTime).toBe(10);
+    // Player must still be playing.
+    expect(result.current.state.isPlaying).toBe(true);
+  });
+
+  it('rAF tick does not wrap when loop is disabled', async () => {
+    const { result } = renderHook(() => usePlayer());
+    await loadAndPlay(result);
+
+    act(() => {
+      result.current.setLoop(10, 30);
+      result.current.setLoopEnabled(false);
+    });
+
+    const ctx = CapturingAudioContext.last!;
+    ctx.currentTime = 31;
+
+    act(() => {
+      flushRaf();
+    });
+
+    // No wrap — currentTime should have advanced past 30 (up to min(duration, t)).
+    expect(result.current.currentTime).toBeGreaterThan(30);
+    expect(result.current.state.isPlaying).toBe(true);
+  });
+
+  // ---------------------------------------------------------------------------
+  // End-of-song detection
+  // ---------------------------------------------------------------------------
+  it('rAF tick stops playback when currentTime reaches end of song', async () => {
+    const { result } = renderHook(() => usePlayer());
+    await loadAndPlay(result);
+
+    const ctx = CapturingAudioContext.last!;
+
+    // duration = 60.  END_TAIL = 0.02.  shouldEndPlayback fires when t >= 59.98.
+    // playStartCtxTimeRef = 0.05, so we need ctx.currentTime - 0.05 >= 59.98
+    // => ctx.currentTime >= 60.03.
+    ctx.currentTime = 61;
+
+    act(() => {
+      flushRaf();
+    });
+
+    expect(result.current.state.isPlaying).toBe(false);
+    expect(result.current.currentTime).toBe(0);
+  });
+
+  it('rAF tick does not stop playback before reaching END_TAIL threshold', async () => {
+    const { result } = renderHook(() => usePlayer());
+    await loadAndPlay(result);
+
+    const ctx = CapturingAudioContext.last!;
+
+    // One second before the end — well clear of END_TAIL = 0.02.
+    ctx.currentTime = 59;
+
+    act(() => {
+      flushRaf();
+    });
+
+    expect(result.current.state.isPlaying).toBe(true);
+    expect(result.current.currentTime).toBeGreaterThan(0);
+    expect(result.current.currentTime).toBeLessThan(60);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Seek coalescing across rapid calls
+  // ---------------------------------------------------------------------------
+  it('seek() coalesces rapid calls — only the last target survives', async () => {
+    const { result } = renderHook(() => usePlayer());
+    await loadAndPlay(result);
+
+    const ctx = CapturingAudioContext.last!;
+    // Reset start-call counter after togglePlay already fired one set.
+    ctx.startCallCount = 0;
+
+    // Fire three rapid seeks while playing. Each updates currentTime immediately
+    // (UI responsiveness), but only the last seek target should reach startSourcesAt.
+    act(() => {
+      result.current.seek(5);
+      result.current.seek(15);
+      result.current.seek(25);
+    });
+
+    // currentTime must already reflect the last seek target synchronously.
+    expect(result.current.currentTime).toBe(25);
+
+    // Now flush the one pending rAF — this fires the coalesced reschedule.
+    act(() => {
+      flushRaf();
+    });
+
+    // Exactly one startSourcesAt call (one set of createBufferSource().start()
+    // calls — one per stem, and we have one stem).
+    expect(ctx.startCallCount).toBe(1);
+  });
+
+  it('seek() while paused does not schedule a rAF', async () => {
+    const { result } = renderHook(() => usePlayer());
+    await loadAndPlay(result);
+
+    act(() => {
+      result.current.pause();
+    });
+
+    const initialQueueLength = rafQueue.length;
+
+    act(() => {
+      result.current.seek(20);
+    });
+
+    // Paused seek: no rAF should have been added to the queue.
+    expect(rafQueue.length).toBe(initialQueueLength);
+    expect(result.current.currentTime).toBe(20);
   });
 });
