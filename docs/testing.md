@@ -35,7 +35,7 @@ Prefer inline literals (object constructors, hand-rolled buffers) over fixture f
 - [Server route handlers](#server-route-handlers)
 - [Server libs](#server-libs)
 - [Server migrations](#server-migrations)
-- Server jobs
+- [Server jobs](#server-jobs)
 - Server import
 - Server auth
 - Client components
@@ -391,3 +391,147 @@ Also test the no-op case: if the DB is already at the target schema (or has no r
 - **Do not rely on test-file ordering.** Each test builds its own DB from scratch. Never set up legacy state in one `it` block and run the migration in another — vitest may re-order or isolate tests.
 - **Do not use the global `dbMod.db` connection across multiple test files.** `db.ts` is a module singleton; once imported, the connection is shared for the rest of the vitest worker. The `db.ts`-import pattern (used by `schema-migration.test.ts`) runs the migration exactly once per worker. If you add a second file that also `await import('./db.js')`, it will receive the already-migrated singleton, not a fresh one.
 - **Do not skip the `seed.close()` call** before importing `db.ts`. better-sqlite3 opens the file in exclusive WAL mode by default; leaving two open connections on the same path leads to lock errors.
+
+### Server jobs
+
+**Canonical example:** `src/server/jobs/scheduler.test.ts`. It is the cleaner of the two: all tests are pure — each passes a `nowMs` timestamp directly to the delay-calculation helper and asserts the return value, with no env prelude, no DB, no fake timers, and no async setup. `src/server/jobs/backups.test.ts` is representative for testing exported synchronous utilities (`buildBandDump`, `selectFilesToDelete`) that require a real DB but still avoid any scheduler lifecycle.
+
+The jobs layer has two distinct testing surfaces:
+
+1. **Delay-calculation helpers** (`msUntilNextDailyUtc`, `msUntilNextWeeklyUtc`) — pure functions; pass a timestamp in, get a millisecond delay back.
+2. **Job utilities** (`buildBandDump`, `selectFilesToDelete`) — synchronous or synchronous-enough functions that read/write a DB; test them in isolation with the same DB harness used by route-handler tests.
+
+The scheduler _lifecycle_ (`startScheduler`, `stopScheduler`, and the `setTimeout` loop) and the in-flight deduplication (`runInFlight`) in `snapshots.ts`/`backups.ts` are not directly tested — see **What not to do** below.
+
+#### Harness setup
+
+**Delay-calculation helpers — no harness needed:**
+
+```typescript
+import { describe, expect, it } from 'vitest';
+import {
+  msUntilNextDailyUtc,
+  msUntilNextWeeklyUtc,
+} from './scheduler.js';
+
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS  = 24 * HOUR_MS;
+const WEEK_MS = 7  * DAY_MS;
+
+describe('msUntilNextDailyUtc', () => {
+  it('returns time until later same day when before target hour', () => {
+    const now = Date.UTC(2026, 4, 7, 1, 0, 0);
+    expect(msUntilNextDailyUtc(now, 3)).toBe(2 * HOUR_MS);
+  });
+});
+```
+
+No `beforeAll`, no env vars, no fake timers. The function receives `nowMs` as a parameter — the injectable timestamp is the entire harness.
+
+**Job utilities that touch the DB — same env-prelude + dynamic-import pattern as route handlers:**
+
+```typescript
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+
+const tmpDir = mkdtempSync(join(tmpdir(), 'paperstem-backups-test-'));
+const dbPath = join(tmpDir, 'test.sqlite');
+process.env.DATABASE_PATH = dbPath;
+process.env.GMAIL_USER = 'test@example.com';
+process.env.GMAIL_APP_PASSWORD = 'test-pass';
+process.env.GOOGLE_CLIENT_ID = 'cid';
+process.env.GOOGLE_CLIENT_SECRET = 'csec';
+process.env.GOOGLE_REFRESH_TOKEN = 'rtok';
+
+type DbModule    = typeof import('../db.js');
+type BackupsMod  = typeof import('./backups.js');
+
+let dbMod: DbModule;
+let backupsMod: BackupsMod;
+
+beforeAll(async () => {
+  dbMod     = await import('../db.js');
+  backupsMod = await import('./backups.js');
+});
+
+afterAll(() => {
+  rmSync(tmpDir, { recursive: true, force: true });
+});
+
+function reset() {
+  dbMod.db.exec(
+    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; ' +
+    'DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; ' +
+    'DELETE FROM magic_links; DELETE FROM users;',
+  );
+}
+
+beforeEach(() => { reset(); });
+```
+
+The env-prelude-before-dynamic-import rule applies for the same reason as route handlers: `db.ts` and `mailer.ts` both read env vars at module initialisation time.
+
+#### What to assert
+
+**Timing math:** cover the boundary cases for each helper — before the target hour, after the target hour, exactly at the target hour (must roll forward one full period, not fire immediately), and cross-month or cross-week boundaries. From `scheduler.test.ts`:
+
+```typescript
+// Rolls forward exactly one day when called at the target hour
+it('rolls forward exactly one day when called at the target hour', () => {
+  const now = Date.UTC(2026, 4, 7, 3, 0, 0);
+  expect(msUntilNextDailyUtc(now, 3)).toBe(DAY_MS);
+});
+
+// Month boundary: target lands in a different month
+it('handles month boundary', () => {
+  const now = Date.UTC(2026, 4, 31, 23, 30, 0);
+  const ms  = msUntilNextDailyUtc(now, 3);
+  const target = new Date(now + ms);
+  expect(target.getUTCMonth()).toBe(5);   // June
+  expect(target.getUTCDate()).toBe(1);
+  expect(target.getUTCHours()).toBe(3);
+});
+```
+
+**DB dump contents:** assert that `buildBandDump` returns a valid SQLite buffer (`Buffer.isBuffer(buf)`) that opens cleanly, contains the expected tables, scopes data to the selected band (not other bands' rows), and strips auth-sensitive tables. From `backups.test.ts`:
+
+```typescript
+// Sessions and magic_links are present as empty tables — not omitted
+const mlCount = dump.prepare<[], { c: number }>('SELECT COUNT(*) AS c FROM magic_links').get();
+expect(mlCount?.c).toBe(0);
+
+// Only the target band's projects appear
+const projects = dump.prepare<[], { id: string; band_id: string }>(
+  'SELECT id, band_id FROM projects'
+).all();
+expect(projects).toHaveLength(1);
+expect(projects[0].band_id).toBe(bandA);
+```
+
+**Retention logic:** assert that `selectFilesToDelete` keeps the N newest dumps by lexicographic filename order, returns empty when fewer than `retain` are present, and ignores non-dump files (e.g. `README.md`). From `backups.test.ts`:
+
+```typescript
+const toDelete = backupsMod.selectFilesToDelete(files, 3);
+expect(toDelete.map(f => f.id).sort()).toEqual(['1', '2']); // oldest two dropped
+```
+
+**In-flight deduplication (`runInFlight`):** `snapshots.ts` and `backups.ts` both guard against concurrent runs:
+
+```typescript
+// From snapshots.ts / backups.ts
+let runInFlight: Promise<void> | null = null;
+export async function runSnapshotsNow(): Promise<void> {
+  if (runInFlight) return runInFlight;
+  // ...
+}
+```
+
+If you add a test for the job entry point (`runSnapshotsNow`, `runBackupsNow`), assert idempotency explicitly: calling the function twice in rapid succession should result in only one execution, not two. The simplest assertion is a spy on a downstream call (e.g. `vi.spyOn(driveMod, 'uploadFile')`) confirming it is invoked only once even when the function is called concurrently.
+
+#### What not to do
+
+- **Do not use real `setTimeout` delays to exercise scheduler timing.** The scheduler (`startScheduler`) relies on wall-clock `setTimeout` with delays up to 24 hours. Testing it without fake timers is either instant-but-meaningless or painfully slow. Use `msUntilNextDailyUtc` / `msUntilNextWeeklyUtc` directly — they accept a `nowMs` parameter that makes time injectable without any vitest fake-timer setup.
+- **Do not share scheduler state across tests without stopping it.** `startScheduler` sets module-level `snapshotTimer` and `backupTimer`. If you start the scheduler in one test and do not call `stopScheduler` in teardown, the dangling timers will fire in later tests and pollute results. If testing lifecycle, always pair `startScheduler` with `stopScheduler` in `afterEach`.
+- **Do not import `db.ts` before setting `process.env.DATABASE_PATH`.** The env prelude (setting `DATABASE_PATH`, `GMAIL_USER`, etc.) must appear at module level, before any `import` or `await import` that transitively loads `db.ts` or `mailer.ts`. See the route-handler section for the full explanation.
