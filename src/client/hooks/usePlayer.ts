@@ -267,6 +267,18 @@ export function usePlayer(): PlayerControls {
   // older probes' callbacks no-op so a fast tap-tap doesn't flap the banner.
   const dndProbeGenRef = useRef(0);
 
+  // Throttle MediaSession.setPositionState — the lock-screen scrubber only
+  // needs a few updates per second, and the call goes through a structured
+  // clone on every invocation.
+  const lastPositionUpdateRef = useRef(0);
+
+  // Refs to the latest play/pause/seek callbacks, read by the MediaSession
+  // action handlers registered once on mount. Avoids re-registering handlers
+  // on every render and keeps them pointed at fresh closures.
+  const togglePlayRef = useRef<() => void>(() => {});
+  const pauseRef = useRef<() => void>(() => {});
+  const seekRef = useRef<(t: number) => void>(() => {});
+
   function ensureAudioGraph(): { ctx: AudioContext; master: GainNode } | null {
     if (audioCtxRef.current && masterGainRef.current) {
       return { ctx: audioCtxRef.current, master: masterGainRef.current };
@@ -396,6 +408,11 @@ export function usePlayer(): PlayerControls {
         } else {
           lastTRef.current = t;
         }
+        const now = performance.now();
+        if (now - lastPositionUpdateRef.current > 250) {
+          lastPositionUpdateRef.current = now;
+          updateMediaSessionPosition(t, s.duration);
+        }
       }
       raf = requestAnimationFrame(tick);
     };
@@ -428,6 +445,100 @@ export function usePlayer(): PlayerControls {
       }
     };
   }, []);
+
+  // ---- MediaSession: lock-screen / Now Playing controls ----
+  // Web Audio playback alone doesn't anchor iOS Now Playing; the player's
+  // HTMLAudioElement is permanently muted (Web Audio drives sound). Setting
+  // mediaSession metadata + action handlers is what surfaces the widget.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) {
+      return;
+    }
+    const ms = navigator.mediaSession;
+    const setHandler = (
+      action: MediaSessionAction,
+      handler: MediaSessionActionHandler | null,
+    ) => {
+      try {
+        ms.setActionHandler(action, handler);
+      } catch {
+        // Browser doesn't support this action — fine.
+      }
+    };
+    setHandler('play', () => togglePlayRef.current());
+    setHandler('pause', () => pauseRef.current());
+    setHandler('seekto', (details) => {
+      if (typeof details.seekTime === 'number') seekRef.current(details.seekTime);
+    });
+    setHandler('seekbackward', (details) => {
+      const step = details.seekOffset ?? 10;
+      const cur = isPlayingInternalRef.current
+        ? computeCurrentTime()
+        : pausedOffsetRef.current;
+      seekRef.current(Math.max(0, cur - step));
+    });
+    setHandler('seekforward', (details) => {
+      const step = details.seekOffset ?? 10;
+      const cur = isPlayingInternalRef.current
+        ? computeCurrentTime()
+        : pausedOffsetRef.current;
+      seekRef.current(Math.min(stateRef.current.duration, cur + step));
+    });
+    return () => {
+      setHandler('play', null);
+      setHandler('pause', null);
+      setHandler('seekto', null);
+      setHandler('seekbackward', null);
+      setHandler('seekforward', null);
+      try {
+        ms.metadata = null;
+        ms.playbackState = 'none';
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
+
+  // Keep MediaSession metadata in sync with the loaded project.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) {
+      return;
+    }
+    const ms = navigator.mediaSession;
+    if (!state.stems.length) {
+      try {
+        ms.metadata = null;
+        ms.playbackState = 'none';
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    try {
+      ms.metadata = new MediaMetadata({
+        title: state.title && state.title !== '—' ? state.title : 'Untitled',
+        artist: 'Paperstem',
+        artwork: [{ src: '/favicon.svg', sizes: '64x64', type: 'image/svg+xml' }],
+      });
+    } catch {
+      // MediaMetadata constructor can throw on artwork validation in some
+      // browsers; the player still functions without metadata.
+    }
+  }, [state.stems.length, state.title]);
+
+  // Drive MediaSession.playbackState from the player's isPlaying state so the
+  // lock-screen widget shows the right play/pause icon.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) {
+      return;
+    }
+    if (!state.stems.length) return;
+    try {
+      navigator.mediaSession.playbackState = state.isPlaying ? 'playing' : 'paused';
+    } catch {
+      // ignore
+    }
+  }, [state.isPlaying, state.stems.length]);
 
   // ---- API ----
   const load = useCallback<PlayerControls['load']>(async (input) => {
@@ -548,6 +659,7 @@ export function usePlayer(): PlayerControls {
     dispatch({ type: 'SET_PLAYING', isPlaying: false });
     stateRef.current = { ...stateRef.current, isPlaying: false };
     isPlayingInternalRef.current = false;
+    updateMediaSessionPosition(pausedOffsetRef.current, stateRef.current.duration);
   }, []);
 
   const togglePlay = useCallback(() => {
@@ -573,6 +685,7 @@ export function usePlayer(): PlayerControls {
     isPlayingInternalRef.current = true;
     const offset = pausedOffsetRef.current;
     const ok = startSourcesAt(offset);
+    updateMediaSessionPosition(offset, stateRef.current.duration);
     if (!ok) {
       dispatch({ type: 'SET_PLAYING', isPlaying: false });
       stateRef.current = { ...stateRef.current, isPlaying: false };
@@ -661,6 +774,7 @@ export function usePlayer(): PlayerControls {
     pausedOffsetRef.current = clamped;
     lastTRef.current = clamped;
     setCurrentTime(clamped);
+    updateMediaSessionPosition(clamped, s.duration);
     if (!isPlayingInternalRef.current) {
       // Paused: nothing scheduled, no need to coalesce.
       return;
@@ -787,6 +901,13 @@ export function usePlayer(): PlayerControls {
     dispatch({ type: 'TEARDOWN' });
   }, []);
 
+  // Point MediaSession action-handler refs at the latest callbacks. These
+  // refs are read by handlers registered once on mount, so handlers never
+  // capture stale closures.
+  togglePlayRef.current = togglePlay;
+  pauseRef.current = pause;
+  seekRef.current = seek;
+
   return {
     state,
     currentTime,
@@ -811,6 +932,23 @@ export function usePlayer(): PlayerControls {
     removeStem,
     clear,
   };
+}
+
+function updateMediaSessionPosition(position: number, duration: number): void {
+  if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+  const ms = navigator.mediaSession;
+  if (typeof ms.setPositionState !== 'function') return;
+  if (!isFinite(duration) || duration <= 0) return;
+  try {
+    ms.setPositionState({
+      duration,
+      playbackRate: 1,
+      position: Math.max(0, Math.min(position, duration)),
+    });
+  } catch {
+    // setPositionState throws if position > duration on some engines; we
+    // clamp above but iOS has rounded edge cases. Ignore.
+  }
 }
 
 async function decodeStem(
