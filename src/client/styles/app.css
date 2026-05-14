@@ -36,11 +36,18 @@
 }
 
 html, body { margin: 0; padding: 0; }
+html, body {
+  /* Lock the document to the viewport so iOS doesn't rubber-band the whole
+     page when the user drags below the tracks area. .viewport handles its
+     own scrolling internally. */
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 body {
   font-family: var(--font-sans);
   background: var(--bg);
   color: var(--ink);
-  min-height: 100vh;
   -webkit-text-size-adjust: 100%;
   -webkit-user-select: none;
   user-select: none;
