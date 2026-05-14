@@ -39,9 +39,9 @@ Prefer inline literals or small helper builders over fixture files. The repo cur
 - [Server import](#server-import)
 - [Server auth](#server-auth)
 - [Client components](#client-components)
-- Client hooks
-- Client libs
-- Bin scripts
+- [Client hooks](#client-hooks)
+- [Client libs](#client-libs)
+- [Bin scripts](#bin-scripts)
 
 ### Server route handlers
 
@@ -913,3 +913,79 @@ The most common callback assertion is `toHaveBeenCalledOnce()` (no args check) f
 - **Do not use `container.querySelector` when `getByRole` or `getByLabelText` would work.** `querySelector` is used in this codebase only when querying by CSS class for visual/layout assertions (`container.querySelector('.track')?.classList.contains('tier-min')`) or for elements with no role/label that have no `data-testid` (e.g. `container.querySelector('.minimap-rect')`). For buttons, inputs, and labeled elements, always prefer a role or label query.
 - **Do not mix `fireEvent` and `userEvent` in the same test for the same interaction path.** Use `userEvent.setup()` + `await user.*` for user-initiated clicks, types, and keyboard input. Reserve `fireEvent` for low-level pointer sequences and DOM events that have no `userEvent` equivalent.
 - **Do not assert on class names as a proxy for behavior when a role or callback assertion exists.** The `tier-*` class tests in `Track.test.tsx` are an acceptable exception because they specifically test layout-tier CSS logic. For most behavior (disabled state, visibility, callback arguments), query the accessible state or the callback directly.
+
+### Client hooks
+
+**Canonical example:** `src/client/hooks/useShareLink.test.ts`. It is the most complete of the three: it uses `beforeEach`/`afterEach` lifecycle hooks, exercises both `result.current` state reading and `act`-wrapped mutations, and shows how to manipulate browser globals (`history.replaceState`, `sessionStorage`) without a DOM-mounted component.
+
+#### Harness setup
+
+Hook tests use `renderHook` from `@testing-library/react` and `act` for state-changing calls. No component wrapper is needed.
+
+```typescript
+import { renderHook, act } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { useMyHook } from './useMyHook';
+
+describe('useMyHook', () => {
+  it('starts at expected default', () => {
+    const { result } = renderHook(() => useMyHook());
+    expect(result.current.value).toBe(initialValue);
+  });
+
+  it('updates state after a call', () => {
+    const { result } = renderHook(() => useMyHook());
+    act(() => result.current.doSomething(42));
+    expect(result.current.value).toBe(42);
+  });
+});
+```
+
+The client vitest project loads `src/client/test-setup.ts` automatically (same as component tests), so `localStorage`, `window.confirm`, and DOM cleanup are handled globally. No explicit teardown is needed for standard hooks; if a test modifies `window.location` or `sessionStorage`, clean up in `afterEach`.
+
+#### State assertions
+
+Read `result.current` after rendering to inspect initial state. Wrap any call that triggers a state update in `act(() => ...)` before asserting. Without `act`, the state update may not have flushed and the assertion will see a stale value.
+
+```typescript
+// From useViewport.test.ts
+const { result } = renderHook(() => useViewport());
+act(() => result.current.zoomH('in', { stageWidth: 1000, anchorX: 0 }));
+expect(result.current.state.hZoom).toBeCloseTo(1.5);
+```
+
+#### Global event simulation
+
+Hooks that listen to `document` or `window` events (via `addEventListener` in a `useEffect`) are exercised by dispatching events directly on the target:
+
+```typescript
+// From useKeyboard.test.ts — dispatch on document for a global keydown listener
+document.dispatchEvent(
+  new KeyboardEvent('keydown', { key: 'k', metaKey: true }),
+);
+expect(onTogglePicker).toHaveBeenCalledOnce();
+
+// Also from useKeyboard.test.ts — fireEvent.keyDown is equivalent
+import { fireEvent } from '@testing-library/dom';
+fireEvent.keyDown(document, { key: 'Escape' });
+```
+
+For hooks that read DOM element layout properties (`clientWidth`, `getBoundingClientRect`), create the element manually, attach it to `document.body`, set the relevant properties with `Object.defineProperty`, and remove it in teardown:
+
+```typescript
+// From useKeyboard.test.ts — DOM element setup for viewport geometry
+const viewportEl = document.createElement('div');
+viewportEl.className = 'viewport';
+Object.defineProperty(viewportEl, 'clientWidth', { value: 600, configurable: true });
+document.body.appendChild(viewportEl);
+// ... test ...
+document.body.removeChild(viewportEl);
+```
+
+For hooks that read `window.location` or `sessionStorage`, mutate those directly in the test body and restore them in `afterEach` (see `useShareLink.test.ts` for the `history.replaceState` + `sessionStorage.clear()` pattern).
+
+#### What not to do
+
+- **Do not render a wrapper component when `renderHook` suffices.** If you are testing a hook in isolation, `renderHook` is always the right tool. Rendering a full component to exercise a hook mixes concerns and makes failures harder to diagnose.
+- **Do not assert on render counts.** None of the hook tests in this codebase assert on how many times the hook rendered. Render-count assertions are brittle (they break on React internal changes and concurrent mode) and rarely express a meaningful behavioral requirement. Assert on the resulting state, not on how many times the state was computed.
+- **Do not dispatch events before `renderHook`.** The hook's `useEffect` registers event listeners after the first render. Dispatching an event before calling `renderHook` will find no listener and the assertion will silently pass for the wrong reason.
