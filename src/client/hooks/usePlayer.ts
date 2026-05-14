@@ -28,6 +28,22 @@ const END_TAIL = 0.02;
 // handler. HTMLAudioElement.play() unlocks the device-level session more
 // reliably than scheduling a Web Audio BufferSource alone; we run both for
 // belt-and-suspenders coverage.
+// Schedule a near-silent buffer with a single tiny non-zero sample as part
+// of an iOS audio-session unlock. Pure-silent buffers may be optimized away
+// by iOS; an actual sample forces the engine to treat this as real audio.
+function playUnlockBuffer(ctx: AudioContext): void {
+  try {
+    const buffer = ctx.createBuffer(1, 256, ctx.sampleRate);
+    buffer.getChannelData(0)[0] = 0.0001;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch {
+    // ignore — failure here doesn't block the real sources
+  }
+}
+
 const SILENT_AUDIO_DATA_URL =
   'data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxOQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=';
 
@@ -407,6 +423,51 @@ export function usePlayer(): PlayerControls {
     };
   }, []);
 
+  // ---- iOS audio-session pre-unlock on the FIRST tap anywhere on the page ----
+  // The play button's own gesture handler should be enough to unlock the audio
+  // session on iOS, but in practice some iOS versions are stricter — the
+  // unlock attempt has to be the user's *first* audio-touching gesture, and
+  // by the time they reach the play button they've already tapped the project
+  // picker, scrolled, etc. So we attach one-shot listeners at the document
+  // level: any pointerdown/touchend fires resume + an unlock buffer + a
+  // silent HTMLAudio play. Then by the time the user actually taps play, the
+  // session is already hot. This is the same pattern Howler.js and Tone.js
+  // use in production. (Side effect: the AudioContext gets created on first
+  // page tap rather than on first project load — but ensureAudioGraph is
+  // idempotent so a later load() call reuses it.)
+  useEffect(() => {
+    const unlock = (): void => {
+      const graph = ensureAudioGraph();
+      if (graph) {
+        if (graph.ctx.state !== 'running') {
+          graph.ctx.resume().catch(() => {
+            // ignore
+          });
+        }
+        playUnlockBuffer(graph.ctx);
+      }
+      if (!unlockAudioRef.current) {
+        const a = new Audio(SILENT_AUDIO_DATA_URL);
+        a.preload = 'auto';
+        unlockAudioRef.current = a;
+      }
+      void unlockAudioRef.current.play().catch(() => {
+        // ignore — what matters is that .play() was attempted in a gesture
+      });
+      document.removeEventListener('pointerdown', unlock);
+      document.removeEventListener('touchend', unlock);
+    };
+    document.addEventListener('pointerdown', unlock, { passive: true });
+    document.addEventListener('touchend', unlock, { passive: true });
+    return () => {
+      document.removeEventListener('pointerdown', unlock);
+      document.removeEventListener('touchend', unlock);
+    };
+    // ensureAudioGraph and unlockAudioRef are stable closures over refs; the
+    // empty deps are intentional so we attach exactly once per hook lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ---- API ----
   const load = useCallback<PlayerControls['load']>(async (input) => {
     // Tear down current stems before building new ones.
@@ -569,15 +630,7 @@ export function usePlayer(): PlayerControls {
           // ignore — startSourcesAt will surface failure
         });
       }
-      try {
-        const silent = ctx.createBuffer(1, 1, 22050);
-        const unlock = ctx.createBufferSource();
-        unlock.buffer = silent;
-        unlock.connect(ctx.destination);
-        unlock.start(0);
-      } catch {
-        // ignore — the real sources below are what matter
-      }
+      playUnlockBuffer(ctx);
     }
     dispatch({ type: 'SET_PLAYING', isPlaying: true });
     stateRef.current = { ...stateRef.current, isPlaying: true };
