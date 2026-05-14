@@ -989,3 +989,32 @@ For hooks that read `window.location` or `sessionStorage`, mutate those directly
 - **Do not render a wrapper component when `renderHook` suffices.** If you are testing a hook in isolation, `renderHook` is always the right tool. Rendering a full component to exercise a hook mixes concerns and makes failures harder to diagnose.
 - **Do not assert on render counts.** None of the hook tests in this codebase assert on how many times the hook rendered. Render-count assertions are brittle (they break on React internal changes and concurrent mode) and rarely express a meaningful behavioral requirement. Assert on the resulting state, not on how many times the state was computed.
 - **Do not dispatch events before `renderHook`.** The hook's `useEffect` registers event listeners after the first render. Dispatching an event before calling `renderHook` will find no listener and the assertion will silently pass for the wrong reason.
+
+### Client libs
+
+**Canonical example:** `src/client/lib/format.test.ts`. Plain import, bare `describe`/`test` shell, no harness, no browser APIs touched. The pattern is identical to [Server libs](#server-libs) — see that section for the full rationale and anti-patterns. The only practical difference is that client lib tests run under the `client` vitest project (happy-dom environment), which rarely matters since these modules contain pure computation.
+
+#### Harness setup
+
+None. Import the module directly and assert inline.
+
+```typescript
+import { describe, expect, test } from 'vitest';
+import { fmt, clamp } from './format';
+
+describe('fmt', () => {
+  test('formats seconds as M:SS', () => {
+    expect(fmt(65)).toBe('1:05');
+  });
+});
+```
+
+No `beforeAll`, no env prelude, no DOM setup.
+
+#### What to assert
+
+Test representative inputs, boundary values, and edge cases (NaN, Infinity, negatives, zero, empty arrays). `format.test.ts` covers `fmt(NaN)`, `fmt(-1)`, `fmt(Infinity)`, and zero-denominator guards in `pixelToTime`. `share-url.test.ts` covers round-trip encode/decode, missing required fields, invalid nested values (inverted loop range, negative time), and forward-compatibility (unknown keys are silently ignored).
+
+#### What not to do
+
+See [Server libs](#server-libs). The same rules apply: don't reach for mocks when the function is pure, don't assert on implementation details, and don't test multiple orthogonal behaviors in a single `it` block when separate blocks would be clearer.
