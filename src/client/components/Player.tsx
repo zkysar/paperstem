@@ -80,7 +80,7 @@ export function Player({
   onDeleteStem,
   viewport,
 }: Props) {
-  const { state, currentTime, debugInfo } = player;
+  const { state, currentTime } = player;
   const {
     stems,
     duration,
@@ -710,7 +710,6 @@ export function Player({
           />
         )}
       </div>
-      {debugInfo && <div className="debug-info">{debugInfo}</div>}
 
       <div className="keys-hint">
         Press <kbd>?</kbd> for keyboard shortcuts.
