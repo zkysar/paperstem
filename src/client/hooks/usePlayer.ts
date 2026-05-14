@@ -71,6 +71,7 @@ type Action =
   | { type: 'SET_PLAYING'; isPlaying: boolean }
   | { type: 'SET_LOOP'; start: number | null; end: number | null }
   | { type: 'SET_LOOP_ENABLED'; enabled: boolean }
+  | { type: 'SET_LOOP_ARMED'; armed: boolean }
   | { type: 'TOGGLE_MUTE'; idx: number }
   | { type: 'TOGGLE_SOLO'; idx: number }
   | { type: 'SET_VOLUME'; idx: number; vol: number }
@@ -90,6 +91,7 @@ const initialState: PlayerState = {
   referenceIdx: 0,
   isPlaying: false,
   loop: null,
+  loopArmed: false,
   status: '',
   loading: null,
   waveformNormalization: loadWaveformNormalization(),
@@ -112,6 +114,7 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         referenceIdx: 0,
         isPlaying: false,
         loop: null,
+        loopArmed: false,
         status: action.status,
         loading: {
           displayNames: action.displayNames,
@@ -135,6 +138,7 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         referenceIdx: action.referenceIdx,
         isPlaying: false,
         loop: null,
+        loopArmed: false,
         status: action.status,
         loading: null,
       };
@@ -146,11 +150,17 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       }
       return {
         ...state,
+        // Creating/replacing a region disarms — armed is the pre-region
+        // "looping is on, waiting for a drag" state, not a flag that
+        // outlives the drag.
         loop: { start: action.start, end: action.end, enabled: state.loop?.enabled ?? true },
+        loopArmed: false,
       };
     case 'SET_LOOP_ENABLED':
       if (!state.loop) return state;
       return { ...state, loop: { ...state.loop, enabled: action.enabled } };
+    case 'SET_LOOP_ARMED':
+      return { ...state, loopArmed: action.armed };
     case 'TOGGLE_MUTE':
       return updateStem(state, action.idx, (s) => ({ ...s, userMuted: !s.userMuted }));
     case 'TOGGLE_SOLO':
@@ -781,7 +791,12 @@ export function usePlayer(): PlayerControls {
 
   const toggleLoopEnabled = useCallback(() => {
     const s = stateRef.current;
-    if (!s.loop) return;
+    if (!s.loop) {
+      // No region yet — toggling the loop button arms the next ruler drag
+      // to create one. Click again to disarm without creating anything.
+      dispatch({ type: 'SET_LOOP_ARMED', armed: !s.loopArmed });
+      return;
+    }
     dispatch({ type: 'SET_LOOP_ENABLED', enabled: !s.loop.enabled });
   }, []);
 
