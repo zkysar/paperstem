@@ -56,7 +56,7 @@ type Props = {
    * (plus the non-trivial category list for the "Copied — includes X" hint).
    * Returns `null` when there is no project to share.
    */
-  onShare(): { fullUrl: string; categories: Array<'loop' | 'mix' | 'stem' | 'comment'> } | null;
+  onShare(): { fullUrl: string; categories: Array<'loop' | 'mix' | 'comment'> } | null;
 };
 
 export function AppToolbar(props: Props) {

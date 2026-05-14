@@ -9,14 +9,12 @@ import { computePeaks, encodePeaks, PLAYER_PEAK_BINS } from '../lib/peaks';
 type Props = {
   stem: LoadedStem;
   idx: number;
-  focused: boolean;
   effectiveMuted: boolean;
   durationRef: number; // total song length, for clip width
   waveformNormalization: WaveformNormalization;
   canMutate: boolean;
   trackHeight: number;
   hZoom: number;
-  onFocus(idx: number): void;
   onToggleMute(idx: number): void;
   onToggleSolo(idx: number): void;
   onSetVolume(idx: number, vol: number): void;
@@ -28,14 +26,12 @@ type Props = {
 export function Track({
   stem,
   idx,
-  focused,
   effectiveMuted,
   durationRef,
   waveformNormalization,
   canMutate,
   trackHeight,
   hZoom,
-  onFocus,
   onToggleMute,
   onToggleSolo,
   onSetVolume,
@@ -283,19 +279,13 @@ export function Track({
   const stemDuration = isFinite(stemDur) ? stemDur : durationRef;
   const widthPct = durationRef ? Math.max(1, Math.min(100, (stemDuration / durationRef) * 100)) : 100;
 
-  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
-    const target = e.target as HTMLElement;
-    if (target.closest('.pill, .vol-slider, .clip, .track-name-input, .track-name-editable')) return;
-    onFocus(idx);
-  }
-
   const tierClass =
     trackHeight < 32 ? 'tier-min'
     : trackHeight < 44 ? 'tier-mid'
     : 'tier-full';
 
   return (
-    <div className={'track ' + tierClass + (focused ? ' focused' : '')} onPointerDown={handlePointerDown}>
+    <div className={'track ' + tierClass}>
       {unavailable ? (
         <div className="track-rail track-rail-unavailable">
           <span className="swatch swatch-muted" />

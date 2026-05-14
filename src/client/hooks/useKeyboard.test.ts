@@ -10,7 +10,6 @@ function stubPlayer() {
       duration: 0,
       loop: null,
       isPlaying: false,
-      focusedIdx: 0,
     } as any,
     currentTime: 0,
     seek: vi.fn(),
@@ -23,7 +22,6 @@ function stubPlayer() {
     toggleSolo: vi.fn(),
     setVolume: vi.fn(),
     setMasterVolume: vi.fn(),
-    focusStem: vi.fn(),
     toggleWaveformNormalization: vi.fn(),
     load: vi.fn(),
   } as any;
@@ -392,13 +390,3 @@ describe('useKeyboard WASD navigation', () => {
   });
 });
 
-describe('useKeyboard solo (O)', () => {
-  it('O calls player.toggleSolo when a track is focused', () => {
-    const player = stubPlayer();
-    player.state.focusedIdx = 2;
-    player.state.stems = [{}, {}, {}] as any;
-    renderHook(() => useKeyboard({ ...defaultOpts(), player }));
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'o' }));
-    expect(player.toggleSolo).toHaveBeenCalledWith(2);
-  });
-});

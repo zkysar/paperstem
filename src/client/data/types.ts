@@ -99,7 +99,6 @@ export type PlayerState = {
   duration: number;
   referenceIdx: number;
   isPlaying: boolean;
-  focusedIdx: number;
   loop: LoopRegion | null;
   status: string;
   loading: PlayerLoading | null;

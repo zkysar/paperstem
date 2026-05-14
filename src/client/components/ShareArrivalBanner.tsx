@@ -1,7 +1,7 @@
 import { Play, X } from 'lucide-react';
 import { fmt } from '../lib/format';
 
-export type ShareArrivalCategory = 'loop' | 'mix' | 'stem' | 'comment';
+export type ShareArrivalCategory = 'loop' | 'mix' | 'comment';
 
 type Props = {
   time: number | null;
@@ -13,7 +13,6 @@ type Props = {
 const CATEGORY_LABELS: Record<ShareArrivalCategory, string> = {
   loop: 'Loop region',
   mix: 'Custom mix',
-  stem: 'Focused stem',
   comment: 'Focused comment',
 };
 

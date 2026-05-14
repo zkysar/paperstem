@@ -50,7 +50,6 @@ type Action =
   | { type: 'TOGGLE_SOLO'; idx: number }
   | { type: 'SET_VOLUME'; idx: number; vol: number }
   | { type: 'SET_MASTER_VOLUME'; vol: number }
-  | { type: 'FOCUS'; idx: number }
   | { type: 'SET_STATUS'; status: string }
   | { type: 'SET_WAVEFORM_NORM'; mode: WaveformNormalization }
   | { type: 'SET_TITLE'; title: string }
@@ -65,7 +64,6 @@ const initialState: PlayerState = {
   duration: 0,
   referenceIdx: 0,
   isPlaying: false,
-  focusedIdx: -1,
   loop: null,
   status: '',
   loading: null,
@@ -88,7 +86,6 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         duration: 0,
         referenceIdx: 0,
         isPlaying: false,
-        focusedIdx: -1,
         loop: null,
         status: action.status,
         loading: {
@@ -112,7 +109,6 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         duration: action.duration,
         referenceIdx: action.referenceIdx,
         isPlaying: false,
-        focusedIdx: -1,
         loop: null,
         status: action.status,
         loading: null,
@@ -138,8 +134,6 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       return updateStem(state, action.idx, (s) => ({ ...s, userVolume: action.vol }));
     case 'SET_MASTER_VOLUME':
       return { ...state, masterVolume: action.vol };
-    case 'FOCUS':
-      return { ...state, focusedIdx: action.idx };
     case 'SET_STATUS':
       return { ...state, status: action.status };
     case 'SET_WAVEFORM_NORM':
@@ -156,7 +150,7 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       if (idx < 0) return state;
       const nextStems = state.stems.slice();
       nextStems.splice(idx, 1);
-      // Reference idx and focused idx need to remain valid after removal.
+      // Reference idx needs to remain valid after removal.
       let referenceIdx = state.referenceIdx;
       if (referenceIdx === idx) {
         // Pick the longest remaining stem as the new reference; fall back to 0.
@@ -170,10 +164,7 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       } else if (referenceIdx > idx) {
         referenceIdx -= 1;
       }
-      let focusedIdx = state.focusedIdx;
-      if (focusedIdx === idx) focusedIdx = -1;
-      else if (focusedIdx > idx) focusedIdx -= 1;
-      return { ...state, stems: nextStems, referenceIdx, focusedIdx };
+      return { ...state, stems: nextStems, referenceIdx };
     }
   }
 }
@@ -210,7 +201,6 @@ export type PlayerControls = {
   setLoopEnabled(enabled: boolean): void;
   toggleLoopEnabled(): void;
   clearLoop(): void;
-  focusStem(idx: number): void;
   setWaveformNormalization(mode: WaveformNormalization): void;
   toggleWaveformNormalization(): void;
   setTitle(title: string): void;
@@ -631,10 +621,6 @@ export function usePlayer(): PlayerControls {
     dispatch({ type: 'SET_LOOP', start: null, end: null });
   }, []);
 
-  const focusStem = useCallback((idx: number) => {
-    dispatch({ type: 'FOCUS', idx });
-  }, []);
-
   const setWaveformNormalization = useCallback((mode: WaveformNormalization) => {
     saveWaveformNormalization(mode);
     dispatch({ type: 'SET_WAVEFORM_NORM', mode });
@@ -715,7 +701,6 @@ export function usePlayer(): PlayerControls {
     setLoopEnabled,
     toggleLoopEnabled,
     clearLoop,
-    focusStem,
     setWaveformNormalization,
     toggleWaveformNormalization,
     setTitle,

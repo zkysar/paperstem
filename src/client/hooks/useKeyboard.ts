@@ -133,13 +133,6 @@ export function useKeyboard(opts: KeyboardOpts): void {
           e.preventDefault();
           player.toggleLoopEnabled();
         }
-      } else if ((e.key === 'm' || e.key === 'M') && state.focusedIdx >= 0) {
-        e.preventDefault();
-        player.toggleMute(state.focusedIdx);
-      } else if ((e.key === 'o' || e.key === 'O') && state.focusedIdx >= 0) {
-        // Solo focused track (was 'S', moved to 'O' to free S for WASD).
-        e.preventDefault();
-        player.toggleSolo(state.focusedIdx);
       } else if (
         e.key === 'w' || e.key === 'W' ||
         e.key === 'a' || e.key === 'A' ||

@@ -46,13 +46,6 @@ export function ShortcutsOverlay({ open, onClose, forceMac }: Props) {
       ],
     },
     {
-      title: 'Focused track',
-      items: [
-        { keys: k(['M']), label: 'Mute / unmute', note: 'click a track to focus it' },
-        { keys: k(['O']), label: 'Solo / unsolo', note: 'click a track to focus it' },
-      ],
-    },
-    {
       title: 'Zoom & navigation',
       items: [
         {

@@ -28,7 +28,6 @@ describe('share-url', () => {
       time: 10,
       loop: { start: 5, end: 8, enabled: false },
       masterVolume: 80,
-      focusedStemId: 'stem_a',
       focusedCommentId: 'cmt_b',
       mix: [
         { stemId: 'stem_a', muted: true },
@@ -37,7 +36,7 @@ describe('share-url', () => {
       ],
     });
     expect(f).toBe(
-      'p=x&t=10.00&l=5.00-8.00&le=0&mv=80&fs=stem_a&fc=cmt_b&mix=stem_a:m,stem_b:s,stem_c:v50',
+      'p=x&t=10.00&l=5.00-8.00&le=0&mv=80&fc=cmt_b&mix=stem_a:m,stem_b:s,stem_c:v50',
     );
   });
 
@@ -114,7 +113,6 @@ function makePlayer(over: Partial<PlayerState> = {}): PlayerState {
     duration: 60,
     referenceIdx: 0,
     isPlaying: false,
-    focusedIdx: -1,
     loop: null,
     status: '',
     loading: null,
@@ -135,7 +133,7 @@ describe('snapshotShareState', () => {
     expect(s).toEqual({ projectId: 'p1' });
   });
 
-  it('captures time, loop, mix, focus', () => {
+  it('captures time, loop, mix, comment', () => {
     const s = snapshotShareState({
       projectId: 'p1',
       player: makePlayer({
@@ -144,7 +142,6 @@ describe('snapshotShareState', () => {
           makeStem({ serverId: 'b', userVolume: 50 }),
           makeStem({ serverId: 'c' }),
         ],
-        focusedIdx: 1,
         loop: { start: 1, end: 2, enabled: true },
         masterVolume: 80,
       }),
@@ -154,7 +151,6 @@ describe('snapshotShareState', () => {
     expect(s.time).toBe(12.5);
     expect(s.loop).toEqual({ start: 1, end: 2, enabled: true });
     expect(s.masterVolume).toBe(80);
-    expect(s.focusedStemId).toBe('b');
     expect(s.focusedCommentId).toBe('cmt1');
     expect(s.mix).toEqual([
       { stemId: 'a', muted: true },
