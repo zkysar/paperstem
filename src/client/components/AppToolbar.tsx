@@ -81,7 +81,12 @@ export function AppToolbar(props: Props) {
   async function handleShareClick() {
     const snap = onShare();
     if (!snap) return;
-    const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+    // Only invoke the native share sheet on iPhone — on desktop and other
+    // platforms the OS share UI is either absent or worse than a copy-to-clipboard
+    // toast. iPad is intentionally excluded (a clipboard toast is friendlier
+    // in a desktop-class environment).
+    const isIPhone = typeof navigator !== 'undefined' && /iPhone/.test(navigator.userAgent);
+    const canNativeShare = isIPhone && typeof navigator.share === 'function';
     if (canNativeShare) {
       try {
         await navigator.share({ title: snap.title ?? 'Paperstem', url: snap.fullUrl });
