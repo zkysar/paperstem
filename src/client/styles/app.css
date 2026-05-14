@@ -264,8 +264,13 @@ kbd {
   position: relative;
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  /* At least viewport-tall so the playhead/loop overlays (top:0 bottom:0)
+     fill the visible window when tracks are short. Without `flex: 1`, this
+     box also grows past viewport height when .tracks overflows — without
+     that growth, absolutely-positioned overlays anchored to this element
+     would end at the visible-viewport bottom and not extend over the
+     overflowing tracks revealed by vertical scroll. */
+  min-height: 100%;
   /* width is set inline via JS based on viewport.state.hZoom */
 }
 
