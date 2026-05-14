@@ -58,16 +58,6 @@ identity, set the env var to that email; to disable, set it to empty
 
 `npm run dev` defaults `PAPERSTEM_AUDIO_ROOT` to `${cwd}/audio-dev` (and `mkdir -p`s it). The launcher prints `Audio: <path>` in its header. All storage ops (`createFolder`, `uploadFile`, `getFile`, `listFolder`, `find*`, `deleteFile`, `updateFile`) read/write under that root. IDs are bare `base64url(relpath)`. HTTP Range is honored, so audio seeking works.
 
-After pointing at a fresh `PAPERSTEM_AUDIO_ROOT` for an existing DB (or one whose bands have placeholder/`PENDING_*` `folder_id` values):
-
-```bash
-PAPERSTEM_AUDIO_ROOT=$(pwd)/audio-dev \
-DATABASE_PATH=$(pwd)/dev.sqlite \
-npx tsx bin/init-local-drive.ts
-```
-
-Walks `bands` and points each at a real local folder.
-
 ## Verifying changes
 
 - `npx vitest run` — all 93+ tests, ~3s.

@@ -14,14 +14,12 @@ keychain_get() {
 
 export GMAIL_USER="${GMAIL_USER:-zach.kysar@gmail.com}"
 export GMAIL_APP_PASSWORD="${GMAIL_APP_PASSWORD:-$(keychain_get PAPER_STEM_APP_CODE)}"
-export GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-$(keychain_get PAPERSTEM_GOOGLE_CLIENT_ID)}"
-export GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET:-$(keychain_get PAPERSTEM_GOOGLE_CLIENT_SECRET)}"
-export GOOGLE_REFRESH_TOKEN="${GOOGLE_REFRESH_TOKEN:-$(keychain_get PAPERSTEM_GOOGLE_REFRESH_TOKEN)}"
 
 export APP_URL="${APP_URL:-http://localhost:5173}"
 export DATABASE_PATH="${DATABASE_PATH:-./dev.sqlite}"
 export PORT="${PORT:-8787}"
 export SESSION_COOKIE_SECRET="${SESSION_COOKIE_SECRET:-dev-only-not-secret-replace-in-prod}"
+export PAPERSTEM_AUDIO_ROOT="${PAPERSTEM_AUDIO_ROOT:-./audio-dev}"
 export PAPERSTEM_DEV_AUTO_LOGIN="${PAPERSTEM_DEV_AUTO_LOGIN-$GMAIL_USER}"
 
 exec "$@"

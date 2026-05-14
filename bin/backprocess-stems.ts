@@ -72,7 +72,7 @@ if (allStems.length === 0) process.exit(0);
 const updateSize = db.prepare<[number, string]>(
   'UPDATE stems SET size_bytes = ? WHERE id = ?',
 );
-const updateDriveId = db.prepare<[string, number, string]>(
+const updateFileId = db.prepare<[string, number, string]>(
   'UPDATE stems SET file_id = ?, size_bytes = ? WHERE id = ?',
 );
 
@@ -195,7 +195,7 @@ for (const stem of allStems) {
       const res = await updateFile(stem.file_id, 'audio/mpeg', encoded);
       if (needsRename) {
         const renamed = await renameAndRetype(stem.file_id, newName, 'audio/mpeg');
-        updateDriveId.run(renamed.id, res.size, stem.id);
+        updateFileId.run(renamed.id, res.size, stem.id);
       } else {
         updateSize.run(res.size, stem.id);
       }
@@ -210,7 +210,7 @@ for (const stem of allStems) {
     stats.failed++;
     const msg =
       e instanceof StorageNotFoundError
-        ? `drive file not found: ${stem.file_id}`
+        ? `storage file not found: ${stem.file_id}`
         : e instanceof Error
           ? e.message
           : String(e);

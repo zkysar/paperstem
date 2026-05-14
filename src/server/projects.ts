@@ -241,9 +241,6 @@ export async function handleCreateProject(
   }
   const band = stmts.findBandById.get(bandId);
   if (!band) return c.json({ error: 'forbidden' }, 403);
-  if (band.folder_id.startsWith('PENDING_')) {
-    return c.json({ error: 'band_not_provisioned' }, 409);
-  }
 
   let projectFolder: { id: string };
   try {

@@ -73,7 +73,7 @@ function createBand(
   const { folderId = encodeId(name), createOnDisk = true } = opts;
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  if (createOnDisk && !folderId.startsWith('PENDING_')) {
+  if (createOnDisk) {
     mkdirSync(join(audioRoot, decodeId(folderId)), { recursive: true });
   }
   dbMod.stmts.insertBand.run(id, name, folderId, ownerId, now);
@@ -269,27 +269,6 @@ describe('POST /api/projects owner-only auth', () => {
     expect(res.status).toBe(400);
   });
 
-  it('409 when band folder_id is PENDING_', async () => {
-    const owner = createUser('owner@example.com');
-    const { id: bandId } = createBand('Alpha', owner, {
-      folderId: 'PENDING_drive',
-      createOnDisk: false,
-    });
-    const sid = createSession(owner);
-    const res = await app.fetch(
-      new Request('http://x/api/projects', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          cookie: cookieHeader(sid),
-        },
-        body: JSON.stringify({ band_id: bandId, name: 'p' }),
-      }),
-    );
-    expect(res.status).toBe(409);
-    const data = (await res.json()) as { error: string };
-    expect(data.error).toBe('band_not_provisioned');
-  });
 });
 
 describe('POST /api/projects/:id/stems', () => {

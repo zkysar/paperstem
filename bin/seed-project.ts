@@ -53,14 +53,6 @@ if (!band) {
   console.error(`Band not found: ${bandId}`);
   process.exit(1);
 }
-if (band.folder_id.startsWith('PENDING_')) {
-  console.error(
-    `Band ${band.id} has placeholder folder_id (${band.folder_id}); ` +
-      `run backfill-band-folder first`,
-  );
-  process.exit(1);
-}
-
 const owner = stmts.findUserById.get(band.owner_user_id);
 if (!owner) {
   console.error(`Owner user not found: ${band.owner_user_id}`);

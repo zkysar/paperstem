@@ -225,14 +225,6 @@ export async function createFolder(
   return { id: encodeId(childRel) };
 }
 
-export async function shareFolder(
-  _folderId: string,
-  _email: string,
-  _role: 'reader' | 'writer' | 'owner',
-): Promise<void> {
-  // No-op: local filesystem has no permission model.
-}
-
 export async function findFolderByName(
   name: string,
   parentId: string | 'root',
