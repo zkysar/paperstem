@@ -206,7 +206,7 @@ No significant anti-patterns were spotted across the nine files. A few minor not
 
 **Canonical example:** `src/server/auth/rate-limit.test.ts`. It is the purest example in the category: a plain import, no DB, no Hono app, no `beforeEach`/`afterEach` setup, just `describe`/`it` with direct assertions against a single class.
 
-> **Note on the task spec:** The task asked to use `src/server/audio.test.ts` and `src/server/tokens.test.ts` as references. Both are actually route-handler tests — they spin up a Hono app, open a real SQLite DB, and use `beforeAll`/`beforeEach` session setup. The actual server lib tests live in `src/server/auth/`.
+Pure-function server modules are uncommon in this codebase — most `src/server/*.ts` is exposed through a Hono handler and shows up under [Server route handlers](#server-route-handlers) instead. The auth helpers (`rate-limit.ts`, `cookie.ts`) are the main exceptions.
 
 #### Harness setup
 
