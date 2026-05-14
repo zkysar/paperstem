@@ -34,6 +34,9 @@ function decodeId(id: string): string {
   return Buffer.from(id, 'base64url').toString('utf8');
 }
 
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHAR_RE = /[\x00-\x1f\x7f]/;
+
 function sanitizeSegment(segment: string): string {
   if (
     !segment ||
@@ -41,7 +44,7 @@ function sanitizeSegment(segment: string): string {
     segment === '..' ||
     segment.includes('/') ||
     segment.includes('\\') ||
-    segment.includes('\0')
+    CONTROL_CHAR_RE.test(segment)
   ) {
     throw new Error(`storage: invalid path segment: ${JSON.stringify(segment)}`);
   }
@@ -168,13 +171,45 @@ export async function renameAndRetype(
   return { id: encodeId(newRel) };
 }
 
-export async function trashItem(fileId: string): Promise<void> {
-  // Local filesystem has no separate trash bucket; treat as delete.
-  await deleteFile(fileId);
+// Reserved top-level directory holding trashed files/folders. The entry name
+// inside it is the original encoded id, so untrashItem can move it back
+// without needing a separate manifest.
+const TRASH_DIR = '_trash';
+
+function trashSlot(root: string, fileId: string): string {
+  return resolve(join(root, TRASH_DIR, fileId));
 }
 
-export async function untrashItem(_fileId: string): Promise<void> {
-  // No-op: local filesystem has no trash to restore from.
+export async function trashItem(fileId: string): Promise<void> {
+  const root = audioRoot();
+  const srcAbs = pathFromRel(root, decodeId(fileId));
+  const dstAbs = trashSlot(root, fileId);
+  await mkdir(join(root, TRASH_DIR), { recursive: true });
+  try {
+    await rename(srcAbs, dstAbs);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') throw new StorageNotFoundError(fileId);
+    throw err;
+  }
+}
+
+export async function untrashItem(fileId: string): Promise<void> {
+  const root = audioRoot();
+  const rel = decodeId(fileId);
+  const srcAbs = trashSlot(root, fileId);
+  const dstAbs = pathFromRel(root, rel);
+  const lastSlash = rel.lastIndexOf('/');
+  if (lastSlash !== -1) {
+    await mkdir(pathFromRel(root, rel.slice(0, lastSlash)), { recursive: true });
+  }
+  try {
+    await rename(srcAbs, dstAbs);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT') throw new StorageNotFoundError(fileId);
+    throw err;
+  }
 }
 
 export async function getFile(
@@ -267,7 +302,10 @@ export async function listFolder(
   const parentRel = decodeId(parentFolderId);
   const abs = pathFromRel(root, parentRel);
   const entries = await readdir(abs, { withFileTypes: true });
-  return entries.map((e) => ({
+  // Hide reserved entries (currently just _trash) when listing the root.
+  const visible =
+    parentRel === '' ? entries.filter((e) => e.name !== TRASH_DIR) : entries;
+  return visible.map((e) => ({
     id: encodeId(parentRel === '' ? e.name : `${parentRel}/${e.name}`),
     name: e.name,
   }));

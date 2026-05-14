@@ -59,6 +59,14 @@ describe('createFolder', () => {
     await expect(storage.createFolder('..')).rejects.toThrow(/invalid path segment/);
     await expect(storage.createFolder('a/b')).rejects.toThrow(/invalid path segment/);
   });
+
+  it('rejects names containing control characters (NUL, newline, etc.)', async () => {
+    await expect(storage.createFolder('a\0b')).rejects.toThrow(/invalid path segment/);
+    await expect(storage.createFolder('a\nb')).rejects.toThrow(/invalid path segment/);
+    await expect(storage.createFolder('a\rb')).rejects.toThrow(/invalid path segment/);
+    await expect(storage.createFolder('a\x1bb')).rejects.toThrow(/invalid path segment/);
+    await expect(storage.createFolder('a\x7fb')).rejects.toThrow(/invalid path segment/);
+  });
 });
 
 describe('uploadFile', () => {
@@ -188,15 +196,62 @@ describe('renameAndRetype', () => {
 });
 
 describe('trashItem / untrashItem', () => {
-  it('trashItem deletes the file', async () => {
+  it('trashItem moves the file to _trash/ and untrashItem restores it', async () => {
     const folder = await storage.createFolder('b');
     const { id } = await storage.uploadFile(folder.id, 'a.mp3', 'audio/mpeg', Buffer.from('x'));
+
     await storage.trashItem(id);
     await expect(stat(join(root, 'b', 'a.mp3'))).rejects.toThrow();
+    await expect(stat(join(root, '_trash', id))).resolves.toBeTruthy();
+
+    await storage.untrashItem(id);
+    await expect(stat(join(root, 'b', 'a.mp3'))).resolves.toBeTruthy();
+    await expect(stat(join(root, '_trash', id))).rejects.toThrow();
   });
 
-  it('untrashItem is a no-op', async () => {
-    await expect(storage.untrashItem(encode('whatever'))).resolves.toBeUndefined();
+  it('trashItem on a folder moves it (and its contents) to _trash/', async () => {
+    const folder = await storage.createFolder('b');
+    await storage.uploadFile(folder.id, 'a.mp3', 'audio/mpeg', Buffer.from('x'));
+
+    await storage.trashItem(folder.id);
+    await expect(stat(join(root, 'b'))).rejects.toThrow();
+    await expect(stat(join(root, '_trash', folder.id, 'a.mp3'))).resolves.toBeTruthy();
+
+    await storage.untrashItem(folder.id);
+    await expect(stat(join(root, 'b', 'a.mp3'))).resolves.toBeTruthy();
+  });
+
+  it('untrashItem recreates the parent directory if it was removed', async () => {
+    const band = await storage.createFolder('b');
+    const project = await storage.createFolder('p', band.id);
+    const { id } = await storage.uploadFile(project.id, 'a.mp3', 'audio/mpeg', Buffer.from('x'));
+
+    await storage.trashItem(id);
+    await storage.deleteFile(project.id); // remove the parent while file is in trash
+
+    await storage.untrashItem(id);
+    await expect(stat(join(root, 'b', 'p', 'a.mp3'))).resolves.toBeTruthy();
+  });
+
+  it('trashItem throws StorageNotFoundError when source does not exist', async () => {
+    await expect(storage.trashItem(encode('does/not/exist'))).rejects.toThrow(
+      storage.StorageNotFoundError,
+    );
+  });
+
+  it('untrashItem throws StorageNotFoundError when nothing is in trash for that id', async () => {
+    await expect(storage.untrashItem(encode('also/missing'))).rejects.toThrow(
+      storage.StorageNotFoundError,
+    );
+  });
+
+  it('listFolder hides the _trash directory at the root', async () => {
+    const band = await storage.createFolder('b');
+    const { id } = await storage.uploadFile(band.id, 'a.mp3', 'audio/mpeg', Buffer.from('x'));
+    await storage.trashItem(id);
+
+    const rootEntries = await storage.listFolder(encode(''));
+    expect(rootEntries.map((e) => e.name)).toEqual(['b']);
   });
 });
 
