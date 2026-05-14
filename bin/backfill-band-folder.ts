@@ -4,7 +4,7 @@ import {
   createFolder,
   findFolderByName,
   shareFolder,
-} from '../src/server/drive.js';
+} from '../src/server/storage.js';
 
 const PARENT_FOLDER_NAME = 'paperstem';
 
@@ -70,7 +70,7 @@ for (const email of memberEmails) {
   console.log(`shared with ${email}`);
 }
 
-stmts.updateBandDriveFolder.run(bandFolder.id, band.id);
+stmts.updateBandFolder.run(bandFolder.id, band.id);
 console.log(`updated bands.folder_id for ${band.id} -> ${bandFolder.id}`);
 console.log(
   `Summary: band=${band.id} folder=${bandFolder.id} shared_with=${memberEmails.length}`,

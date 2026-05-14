@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { stmts } from '../db.js';
-import { createFolder, findFolderByName, uploadFile } from '../drive.js';
+import { createFolder, findFolderByName, uploadFile } from '../storage.js';
 import { isDevLoginEnabled } from './dev-login.js';
 
 const DEFAULT_BAND_NAME = 'Dev Band';

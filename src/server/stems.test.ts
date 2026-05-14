@@ -1,27 +1,26 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
+import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const tmpDir = mkdtempSync(join(tmpdir(), 'paperstem-stems-test-'));
 const dbPath = join(tmpDir, 'test.sqlite');
+const audioRoot = join(tmpDir, 'audio');
+mkdirSync(audioRoot, { recursive: true });
 process.env.DATABASE_PATH = dbPath;
+process.env.PAPERSTEM_AUDIO_ROOT = audioRoot;
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
-process.env.GOOGLE_CLIENT_ID = 'cid';
-process.env.GOOGLE_CLIENT_SECRET = 'csec';
-process.env.GOOGLE_REFRESH_TOKEN = 'rtok';
 
 type DbModule = typeof import('./db.js');
 type StemsModule = typeof import('./stems.js');
-type DriveModule = typeof import('./drive.js');
 type MiddlewareModule = typeof import('./auth/middleware.js');
 type CookieModule = typeof import('./auth/cookie.js');
 
 let dbMod: DbModule;
 let stemsMod: StemsModule;
-let driveMod: DriveModule;
 let middlewareMod: MiddlewareModule;
 let cookieMod: CookieModule;
 let app: import('hono').Hono;
@@ -29,7 +28,6 @@ let app: import('hono').Hono;
 beforeAll(async () => {
   dbMod = await import('./db.js');
   stemsMod = await import('./stems.js');
-  driveMod = await import('./drive.js');
   middlewareMod = await import('./auth/middleware.js');
   cookieMod = await import('./auth/cookie.js');
   const { Hono } = await import('hono');
@@ -48,8 +46,12 @@ function reset() {
   dbMod.db.exec(
     'DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
-  driveMod._resetTokenCacheForTests();
-  vi.restoreAllMocks();
+  rmSync(audioRoot, { recursive: true, force: true });
+  mkdirSync(audioRoot, { recursive: true });
+}
+
+function encodeId(rel: string): string {
+  return Buffer.from(rel, 'utf8').toString('base64url');
 }
 
 function createUser(email: string): string {
@@ -61,7 +63,7 @@ function createUser(email: string): string {
 function createBand(name: string, ownerId: string): string {
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  dbMod.stmts.insertBand.run(id, name, 'drive-folder-x', ownerId, now);
+  dbMod.stmts.insertBand.run(id, name, encodeId(name), ownerId, now);
   dbMod.stmts.insertMembership.run(id, ownerId, 'owner', now);
   return id;
 }
@@ -78,68 +80,46 @@ function cookieHeader(sid: string): string {
 }
 
 function createProjectAndStem(
+  bandFolderName: string,
   bandId: string,
   ownerId: string,
   stemName: string,
-): { projectId: string; stemId: string; driveFileId: string } {
+): { projectId: string; stemId: string; fileId: string; rel: string } {
+  const projectFolderRel = `${bandFolderName}/p1`;
+  const stemRel = `${projectFolderRel}/${stemName}`;
+  // Create files on disk so the storage layer can act on them.
+  mkdirSync(join(audioRoot, projectFolderRel), { recursive: true });
+  writeFileSync(join(audioRoot, stemRel), 'audio-bytes');
   const projectId = randomUUID();
   const stemId = randomUUID();
-  const driveFileId = `drive-${stemId}`;
+  const fileId = encodeId(stemRel);
   const now = Math.floor(Date.now() / 1000);
   dbMod.stmts.insertProject.run(
     projectId,
     bandId,
     'p1',
     '2026-05-01',
-    'project-folder',
+    encodeId(projectFolderRel),
     null,
     now,
     ownerId,
     now,
   );
-  dbMod.stmts.insertStem.run(stemId, projectId, stemName, 0, driveFileId, null, 1024, null);
-  return { projectId, stemId, driveFileId };
+  dbMod.stmts.insertStem.run(stemId, projectId, stemName, 0, fileId, null, 1024, null);
+  return { projectId, stemId, fileId, rel: stemRel };
 }
 
 beforeEach(() => {
   reset();
 });
 
-function tokenResponse(): Response {
-  return new Response(
-    JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } },
-  );
-}
-
 describe('PATCH /api/stems/:id', () => {
-  it('renames stem and PATCHes Drive file with the new name', async () => {
+  it('renames stem on disk and in DB', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const { stemId, driveFileId } = createProjectAndStem(bandId, owner, 'old.wav');
+    const bandName = 'Alpha';
+    const bandId = createBand(bandName, owner);
+    const { stemId, rel } = createProjectAndStem(bandName, bandId, owner, 'old.wav');
     const sid = createSession(owner);
-
-    const captured: { url: string; method: string; body: unknown }[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      const url = typeof input === 'string' ? input : (input as Request).url;
-      if (url.startsWith('https://oauth2.googleapis.com/token')) {
-        return tokenResponse();
-      }
-      const method = (init?.method ?? 'GET').toUpperCase();
-      let parsedBody: unknown = undefined;
-      if (init?.body && typeof init.body === 'string') {
-        try {
-          parsedBody = JSON.parse(init.body);
-        } catch {
-          parsedBody = init.body;
-        }
-      }
-      captured.push({ url, method, body: parsedBody });
-      return new Response('{}', {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    });
 
     const res = await app.fetch(
       new Request(`http://localhost/api/stems/${stemId}`, {
@@ -155,29 +135,21 @@ describe('PATCH /api/stems/:id', () => {
     const body = (await res.json()) as { ok: boolean; name: string };
     expect(body).toMatchObject({ ok: true, name: 'new.wav' });
 
-    const driveCalls = captured.filter((c) => c.method === 'PATCH');
-    expect(driveCalls.length).toBe(1);
-    expect(driveCalls[0]!.url).toContain(`/files/${driveFileId}`);
-    expect(driveCalls[0]!.body).toEqual({ name: 'new.wav' });
+    expect(existsSync(join(audioRoot, rel))).toBe(false);
+    expect(existsSync(join(audioRoot, bandName, 'p1', 'new.wav'))).toBe(true);
 
     const row = dbMod.stmts.findStemById.get(stemId)!;
     expect(row.name).toBe('new.wav');
   });
 
-  it('returns 200 even if Drive PATCH responds 500 (DB still updates)', async () => {
+  it('returns 200 even if filesystem rename fails (DB still updates)', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const { stemId } = createProjectAndStem(bandId, owner, 'old.wav');
+    const bandName = 'Alpha';
+    const bandId = createBand(bandName, owner);
+    const { stemId } = createProjectAndStem(bandName, bandId, owner, 'old.wav');
+    // Remove the file so rename fails with ENOENT.
+    rmSync(join(audioRoot, bandName, 'p1', 'old.wav'));
     const sid = createSession(owner);
-
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = typeof input === 'string' ? input : (input as Request).url;
-      if (url.startsWith('https://oauth2.googleapis.com/token')) {
-        return tokenResponse();
-      }
-      return new Response('boom', { status: 500 });
-    });
-    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const res = await app.fetch(
       new Request(`http://localhost/api/stems/${stemId}`, {
@@ -190,7 +162,6 @@ describe('PATCH /api/stems/:id', () => {
       }),
     );
     expect(res.status).toBe(200);
-    expect(warnSpy).toHaveBeenCalled();
 
     const row = dbMod.stmts.findStemById.get(stemId)!;
     expect(row.name).toBe('renamed.wav');
@@ -198,11 +169,10 @@ describe('PATCH /api/stems/:id', () => {
 
   it('rejects empty or oversized names with 400', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const { stemId } = createProjectAndStem(bandId, owner, 'original.wav');
+    const bandName = 'Alpha';
+    const bandId = createBand(bandName, owner);
+    const { stemId } = createProjectAndStem(bandName, bandId, owner, 'original.wav');
     const sid = createSession(owner);
-
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     const emptyRes = await app.fetch(
       new Request(`http://localhost/api/stems/${stemId}`, {
@@ -228,19 +198,18 @@ describe('PATCH /api/stems/:id', () => {
     );
     expect(bigRes.status).toBe(400);
 
-    expect(fetchSpy).not.toHaveBeenCalled();
     const row = dbMod.stmts.findStemById.get(stemId)!;
     expect(row.name).toBe('original.wav');
+    expect(existsSync(join(audioRoot, bandName, 'p1', 'original.wav'))).toBe(true);
   });
 
   it('rejects non-members with 404', async () => {
     const owner = createUser('owner@example.com');
     const stranger = createUser('stranger@example.com');
-    const bandId = createBand('Alpha', owner);
-    const { stemId } = createProjectAndStem(bandId, owner, 'original.wav');
+    const bandName = 'Alpha';
+    const bandId = createBand(bandName, owner);
+    const { stemId } = createProjectAndStem(bandName, bandId, owner, 'original.wav');
     const sid = createSession(stranger);
-
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     const res = await app.fetch(
       new Request(`http://localhost/api/stems/${stemId}`, {
@@ -253,41 +222,20 @@ describe('PATCH /api/stems/:id', () => {
       }),
     );
     expect(res.status).toBe(404);
-    expect(fetchSpy).not.toHaveBeenCalled();
 
     const row = dbMod.stmts.findStemById.get(stemId)!;
     expect(row.name).toBe('original.wav');
+    expect(existsSync(join(audioRoot, bandName, 'p1', 'original.wav'))).toBe(true);
   });
 });
 
 describe('DELETE /api/stems/:id', () => {
-  it('soft-deletes the stem and trashes the Drive file', async () => {
+  it('soft-deletes the stem and removes the file from disk', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const { stemId } = createProjectAndStem(bandId, owner, 'drums.wav');
+    const bandName = 'Alpha';
+    const bandId = createBand(bandName, owner);
+    const { stemId, rel } = createProjectAndStem(bandName, bandId, owner, 'drums.wav');
     const sid = createSession(owner);
-
-    const captured: { url: string; method: string; body: unknown }[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      const url = typeof input === 'string' ? input : (input as Request).url;
-      if (url.startsWith('https://oauth2.googleapis.com/token')) {
-        return tokenResponse();
-      }
-      const method = (init?.method ?? 'GET').toUpperCase();
-      let parsedBody: unknown = undefined;
-      if (init?.body && typeof init.body === 'string') {
-        try {
-          parsedBody = JSON.parse(init.body);
-        } catch {
-          parsedBody = init.body;
-        }
-      }
-      captured.push({ url, method, body: parsedBody });
-      return new Response('{}', {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    });
 
     const res = await app.fetch(
       new Request(`http://localhost/api/stems/${stemId}`, {
@@ -297,9 +245,7 @@ describe('DELETE /api/stems/:id', () => {
     );
     expect(res.status).toBe(200);
 
-    const driveCalls = captured.filter((c) => c.method === 'PATCH');
-    expect(driveCalls.length).toBe(1);
-    expect(driveCalls[0]!.body).toEqual({ trashed: true });
+    expect(existsSync(join(audioRoot, rel))).toBe(false);
 
     expect(dbMod.stmts.findStemById.get(stemId)).toBeUndefined();
     const row = dbMod.stmts.findStemAnyState.get(stemId)!;
@@ -311,11 +257,10 @@ describe('DELETE /api/stems/:id', () => {
   it('rejects non-members with 404', async () => {
     const owner = createUser('owner@example.com');
     const stranger = createUser('stranger@example.com');
-    const bandId = createBand('Alpha', owner);
-    const { stemId } = createProjectAndStem(bandId, owner, 'drums.wav');
+    const bandName = 'Alpha';
+    const bandId = createBand(bandName, owner);
+    const { stemId, rel } = createProjectAndStem(bandName, bandId, owner, 'drums.wav');
     const sid = createSession(stranger);
-
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     const res = await app.fetch(
       new Request(`http://localhost/api/stems/${stemId}`, {
@@ -324,43 +269,22 @@ describe('DELETE /api/stems/:id', () => {
       }),
     );
     expect(res.status).toBe(404);
-    expect(fetchSpy).not.toHaveBeenCalled();
 
     const row = dbMod.stmts.findStemAnyState.get(stemId)!;
     expect(row.deleted_at).toBeNull();
+    expect(existsSync(join(audioRoot, rel))).toBe(true);
   });
 });
 
 describe('POST /api/stems/:id/restore', () => {
-  it('restores soft-deleted stem and untrashes Drive file', async () => {
+  it('restores soft-deleted stem (untrash is a no-op on local storage)', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const { stemId } = createProjectAndStem(bandId, owner, 'drums.wav');
+    const bandName = 'Alpha';
+    const bandId = createBand(bandName, owner);
+    const { stemId } = createProjectAndStem(bandName, bandId, owner, 'drums.wav');
     const now = Math.floor(Date.now() / 1000);
     dbMod.stmts.softDeleteStem.run(now, owner, stemId);
     const sid = createSession(owner);
-
-    const captured: { url: string; method: string; body: unknown }[] = [];
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      const url = typeof input === 'string' ? input : (input as Request).url;
-      if (url.startsWith('https://oauth2.googleapis.com/token')) {
-        return tokenResponse();
-      }
-      const method = (init?.method ?? 'GET').toUpperCase();
-      let parsedBody: unknown = undefined;
-      if (init?.body && typeof init.body === 'string') {
-        try {
-          parsedBody = JSON.parse(init.body);
-        } catch {
-          parsedBody = init.body;
-        }
-      }
-      captured.push({ url, method, body: parsedBody });
-      return new Response('{}', {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    });
 
     const res = await app.fetch(
       new Request(`http://localhost/api/stems/${stemId}/restore`, {
@@ -370,10 +294,6 @@ describe('POST /api/stems/:id/restore', () => {
     );
     expect(res.status).toBe(200);
 
-    const driveCalls = captured.filter((c) => c.method === 'PATCH');
-    expect(driveCalls.length).toBe(1);
-    expect(driveCalls[0]!.body).toEqual({ trashed: false });
-
     const row = dbMod.stmts.findStemById.get(stemId)!;
     expect(row).toBeDefined();
     expect(row.deleted_at).toBeNull();
@@ -381,13 +301,12 @@ describe('POST /api/stems/:id/restore', () => {
 
   it('returns 409 for ghost rows (drive_missing)', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const { stemId } = createProjectAndStem(bandId, owner, 'drums.wav');
+    const bandName = 'Alpha';
+    const bandId = createBand(bandName, owner);
+    const { stemId } = createProjectAndStem(bandName, bandId, owner, 'drums.wav');
     const now = Math.floor(Date.now() / 1000);
     dbMod.stmts.markStemGhost.run(now, stemId);
     const sid = createSession(owner);
-
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     const res = await app.fetch(
       new Request(`http://localhost/api/stems/${stemId}/restore`, {
@@ -396,7 +315,6 @@ describe('POST /api/stems/:id/restore', () => {
       }),
     );
     expect(res.status).toBe(409);
-    expect(fetchSpy).not.toHaveBeenCalled();
 
     const row = dbMod.stmts.findStemAnyState.get(stemId)!;
     expect(row.deleted_reason).toBe('drive_missing');
@@ -405,13 +323,12 @@ describe('POST /api/stems/:id/restore', () => {
   it('rejects non-members with 404', async () => {
     const owner = createUser('owner@example.com');
     const stranger = createUser('stranger@example.com');
-    const bandId = createBand('Alpha', owner);
-    const { stemId } = createProjectAndStem(bandId, owner, 'drums.wav');
+    const bandName = 'Alpha';
+    const bandId = createBand(bandName, owner);
+    const { stemId } = createProjectAndStem(bandName, bandId, owner, 'drums.wav');
     const now = Math.floor(Date.now() / 1000);
     dbMod.stmts.softDeleteStem.run(now, owner, stemId);
     const sid = createSession(stranger);
-
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
 
     const res = await app.fetch(
       new Request(`http://localhost/api/stems/${stemId}/restore`, {
@@ -420,6 +337,5 @@ describe('POST /api/stems/:id/restore', () => {
       }),
     );
     expect(res.status).toBe(404);
-    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

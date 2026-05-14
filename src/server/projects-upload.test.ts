@@ -1,27 +1,26 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const tmpDir = mkdtempSync(join(tmpdir(), 'paperstem-upload-test-'));
 const dbPath = join(tmpDir, 'test.sqlite');
+const audioRoot = join(tmpDir, 'audio');
+mkdirSync(audioRoot, { recursive: true });
 process.env.DATABASE_PATH = dbPath;
+process.env.PAPERSTEM_AUDIO_ROOT = audioRoot;
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
-process.env.GOOGLE_CLIENT_ID = 'cid';
-process.env.GOOGLE_CLIENT_SECRET = 'csec';
-process.env.GOOGLE_REFRESH_TOKEN = 'rtok';
 
 type DbModule = typeof import('./db.js');
 type ProjectsModule = typeof import('./projects.js');
-type DriveModule = typeof import('./drive.js');
 type MiddlewareModule = typeof import('./auth/middleware.js');
 type CookieModule = typeof import('./auth/cookie.js');
 
 let dbMod: DbModule;
 let projectsMod: ProjectsModule;
-let driveMod: DriveModule;
 let middlewareMod: MiddlewareModule;
 let cookieMod: CookieModule;
 let app: import('hono').Hono;
@@ -29,7 +28,6 @@ let app: import('hono').Hono;
 beforeAll(async () => {
   dbMod = await import('./db.js');
   projectsMod = await import('./projects.js');
-  driveMod = await import('./drive.js');
   middlewareMod = await import('./auth/middleware.js');
   cookieMod = await import('./auth/cookie.js');
   const { Hono } = await import('hono');
@@ -45,12 +43,20 @@ afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
+function encodeId(rel: string): string {
+  return Buffer.from(rel, 'utf8').toString('base64url');
+}
+
+function decodeId(id: string): string {
+  return Buffer.from(id, 'base64url').toString('utf8');
+}
+
 function reset() {
   dbMod.db.exec(
     'DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
-  driveMod._resetTokenCacheForTests();
-  vi.restoreAllMocks();
+  rmSync(audioRoot, { recursive: true, force: true });
+  mkdirSync(audioRoot, { recursive: true });
 }
 
 function createUser(email: string): string {
@@ -59,12 +65,20 @@ function createUser(email: string): string {
   return id;
 }
 
-function createBand(name: string, ownerId: string, driveFolderId = 'drive-folder-x'): string {
+function createBand(
+  name: string,
+  ownerId: string,
+  opts: { folderId?: string; createOnDisk?: boolean } = {},
+): { id: string; folderId: string } {
+  const { folderId = encodeId(name), createOnDisk = true } = opts;
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  dbMod.stmts.insertBand.run(id, name, driveFolderId, ownerId, now);
+  if (createOnDisk && !folderId.startsWith('PENDING_')) {
+    mkdirSync(join(audioRoot, decodeId(folderId)), { recursive: true });
+  }
+  dbMod.stmts.insertBand.run(id, name, folderId, ownerId, now);
   dbMod.stmts.insertMembership.run(id, ownerId, 'owner', now);
-  return id;
+  return { id, folderId };
 }
 
 function addMember(bandId: string, userId: string): void {
@@ -76,21 +90,29 @@ function addMember(bandId: string, userId: string): void {
   );
 }
 
-function createProject(bandId: string, ownerId: string): string {
+function createProject(
+  bandId: string,
+  bandFolderId: string,
+  ownerId: string,
+): { id: string; folderId: string } {
   const id = randomUUID();
+  const bandRel = decodeId(bandFolderId);
+  const projectRel = `${bandRel}/p1`;
+  const folderId = encodeId(projectRel);
+  mkdirSync(join(audioRoot, projectRel), { recursive: true });
   const now = Math.floor(Date.now() / 1000);
   dbMod.stmts.insertProject.run(
     id,
     bandId,
     'p1',
     null,
-    'project-folder-x',
+    folderId,
     null,
     now,
     ownerId,
     now,
   );
-  return id;
+  return { id, folderId };
 }
 
 function createSession(userId: string): string {
@@ -102,69 +124,6 @@ function createSession(userId: string): string {
 
 function cookieHeader(sid: string): string {
   return `${cookieMod.SESSION_COOKIE_NAME}=${sid}`;
-}
-
-function mockDriveSuccess(opts: {
-  folderId?: string;
-  fileId?: string;
-  observedFileSize?: { bytes: number };
-}) {
-  const folderId = opts.folderId ?? 'project-folder-new';
-  const fileId = opts.fileId ?? 'drive-file-new';
-  const seenFileSize = opts.observedFileSize;
-  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-    const url = typeof input === 'string' ? input : (input as Request).url;
-    if (url.startsWith('https://oauth2.googleapis.com/token')) {
-      return new Response(
-        JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
-        { status: 200, headers: { 'Content-Type': 'application/json' } },
-      );
-    }
-    if (url.startsWith('https://www.googleapis.com/drive/v3/files') && (init?.method === 'POST' || (init?.method ?? 'GET') === 'POST')) {
-      return new Response(JSON.stringify({ id: folderId }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-    if (url.startsWith('https://www.googleapis.com/upload/drive/v3/files') && url.includes('uploadType=resumable')) {
-      return new Response('', {
-        status: 200,
-        headers: { Location: 'https://upload.example/sess-1' },
-      });
-    }
-    if (url === 'https://upload.example/sess-1') {
-      const body = init?.body as ReadableStream<Uint8Array> | Buffer | undefined;
-      let bytes = 0;
-      if (body instanceof Buffer) {
-        bytes = body.length;
-      } else if (body && typeof (body as ReadableStream).getReader === 'function') {
-        const reader = (body as ReadableStream<Uint8Array>).getReader();
-        // Drain the stream to count bytes; the streaming-not-buffering test
-        // measures peak RSS while this consumes. We deliberately do NOT
-        // accumulate chunks into a single buffer.
-        while (true) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          bytes += value.byteLength;
-        }
-      }
-      if (seenFileSize) seenFileSize.bytes = bytes;
-      return new Response(JSON.stringify({ id: fileId, size: String(bytes) }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-    if (url.startsWith('https://www.googleapis.com/upload/drive/v3/files') && url.includes('uploadType=multipart')) {
-      const body = init?.body;
-      let bytes = 0;
-      if (body instanceof Buffer) bytes = body.length;
-      return new Response(JSON.stringify({ id: fileId, size: String(bytes) }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-    throw new Error(`unexpected fetch ${url} (method=${init?.method})`);
-  });
 }
 
 function buildMultipart(
@@ -212,7 +171,7 @@ describe('POST /api/projects owner-only auth', () => {
   it('403 for member (not owner)', async () => {
     const owner = createUser('owner@example.com');
     const member = createUser('member@example.com');
-    const bandId = createBand('Alpha', owner);
+    const { id: bandId } = createBand('Alpha', owner);
     addMember(bandId, member);
 
     const sid = createSession(member);
@@ -232,7 +191,7 @@ describe('POST /api/projects owner-only auth', () => {
   it('403 for stranger (no membership)', async () => {
     const owner = createUser('owner@example.com');
     const stranger = createUser('stranger@example.com');
-    const bandId = createBand('Alpha', owner);
+    const { id: bandId } = createBand('Alpha', owner);
 
     const sid = createSession(stranger);
     const res = await app.fetch(
@@ -248,10 +207,9 @@ describe('POST /api/projects owner-only auth', () => {
     expect(res.status).toBe(403);
   });
 
-  it('201 for owner; creates Drive folder and inserts row', async () => {
+  it('201 for owner; creates folder on disk and inserts row', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    mockDriveSuccess({ folderId: 'project-folder-abc' });
+    const { id: bandId } = createBand('Alpha', owner);
 
     const sid = createSession(owner);
     const res = await app.fetch(
@@ -280,10 +238,11 @@ describe('POST /api/projects owner-only auth', () => {
       };
     };
     expect(data.project.band_id).toBe(bandId);
-    expect(data.project.folder_id).toBe('project-folder-abc');
+    expect(data.project.folder_id).toBe(encodeId('Alpha/project-2026-05-04'));
     expect(data.project.name).toBe('project-2026-05-04');
     expect(data.project.recorded_on).toBe('2026-05-04');
     expect(data.project.notes).toBe(null);
+    expect(existsSync(join(audioRoot, 'Alpha', 'project-2026-05-04'))).toBe(true);
 
     const row = dbMod.stmts.findProjectById.get(data.project.id);
     expect(row?.band_id).toBe(bandId);
@@ -291,7 +250,7 @@ describe('POST /api/projects owner-only auth', () => {
 
   it('400 invalid recorded_on', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
+    const { id: bandId } = createBand('Alpha', owner);
     const sid = createSession(owner);
     const res = await app.fetch(
       new Request('http://x/api/projects', {
@@ -312,7 +271,10 @@ describe('POST /api/projects owner-only auth', () => {
 
   it('409 when band folder_id is PENDING_', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner, 'PENDING_drive');
+    const { id: bandId } = createBand('Alpha', owner, {
+      folderId: 'PENDING_drive',
+      createOnDisk: false,
+    });
     const sid = createSession(owner);
     const res = await app.fetch(
       new Request('http://x/api/projects', {
@@ -334,9 +296,9 @@ describe('POST /api/projects/:id/stems', () => {
   it('403 for member (not owner)', async () => {
     const owner = createUser('owner@example.com');
     const member = createUser('member@example.com');
-    const bandId = createBand('Alpha', owner);
+    const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);
     addMember(bandId, member);
-    const projectId = createProject(bandId, owner);
+    const { id: projectId } = createProject(bandId, bandFolderId, owner);
 
     const sid = createSession(member);
     const { contentType, body } = buildMultipart(
@@ -379,8 +341,8 @@ describe('POST /api/projects/:id/stems', () => {
 
   it('400 missing_file when no file part', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const projectId = createProject(bandId, owner);
+    const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);
+    const { id: projectId } = createProject(bandId, bandFolderId, owner);
     const sid = createSession(owner);
 
     const boundary = '----paperstem-test-empty';
@@ -404,8 +366,8 @@ describe('POST /api/projects/:id/stems', () => {
 
   it('415 unsupported mime', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const projectId = createProject(bandId, owner);
+    const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);
+    const { id: projectId } = createProject(bandId, bandFolderId, owner);
     const sid = createSession(owner);
 
     const { contentType, body } = buildMultipart([], {
@@ -424,14 +386,15 @@ describe('POST /api/projects/:id/stems', () => {
     expect(res.status).toBe(415);
   });
 
-  it('happy path: extracts filename, mime, content; inserts stem row', async () => {
+  it('happy path: extracts filename, mime, content; writes file to disk', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const projectId = createProject(bandId, owner);
+    const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);
+    const { id: projectId, folderId: projectFolderId } = createProject(
+      bandId,
+      bandFolderId,
+      owner,
+    );
     const sid = createSession(owner);
-
-    const observed = { bytes: 0 };
-    mockDriveSuccess({ fileId: 'drive-file-abc', observedFileSize: observed });
 
     const audioBytes = Buffer.from('synthetic-audio-payload');
     const { contentType, body } = buildMultipart(
@@ -463,28 +426,28 @@ describe('POST /api/projects/:id/stems', () => {
     expect(data.stem.project_id).toBe(projectId);
     expect(data.stem.name).toBe('drums');
     expect(data.stem.position).toBe(7);
-    // Drive saw exactly the file bytes, not the multipart envelope
-    expect(observed.bytes).toBe(audioBytes.length);
     expect(data.stem.size_bytes).toBe(audioBytes.length);
 
     const stem = dbMod.stmts.findStemById.get(data.stem.id);
-    expect(stem?.file_id).toBe('drive-file-abc');
-    // and the response body never includes file_id
+    const expectedFileId = encodeId(`${decodeId(projectFolderId)}/drums.mp3`);
+    expect(stem?.file_id).toBe(expectedFileId);
+
+    const onDisk = readFileSync(
+      join(audioRoot, decodeId(projectFolderId), 'drums.mp3'),
+    );
+    expect(onDisk.equals(audioBytes)).toBe(true);
+
     const text = JSON.stringify(data);
     expect(text).not.toMatch(/file_id/);
   });
 
   it('413 when file exceeds 100MB', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const projectId = createProject(bandId, owner);
+    const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);
+    const { id: projectId } = createProject(bandId, bandFolderId, owner);
     const sid = createSession(owner);
 
-    mockDriveSuccess({});
-
     const TEN_MB = 10 * 1024 * 1024;
-    // 101MB synthetic file: bigger than the 100MB cap. We use 101 1MB
-    // chunks via Buffer.concat to avoid a single huge alloc here.
     const chunk = Buffer.alloc(TEN_MB, 0x61);
     const fileBody = Buffer.concat(Array(11).fill(chunk));
     expect(fileBody.length).toBe(110 * 1024 * 1024);
@@ -505,49 +468,15 @@ describe('POST /api/projects/:id/stems', () => {
     expect(res.status).toBe(413);
   });
 
-  it('streaming: 50MB upload reaches Drive without buffering the body', async () => {
+  it('streaming: 50MB upload reaches storage and lands on disk', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const projectId = createProject(bandId, owner);
+    const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);
+    const { id: projectId, folderId: projectFolderId } = createProject(
+      bandId,
+      bandFolderId,
+      owner,
+    );
     const sid = createSession(owner);
-
-    let bodyKind: 'buffer' | 'stream' | 'unknown' = 'unknown';
-    let observedBytes = 0;
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-      const url = typeof input === 'string' ? input : (input as Request).url;
-      if (url.startsWith('https://oauth2.googleapis.com/token')) {
-        return new Response(
-          JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }
-      if (url.startsWith('https://www.googleapis.com/upload/drive/v3/files') && url.includes('uploadType=resumable')) {
-        return new Response('', {
-          status: 200,
-          headers: { Location: 'https://upload.example/sess-stream' },
-        });
-      }
-      if (url === 'https://upload.example/sess-stream') {
-        const body = init?.body;
-        if (body instanceof Buffer) {
-          bodyKind = 'buffer';
-          observedBytes = body.length;
-        } else if (body && typeof (body as ReadableStream).getReader === 'function') {
-          bodyKind = 'stream';
-          const reader = (body as ReadableStream<Uint8Array>).getReader();
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            observedBytes += value.byteLength;
-          }
-        }
-        return new Response(
-          JSON.stringify({ id: 'streamed-file', size: String(observedBytes) }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        );
-      }
-      throw new Error(`unexpected fetch ${url}`);
-    });
 
     const FIFTY_MB = 50 * 1024 * 1024;
     const fileBody = Buffer.alloc(FIFTY_MB, 0);
@@ -566,16 +495,18 @@ describe('POST /api/projects/:id/stems', () => {
       }),
     );
     expect(res.status).toBe(201);
-    expect(bodyKind).toBe('stream');
-    expect(observedBytes).toBe(FIFTY_MB);
+    const data = (await res.json()) as { stem: { size_bytes: number | null } };
+    expect(data.stem.size_bytes).toBe(FIFTY_MB);
+
+    const onDiskPath = join(audioRoot, decodeId(projectFolderId), 'big.mp3');
+    expect(existsSync(onDiskPath)).toBe(true);
   });
 
   it('persists peaks field on upload and returns them on GET', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const projectId = createProject(bandId, owner);
+    const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);
+    const { id: projectId } = createProject(bandId, bandFolderId, owner);
     const sid = createSession(owner);
-    mockDriveSuccess({ fileId: 'drive-file-peaks' });
 
     const peaksStr = '0,64,128,192,255,128,64,0';
     const { contentType, body } = buildMultipart(
@@ -617,10 +548,9 @@ describe('POST /api/projects/:id/stems', () => {
 
   it('rejects malformed peaks and stores null', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const projectId = createProject(bandId, owner);
+    const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);
+    const { id: projectId } = createProject(bandId, bandFolderId, owner);
     const sid = createSession(owner);
-    mockDriveSuccess({});
 
     const { contentType, body } = buildMultipart(
       [{ name: 'peaks', value: 'not,a,number' }],
@@ -645,10 +575,9 @@ describe('POST /api/projects/:id/stems', () => {
 
   it('PUT /api/stems/:id/peaks backfills peaks for an existing stem', async () => {
     const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const projectId = createProject(bandId, owner);
+    const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);
+    const { id: projectId } = createProject(bandId, bandFolderId, owner);
     const sid = createSession(owner);
-    mockDriveSuccess({ fileId: 'drive-file-pre' });
 
     const { contentType, body } = buildMultipart([], {
       fieldName: 'file',
@@ -680,39 +609,5 @@ describe('POST /api/projects/:id/stems', () => {
 
     const stored = dbMod.stmts.findStemById.get(stem.id);
     expect(stored?.peaks).toBe(peaksStr);
-  });
-
-  it('502 upstream_error if Drive upload fails', async () => {
-    const owner = createUser('owner@example.com');
-    const bandId = createBand('Alpha', owner);
-    const projectId = createProject(bandId, owner);
-    const sid = createSession(owner);
-
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = typeof input === 'string' ? input : (input as Request).url;
-      if (url.startsWith('https://oauth2.googleapis.com/token')) {
-        return new Response(
-          JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
-          { status: 200 },
-        );
-      }
-      return new Response('drive boom', { status: 500 });
-    });
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    const { contentType, body } = buildMultipart([], {
-      fieldName: 'file',
-      filename: 'drums.mp3',
-      mime: 'audio/mpeg',
-      body: Buffer.from('hi'),
-    });
-    const res = await app.fetch(
-      new Request(`http://x/api/projects/${projectId}/stems`, {
-        method: 'POST',
-        headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
-        body,
-      }),
-    );
-    expect(res.status).toBe(502);
   });
 });

@@ -285,7 +285,7 @@ export const stmts = {
   findBandByNameAndOwner: db.prepare<[string, string], BandRow>(
     'SELECT * FROM bands WHERE name = ? AND owner_user_id = ?',
   ),
-  updateBandDriveFolder: db.prepare<[string, string]>(
+  updateBandFolder: db.prepare<[string, string]>(
     'UPDATE bands SET folder_id = ? WHERE id = ?',
   ),
   findProjectById: db.prepare<[string], ProjectRow>(

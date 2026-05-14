@@ -9,7 +9,7 @@ import {
   findFolderByName,
   listFolder,
   uploadFile,
-} from '../drive.js';
+} from '../storage.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = join(__dirname, '..', 'schema.sql');

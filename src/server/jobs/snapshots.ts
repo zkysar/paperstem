@@ -3,7 +3,7 @@ import {
   findFileByName,
   updateFile,
   uploadFile,
-} from '../drive.js';
+} from '../storage.js';
 
 const META_FILENAME = '_meta.json';
 const META_MIME = 'application/json';

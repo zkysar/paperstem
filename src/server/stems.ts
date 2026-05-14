@@ -1,7 +1,7 @@
 import type { Context } from 'hono';
 import { stmts } from './db.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
-import { renameDriveItem, trashDriveItem, untrashDriveItem } from './drive.js';
+import { renameItem, trashItem, untrashItem } from './storage.js';
 
 const MAX_NAME_LENGTH = 200;
 
@@ -32,7 +32,7 @@ export async function handleRenameStem(
   stmts.renameStem.run(name, id);
 
   try {
-    await renameDriveItem(stem.file_id, name);
+    await renameItem(stem.file_id, name);
   } catch (err) {
     console.warn('[stems] drive rename failed; DB updated', { id, err });
   }
@@ -57,7 +57,7 @@ export async function handleDeleteStem(
   stmts.softDeleteStem.run(now, user.id, id);
 
   try {
-    await trashDriveItem(stem.file_id);
+    await trashItem(stem.file_id);
   } catch (err) {
     console.warn('[stems] drive trash failed; DB updated', { id, err });
   }
@@ -85,7 +85,7 @@ export async function handleRestoreStem(
   stmts.restoreStem.run(id);
 
   try {
-    await untrashDriveItem(stem.file_id);
+    await untrashItem(stem.file_id);
   } catch (err) {
     console.warn('[stems] drive untrash failed; DB updated', { id, err });
   }

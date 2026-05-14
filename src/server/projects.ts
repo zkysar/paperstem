@@ -6,11 +6,11 @@ import { stmts } from './db.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
 import {
   createFolder,
-  renameDriveItem,
-  trashDriveItem,
-  untrashDriveItem,
+  renameItem,
+  trashItem,
+  untrashItem,
   uploadFile,
-} from './drive.js';
+} from './storage.js';
 
 const MAX_NAME_LENGTH = 200;
 const MAX_STEM_BYTES = 100 * 1024 * 1024;
@@ -142,7 +142,7 @@ export async function handleRenameProject(
   stmts.renameProject.run(name, now, id);
 
   try {
-    await renameDriveItem(project.folder_id, name);
+    await renameItem(project.folder_id, name);
   } catch (err) {
     console.warn('[projects] drive rename failed; DB updated', { id, err });
   }
@@ -167,7 +167,7 @@ export async function handleDeleteProject(
   stmts.softDeleteProject.run(now, user.id, id);
 
   try {
-    await trashDriveItem(project.folder_id);
+    await trashItem(project.folder_id);
   } catch (err) {
     console.warn('[projects] drive trash failed; DB updated', { id, err });
   }
@@ -195,7 +195,7 @@ export async function handleRestoreProject(
   stmts.restoreProject.run(id);
 
   try {
-    await untrashDriveItem(project.folder_id);
+    await untrashItem(project.folder_id);
   } catch (err) {
     console.warn('[projects] drive untrash failed; DB updated', { id, err });
   }

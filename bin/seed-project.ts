@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { basename, extname, isAbsolute, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { stmts } from '../src/server/db.js';
-import { createFolder, uploadFile } from '../src/server/drive.js';
+import { createFolder, uploadFile } from '../src/server/storage.js';
 
 const MIME_BY_EXT: Record<string, string> = {
   '.mp3': 'audio/mpeg',

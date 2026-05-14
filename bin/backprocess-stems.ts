@@ -3,11 +3,11 @@ import { spawn } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { db } from '../src/server/db.js';
 import {
-  DriveNotFoundError,
-  getDriveFile,
+  StorageNotFoundError,
+  getFile,
   renameAndRetype,
   updateFile,
-} from '../src/server/drive.js';
+} from '../src/server/storage.js';
 import type { StemRow } from '../src/server/db.js';
 
 const { values } = parseArgs({
@@ -82,13 +82,10 @@ function withMp3Ext(name: string): string {
   return `${base}.mp3`;
 }
 
-function driveFilename(driveFileId: string): string {
-  if (driveFileId.startsWith('local:')) {
-    const rel = Buffer.from(driveFileId.slice('local:'.length), 'base64url').toString('utf8');
-    const slash = rel.lastIndexOf('/');
-    return slash === -1 ? rel : rel.slice(slash + 1);
-  }
-  return '';
+function storageFilename(fileId: string): string {
+  const rel = Buffer.from(fileId, 'base64url').toString('utf8');
+  const slash = rel.lastIndexOf('/');
+  return slash === -1 ? rel : rel.slice(slash + 1);
 }
 
 type Stats = {
@@ -166,7 +163,7 @@ for (const stem of allStems) {
   index++;
   const label = `[${index}/${allStems.length}] ${stem.band_name} / ${stem.project_name} / ${stem.name}`;
   try {
-    const { body } = await getDriveFile(stem.file_id);
+    const { body } = await getFile(stem.file_id);
     const original = await streamToBuffer(body);
     const before = original.length;
     stats.bytesBefore += before;
@@ -190,7 +187,7 @@ for (const stem of allStems) {
       continue;
     }
 
-    const currentName = driveFilename(stem.file_id) || stem.name;
+    const currentName = storageFilename(stem.file_id) || stem.name;
     const newName = withMp3Ext(currentName);
     const needsRename = currentName !== newName;
 
@@ -212,7 +209,7 @@ for (const stem of allStems) {
   } catch (e) {
     stats.failed++;
     const msg =
-      e instanceof DriveNotFoundError
+      e instanceof StorageNotFoundError
         ? `drive file not found: ${stem.file_id}`
         : e instanceof Error
           ? e.message

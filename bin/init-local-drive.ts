@@ -1,12 +1,12 @@
 import { parseArgs } from 'node:util';
 import { stmts } from '../src/server/db.js';
-import { createFolder, findFolderByName } from '../src/server/drive.js';
+import { createFolder, findFolderByName } from '../src/server/storage.js';
 
 const PARENT_FOLDER_NAME = 'paperstem';
 
-if (!process.env.PAPERSTEM_LOCAL_DRIVE_ROOT?.trim()) {
+if (!process.env.PAPERSTEM_AUDIO_ROOT?.trim()) {
   console.error(
-    'PAPERSTEM_LOCAL_DRIVE_ROOT is not set. ' +
+    'PAPERSTEM_AUDIO_ROOT is not set. ' +
       'Set it to a directory path before running this script.',
   );
   process.exit(1);
@@ -49,7 +49,7 @@ for (const band of bands) {
 
   const existing = await findFolderByName(band.name, parent.id);
   const folder = existing ?? (await createFolder(band.name, parent.id));
-  stmts.updateBandDriveFolder.run(folder.id, band.id);
+  stmts.updateBandFolder.run(folder.id, band.id);
   console.log(
     `band ${band.id} (${band.name}) -> ${folder.id}` +
       (existing ? ' (reused)' : ' (created)'),
