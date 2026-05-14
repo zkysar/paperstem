@@ -2,39 +2,39 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { FilePicker } from './FilePicker';
-import type { Practice, TrashList } from '../data/types';
+import type { Project, TrashList } from '../data/types';
 
-const practices: Practice[] = []; // empty for now
+const projects: Project[] = []; // empty for now
 const baseProps = {
   open: true,
   loading: false,
   loadError: null,
-  practices,
-  activePracticeId: null,
+  projects,
+  activeProjectId: null,
   showUpload: true,
   onClose: vi.fn(),
   onSelect: vi.fn(),
   onLoadFolder: vi.fn(),
   onRetry: vi.fn(),
-  onRenamePractice: vi.fn(),
-  onDeletePractice: vi.fn(),
+  onRenameProject: vi.fn(),
+  onDeleteProject: vi.fn(),
   trash: null as TrashList | null,
   trashError: null as string | null,
   onLoadTrash: vi.fn(),
-  onRestorePractice: vi.fn(),
+  onRestoreProject: vi.fn(),
   onRestoreStem: vi.fn(),
 };
 
 describe('FilePicker', () => {
   it('renders title and close button when open', () => {
     render(<FilePicker {...baseProps} />);
-    expect(screen.getByText('Practices')).not.toBeNull();
+    expect(screen.getByText('Projects')).not.toBeNull();
     expect(screen.getByLabelText('Close picker')).not.toBeNull();
   });
 
   it('renders nothing when open is false', () => {
     render(<FilePicker {...baseProps} open={false} />);
-    expect(screen.queryByText('Practices')).toBeNull();
+    expect(screen.queryByText('Projects')).toBeNull();
   });
 
   it('clicking ✕ calls onClose', async () => {
@@ -60,37 +60,37 @@ describe('FilePicker', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  const fixturePractices: Practice[] = [
-    { id: 'p1', title: 'Practice 2026-04-28', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'c', name: 'c' }], stemCount: 3, driveFolderId: 'd1', referenceStemId: null },
-    { id: 'p2', title: 'Practice 2026-04-21', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }], stemCount: 2, driveFolderId: 'd2', referenceStemId: null },
-    { id: 'p3', title: 'Practice 2026-03-31', folder: '2026/03', stems: [{ id: 'a', name: 'a' }], stemCount: 1, driveFolderId: null, referenceStemId: null },
+  const fixtureProjects: Project[] = [
+    { id: 'p1', title: 'Project 2026-04-28', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'c', name: 'c' }], stemCount: 3, driveFolderId: 'd1', referenceStemId: null },
+    { id: 'p2', title: 'Project 2026-04-21', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }], stemCount: 2, driveFolderId: 'd2', referenceStemId: null },
+    { id: 'p3', title: 'Project 2026-03-31', folder: '2026/03', stems: [{ id: 'a', name: 'a' }], stemCount: 1, driveFolderId: null, referenceStemId: null },
   ];
 
-  it('renders one row per practice', () => {
-    render(<FilePicker {...baseProps} practices={fixturePractices} />);
-    expect(screen.getByText('Practice 2026-04-28')).not.toBeNull();
-    expect(screen.getByText('Practice 2026-04-21')).not.toBeNull();
-    expect(screen.getByText('Practice 2026-03-31')).not.toBeNull();
+  it('renders one row per project', () => {
+    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    expect(screen.getByText('Project 2026-04-28')).not.toBeNull();
+    expect(screen.getByText('Project 2026-04-21')).not.toBeNull();
+    expect(screen.getByText('Project 2026-03-31')).not.toBeNull();
   });
 
   it('filters by search query (title)', async () => {
     const user = userEvent.setup();
-    render(<FilePicker {...baseProps} practices={fixturePractices} />);
-    await user.type(screen.getByPlaceholderText('Search practices'), '04-28');
-    expect(screen.getByText('Practice 2026-04-28')).not.toBeNull();
-    expect(screen.queryByText('Practice 2026-04-21')).toBeNull();
+    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    await user.type(screen.getByPlaceholderText('Search projects'), '04-28');
+    expect(screen.getByText('Project 2026-04-28')).not.toBeNull();
+    expect(screen.queryByText('Project 2026-04-21')).toBeNull();
   });
 
-  it('clicking a row calls onSelect with practice id', async () => {
+  it('clicking a row calls onSelect with project id', async () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();
-    render(<FilePicker {...baseProps} practices={fixturePractices} onSelect={onSelect} />);
-    await user.click(screen.getByText('Practice 2026-04-28'));
+    render(<FilePicker {...baseProps} projects={fixtureProjects} onSelect={onSelect} />);
+    await user.click(screen.getByText('Project 2026-04-28'));
     expect(onSelect).toHaveBeenCalledWith('p1');
   });
 
   it('marks active row with active class', () => {
-    render(<FilePicker {...baseProps} practices={fixturePractices} activePracticeId="p2" />);
+    render(<FilePicker {...baseProps} projects={fixtureProjects} activeProjectId="p2" />);
     const row = screen.getByTestId('fp-row-p2');
     expect(row.className).toContain('active');
   });
@@ -109,22 +109,22 @@ describe('FilePicker', () => {
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
-  it('shows empty-state with New practice button (when allowed)', () => {
-    render(<FilePicker {...baseProps} practices={[]} showUpload={true} />);
-    expect(screen.getByText(/No practices yet/)).not.toBeNull();
+  it('shows empty-state with New project button (when allowed)', () => {
+    render(<FilePicker {...baseProps} projects={[]} showUpload={true} />);
+    expect(screen.getByText(/No projects yet/)).not.toBeNull();
     // The new entry-point label (header + bottom + empty state all read
-    // "New practice" — we just assert the empty-state action exists).
+    // "New project" — we just assert the empty-state action exists).
     expect(
-      screen.getAllByRole('button', { name: /New practice/i }).length,
+      screen.getAllByRole('button', { name: /New project/i }).length,
     ).toBeGreaterThan(0);
   });
 
-  it('hides New practice in empty state when showUpload is false', () => {
-    render(<FilePicker {...baseProps} practices={[]} showUpload={false} />);
-    expect(screen.getByText(/No practices yet/)).not.toBeNull();
+  it('hides New project in empty state when showUpload is false', () => {
+    render(<FilePicker {...baseProps} projects={[]} showUpload={false} />);
+    expect(screen.getByText(/No projects yet/)).not.toBeNull();
     // Header, bottom, and empty-state buttons all gate on showUpload — none
-    // of them should appear when the user can't create practices.
-    expect(screen.queryByRole('button', { name: /New practice/i })).toBeNull();
+    // of them should appear when the user can't create projects.
+    expect(screen.queryByRole('button', { name: /New project/i })).toBeNull();
     // And the legacy "Upload" label is gone.
     expect(screen.queryByRole('button', { name: /Upload/ })).toBeNull();
   });
@@ -135,9 +135,9 @@ describe('FilePicker', () => {
     expect(screen.queryByRole('tab', { name: /Local folder/i })).toBeNull();
   });
 
-  it('clicking + New practice opens the folder picker', async () => {
+  it('clicking + New project opens the folder picker', async () => {
     const user = userEvent.setup();
-    render(<FilePicker {...baseProps} practices={[]} showUpload={true} />);
+    render(<FilePicker {...baseProps} projects={[]} showUpload={true} />);
     // The header button triggers a click on the hidden file input — we can't
     // easily intercept the OS dialog, but we can verify the input exists and
     // the click handler is wired by spying on its click method.
@@ -147,13 +147,13 @@ describe('FilePicker', () => {
     expect(folderInput).not.toBeNull();
     const click = vi.spyOn(folderInput!, 'click');
     // Header + bottom + empty-state all render the same button; click any.
-    const buttons = screen.getAllByRole('button', { name: /New practice/i });
+    const buttons = screen.getAllByRole('button', { name: /New project/i });
     await user.click(buttons[0]);
     expect(click).toHaveBeenCalled();
   });
 
   it('renders Drive ↗ link per row when driveFolderId set', () => {
-    render(<FilePicker {...baseProps} practices={fixturePractices} />);
+    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
     const row = screen.getByTestId('fp-row-p1');
     const link = row.querySelector('.fp-drive-link') as HTMLAnchorElement;
     expect(link).toBeTruthy();
@@ -162,7 +162,7 @@ describe('FilePicker', () => {
   });
 
   it('hides Drive ↗ when driveFolderId is null', () => {
-    render(<FilePicker {...baseProps} practices={fixturePractices} />);
+    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
     const row = screen.getByTestId('fp-row-p3');
     expect(row.querySelector('.fp-drive-link')).toBeNull();
   });
@@ -170,24 +170,24 @@ describe('FilePicker', () => {
   it('clicking Drive ↗ does not trigger row onSelect', async () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();
-    render(<FilePicker {...baseProps} practices={fixturePractices} onSelect={onSelect} />);
+    render(<FilePicker {...baseProps} projects={fixtureProjects} onSelect={onSelect} />);
     const row = screen.getByTestId('fp-row-p1');
     const link = row.querySelector('.fp-drive-link') as HTMLAnchorElement;
     await user.click(link);
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it('renames a practice via inline edit', async () => {
+  it('renames a project via inline edit', async () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
-    const rows: Practice[] = [
+    const rows: Project[] = [
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
     ];
     render(
-      <FilePicker {...baseProps} practices={rows} onRenamePractice={onRename} />,
+      <FilePicker {...baseProps} projects={rows} onRenameProject={onRename} />,
     );
     await user.click(screen.getByLabelText(/rename Alpha/i));
-    const input = screen.getByRole('textbox', { name: /rename practice/i });
+    const input = screen.getByRole('textbox', { name: /rename project/i });
     await user.clear(input);
     await user.type(input, 'Beta{Enter}');
     await waitFor(() => expect(onRename).toHaveBeenCalledWith('p1', 'Beta'));
@@ -196,14 +196,14 @@ describe('FilePicker', () => {
   it('Esc cancels inline rename', async () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
-    const rows: Practice[] = [
+    const rows: Project[] = [
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
     ];
     render(
-      <FilePicker {...baseProps} practices={rows} onRenamePractice={onRename} />,
+      <FilePicker {...baseProps} projects={rows} onRenameProject={onRename} />,
     );
     await user.click(screen.getByLabelText(/rename Alpha/i));
-    const input = screen.getByRole('textbox', { name: /rename practice/i });
+    const input = screen.getByRole('textbox', { name: /rename project/i });
     await user.type(input, 'changed{Escape}');
     expect(onRename).not.toHaveBeenCalled();
   });
@@ -211,24 +211,24 @@ describe('FilePicker', () => {
   it('rename pencil click does not trigger row onSelect', async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
-    const rows: Practice[] = [
+    const rows: Project[] = [
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
     ];
     render(
-      <FilePicker {...baseProps} practices={rows} onSelect={onSelect} />,
+      <FilePicker {...baseProps} projects={rows} onSelect={onSelect} />,
     );
     await user.click(screen.getByLabelText(/rename Alpha/i));
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it('shows confirm dialog and calls onDeletePractice on confirm', async () => {
+  it('shows confirm dialog and calls onDeleteProject on confirm', async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
-    const rows: Practice[] = [
+    const rows: Project[] = [
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
     ];
     render(
-      <FilePicker {...baseProps} practices={rows} onDeletePractice={onDelete} />,
+      <FilePicker {...baseProps} projects={rows} onDeleteProject={onDelete} />,
     );
     await user.click(screen.getByRole('button', { name: /move alpha to trash/i }));
     expect(screen.getByText(/move .*alpha.* to trash/i)).not.toBeNull();
@@ -239,11 +239,11 @@ describe('FilePicker', () => {
   it('cancel button closes the dialog without deleting', async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
-    const rows: Practice[] = [
+    const rows: Project[] = [
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
     ];
     render(
-      <FilePicker {...baseProps} practices={rows} onDeletePractice={onDelete} />,
+      <FilePicker {...baseProps} projects={rows} onDeleteProject={onDelete} />,
     );
     await user.click(screen.getByRole('button', { name: /move alpha to trash/i }));
     await user.click(screen.getByRole('button', { name: /^cancel$/i }));
@@ -252,15 +252,15 @@ describe('FilePicker', () => {
 
   it('renders trash tab content with restore buttons', async () => {
     const user = userEvent.setup();
-    const onRestorePractice = vi.fn();
+    const onRestoreProject = vi.fn();
     const onRestoreStem = vi.fn();
     const trash: TrashList = {
-      practices: [{
+      projects: [{
         id: 'p1', name: 'Trashed', deleted_at: 1700000000,
         deleted_by_email: 'a@b.com', deleted_reason: 'user',
       }],
       stems: [{
-        id: 's1', name: 'gone.wav', practice_id: 'p2', practice_name: 'Live',
+        id: 's1', name: 'gone.wav', project_id: 'p2', project_name: 'Live',
         deleted_at: 1700000000, deleted_by_email: 'a@b.com', deleted_reason: 'drive_missing',
       }],
     };
@@ -268,7 +268,7 @@ describe('FilePicker', () => {
       <FilePicker
         {...baseProps}
         trash={trash}
-        onRestorePractice={onRestorePractice}
+        onRestoreProject={onRestoreProject}
         onRestoreStem={onRestoreStem}
       />,
     );
@@ -278,13 +278,13 @@ describe('FilePicker', () => {
     expect(screen.queryByText('Trashed')).not.toBeNull();
     expect(screen.queryByText('gone.wav')).not.toBeNull();
 
-    const restorePracticeBtn = screen.getByRole('button', { name: /restore Trashed/i });
+    const restoreProjectBtn = screen.getByRole('button', { name: /restore Trashed/i });
     const restoreStemBtn = screen.getByRole('button', { name: /restore gone.wav/i });
-    expect(restorePracticeBtn.hasAttribute('disabled')).toBe(false);
+    expect(restoreProjectBtn.hasAttribute('disabled')).toBe(false);
     expect(restoreStemBtn.hasAttribute('disabled')).toBe(true);
 
-    await user.click(restorePracticeBtn);
-    expect(onRestorePractice).toHaveBeenCalledWith('p1');
+    await user.click(restoreProjectBtn);
+    expect(onRestoreProject).toHaveBeenCalledWith('p1');
   });
 
   it('calls onLoadTrash when trash tab is selected', async () => {
@@ -302,15 +302,15 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     const onDelete = vi.fn();
-    const rows: Practice[] = [
+    const rows: Project[] = [
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, driveFolderId: null, referenceStemId: null },
     ];
     render(
       <FilePicker
         {...baseProps}
-        practices={rows}
+        projects={rows}
         onClose={onClose}
-        onDeletePractice={onDelete}
+        onDeleteProject={onDelete}
       />,
     );
     await user.click(screen.getByRole('button', { name: /move alpha to trash/i }));
@@ -322,7 +322,7 @@ describe('FilePicker', () => {
     await user.keyboard('{Escape}');
     // Confirm modal gone, but picker still open and onClose not called.
     expect(screen.queryByText(/move .*alpha.* to trash/i)).toBeNull();
-    expect(screen.getByText('Practices')).not.toBeNull();
+    expect(screen.getByText('Projects')).not.toBeNull();
     expect(onClose).not.toHaveBeenCalled();
     expect(onDelete).not.toHaveBeenCalled();
   });

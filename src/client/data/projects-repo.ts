@@ -1,24 +1,24 @@
 import type {
-  Practice,
-  PracticeDetail,
-  PracticeSummary,
+  Project,
+  ProjectDetail,
+  ProjectSummary,
   StemSummary,
   TrashList,
 } from './types';
 
-export interface PracticesRepo {
-  list(): Promise<Practice[]>;
-  getById(id: string): Promise<Practice>;
-  renamePractice(id: string, name: string): Promise<void>;
-  deletePractice(id: string): Promise<void>;
-  restorePractice(id: string): Promise<void>;
+export interface ProjectsRepo {
+  list(): Promise<Project[]>;
+  getById(id: string): Promise<Project>;
+  renameProject(id: string, name: string): Promise<void>;
+  deleteProject(id: string): Promise<void>;
+  restoreProject(id: string): Promise<void>;
   renameStem(id: string, name: string): Promise<void>;
   deleteStem(id: string): Promise<void>;
   restoreStem(id: string): Promise<void>;
   listTrash(): Promise<TrashList>;
 }
 
-function summaryToPractice(p: PracticeSummary): Practice {
+function summaryToProject(p: ProjectSummary): Project {
   return {
     id: p.id,
     title: p.name,
@@ -30,7 +30,7 @@ function summaryToPractice(p: PracticeSummary): Practice {
   };
 }
 
-function detailToPractice(detail: PracticeDetail, stems: StemSummary[]): Practice {
+function detailToProject(detail: ProjectDetail, stems: StemSummary[]): Project {
   // Picker thumbnail uses the first stem (by position). Mirrors the list
   // endpoint's `reference_stem_id` so detail and list views agree.
   const refId = stems[0]?.id ?? null;
@@ -45,37 +45,37 @@ function detailToPractice(detail: PracticeDetail, stems: StemSummary[]): Practic
   };
 }
 
-export class HttpPracticesRepo implements PracticesRepo {
+export class HttpProjectsRepo implements ProjectsRepo {
   private readonly bandId: string;
 
   constructor(bandId: string) {
     this.bandId = bandId;
   }
 
-  async list(): Promise<Practice[]> {
+  async list(): Promise<Project[]> {
     const res = await fetch(
-      `/api/practices?band_id=${encodeURIComponent(this.bandId)}`,
+      `/api/projects?band_id=${encodeURIComponent(this.bandId)}`,
       { credentials: 'include' },
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = (await res.json()) as { practices: PracticeSummary[] };
-    return data.practices.map(summaryToPractice);
+    const data = (await res.json()) as { projects: ProjectSummary[] };
+    return data.projects.map(summaryToProject);
   }
 
-  async getById(id: string): Promise<Practice> {
-    const res = await fetch(`/api/practices/${encodeURIComponent(id)}`, {
+  async getById(id: string): Promise<Project> {
+    const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
       credentials: 'include',
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = (await res.json()) as {
-      practice: PracticeDetail;
+      project: ProjectDetail;
       stems: StemSummary[];
     };
-    return detailToPractice(data.practice, data.stems);
+    return detailToProject(data.project, data.stems);
   }
 
-  async renamePractice(id: string, name: string): Promise<void> {
-    const res = await fetch(`/api/practices/${encodeURIComponent(id)}`, {
+  async renameProject(id: string, name: string): Promise<void> {
+    const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -84,16 +84,16 @@ export class HttpPracticesRepo implements PracticesRepo {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
   }
 
-  async deletePractice(id: string): Promise<void> {
-    const res = await fetch(`/api/practices/${encodeURIComponent(id)}`, {
+  async deleteProject(id: string): Promise<void> {
+    const res = await fetch(`/api/projects/${encodeURIComponent(id)}`, {
       method: 'DELETE',
       credentials: 'include',
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
   }
 
-  async restorePractice(id: string): Promise<void> {
-    const res = await fetch(`/api/practices/${encodeURIComponent(id)}/restore`, {
+  async restoreProject(id: string): Promise<void> {
+    const res = await fetch(`/api/projects/${encodeURIComponent(id)}/restore`, {
       method: 'POST',
       credentials: 'include',
     });

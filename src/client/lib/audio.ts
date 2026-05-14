@@ -33,10 +33,10 @@ export function volumeToGain(v: number): number {
   return 1 + 3 * (clamped - VOLUME_UNITY) / VOLUME_UNITY;
 }
 
-export function loadVolume(practiceId: string | null, stemName: string): number {
-  if (!practiceId) return VOLUME_DEFAULT;
+export function loadVolume(projectId: string | null, stemName: string): number {
+  if (!projectId) return VOLUME_DEFAULT;
   try {
-    const v = localStorage.getItem(`vol:${practiceId}:${stemName}`);
+    const v = localStorage.getItem(`vol:${projectId}:${stemName}`);
     if (v == null) return VOLUME_DEFAULT;
     const parsed = parseInt(v, 10);
     return Math.max(0, Math.min(VOLUME_MAX, isFinite(parsed) ? parsed : VOLUME_DEFAULT));
@@ -45,10 +45,10 @@ export function loadVolume(practiceId: string | null, stemName: string): number 
   }
 }
 
-export function saveVolume(practiceId: string | null, stemName: string, v: number): void {
-  if (!practiceId) return;
+export function saveVolume(projectId: string | null, stemName: string, v: number): void {
+  if (!projectId) return;
   try {
-    localStorage.setItem(`vol:${practiceId}:${stemName}`, String(v));
+    localStorage.setItem(`vol:${projectId}:${stemName}`, String(v));
   } catch {
     // localStorage unavailable (private mode, etc.) — silently skip.
   }

@@ -102,7 +102,7 @@ describe('model12.scan', () => {
     expect(tasks[0]!.segment).toBeNull();
     expect(tasks[0]!.trackPositions).toEqual([1, 2, 7]);
     expect(tasks[0]!.recordedOn).toBe('2026-05-12');
-    expect(tasks[0]!.defaultPracticeName).toBe('2026-05-12 260512_0001');
+    expect(tasks[0]!.defaultProjectName).toBe('2026-05-12 260512_0001');
     expect(tasks[0]!.status.kind).toBe('new');
   });
 
@@ -129,7 +129,7 @@ describe('model12.scan', () => {
     expect(tasks[1]!.segment?.endSample).toBe(88200);
     expect(tasks[2]!.segment?.startSample).toBe(88200);
     expect(tasks[2]!.segment?.endSample).toBe(132300);
-    expect(tasks.map((t) => t.defaultPracticeName)).toEqual([
+    expect(tasks.map((t) => t.defaultProjectName)).toEqual([
       '2026-05-12 take 1',
       '2026-05-12 take 2',
       '2026-05-12 take 3',
@@ -176,7 +176,7 @@ describe('model12.scan', () => {
           start_sample: 0,
           end_sample: 0,
           name: '2026-05-12 260512_0004',
-          practice_id: 'pr_xyz',
+          project_id: 'pr_xyz',
           uploaded_at: '2026-05-12T20:30:00Z',
         },
       ],
@@ -184,7 +184,7 @@ describe('model12.scan', () => {
     const tasks = await model12.scan(card, {
       stillRecordingThresholdMs: 60000,
     });
-    expect(tasks[0]!.status).toEqual({ kind: 'done', practiceId: 'pr_xyz' });
+    expect(tasks[0]!.status).toEqual({ kind: 'done', projectId: 'pr_xyz' });
   });
 
   it('rejects a folder where TR01 and TR02 cue chunks differ', async () => {

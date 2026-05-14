@@ -18,14 +18,14 @@ describe('useShareLink', () => {
   it('parses location.hash on mount and strips it', () => {
     setHash('#p=abc&t=10.50');
     const { result } = renderHook(() => useShareLink());
-    expect(result.current.initial).toEqual({ practiceId: 'abc', time: 10.5 });
+    expect(result.current.initial).toEqual({ projectId: 'abc', time: 10.5 });
     expect(window.location.hash).toBe('');
   });
 
   it('falls back to sessionStorage when hash is empty', () => {
     sessionStorage.setItem(PENDING_SHARE_HASH_KEY, '#p=def');
     const { result } = renderHook(() => useShareLink());
-    expect(result.current.initial).toEqual({ practiceId: 'def' });
+    expect(result.current.initial).toEqual({ projectId: 'def' });
     expect(sessionStorage.getItem(PENDING_SHARE_HASH_KEY)).toBeNull();
   });
 
@@ -34,11 +34,11 @@ describe('useShareLink', () => {
     expect(result.current.initial).toBeNull();
   });
 
-  it('syncPracticeId writes #p=<id>', () => {
+  it('syncProjectId writes #p=<id>', () => {
     const { result } = renderHook(() => useShareLink());
-    act(() => result.current.syncPracticeId('xyz'));
+    act(() => result.current.syncProjectId('xyz'));
     expect(window.location.hash).toBe('#p=xyz');
-    act(() => result.current.syncPracticeId(null));
+    act(() => result.current.syncProjectId(null));
     expect(window.location.hash).toBe('');
   });
 });

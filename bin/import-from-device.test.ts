@@ -82,18 +82,18 @@ describe('runImporter', () => {
       .fn()
       .mockImplementation((url: string, init: RequestInit) => {
         if (
-          url === 'https://paperstem.test/api/practices' &&
+          url === 'https://paperstem.test/api/projects' &&
           init.method === 'POST'
         ) {
           return Promise.resolve(
-            new Response(JSON.stringify({ practice: { id: 'pr_new' } }), {
+            new Response(JSON.stringify({ project: { id: 'pr_new' } }), {
               status: 201,
               headers: { 'Content-Type': 'application/json' },
             }),
           );
         }
         if (
-          url.startsWith('https://paperstem.test/api/practices/pr_new/stems')
+          url.startsWith('https://paperstem.test/api/projects/pr_new/stems')
         ) {
           if (init.method === 'POST') {
             return Promise.resolve(
@@ -122,7 +122,7 @@ describe('runImporter', () => {
     const marker = JSON.parse(
       readFileSync(join(dir, markerImportedFilename), 'utf8'),
     );
-    expect(marker.segments[0].practice_id).toBe('pr_new');
+    expect(marker.segments[0].project_id).toBe('pr_new');
     expect(marker.segments[0].uploaded_at).toBeTruthy();
   });
 
@@ -146,7 +146,7 @@ describe('runImporter', () => {
             start_sample: 0,
             end_sample: 0,
             name: 'x',
-            practice_id: 'pr_done',
+            project_id: 'pr_done',
             uploaded_at: '2026-05-12T00:00:00Z',
           },
         ],

@@ -54,7 +54,7 @@ describe('loadVolume / saveVolume', () => {
     expect(loadVolume('p1', 'stem.wav')).toBe(80);
   });
 
-  test('returns 80 when no practiceId is set', () => {
+  test('returns 80 when no projectId is set', () => {
     expect(loadVolume(null, 'stem.wav')).toBe(80);
   });
 
@@ -73,7 +73,7 @@ describe('loadVolume / saveVolume', () => {
     expect(loadVolume('p1', 'stem.wav')).toBe(VOLUME_MAX);
   });
 
-  test('skips save when practiceId is null', () => {
+  test('skips save when projectId is null', () => {
     saveVolume(null, 'stem.wav', 50);
     expect(localStorage.length).toBe(0);
   });

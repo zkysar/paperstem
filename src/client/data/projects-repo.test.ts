@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HttpPracticesRepo } from './practices-repo';
+import { HttpProjectsRepo } from './projects-repo';
 
 let fetchSpy: ReturnType<typeof vi.spyOn>;
 
@@ -11,15 +11,15 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('HttpPracticesRepo.list', () => {
-  it('builds /api/practices?band_id=… with credentials', async () => {
+describe('HttpProjectsRepo.list', () => {
+  it('builds /api/projects?band_id=… with credentials', async () => {
     fetchSpy.mockResolvedValue(
       new Response(
         JSON.stringify({
-          practices: [
+          projects: [
             {
               id: 'p1',
-              name: 'Practice One',
+              name: 'Project One',
               recorded_on: '2026-05-01',
               created_at: 0,
               updated_at: 0,
@@ -30,41 +30,41 @@ describe('HttpPracticesRepo.list', () => {
       ),
     );
 
-    const repo = new HttpPracticesRepo('band-abc');
+    const repo = new HttpProjectsRepo('band-abc');
     const list = await repo.list();
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
     const [url, init] = fetchSpy.mock.calls[0];
-    expect(url).toBe('/api/practices?band_id=band-abc');
+    expect(url).toBe('/api/projects?band_id=band-abc');
     expect((init as RequestInit).credentials).toBe('include');
     expect(list).toHaveLength(1);
-    expect(list[0]).toMatchObject({ id: 'p1', title: 'Practice One' });
+    expect(list[0]).toMatchObject({ id: 'p1', title: 'Project One' });
   });
 
   it('throws on non-2xx', async () => {
     fetchSpy.mockResolvedValue(new Response('nope', { status: 404 }));
-    const repo = new HttpPracticesRepo('band-x');
+    const repo = new HttpProjectsRepo('band-x');
     await expect(repo.list()).rejects.toThrow(/404/);
   });
 
   it('url-encodes the band id', async () => {
     fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({ practices: [] }), { status: 200 }),
+      new Response(JSON.stringify({ projects: [] }), { status: 200 }),
     );
-    const repo = new HttpPracticesRepo('band/with spaces');
+    const repo = new HttpProjectsRepo('band/with spaces');
     await repo.list();
     const url = fetchSpy.mock.calls[0][0];
-    expect(url).toBe('/api/practices?band_id=band%2Fwith%20spaces');
+    expect(url).toBe('/api/projects?band_id=band%2Fwith%20spaces');
   });
 
   it('parses drive_folder_id into driveFolderId', async () => {
     fetchSpy.mockResolvedValue(
       new Response(
         JSON.stringify({
-          practices: [
+          projects: [
             {
               id: 'p1',
-              name: 'Practice One',
+              name: 'Project One',
               recorded_on: '2026-05-01',
               drive_folder_id: 'drive-xyz',
               created_at: 0,
@@ -75,21 +75,21 @@ describe('HttpPracticesRepo.list', () => {
         { status: 200 },
       ),
     );
-    const repo = new HttpPracticesRepo('band-abc');
+    const repo = new HttpProjectsRepo('band-abc');
     const list = await repo.list();
     expect(list[0]).toMatchObject({ id: 'p1', driveFolderId: 'drive-xyz' });
   });
 });
 
-describe('HttpPracticesRepo.getById', () => {
+describe('HttpProjectsRepo.getById', () => {
   it('fetches detail and maps stems to ids', async () => {
     fetchSpy.mockResolvedValue(
       new Response(
         JSON.stringify({
-          practice: {
+          project: {
             id: 'p1',
             band_id: 'b1',
-            name: 'Practice One',
+            name: 'Project One',
             recorded_on: '2026-05-01',
             drive_folder_id: 'drv',
             notes: null,
@@ -105,11 +105,11 @@ describe('HttpPracticesRepo.getById', () => {
         { status: 200 },
       ),
     );
-    const repo = new HttpPracticesRepo('b1');
+    const repo = new HttpProjectsRepo('b1');
     const p = await repo.getById('p1');
-    expect(fetchSpy.mock.calls[0][0]).toBe('/api/practices/p1');
+    expect(fetchSpy.mock.calls[0][0]).toBe('/api/projects/p1');
     expect(p.id).toBe('p1');
-    expect(p.title).toBe('Practice One');
+    expect(p.title).toBe('Project One');
     expect(p.stems).toEqual([
       { id: 's1', name: 'drums' },
       { id: 's2', name: 'bass' },

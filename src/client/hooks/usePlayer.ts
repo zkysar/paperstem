@@ -38,7 +38,7 @@ type Action =
       stems: LoadedStem[];
       duration: number;
       referenceIdx: number;
-      practiceId: string | null;
+      projectId: string | null;
       title: string;
       driveFolderId: string | null;
       status: string;
@@ -58,7 +58,7 @@ type Action =
   | { type: 'REMOVE_STEM'; serverId: string };
 
 const initialState: PlayerState = {
-  practiceId: null,
+  projectId: null,
   title: '—',
   driveFolderId: null,
   stems: [],
@@ -105,7 +105,7 @@ function reducer(state: PlayerState, action: Action): PlayerState {
     case 'LOADED':
       return {
         ...state,
-        practiceId: action.practiceId,
+        projectId: action.projectId,
         title: action.title,
         driveFolderId: action.driveFolderId,
         stems: action.stems,
@@ -194,7 +194,7 @@ export type PlayerControls = {
   state: PlayerState;
   currentTime: number;
   load(input: {
-    practiceId: string | null;
+    projectId: string | null;
     title: string;
     driveFolderId: string | null;
     sources: StemSource[];
@@ -426,7 +426,7 @@ export function usePlayer(): PlayerControls {
       dispatch({ type: 'TEARDOWN' });
       return;
     }
-    const ctx: LoadContext = { practiceId: input.practiceId, title: input.title };
+    const ctx: LoadContext = { projectId: input.projectId, title: input.title };
     const displayNames = stripCommonPrefix(input.sources.map((it) => it.name));
     const colors = input.sources.map((_, i) => PALETTE[i % PALETTE.length]);
     dispatch({
@@ -451,7 +451,7 @@ export function usePlayer(): PlayerControls {
       audio.preload = 'auto';
       audio.muted = true; // Web Audio drives all sound now; this is metadata only.
       audio.src = src.src;
-      const userVolume = loadVolume(ctx.practiceId, src.name);
+      const userVolume = loadVolume(ctx.projectId, src.name);
       const gain = graph.ctx.createGain();
       gain.gain.value = volumeToGain(userVolume);
       gain.connect(graph.master);
@@ -464,7 +464,7 @@ export function usePlayer(): PlayerControls {
         userMuted: false,
         soloed: false,
         userVolume,
-        practiceId: ctx.practiceId,
+        projectId: ctx.projectId,
         serverId: src.serverId ?? null,
         revoke: src.revoke,
         gain,
@@ -507,7 +507,7 @@ export function usePlayer(): PlayerControls {
       stems: built,
       duration,
       referenceIdx,
-      practiceId: input.practiceId,
+      projectId: input.projectId,
       title: input.title,
       driveFolderId: input.driveFolderId,
       status,
@@ -596,7 +596,7 @@ export function usePlayer(): PlayerControls {
     const s = stateRef.current;
     const stem = s.stems[idx];
     if (!stem) return;
-    saveVolume(stem.practiceId, stem.name, vol);
+    saveVolume(stem.projectId, stem.name, vol);
     dispatch({ type: 'SET_VOLUME', idx, vol });
   }, []);
 

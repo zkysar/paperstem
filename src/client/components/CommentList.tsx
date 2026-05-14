@@ -28,7 +28,7 @@ type Props = {
   onSaveEdit(annotation: Annotation, body: string): void;
   onDelete(annotation: Annotation): void;
   /**
-   * "Copy link to this comment" — captures practice + comment + its timestamp
+   * "Copy link to this comment" — captures project + comment + its timestamp
    * and writes a share URL to the clipboard.
    */
   onCopyLink(annotation: Annotation): void;

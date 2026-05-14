@@ -52,7 +52,7 @@ function inferAudioMime(filename: string, declared: string | undefined): string 
   return null;
 }
 
-export function handleListPractices(
+export function handleListProjects(
   c: Context<{ Variables: AuthVariables }>,
 ): Response {
   const user = requireUser(c);
@@ -62,8 +62,8 @@ export function handleListPractices(
   const membership = stmts.findMembership.get(bandId, user.id);
   if (!membership) return c.json({ error: 'not_found' }, 404);
 
-  const rows = stmts.findPracticesForBandWithRefStem.all(bandId);
-  const practices = rows.map((p) => ({
+  const rows = stmts.findProjectsForBandWithRefStem.all(bandId);
+  const projects = rows.map((p) => ({
     id: p.id,
     name: p.name,
     recorded_on: p.recorded_on,
@@ -73,23 +73,23 @@ export function handleListPractices(
     stem_count: p.stem_count,
     reference_stem_id: p.reference_stem_id,
   }));
-  return c.json({ practices });
+  return c.json({ projects });
 }
 
-export function handleGetPractice(
+export function handleGetProject(
   c: Context<{ Variables: AuthVariables }>,
 ): Response {
   const user = requireUser(c);
   const id = c.req.param('id') ?? '';
   if (!id) return c.json({ error: 'not_found' }, 404);
 
-  const practice = stmts.findPracticeById.get(id);
-  if (!practice) return c.json({ error: 'not_found' }, 404);
+  const project = stmts.findProjectById.get(id);
+  if (!project) return c.json({ error: 'not_found' }, 404);
 
-  const membership = stmts.findMembership.get(practice.band_id, user.id);
+  const membership = stmts.findMembership.get(project.band_id, user.id);
   if (!membership) return c.json({ error: 'not_found' }, 404);
 
-  const stems = stmts.findStemsForPractice.all(id).map((s) => ({
+  const stems = stmts.findStemsForProject.all(id).map((s) => ({
     id: s.id,
     name: s.name,
     position: s.position,
@@ -99,32 +99,32 @@ export function handleGetPractice(
   }));
 
   return c.json({
-    practice: {
-      id: practice.id,
-      band_id: practice.band_id,
-      name: practice.name,
-      recorded_on: practice.recorded_on,
-      drive_folder_id: practice.drive_folder_id,
-      notes: practice.notes,
-      created_at: practice.created_at,
-      created_by: practice.created_by,
-      updated_at: practice.updated_at,
+    project: {
+      id: project.id,
+      band_id: project.band_id,
+      name: project.name,
+      recorded_on: project.recorded_on,
+      drive_folder_id: project.drive_folder_id,
+      notes: project.notes,
+      created_at: project.created_at,
+      created_by: project.created_by,
+      updated_at: project.updated_at,
     },
     stems,
   });
 }
 
-export async function handleRenamePractice(
+export async function handleRenameProject(
   c: Context<{ Variables: AuthVariables }>,
 ): Promise<Response> {
   const user = requireUser(c);
   const id = c.req.param('id') ?? '';
   if (!id) return c.json({ error: 'not_found' }, 404);
 
-  const practice = stmts.findPracticeById.get(id);
-  if (!practice) return c.json({ error: 'not_found' }, 404);
+  const project = stmts.findProjectById.get(id);
+  if (!project) return c.json({ error: 'not_found' }, 404);
 
-  const membership = stmts.findMembership.get(practice.band_id, user.id);
+  const membership = stmts.findMembership.get(project.band_id, user.id);
   if (!membership) return c.json({ error: 'not_found' }, 404);
 
   let body: { name?: unknown };
@@ -139,84 +139,84 @@ export async function handleRenamePractice(
   }
 
   const now = Math.floor(Date.now() / 1000);
-  stmts.renamePractice.run(name, now, id);
+  stmts.renameProject.run(name, now, id);
 
   try {
-    await renameDriveItem(practice.drive_folder_id, name);
+    await renameDriveItem(project.drive_folder_id, name);
   } catch (err) {
-    console.warn('[practices] drive rename failed; DB updated', { id, err });
+    console.warn('[projects] drive rename failed; DB updated', { id, err });
   }
 
   return c.json({ ok: true, name });
 }
 
-export async function handleDeletePractice(
+export async function handleDeleteProject(
   c: Context<{ Variables: AuthVariables }>,
 ): Promise<Response> {
   const user = requireUser(c);
   const id = c.req.param('id') ?? '';
   if (!id) return c.json({ error: 'not_found' }, 404);
 
-  const practice = stmts.findPracticeById.get(id);
-  if (!practice) return c.json({ error: 'not_found' }, 404);
+  const project = stmts.findProjectById.get(id);
+  if (!project) return c.json({ error: 'not_found' }, 404);
 
-  const membership = stmts.findMembership.get(practice.band_id, user.id);
+  const membership = stmts.findMembership.get(project.band_id, user.id);
   if (!membership) return c.json({ error: 'not_found' }, 404);
 
   const now = Math.floor(Date.now() / 1000);
-  stmts.softDeletePractice.run(now, user.id, id);
+  stmts.softDeleteProject.run(now, user.id, id);
 
   try {
-    await trashDriveItem(practice.drive_folder_id);
+    await trashDriveItem(project.drive_folder_id);
   } catch (err) {
-    console.warn('[practices] drive trash failed; DB updated', { id, err });
+    console.warn('[projects] drive trash failed; DB updated', { id, err });
   }
 
   return c.json({ ok: true });
 }
 
-export async function handleRestorePractice(
+export async function handleRestoreProject(
   c: Context<{ Variables: AuthVariables }>,
 ): Promise<Response> {
   const user = requireUser(c);
   const id = c.req.param('id') ?? '';
   if (!id) return c.json({ error: 'not_found' }, 404);
 
-  const practice = stmts.findPracticeAnyState.get(id);
-  if (!practice) return c.json({ error: 'not_found' }, 404);
+  const project = stmts.findProjectAnyState.get(id);
+  if (!project) return c.json({ error: 'not_found' }, 404);
 
-  const membership = stmts.findMembership.get(practice.band_id, user.id);
+  const membership = stmts.findMembership.get(project.band_id, user.id);
   if (!membership) return c.json({ error: 'not_found' }, 404);
 
-  if (practice.deleted_reason === 'drive_missing') {
+  if (project.deleted_reason === 'drive_missing') {
     return c.json({ error: 'drive_missing' }, 409);
   }
 
-  stmts.restorePractice.run(id);
+  stmts.restoreProject.run(id);
 
   try {
-    await untrashDriveItem(practice.drive_folder_id);
+    await untrashDriveItem(project.drive_folder_id);
   } catch (err) {
-    console.warn('[practices] drive untrash failed; DB updated', { id, err });
+    console.warn('[projects] drive untrash failed; DB updated', { id, err });
   }
 
   return c.json({ ok: true });
 }
 
-type CreatePracticeBody = {
+type CreateProjectBody = {
   band_id?: unknown;
   name?: unknown;
   recorded_on?: unknown;
 };
 
-export async function handleCreatePractice(
+export async function handleCreateProject(
   c: Context<{ Variables: AuthVariables }>,
 ): Promise<Response> {
   const user = requireUser(c);
 
-  let body: CreatePracticeBody;
+  let body: CreateProjectBody;
   try {
-    body = (await c.req.json()) as CreatePracticeBody;
+    body = (await c.req.json()) as CreateProjectBody;
   } catch {
     return c.json({ error: 'invalid_json' }, 400);
   }
@@ -245,22 +245,22 @@ export async function handleCreatePractice(
     return c.json({ error: 'band_not_provisioned' }, 409);
   }
 
-  let practiceFolder: { id: string };
+  let projectFolder: { id: string };
   try {
-    practiceFolder = await createFolder(rawName, band.drive_folder_id);
+    projectFolder = await createFolder(rawName, band.drive_folder_id);
   } catch (err) {
-    console.error('[practices] createFolder failed', err);
+    console.error('[projects] createFolder failed', err);
     return c.json({ error: 'upstream_error' }, 502);
   }
 
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  stmts.insertPractice.run(
+  stmts.insertProject.run(
     id,
     bandId,
     rawName,
     recordedOn,
-    practiceFolder.id,
+    projectFolder.id,
     null,
     now,
     user.id,
@@ -269,12 +269,12 @@ export async function handleCreatePractice(
 
   return c.json(
     {
-      practice: {
+      project: {
         id,
         band_id: bandId,
         name: rawName,
         recorded_on: recordedOn,
-        drive_folder_id: practiceFolder.id,
+        drive_folder_id: projectFolder.id,
         notes: null,
         created_at: now,
         created_by: user.id,
@@ -390,13 +390,13 @@ export async function handleCreateStem(
   c: Context<{ Variables: AuthVariables }>,
 ): Promise<Response> {
   const user = requireUser(c);
-  const practiceId = c.req.param('id') ?? '';
-  if (!practiceId) return c.json({ error: 'not_found' }, 404);
+  const projectId = c.req.param('id') ?? '';
+  if (!projectId) return c.json({ error: 'not_found' }, 404);
 
-  const practice = stmts.findPracticeById.get(practiceId);
-  if (!practice) return c.json({ error: 'not_found' }, 404);
+  const project = stmts.findProjectById.get(projectId);
+  if (!project) return c.json({ error: 'not_found' }, 404);
 
-  if (!stmts.findOwnerMembership.get(practice.band_id, user.id)) {
+  if (!stmts.findOwnerMembership.get(project.band_id, user.id)) {
     return c.json({ error: 'forbidden' }, 403);
   }
 
@@ -417,20 +417,20 @@ export async function handleCreateStem(
     if (err instanceof MultipartError) {
       return c.json({ error: err.code }, err.status);
     }
-    console.error('[practices] multipart parse failed', err);
+    console.error('[projects] multipart parse failed', err);
     return c.json({ error: 'invalid_multipart' }, 400);
   }
 
   let uploaded: { id: string; size: number };
   try {
     uploaded = await uploadFile(
-      practice.drive_folder_id,
+      project.drive_folder_id,
       parsed.filename,
       parsed.mime,
       parsed.body,
     );
   } catch (err) {
-    console.error('[practices] uploadFile failed', err);
+    console.error('[projects] uploadFile failed', err);
     void parsed.done.catch(() => {});
     return c.json({ error: 'upstream_error' }, 502);
   }
@@ -444,19 +444,19 @@ export async function handleCreateStem(
   const stemName = ext ? parsed.filename.slice(0, -ext.length) : parsed.filename;
 
   const position =
-    parsed.position ?? (stmts.countStemsForPractice.get(practiceId)?.c ?? 0);
+    parsed.position ?? (stmts.countStemsForProject.get(projectId)?.c ?? 0);
 
   // Re-read the peaks field — busboy delivers fields before/around the file
   // depending on multipart ordering, but the `field` handler may have fired
-  // after we resolved if the client appended `peaks` after `file`. In practice
-  // both browsers and our UploadDrawer append peaks before file, so peaks is
-  // already set by here.
+  // after we resolved if the client appended `peaks` after `file`. In real
+  // usage both browsers and our UploadDrawer append peaks before file, so
+  // peaks is already set by here.
   const peaks = parsed.peaks;
 
   const stemId = randomUUID();
   stmts.insertStem.run(
     stemId,
-    practiceId,
+    projectId,
     stemName,
     position,
     uploaded.id,
@@ -469,7 +469,7 @@ export async function handleCreateStem(
     {
       stem: {
         id: stemId,
-        practice_id: practiceId,
+        project_id: projectId,
         name: stemName,
         position,
         duration_ms: null,

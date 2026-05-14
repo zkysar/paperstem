@@ -12,7 +12,7 @@ const baseProps = {
 describe('UploadDrawer', () => {
   it('renders the standard upload form when no prefill is supplied', () => {
     render(<UploadDrawer {...baseProps} />);
-    expect(screen.getByText('Upload practice')).not.toBeNull();
+    expect(screen.getByText('Upload project')).not.toBeNull();
     // Folder input is the only way to provide stems in the standalone flow.
     const folderInput = document.querySelector(
       'input[type="file"][webkitdirectory]',
@@ -30,7 +30,7 @@ describe('UploadDrawer', () => {
       <UploadDrawer
         {...baseProps}
         prefilledFiles={[file]}
-        prefilledName="My band practice"
+        prefilledName="My band project"
       />,
     );
     // Heading flips to the promote-flow title.
@@ -42,8 +42,8 @@ describe('UploadDrawer', () => {
     expect(folderInput).toBeNull();
     // Prefilled files appear in the list immediately.
     expect(screen.getByText('kick.wav')).not.toBeNull();
-    // Practice name field defaults to the prefilled name.
-    const nameInput = screen.getByLabelText(/practice name/i) as HTMLInputElement;
-    expect(nameInput.value).toBe('My band practice');
+    // Project name field defaults to the prefilled name.
+    const nameInput = screen.getByLabelText(/project name/i) as HTMLInputElement;
+    expect(nameInput.value).toBe('My band project');
   });
 });

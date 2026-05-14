@@ -40,14 +40,14 @@ console.log(
   `min savings to keep: ${(MIN_SAVINGS / 1024 / 1024).toFixed(2)} MB`,
 );
 
-type StemWithPath = StemRow & { band_id: string; band_name: string; practice_name: string };
+type StemWithPath = StemRow & { band_id: string; band_name: string; project_name: string };
 
 const allStems = ONLY_ID
   ? (db
       .prepare(
-        `SELECT s.*, p.band_id, b.name AS band_name, p.name AS practice_name
+        `SELECT s.*, p.band_id, b.name AS band_name, p.name AS project_name
            FROM stems s
-           JOIN practices p ON p.id = s.practice_id
+           JOIN projects p ON p.id = s.project_id
            JOIN bands b ON b.id = p.band_id
           WHERE s.id = ?
             AND s.deleted_at IS NULL
@@ -56,9 +56,9 @@ const allStems = ONLY_ID
       .all(ONLY_ID) as StemWithPath[])
   : (db
       .prepare(
-        `SELECT s.*, p.band_id, b.name AS band_name, p.name AS practice_name
+        `SELECT s.*, p.band_id, b.name AS band_name, p.name AS project_name
            FROM stems s
-           JOIN practices p ON p.id = s.practice_id
+           JOIN projects p ON p.id = s.project_id
            JOIN bands b ON b.id = p.band_id
           WHERE s.deleted_at IS NULL
             AND p.deleted_at IS NULL
@@ -164,7 +164,7 @@ function fmt(bytes: number): string {
 let index = 0;
 for (const stem of allStems) {
   index++;
-  const label = `[${index}/${allStems.length}] ${stem.band_name} / ${stem.practice_name} / ${stem.name}`;
+  const label = `[${index}/${allStems.length}] ${stem.band_name} / ${stem.project_name} / ${stem.name}`;
   try {
     const { body } = await getDriveFile(stem.drive_file_id);
     const original = await streamToBuffer(body);

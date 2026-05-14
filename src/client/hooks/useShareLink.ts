@@ -7,7 +7,7 @@ export type UseShareLink = {
   /** Parsed once on first render. Subsequent renders return the same object. */
   initial: ShareState | null;
   /** Updates the address bar to `#p=<id>` (or clears it if null). */
-  syncPracticeId: (id: string | null) => void;
+  syncProjectId: (id: string | null) => void;
 };
 
 function readInitialHash(): ShareState | null {
@@ -39,7 +39,7 @@ export function useShareLink(): UseShareLink {
     initialRef.current = readInitialHash();
   }
 
-  const syncPracticeId = useCallback((id: string | null) => {
+  const syncProjectId = useCallback((id: string | null) => {
     if (typeof window === 'undefined') return;
     const next = id ? `#p=${encodeURIComponent(id)}` : '';
     if (window.location.hash === next) return;
@@ -47,5 +47,5 @@ export function useShareLink(): UseShareLink {
     else history.replaceState(null, '', window.location.pathname + window.location.search);
   }, []);
 
-  return { initial: initialRef.current, syncPracticeId };
+  return { initial: initialRef.current, syncProjectId };
 }

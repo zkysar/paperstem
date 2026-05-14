@@ -36,7 +36,7 @@ The relevant env knobs (set automatically by the launcher; only override if you 
 
 ### Sharing state with the main checkout
 
-A worktree by default uses `./dev.sqlite` (its own empty DB). To share users/sessions/practices with the main checkout, point at its DB:
+A worktree by default uses `./dev.sqlite` (its own empty DB). To share users/sessions/projects with the main checkout, point at its DB:
 
 ```bash
 DATABASE_PATH=/Users/zachkysar/projects/paperstem/dev.sqlite ...

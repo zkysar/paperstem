@@ -157,12 +157,12 @@ export const model12: DeviceImporter = {
           status = { kind: 'still-recording', lastModified };
         } else if (marker) {
           const seenSegment = marker.segments.find((s) => s.index === idx);
-          if (seenSegment?.uploaded_at && seenSegment.practice_id) {
-            status = { kind: 'done', practiceId: seenSegment.practice_id };
-          } else if (seenSegment?.practice_id) {
+          if (seenSegment?.uploaded_at && seenSegment.project_id) {
+            status = { kind: 'done', projectId: seenSegment.project_id };
+          } else if (seenSegment?.project_id) {
             status = {
               kind: 'in-progress',
-              practiceId: seenSegment.practice_id,
+              projectId: seenSegment.project_id,
             };
           }
           if (seenSegment?.name) defaultName = seenSegment.name;
@@ -174,7 +174,7 @@ export const model12: DeviceImporter = {
           segment: seg,
           totalSamples: endSample,
           lastModified,
-          defaultPracticeName: defaultName,
+          defaultProjectName: defaultName,
           recordedOn,
           status,
         });

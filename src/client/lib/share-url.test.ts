@@ -11,20 +11,20 @@ import type { LoadedStem, PlayerState } from '../data/types';
 
 describe('share-url', () => {
   it('round-trips a minimal state', () => {
-    const state: ShareState = { practiceId: 'abc123' };
+    const state: ShareState = { projectId: 'abc123' };
     const fragment = encodeShareUrl(state);
     expect(fragment).toBe('p=abc123');
     expect(decodeShareUrl(fragment)).toEqual(state);
   });
 
   it('encodes time at 2 decimals and omits when zero', () => {
-    expect(encodeShareUrl({ practiceId: 'x', time: 0 })).toBe('p=x');
-    expect(encodeShareUrl({ practiceId: 'x', time: 42.5 })).toBe('p=x&t=42.50');
+    expect(encodeShareUrl({ projectId: 'x', time: 0 })).toBe('p=x');
+    expect(encodeShareUrl({ projectId: 'x', time: 42.5 })).toBe('p=x&t=42.50');
   });
 
   it('encodes a full state', () => {
     const f = encodeShareUrl({
-      practiceId: 'x',
+      projectId: 'x',
       time: 10,
       loop: { start: 5, end: 8, enabled: false },
       masterVolume: 80,
@@ -42,7 +42,7 @@ describe('share-url', () => {
   });
 
   it('omits masterVolume at default', () => {
-    expect(encodeShareUrl({ practiceId: 'x', masterVolume: 100 })).toBe('p=x');
+    expect(encodeShareUrl({ projectId: 'x', masterVolume: 100 })).toBe('p=x');
   });
 
   it('omits mix entries at default volume', () => {
@@ -52,7 +52,7 @@ describe('share-url', () => {
     // entries with no muted/soloed/volume).
     expect(
       encodeShareUrl({
-        practiceId: 'x',
+        projectId: 'x',
         mix: [{ stemId: 'a', volume: 100 }],
       }),
     ).toBe('p=x&mix=a:');
@@ -65,27 +65,27 @@ describe('share-url', () => {
   });
 
   it('drops invalid loop entirely', () => {
-    expect(decodeShareUrl('p=x&l=10-5')).toEqual({ practiceId: 'x' });
-    expect(decodeShareUrl('p=x&l=garbage')).toEqual({ practiceId: 'x' });
+    expect(decodeShareUrl('p=x&l=10-5')).toEqual({ projectId: 'x' });
+    expect(decodeShareUrl('p=x&l=garbage')).toEqual({ projectId: 'x' });
   });
 
   it('ignores negative time', () => {
-    expect(decodeShareUrl('p=x&t=-5')).toEqual({ practiceId: 'x' });
+    expect(decodeShareUrl('p=x&t=-5')).toEqual({ projectId: 'x' });
   });
 
   it('parses mix with multiple flags', () => {
     expect(decodeShareUrl('p=x&mix=a:msv50')).toEqual({
-      practiceId: 'x',
+      projectId: 'x',
       mix: [{ stemId: 'a', muted: true, soloed: true, volume: 50 }],
     });
   });
 
   it('handles leading # in fragment', () => {
-    expect(decodeShareUrl('#p=abc&t=1.50')).toEqual({ practiceId: 'abc', time: 1.5 });
+    expect(decodeShareUrl('#p=abc&t=1.50')).toEqual({ projectId: 'abc', time: 1.5 });
   });
 
   it('ignores unknown keys (forward compat)', () => {
-    expect(decodeShareUrl('p=x&future_key=hello')).toEqual({ practiceId: 'x' });
+    expect(decodeShareUrl('p=x&future_key=hello')).toEqual({ projectId: 'x' });
   });
 });
 
@@ -98,7 +98,7 @@ function makeStem(over: Partial<LoadedStem>): LoadedStem {
     userMuted: false,
     soloed: false,
     userVolume: 100,
-    practiceId: 'p',
+    projectId: 'p',
     serverId: 'stem_default',
     gain: null,
     peaks: null,
@@ -107,7 +107,7 @@ function makeStem(over: Partial<LoadedStem>): LoadedStem {
 }
 function makePlayer(over: Partial<PlayerState> = {}): PlayerState {
   return {
-    practiceId: 'p',
+    projectId: 'p',
     title: 't',
     driveFolderId: null,
     stems: [],
@@ -127,17 +127,17 @@ function makePlayer(over: Partial<PlayerState> = {}): PlayerState {
 describe('snapshotShareState', () => {
   it('returns minimum state when nothing is non-default', () => {
     const s = snapshotShareState({
-      practiceId: 'p1',
+      projectId: 'p1',
       player: makePlayer(),
       currentTime: 0,
       activeCommentId: null,
     });
-    expect(s).toEqual({ practiceId: 'p1' });
+    expect(s).toEqual({ projectId: 'p1' });
   });
 
   it('captures time, loop, mix, focus', () => {
     const s = snapshotShareState({
-      practiceId: 'p1',
+      projectId: 'p1',
       player: makePlayer({
         stems: [
           makeStem({ serverId: 'a', userMuted: true }),
@@ -164,7 +164,7 @@ describe('snapshotShareState', () => {
 
   it('skips stems with null serverId (local-folder)', () => {
     const s = snapshotShareState({
-      practiceId: 'p1',
+      projectId: 'p1',
       player: makePlayer({ stems: [makeStem({ serverId: null, userMuted: true })] }),
       currentTime: 0,
       activeCommentId: null,
@@ -174,7 +174,7 @@ describe('snapshotShareState', () => {
 
   it('overrides pin a specific time and comment', () => {
     const s = snapshotShareState(
-      { practiceId: 'p1', player: makePlayer(), currentTime: 5, activeCommentId: null },
+      { projectId: 'p1', player: makePlayer(), currentTime: 5, activeCommentId: null },
       { time: 20, focusedCommentId: 'cmt2' },
     );
     expect(s.time).toBe(20);
@@ -184,10 +184,10 @@ describe('snapshotShareState', () => {
 
 describe('buildShareUrl', () => {
   it('builds a clean URL', () => {
-    expect(buildShareUrl({ practiceId: 'abc' }, 'https://x.app/')).toBe(
+    expect(buildShareUrl({ projectId: 'abc' }, 'https://x.app/')).toBe(
       'https://x.app/#p=abc',
     );
-    expect(buildShareUrl({ practiceId: 'abc', time: 10 }, 'https://x.app/somepath')).toBe(
+    expect(buildShareUrl({ projectId: 'abc', time: 10 }, 'https://x.app/somepath')).toBe(
       'https://x.app/somepath/#p=abc&t=10.00',
     );
   });
@@ -195,10 +195,10 @@ describe('buildShareUrl', () => {
 
 describe('describeShareCategories', () => {
   it('lists each non-default category', () => {
-    expect(describeShareCategories({ practiceId: 'x' })).toEqual([]);
+    expect(describeShareCategories({ projectId: 'x' })).toEqual([]);
     expect(
       describeShareCategories({
-        practiceId: 'x',
+        projectId: 'x',
         loop: { start: 0, end: 1, enabled: true },
         mix: [{ stemId: 'a', muted: true }],
         focusedCommentId: 'c',

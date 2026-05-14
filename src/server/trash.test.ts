@@ -41,7 +41,7 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM stems; DELETE FROM practices; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
   vi.restoreAllMocks();
 }
@@ -76,17 +76,17 @@ function cookieHeader(sid: string): string {
 }
 
 describe('GET /api/bands/:id/trash', () => {
-  it('lists soft-deleted practices and stems for the band', async () => {
+  it('lists soft-deleted projects and stems for the band', async () => {
     const userId = createUser('alice@example.com');
     const bandId = createBand('B', userId);
     const sessionId = createSession(userId);
     const now = Math.floor(Date.now() / 1000);
 
     const livePid = randomUUID();
-    dbMod.stmts.insertPractice.run(livePid, bandId, 'live', null, 'fld', null, now, userId, now);
+    dbMod.stmts.insertProject.run(livePid, bandId, 'live', null, 'fld', null, now, userId, now);
     const trashedPid = randomUUID();
-    dbMod.stmts.insertPractice.run(trashedPid, bandId, 'trashed', null, 'fld-t', null, now, userId, now);
-    dbMod.stmts.softDeletePractice.run(now, userId, trashedPid);
+    dbMod.stmts.insertProject.run(trashedPid, bandId, 'trashed', null, 'fld-t', null, now, userId, now);
+    dbMod.stmts.softDeleteProject.run(now, userId, trashedPid);
 
     const liveSid = randomUUID();
     dbMod.stmts.insertStem.run(liveSid, livePid, 'live.wav', 0, 'sd1', null, null, null);
@@ -101,12 +101,12 @@ describe('GET /api/bands/:id/trash', () => {
     );
     expect(res.status).toBe(200);
     const data = await res.json() as {
-      practices: Array<{ id: string; name: string; deleted_reason: string }>;
-      stems: Array<{ id: string; name: string; deleted_reason: string; practice_name: string }>;
+      projects: Array<{ id: string; name: string; deleted_reason: string }>;
+      stems: Array<{ id: string; name: string; deleted_reason: string; project_name: string }>;
     };
-    expect(data.practices.map((p) => p.id)).toEqual([trashedPid]);
+    expect(data.projects.map((p) => p.id)).toEqual([trashedPid]);
     expect(data.stems.map((s) => s.id)).toEqual([trashedSid]);
-    expect(data.stems[0].practice_name).toBe('live');
+    expect(data.stems[0].project_name).toBe('live');
   });
 
   it('lazy-purges rows older than 30 days', async () => {
@@ -117,12 +117,12 @@ describe('GET /api/bands/:id/trash', () => {
     const oldDeletedAt = now - 31 * 24 * 60 * 60;
 
     const oldPid = randomUUID();
-    dbMod.stmts.insertPractice.run(oldPid, bandId, 'old', null, 'fld', null, now, userId, now);
-    dbMod.stmts.softDeletePractice.run(oldDeletedAt, userId, oldPid);
+    dbMod.stmts.insertProject.run(oldPid, bandId, 'old', null, 'fld', null, now, userId, now);
+    dbMod.stmts.softDeleteProject.run(oldDeletedAt, userId, oldPid);
 
     const recentPid = randomUUID();
-    dbMod.stmts.insertPractice.run(recentPid, bandId, 'recent', null, 'fld', null, now, userId, now);
-    dbMod.stmts.softDeletePractice.run(now, userId, recentPid);
+    dbMod.stmts.insertProject.run(recentPid, bandId, 'recent', null, 'fld', null, now, userId, now);
+    dbMod.stmts.softDeleteProject.run(now, userId, recentPid);
 
     const res = await app.fetch(
       new Request(`http://localhost/api/bands/${bandId}/trash`, {
@@ -131,8 +131,8 @@ describe('GET /api/bands/:id/trash', () => {
     );
     expect(res.status).toBe(200);
 
-    expect(dbMod.stmts.findPracticeAnyState.get(oldPid)).toBeUndefined();
-    expect(dbMod.stmts.findPracticeAnyState.get(recentPid)).toBeDefined();
+    expect(dbMod.stmts.findProjectAnyState.get(oldPid)).toBeUndefined();
+    expect(dbMod.stmts.findProjectAnyState.get(recentPid)).toBeDefined();
   });
 
   it('returns 404 for non-members', async () => {

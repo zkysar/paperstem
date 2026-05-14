@@ -13,8 +13,9 @@ process.env.GMAIL_APP_PASSWORD = 'test-pass';
 afterAll(() => rmSync(tmpDir, { recursive: true, force: true }));
 
 describe('schema migration', () => {
-  it('drops bpm + reference_stem from practices and adds soft-delete columns to practices and stems', async () => {
-    // Pre-seed a DB at the OLD schema (before this PR).
+  it('renames practices→projects, drops bpm + reference_stem, adds soft-delete columns', async () => {
+    // Pre-seed a DB at the legacy schema (pre-rebrand): table is `practices`,
+    // FK column is `practice_id`, and bpm/reference_stem still exist.
     const seed = new Database(dbPath);
     seed.exec(`
       CREATE TABLE practices (
@@ -47,10 +48,18 @@ describe('schema migration', () => {
     // Import db module — runs migration on load.
     const dbMod = await import('./db.js');
 
-    const practiceCols = dbMod.db
-      .prepare(`PRAGMA table_info(practices)`)
+    // Legacy table is gone, new table exists.
+    const tables = dbMod.db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`)
       .all() as { name: string }[];
-    const colNames = practiceCols.map((c) => c.name);
+    const tableNames = tables.map((t) => t.name);
+    expect(tableNames).toContain('projects');
+    expect(tableNames).not.toContain('practices');
+
+    const projectCols = dbMod.db
+      .prepare(`PRAGMA table_info(projects)`)
+      .all() as { name: string }[];
+    const colNames = projectCols.map((c) => c.name);
     expect(colNames).not.toContain('bpm');
     expect(colNames).not.toContain('reference_stem');
     expect(colNames).toContain('deleted_at');
@@ -61,12 +70,20 @@ describe('schema migration', () => {
       .prepare(`PRAGMA table_info(stems)`)
       .all() as { name: string }[];
     const stemColNames = stemCols.map((c) => c.name);
+    expect(stemColNames).toContain('project_id');
+    expect(stemColNames).not.toContain('practice_id');
     expect(stemColNames).toContain('deleted_at');
     expect(stemColNames).toContain('deleted_by');
     expect(stemColNames).toContain('deleted_reason');
 
-    // Existing data preserved.
-    const p = dbMod.db.prepare('SELECT name FROM practices WHERE id = ?').get('p1') as { name: string };
+    // Existing data preserved across the rename.
+    const p = dbMod.db
+      .prepare('SELECT name FROM projects WHERE id = ?')
+      .get('p1') as { name: string };
     expect(p.name).toBe('old');
+    const s = dbMod.db
+      .prepare('SELECT project_id FROM stems WHERE id = ?')
+      .get('s1') as { project_id: string };
+    expect(s.project_id).toBe('p1');
   });
 });

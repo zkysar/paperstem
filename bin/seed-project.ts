@@ -25,13 +25,13 @@ const { values } = parseArgs({
 });
 
 const bandId = values['band-id']?.trim();
-const practiceName = values.name?.trim();
+const projectName = values.name?.trim();
 const recordedOn = values['recorded-on']?.trim() || null;
 const filesArg = values.files?.trim() ?? '';
 
-if (!bandId || !practiceName || !filesArg) {
+if (!bandId || !projectName || !filesArg) {
   console.error(
-    'Usage: tsx bin/seed-practice.ts --band-id <uuid> --name <name> ' +
+    'Usage: tsx bin/seed-project.ts --band-id <uuid> --name <name> ' +
       '--files a.mp3,b.mp3 [--recorded-on YYYY-MM-DD]',
   );
   process.exit(1);
@@ -67,23 +67,23 @@ if (!owner) {
   process.exit(1);
 }
 
-const practiceFolder = await createFolder(practiceName, band.drive_folder_id);
-console.log(`created practice folder ${practiceName} (${practiceFolder.id})`);
+const projectFolder = await createFolder(projectName, band.drive_folder_id);
+console.log(`created project folder ${projectName} (${projectFolder.id})`);
 
-const practiceId = randomUUID();
+const projectId = randomUUID();
 const now = Math.floor(Date.now() / 1000);
-stmts.insertPractice.run(
-  practiceId,
+stmts.insertProject.run(
+  projectId,
   band.id,
-  practiceName,
+  projectName,
   recordedOn,
-  practiceFolder.id,
+  projectFolder.id,
   null,
   now,
   owner.id,
   now,
 );
-console.log(`inserted practice ${practiceId}`);
+console.log(`inserted project ${projectId}`);
 
 const stemSummaries: { id: string; name: string; size: number }[] = [];
 for (let i = 0; i < filePaths.length; i++) {
@@ -97,11 +97,11 @@ for (let i = 0; i < filePaths.length; i++) {
   }
   const stemName = basename(filename, ext);
   const contents = readFileSync(filePath);
-  const uploaded = await uploadFile(practiceFolder.id, filename, mime, contents);
+  const uploaded = await uploadFile(projectFolder.id, filename, mime, contents);
   const stemId = randomUUID();
   stmts.insertStem.run(
     stemId,
-    practiceId,
+    projectId,
     stemName,
     i,
     uploaded.id,
@@ -116,6 +116,6 @@ for (let i = 0; i < filePaths.length; i++) {
 }
 
 console.log(
-  `Summary: practice=${practiceId} stems=${stemSummaries.length} ` +
+  `Summary: project=${projectId} stems=${stemSummaries.length} ` +
     `total_bytes=${stemSummaries.reduce((s, x) => s + x.size, 0)}`,
 );

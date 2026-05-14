@@ -555,7 +555,7 @@ export function Player({
               <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
               {!stems.length && !loading && (
                 <div className="empty-stage">
-                  <p>No practice loaded.</p>
+                  <p>No project loaded.</p>
                   <button
                     type="button"
                     className="empty-stage-cta"
@@ -602,7 +602,7 @@ export function Player({
               )}
               {stems.map((stem, i) => (
                 <Track
-                  key={stem.serverId ?? `${stem.practiceId ?? 'local'}-${stem.name}`}
+                  key={stem.serverId ?? `${stem.projectId ?? 'local'}-${stem.name}`}
                   stem={stem}
                   idx={i}
                   focused={i === focusedIdx}

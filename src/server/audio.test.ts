@@ -44,7 +44,7 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM stems; DELETE FROM practices; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
   driveMod._resetTokenCacheForTests();
   vi.restoreAllMocks();
@@ -64,26 +64,26 @@ function createBand(name: string, ownerId: string): string {
   return id;
 }
 
-function createPracticeAndStem(bandId: string, ownerId: string): {
-  practiceId: string;
+function createProjectAndStem(bandId: string, ownerId: string): {
+  projectId: string;
   stemId: string;
 } {
-  const practiceId = randomUUID();
+  const projectId = randomUUID();
   const stemId = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  dbMod.stmts.insertPractice.run(
-    practiceId,
+  dbMod.stmts.insertProject.run(
+    projectId,
     bandId,
-    'practice-1',
+    'project-1',
     null,
-    'practice-folder',
+    'project-folder',
     null,
     now,
     ownerId,
     now,
   );
-  dbMod.stmts.insertStem.run(stemId, practiceId, 'drums', 0, 'drive-file-abc', null, 1024, null);
-  return { practiceId, stemId };
+  dbMod.stmts.insertStem.run(stemId, projectId, 'drums', 0, 'drive-file-abc', null, 1024, null);
+  return { projectId, stemId };
 }
 
 function createSession(userId: string): string {
@@ -111,7 +111,7 @@ describe('GET /api/audio/:stem_id', () => {
     const owner = createUser('owner@example.com');
     const stranger = createUser('stranger@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createPracticeAndStem(bandId, owner);
+    const { stemId } = createProjectAndStem(bandId, owner);
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const sid = createSession(stranger);
@@ -138,7 +138,7 @@ describe('GET /api/audio/:stem_id', () => {
   it('forwards Drive bytes and headers for members', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createPracticeAndStem(bandId, owner);
+    const { stemId } = createProjectAndStem(bandId, owner);
 
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
       const url = typeof input === 'string' ? input : (input as Request).url;
@@ -188,7 +188,7 @@ describe('GET /api/audio/:stem_id', () => {
     const owner = createUser('alice@example.com');
     const bandId = createBand('B', owner);
     const sid = createSession(owner);
-    const { stemId } = createPracticeAndStem(bandId, owner);
+    const { stemId } = createProjectAndStem(bandId, owner);
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
       const url = typeof input === 'string' ? input : (input as Request).url;
@@ -226,7 +226,7 @@ describe('GET /api/audio/:stem_id', () => {
   it('returns 502 when Drive errors', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createPracticeAndStem(bandId, owner);
+    const { stemId } = createProjectAndStem(bandId, owner);
 
     vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
       const url = typeof input === 'string' ? input : (input as Request).url;

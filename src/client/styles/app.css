@@ -85,7 +85,7 @@ kbd {
 }
 /* ===== Draft banner =====
    Shown above .app-body when the player is loaded from a local folder pick
-   (no server-side practice yet). Calls attention to the fact that nothing
+   (no server-side project yet). Calls attention to the fact that nothing
    is saved or shared, and offers Save to your band as the resolving action. */
 .draft-banner {
   display: flex;
@@ -897,7 +897,7 @@ button.track-name:disabled { cursor: default; }
 }
 .logout-btn:hover { background: var(--accent-tint); }
 
-/* ===== Upload practice modal (owner-only, desktop) ===== */
+/* ===== Upload project modal (owner-only, desktop) ===== */
 .upload-modal-scrim {
   position: fixed;
   inset: 0;
@@ -2736,7 +2736,7 @@ body.env-non-prod[data-env="local"]::before {
 
 /* Share-link arrival banner — shown when a recipient opens a share URL with
  * non-trivial state (loop, mix, focused comment, etc). Anchored at the top
- * of the practice view; dismisses on first play or explicit dismiss. */
+ * of the project view; dismisses on first play or explicit dismiss. */
 .share-arrival {
   display: flex;
   align-items: center;

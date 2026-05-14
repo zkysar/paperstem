@@ -72,7 +72,7 @@ describe('Minimap', () => {
         annotations={[
           {
             id: 'a1',
-            practice_id: 'p1',
+            project_id: 'p1',
             user_id: 'u1',
             user_email: 'u@x.com',
             user_display_name: null,

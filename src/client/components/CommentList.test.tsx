@@ -6,7 +6,7 @@ import type { Annotation } from '../../shared/types';
 
 function ann(over: Partial<Annotation>): Annotation {
   return {
-    id: 'x', practice_id: 'p1', user_id: 'u1',
+    id: 'x', project_id: 'p1', user_id: 'u1',
     user_email: 'u@example.com', user_display_name: 'Sam',
     start_ms: 0, end_ms: null, body: 'b',
     starred: false, created_at: 0, updated_at: 0,

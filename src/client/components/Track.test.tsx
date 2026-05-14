@@ -15,7 +15,7 @@ function makeStem(overrides: Partial<LoadedStem> = {}): LoadedStem {
     userMuted: false,
     soloed: false,
     userVolume: 100,
-    practiceId: 'practice-1',
+    projectId: 'project-1',
     serverId: 'stem-1',
     gain: null,
     peaks: null,

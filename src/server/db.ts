@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renamePracticesToProjects } from './migrate-rename.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -27,18 +28,20 @@ function columnExists(table: string, col: string): boolean {
   return rows.some((r) => r.name === col);
 }
 
-if (tableExists('practices')) {
-  if (columnExists('practices', 'bpm')) {
-    db.exec('ALTER TABLE practices DROP COLUMN bpm');
+renamePracticesToProjects(db);
+
+if (tableExists('projects')) {
+  if (columnExists('projects', 'bpm')) {
+    db.exec('ALTER TABLE projects DROP COLUMN bpm');
   }
-  if (columnExists('practices', 'reference_stem')) {
-    db.exec('ALTER TABLE practices DROP COLUMN reference_stem');
+  if (columnExists('projects', 'reference_stem')) {
+    db.exec('ALTER TABLE projects DROP COLUMN reference_stem');
   }
 }
 for (const col of ['deleted_at', 'deleted_by', 'deleted_reason']) {
   const type = col === 'deleted_at' ? 'INTEGER' : 'TEXT';
-  if (tableExists('practices') && !columnExists('practices', col)) {
-    db.exec(`ALTER TABLE practices ADD COLUMN ${col} ${type}`);
+  if (tableExists('projects') && !columnExists('projects', col)) {
+    db.exec(`ALTER TABLE projects ADD COLUMN ${col} ${type}`);
   }
   if (tableExists('stems') && !columnExists('stems', col)) {
     db.exec(`ALTER TABLE stems ADD COLUMN ${col} ${type}`);
@@ -116,7 +119,7 @@ export type BandMemberRow = {
   role: 'owner' | 'member';
 };
 
-export type PracticeRow = {
+export type ProjectRow = {
   id: string;
   band_id: string;
   name: string;
@@ -133,7 +136,7 @@ export type PracticeRow = {
 
 export type StemRow = {
   id: string;
-  practice_id: string;
+  project_id: string;
   name: string;
   position: number;
   drive_file_id: string;
@@ -149,7 +152,7 @@ export type StemWithBandRow = StemRow & { band_id: string };
 
 export type AnnotationRow = {
   id: string;
-  practice_id: string;
+  project_id: string;
   user_id: string;
   start_ms: number;
   end_ms: number | null;
@@ -266,8 +269,8 @@ export const stmts = {
     `SELECT 1 AS one FROM memberships
       WHERE band_id = ? AND user_id = ? AND role = 'owner'`,
   ),
-  countStemsForPractice: db.prepare<[string], { c: number }>(
-    'SELECT COUNT(*) AS c FROM stems WHERE practice_id = ? AND deleted_at IS NULL',
+  countStemsForProject: db.prepare<[string], { c: number }>(
+    'SELECT COUNT(*) AS c FROM stems WHERE project_id = ? AND deleted_at IS NULL',
   ),
   insertBand: db.prepare<[string, string, string, string, number]>(
     `INSERT INTO bands (id, name, drive_folder_id, owner_user_id, created_at)
@@ -283,32 +286,32 @@ export const stmts = {
   updateBandDriveFolder: db.prepare<[string, string]>(
     'UPDATE bands SET drive_folder_id = ? WHERE id = ?',
   ),
-  findPracticeById: db.prepare<[string], PracticeRow>(
-    'SELECT * FROM practices WHERE id = ? AND deleted_at IS NULL',
+  findProjectById: db.prepare<[string], ProjectRow>(
+    'SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL',
   ),
-  findPracticesForBand: db.prepare<[string], PracticeRow>(
-    `SELECT * FROM practices
+  findProjectsForBand: db.prepare<[string], ProjectRow>(
+    `SELECT * FROM projects
       WHERE band_id = ? AND deleted_at IS NULL
       ORDER BY recorded_on DESC, created_at DESC`,
   ),
-  findPracticesForBandWithRefStem: db.prepare<
+  findProjectsForBandWithRefStem: db.prepare<
     [string],
-    PracticeRow & { stem_count: number; reference_stem_id: string | null }
+    ProjectRow & { stem_count: number; reference_stem_id: string | null }
   >(
     `SELECT p.*,
             (SELECT COUNT(*) FROM stems s
-              WHERE s.practice_id = p.id AND s.deleted_at IS NULL) AS stem_count,
+              WHERE s.project_id = p.id AND s.deleted_at IS NULL) AS stem_count,
             (SELECT s.id FROM stems s
-              WHERE s.practice_id = p.id AND s.deleted_at IS NULL
+              WHERE s.project_id = p.id AND s.deleted_at IS NULL
               ORDER BY s.position LIMIT 1) AS reference_stem_id
-       FROM practices p
+       FROM projects p
       WHERE p.band_id = ? AND p.deleted_at IS NULL
       ORDER BY p.recorded_on DESC, p.created_at DESC`,
   ),
-  findStemsForPractice: db.prepare<[string], StemRow>(
+  findStemsForProject: db.prepare<[string], StemRow>(
     `SELECT s.* FROM stems s
-       JOIN practices p ON p.id = s.practice_id
-      WHERE s.practice_id = ?
+       JOIN projects p ON p.id = s.project_id
+      WHERE s.project_id = ?
         AND s.deleted_at IS NULL
         AND p.deleted_at IS NULL
       ORDER BY s.position`,
@@ -319,15 +322,15 @@ export const stmts = {
   findStemWithBandId: db.prepare<[string], StemWithBandRow>(
     `SELECT s.*, p.band_id
        FROM stems s
-       JOIN practices p ON p.id = s.practice_id
+       JOIN projects p ON p.id = s.project_id
       WHERE s.id = ?
         AND s.deleted_at IS NULL
         AND p.deleted_at IS NULL`,
   ),
-  insertPractice: db.prepare<
+  insertProject: db.prepare<
     [string, string, string, string | null, string, string | null, number, string, number]
   >(
-    `INSERT INTO practices
+    `INSERT INTO projects
        (id, band_id, name, recorded_on, drive_folder_id, notes, created_at, created_by, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ),
@@ -335,27 +338,27 @@ export const stmts = {
     [string, string, string, number, string, number | null, number | null, string | null]
   >(
     `INSERT INTO stems
-       (id, practice_id, name, position, drive_file_id, duration_ms, size_bytes, peaks)
+       (id, project_id, name, position, drive_file_id, duration_ms, size_bytes, peaks)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ),
   updateStemPeaks: db.prepare<[string, string]>(
     `UPDATE stems SET peaks = ?
       WHERE id = ? AND deleted_at IS NULL`,
   ),
-  findAnnotationsForPractice: db.prepare<[string], AnnotationJoinedRow>(
-    `SELECT a.id, a.practice_id, a.user_id, a.start_ms, a.end_ms, a.body,
+  findAnnotationsForProject: db.prepare<[string], AnnotationJoinedRow>(
+    `SELECT a.id, a.project_id, a.user_id, a.start_ms, a.end_ms, a.body,
             a.starred, a.created_at, a.updated_at,
             u.email AS user_email, u.display_name AS user_display_name
        FROM annotations a
        JOIN users u ON u.id = a.user_id
-      WHERE a.practice_id = ?
+      WHERE a.project_id = ?
       ORDER BY a.start_ms ASC, a.created_at ASC`,
   ),
   findAnnotationById: db.prepare<[string], AnnotationRow>(
     'SELECT * FROM annotations WHERE id = ?',
   ),
   findAnnotationByIdJoined: db.prepare<[string], AnnotationJoinedRow>(
-    `SELECT a.id, a.practice_id, a.user_id, a.start_ms, a.end_ms, a.body,
+    `SELECT a.id, a.project_id, a.user_id, a.start_ms, a.end_ms, a.body,
             a.starred, a.created_at, a.updated_at,
             u.email AS user_email, u.display_name AS user_display_name
        FROM annotations a
@@ -376,7 +379,7 @@ export const stmts = {
     ]
   >(
     `INSERT INTO annotations
-       (id, practice_id, user_id, start_ms, end_ms, body, starred, created_at, updated_at)
+       (id, project_id, user_id, start_ms, end_ms, body, starred, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ),
   updateAnnotation: db.prepare<
@@ -389,40 +392,40 @@ export const stmts = {
   deleteAnnotation: db.prepare<[string]>(
     'DELETE FROM annotations WHERE id = ?',
   ),
-  renamePractice: db.prepare<[string, number, string]>(
-    `UPDATE practices SET name = ?, updated_at = ?
+  renameProject: db.prepare<[string, number, string]>(
+    `UPDATE projects SET name = ?, updated_at = ?
       WHERE id = ? AND deleted_at IS NULL`,
   ),
-  softDeletePractice: db.prepare<[number, string, string]>(
-    `UPDATE practices
+  softDeleteProject: db.prepare<[number, string, string]>(
+    `UPDATE projects
         SET deleted_at = ?, deleted_by = ?, deleted_reason = 'user'
       WHERE id = ? AND deleted_at IS NULL`,
   ),
-  markPracticeGhost: db.prepare<[number, string]>(
-    `UPDATE practices
+  markProjectGhost: db.prepare<[number, string]>(
+    `UPDATE projects
         SET deleted_at = ?, deleted_by = NULL, deleted_reason = 'drive_missing'
       WHERE id = ? AND deleted_at IS NULL`,
   ),
-  restorePractice: db.prepare<[string]>(
-    `UPDATE practices
+  restoreProject: db.prepare<[string]>(
+    `UPDATE projects
         SET deleted_at = NULL, deleted_by = NULL, deleted_reason = NULL
       WHERE id = ? AND deleted_reason != 'drive_missing'`,
   ),
-  findPracticeAnyState: db.prepare<[string], PracticeRow>(
-    'SELECT * FROM practices WHERE id = ?',
+  findProjectAnyState: db.prepare<[string], ProjectRow>(
+    'SELECT * FROM projects WHERE id = ?',
   ),
-  findTrashedPracticesForBand: db.prepare<
+  findTrashedProjectsForBand: db.prepare<
     [string],
-    PracticeRow & { deleted_by_email: string | null }
+    ProjectRow & { deleted_by_email: string | null }
   >(
     `SELECT p.*, u.email AS deleted_by_email
-       FROM practices p
+       FROM projects p
        LEFT JOIN users u ON u.id = p.deleted_by
       WHERE p.band_id = ? AND p.deleted_at IS NOT NULL
       ORDER BY p.deleted_at DESC`,
   ),
-  purgePracticesForBand: db.prepare<[string, number]>(
-    'DELETE FROM practices WHERE band_id = ? AND deleted_at IS NOT NULL AND deleted_at < ?',
+  purgeProjectsForBand: db.prepare<[string, number]>(
+    'DELETE FROM projects WHERE band_id = ? AND deleted_at IS NOT NULL AND deleted_at < ?',
   ),
   renameStem: db.prepare<[string, string]>(
     `UPDATE stems SET name = ?
@@ -446,23 +449,23 @@ export const stmts = {
   findStemAnyState: db.prepare<[string], StemRow & { band_id: string }>(
     `SELECT s.*, p.band_id
        FROM stems s
-       JOIN practices p ON p.id = s.practice_id
+       JOIN projects p ON p.id = s.project_id
       WHERE s.id = ?`,
   ),
   findTrashedStemsForBand: db.prepare<
     [string],
-    StemRow & { deleted_by_email: string | null; practice_name: string }
+    StemRow & { deleted_by_email: string | null; project_name: string }
   >(
-    `SELECT s.*, u.email AS deleted_by_email, p.name AS practice_name
+    `SELECT s.*, u.email AS deleted_by_email, p.name AS project_name
        FROM stems s
-       JOIN practices p ON p.id = s.practice_id
+       JOIN projects p ON p.id = s.project_id
        LEFT JOIN users u ON u.id = s.deleted_by
       WHERE p.band_id = ? AND s.deleted_at IS NOT NULL
       ORDER BY s.deleted_at DESC`,
   ),
   purgeStemsForBand: db.prepare<[string, number]>(
     `DELETE FROM stems
-      WHERE practice_id IN (SELECT id FROM practices WHERE band_id = ?)
+      WHERE project_id IN (SELECT id FROM projects WHERE band_id = ?)
         AND deleted_at IS NOT NULL AND deleted_at < ?`,
   ),
 };

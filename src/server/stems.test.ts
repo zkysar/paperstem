@@ -46,7 +46,7 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM stems; DELETE FROM practices; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
   driveMod._resetTokenCacheForTests();
   vi.restoreAllMocks();
@@ -77,28 +77,28 @@ function cookieHeader(sid: string): string {
   return `${cookieMod.SESSION_COOKIE_NAME}=${sid}`;
 }
 
-function createPracticeAndStem(
+function createProjectAndStem(
   bandId: string,
   ownerId: string,
   stemName: string,
-): { practiceId: string; stemId: string; driveFileId: string } {
-  const practiceId = randomUUID();
+): { projectId: string; stemId: string; driveFileId: string } {
+  const projectId = randomUUID();
   const stemId = randomUUID();
   const driveFileId = `drive-${stemId}`;
   const now = Math.floor(Date.now() / 1000);
-  dbMod.stmts.insertPractice.run(
-    practiceId,
+  dbMod.stmts.insertProject.run(
+    projectId,
     bandId,
     'p1',
     '2026-05-01',
-    'practice-folder',
+    'project-folder',
     null,
     now,
     ownerId,
     now,
   );
-  dbMod.stmts.insertStem.run(stemId, practiceId, stemName, 0, driveFileId, null, 1024, null);
-  return { practiceId, stemId, driveFileId };
+  dbMod.stmts.insertStem.run(stemId, projectId, stemName, 0, driveFileId, null, 1024, null);
+  return { projectId, stemId, driveFileId };
 }
 
 beforeEach(() => {
@@ -116,7 +116,7 @@ describe('PATCH /api/stems/:id', () => {
   it('renames stem and PATCHes Drive file with the new name', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId, driveFileId } = createPracticeAndStem(bandId, owner, 'old.wav');
+    const { stemId, driveFileId } = createProjectAndStem(bandId, owner, 'old.wav');
     const sid = createSession(owner);
 
     const captured: { url: string; method: string; body: unknown }[] = [];
@@ -167,7 +167,7 @@ describe('PATCH /api/stems/:id', () => {
   it('returns 200 even if Drive PATCH responds 500 (DB still updates)', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createPracticeAndStem(bandId, owner, 'old.wav');
+    const { stemId } = createProjectAndStem(bandId, owner, 'old.wav');
     const sid = createSession(owner);
 
     vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -199,7 +199,7 @@ describe('PATCH /api/stems/:id', () => {
   it('rejects empty or oversized names with 400', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createPracticeAndStem(bandId, owner, 'original.wav');
+    const { stemId } = createProjectAndStem(bandId, owner, 'original.wav');
     const sid = createSession(owner);
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
@@ -237,7 +237,7 @@ describe('PATCH /api/stems/:id', () => {
     const owner = createUser('owner@example.com');
     const stranger = createUser('stranger@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createPracticeAndStem(bandId, owner, 'original.wav');
+    const { stemId } = createProjectAndStem(bandId, owner, 'original.wav');
     const sid = createSession(stranger);
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
@@ -264,7 +264,7 @@ describe('DELETE /api/stems/:id', () => {
   it('soft-deletes the stem and trashes the Drive file', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createPracticeAndStem(bandId, owner, 'drums.wav');
+    const { stemId } = createProjectAndStem(bandId, owner, 'drums.wav');
     const sid = createSession(owner);
 
     const captured: { url: string; method: string; body: unknown }[] = [];
@@ -312,7 +312,7 @@ describe('DELETE /api/stems/:id', () => {
     const owner = createUser('owner@example.com');
     const stranger = createUser('stranger@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createPracticeAndStem(bandId, owner, 'drums.wav');
+    const { stemId } = createProjectAndStem(bandId, owner, 'drums.wav');
     const sid = createSession(stranger);
 
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
@@ -335,7 +335,7 @@ describe('POST /api/stems/:id/restore', () => {
   it('restores soft-deleted stem and untrashes Drive file', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createPracticeAndStem(bandId, owner, 'drums.wav');
+    const { stemId } = createProjectAndStem(bandId, owner, 'drums.wav');
     const now = Math.floor(Date.now() / 1000);
     dbMod.stmts.softDeleteStem.run(now, owner, stemId);
     const sid = createSession(owner);
@@ -382,7 +382,7 @@ describe('POST /api/stems/:id/restore', () => {
   it('returns 409 for ghost rows (drive_missing)', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createPracticeAndStem(bandId, owner, 'drums.wav');
+    const { stemId } = createProjectAndStem(bandId, owner, 'drums.wav');
     const now = Math.floor(Date.now() / 1000);
     dbMod.stmts.markStemGhost.run(now, stemId);
     const sid = createSession(owner);
@@ -406,7 +406,7 @@ describe('POST /api/stems/:id/restore', () => {
     const owner = createUser('owner@example.com');
     const stranger = createUser('stranger@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createPracticeAndStem(bandId, owner, 'drums.wav');
+    const { stemId } = createProjectAndStem(bandId, owner, 'drums.wav');
     const now = Math.floor(Date.now() / 1000);
     dbMod.stmts.softDeleteStem.run(now, owner, stemId);
     const sid = createSession(stranger);

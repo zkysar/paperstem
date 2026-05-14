@@ -11,7 +11,7 @@ const baseProps = {
   reporterEmail: 'zach@example.com',
   appVersion: 'v0.2.1',
   prefill: null as null | { description?: string },
-  pageContext: { page: 'player', practiceId: 'abc' },
+  pageContext: { page: 'player', projectId: 'abc' },
   onClose: vi.fn(),
 };
 
@@ -71,7 +71,7 @@ describe('BugReportDrawer', () => {
     const body = JSON.parse(init.body as string);
     expect(body.description).toBe('it broke');
     expect(body.screenshotBase64).toBeUndefined();
-    expect(body.pageContext).toEqual({ page: 'player', practiceId: 'abc' });
+    expect(body.pageContext).toEqual({ page: 'player', projectId: 'abc' });
 
     await waitFor(() => expect(screen.getByText('Sent. Thanks.')).not.toBeNull());
   });
