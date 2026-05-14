@@ -47,6 +47,8 @@ Prefer inline literals (object constructors, hand-rolled buffers) over fixture f
 
 **Canonical example:** `src/server/projects.test.ts`. It exercises read, rename, soft-delete, and restore endpoints; uses Drive mocking; calls `_resetTokenCacheForTests`; and shows every helper factory in use. It is the most self-contained and broadly representative file in the category.
 
+> **Note:** `src/server/onboard-band.test.ts` lives in this directory but is a bin-script test, not a route-handler test — it spawns a subprocess via `spawnSync` and never constructs a Hono `app`. See the Bin scripts section.
+
 #### Harness setup
 
 ```typescript
@@ -179,6 +181,7 @@ const body = (await res.json()) as { ok: boolean; name: string };
 expect(body).toMatchObject({ ok: true, name: 'new name' });
 
 // From projects.test.ts — non-member gets 404, no Drive call happens
+const fetchSpy = vi.spyOn(globalThis, 'fetch');
 const res = await app.fetch(
   new Request(`http://localhost/api/projects/${pid}`, {
     method: 'PATCH',
@@ -198,4 +201,3 @@ No significant anti-patterns were spotted across the nine files. A few minor not
 
 - `bands.test.ts` names its reset function `resetTables()` instead of `reset()`. This is cosmetic but inconsistent with the other files; prefer `reset()` for uniformity.
 - `annotations.test.ts` omits `driveMod._resetTokenCacheForTests()` and `vi.restoreAllMocks()` from its `reset()` — acceptable because annotations routes never call Drive, but it means the function signature diverges from the canonical pattern. If Drive calls are ever added to annotations, the omission will be easy to miss.
-- `onboard-band.test.ts` is filed under `src/server/` but is not a route-handler test: it spawns a subprocess via `spawnSync` and never constructs a Hono `app`. It belongs to the "Bin scripts" category, not "Server route handlers."
