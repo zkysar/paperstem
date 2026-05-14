@@ -67,7 +67,7 @@ export function handleListProjects(
     id: p.id,
     name: p.name,
     recorded_on: p.recorded_on,
-    drive_folder_id: p.drive_folder_id,
+    folder_id: p.folder_id,
     created_at: p.created_at,
     updated_at: p.updated_at,
     stem_count: p.stem_count,
@@ -104,7 +104,7 @@ export function handleGetProject(
       band_id: project.band_id,
       name: project.name,
       recorded_on: project.recorded_on,
-      drive_folder_id: project.drive_folder_id,
+      folder_id: project.folder_id,
       notes: project.notes,
       created_at: project.created_at,
       created_by: project.created_by,
@@ -142,7 +142,7 @@ export async function handleRenameProject(
   stmts.renameProject.run(name, now, id);
 
   try {
-    await renameDriveItem(project.drive_folder_id, name);
+    await renameDriveItem(project.folder_id, name);
   } catch (err) {
     console.warn('[projects] drive rename failed; DB updated', { id, err });
   }
@@ -167,7 +167,7 @@ export async function handleDeleteProject(
   stmts.softDeleteProject.run(now, user.id, id);
 
   try {
-    await trashDriveItem(project.drive_folder_id);
+    await trashDriveItem(project.folder_id);
   } catch (err) {
     console.warn('[projects] drive trash failed; DB updated', { id, err });
   }
@@ -195,7 +195,7 @@ export async function handleRestoreProject(
   stmts.restoreProject.run(id);
 
   try {
-    await untrashDriveItem(project.drive_folder_id);
+    await untrashDriveItem(project.folder_id);
   } catch (err) {
     console.warn('[projects] drive untrash failed; DB updated', { id, err });
   }
@@ -241,13 +241,13 @@ export async function handleCreateProject(
   }
   const band = stmts.findBandById.get(bandId);
   if (!band) return c.json({ error: 'forbidden' }, 403);
-  if (band.drive_folder_id.startsWith('PENDING_')) {
+  if (band.folder_id.startsWith('PENDING_')) {
     return c.json({ error: 'band_not_provisioned' }, 409);
   }
 
   let projectFolder: { id: string };
   try {
-    projectFolder = await createFolder(rawName, band.drive_folder_id);
+    projectFolder = await createFolder(rawName, band.folder_id);
   } catch (err) {
     console.error('[projects] createFolder failed', err);
     return c.json({ error: 'upstream_error' }, 502);
@@ -274,7 +274,7 @@ export async function handleCreateProject(
         band_id: bandId,
         name: rawName,
         recorded_on: recordedOn,
-        drive_folder_id: projectFolder.id,
+        folder_id: projectFolder.id,
         notes: null,
         created_at: now,
         created_by: user.id,
@@ -424,7 +424,7 @@ export async function handleCreateStem(
   let uploaded: { id: string; size: number };
   try {
     uploaded = await uploadFile(
-      project.drive_folder_id,
+      project.folder_id,
       parsed.filename,
       parsed.mime,
       parsed.body,

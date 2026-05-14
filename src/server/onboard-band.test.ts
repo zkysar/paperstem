@@ -79,13 +79,13 @@ describe('onboard-band CLI', () => {
     expect(res.status, res.stderr).toBe(0);
 
     const bands = raw
-      .prepare<[], { id: string; name: string; drive_folder_id: string; owner_user_id: string }>(
-        'SELECT id, name, drive_folder_id, owner_user_id FROM bands',
+      .prepare<[], { id: string; name: string; folder_id: string; owner_user_id: string }>(
+        'SELECT id, name, folder_id, owner_user_id FROM bands',
       )
       .all();
     expect(bands).toHaveLength(1);
     expect(bands[0].name).toBe('Test Band');
-    expect(bands[0].drive_folder_id).toBe('drive-abc');
+    expect(bands[0].folder_id).toBe('drive-abc');
 
     const users = raw
       .prepare<[], { email: string }>('SELECT email FROM users ORDER BY email')

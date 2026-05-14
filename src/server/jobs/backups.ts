@@ -41,13 +41,13 @@ export function buildBandDump(bandId: string): Buffer {
 
     dump
       .prepare(
-        `INSERT INTO bands (id, name, drive_folder_id, owner_user_id, created_at, last_snapshot_at, last_backup_at)
+        `INSERT INTO bands (id, name, folder_id, owner_user_id, created_at, last_snapshot_at, last_backup_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         band.id,
         band.name,
-        band.drive_folder_id,
+        band.folder_id,
         band.owner_user_id,
         band.created_at,
         band.last_snapshot_at,
@@ -97,7 +97,7 @@ export function buildBandDump(bandId: string): Buffer {
     const projects = stmts.findProjectsForBand.all(bandId);
     const insertProject = dump.prepare(
       `INSERT INTO projects
-         (id, band_id, name, recorded_on, drive_folder_id, notes, created_at, created_by, updated_at)
+         (id, band_id, name, recorded_on, folder_id, notes, created_at, created_by, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const p of projects) {
@@ -106,7 +106,7 @@ export function buildBandDump(bandId: string): Buffer {
         p.band_id,
         p.name,
         p.recorded_on,
-        p.drive_folder_id,
+        p.folder_id,
         p.notes,
         p.created_at,
         p.created_by,
@@ -115,7 +115,7 @@ export function buildBandDump(bandId: string): Buffer {
     }
 
     const insertStem = dump.prepare(
-      `INSERT INTO stems (id, project_id, name, position, drive_file_id, duration_ms, size_bytes, peaks)
+      `INSERT INTO stems (id, project_id, name, position, file_id, duration_ms, size_bytes, peaks)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const p of projects) {
@@ -126,7 +126,7 @@ export function buildBandDump(bandId: string): Buffer {
           s.project_id,
           s.name,
           s.position,
-          s.drive_file_id,
+          s.file_id,
           s.duration_ms,
           s.size_bytes,
           s.peaks,
@@ -172,9 +172,9 @@ export function selectFilesToDelete(
 }
 
 async function ensureBackupFolder(band: BandRow): Promise<string> {
-  const existing = await findFolderByName(BACKUP_FOLDER_NAME, band.drive_folder_id);
+  const existing = await findFolderByName(BACKUP_FOLDER_NAME, band.folder_id);
   if (existing) return existing.id;
-  const created = await createFolder(BACKUP_FOLDER_NAME, band.drive_folder_id);
+  const created = await createFolder(BACKUP_FOLDER_NAME, band.folder_id);
   return created.id;
 }
 

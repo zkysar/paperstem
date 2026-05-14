@@ -32,7 +32,7 @@ export async function handleRenameStem(
   stmts.renameStem.run(name, id);
 
   try {
-    await renameDriveItem(stem.drive_file_id, name);
+    await renameDriveItem(stem.file_id, name);
   } catch (err) {
     console.warn('[stems] drive rename failed; DB updated', { id, err });
   }
@@ -57,7 +57,7 @@ export async function handleDeleteStem(
   stmts.softDeleteStem.run(now, user.id, id);
 
   try {
-    await trashDriveItem(stem.drive_file_id);
+    await trashDriveItem(stem.file_id);
   } catch (err) {
     console.warn('[stems] drive trash failed; DB updated', { id, err });
   }
@@ -85,7 +85,7 @@ export async function handleRestoreStem(
   stmts.restoreStem.run(id);
 
   try {
-    await untrashDriveItem(stem.drive_file_id);
+    await untrashDriveItem(stem.file_id);
   } catch (err) {
     console.warn('[stems] drive untrash failed; DB updated', { id, err });
   }

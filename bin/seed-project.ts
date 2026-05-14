@@ -53,9 +53,9 @@ if (!band) {
   console.error(`Band not found: ${bandId}`);
   process.exit(1);
 }
-if (band.drive_folder_id.startsWith('PENDING_')) {
+if (band.folder_id.startsWith('PENDING_')) {
   console.error(
-    `Band ${band.id} has placeholder drive_folder_id (${band.drive_folder_id}); ` +
+    `Band ${band.id} has placeholder folder_id (${band.folder_id}); ` +
       `run backfill-band-folder first`,
   );
   process.exit(1);
@@ -67,7 +67,7 @@ if (!owner) {
   process.exit(1);
 }
 
-const projectFolder = await createFolder(projectName, band.drive_folder_id);
+const projectFolder = await createFolder(projectName, band.folder_id);
 console.log(`created project folder ${projectName} (${projectFolder.id})`);
 
 const projectId = randomUUID();

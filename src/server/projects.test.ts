@@ -149,7 +149,7 @@ describe('GET /api/projects', () => {
     expect(body.projects.map((p) => p.name)).toEqual(['newer', 'older']);
   });
 
-  it('returns drive_folder_id on each row', async () => {
+  it('returns folder_id on each row', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
     insertProject(bandId, owner, 'p1', '2026-05-01');
@@ -162,11 +162,11 @@ describe('GET /api/projects', () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      projects: { name: string; drive_folder_id: string | null }[];
+      projects: { name: string; folder_id: string | null }[];
     };
     expect(body.projects[0]).toMatchObject({
       name: 'p1',
-      drive_folder_id: 'project-folder',
+      folder_id: 'project-folder',
     });
   });
 });
@@ -187,7 +187,7 @@ describe('GET /api/projects/:id', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns project with stems but never drive_file_id', async () => {
+  it('returns project with stems but never file_id', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
     const pid = insertProject(bandId, owner, 'p1', '2026-05-01');
@@ -202,7 +202,7 @@ describe('GET /api/projects/:id', () => {
     );
     expect(res.status).toBe(200);
     const text = await res.text();
-    expect(text).not.toMatch(/drive_file_id/);
+    expect(text).not.toMatch(/file_id/);
     const body = JSON.parse(text) as {
       project: { id: string; name: string };
       stems: { name: string; position: number }[];

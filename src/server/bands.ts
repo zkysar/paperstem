@@ -10,7 +10,7 @@ export function handleListBands(
   const bands = rows.map((b) => ({
     id: b.id,
     name: b.name,
-    drive_folder_id: b.drive_folder_id,
+    folder_id: b.folder_id,
     owner_user_id: b.owner_user_id,
     created_at: b.created_at,
     role: b.role,
@@ -37,7 +37,7 @@ export function handleGetBand(
     band: {
       id: band.id,
       name: band.name,
-      drive_folder_id: band.drive_folder_id,
+      folder_id: band.folder_id,
       owner_user_id: band.owner_user_id,
       created_at: band.created_at,
     },

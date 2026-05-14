@@ -273,14 +273,14 @@ describe('POST /api/projects owner-only auth', () => {
       project: {
         id: string;
         band_id: string;
-        drive_folder_id: string;
+        folder_id: string;
         name: string;
         recorded_on: string | null;
         notes: string | null;
       };
     };
     expect(data.project.band_id).toBe(bandId);
-    expect(data.project.drive_folder_id).toBe('project-folder-abc');
+    expect(data.project.folder_id).toBe('project-folder-abc');
     expect(data.project.name).toBe('project-2026-05-04');
     expect(data.project.recorded_on).toBe('2026-05-04');
     expect(data.project.notes).toBe(null);
@@ -310,7 +310,7 @@ describe('POST /api/projects owner-only auth', () => {
     expect(res.status).toBe(400);
   });
 
-  it('409 when band drive_folder_id is PENDING_', async () => {
+  it('409 when band folder_id is PENDING_', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner, 'PENDING_drive');
     const sid = createSession(owner);
@@ -468,10 +468,10 @@ describe('POST /api/projects/:id/stems', () => {
     expect(data.stem.size_bytes).toBe(audioBytes.length);
 
     const stem = dbMod.stmts.findStemById.get(data.stem.id);
-    expect(stem?.drive_file_id).toBe('drive-file-abc');
-    // and the response body never includes drive_file_id
+    expect(stem?.file_id).toBe('drive-file-abc');
+    // and the response body never includes file_id
     const text = JSON.stringify(data);
-    expect(text).not.toMatch(/drive_file_id/);
+    expect(text).not.toMatch(/file_id/);
   });
 
   it('413 when file exceeds 100MB', async () => {

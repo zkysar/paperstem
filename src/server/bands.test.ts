@@ -167,12 +167,12 @@ describe('GET /api/bands/:id', () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      band: { id: string; name: string; drive_folder_id: string };
+      band: { id: string; name: string; folder_id: string };
       members: { email: string; role: string }[];
     };
     expect(body.band.id).toBe(bandId);
     expect(body.band.name).toBe('Alpha');
-    expect(body.band.drive_folder_id).toBe('drive-folder-abc');
+    expect(body.band.folder_id).toBe('drive-folder-abc');
     expect(body.members).toHaveLength(2);
     const emails = body.members.map((m) => m.email).sort();
     expect(emails).toEqual(['member@example.com', 'owner@example.com']);

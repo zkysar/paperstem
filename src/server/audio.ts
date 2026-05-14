@@ -27,7 +27,7 @@ export async function handleGetAudio(
 
   let upstream: Awaited<ReturnType<typeof getDriveFile>>;
   try {
-    upstream = await getDriveFile(stem.drive_file_id, range);
+    upstream = await getDriveFile(stem.file_id, range);
   } catch (err) {
     if (err instanceof DriveNotFoundError) {
       stmts.markStemGhost.run(Math.floor(Date.now() / 1000), stemId);

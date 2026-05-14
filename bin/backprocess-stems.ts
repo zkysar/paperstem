@@ -73,7 +73,7 @@ const updateSize = db.prepare<[number, string]>(
   'UPDATE stems SET size_bytes = ? WHERE id = ?',
 );
 const updateDriveId = db.prepare<[string, number, string]>(
-  'UPDATE stems SET drive_file_id = ?, size_bytes = ? WHERE id = ?',
+  'UPDATE stems SET file_id = ?, size_bytes = ? WHERE id = ?',
 );
 
 function withMp3Ext(name: string): string {
@@ -166,7 +166,7 @@ for (const stem of allStems) {
   index++;
   const label = `[${index}/${allStems.length}] ${stem.band_name} / ${stem.project_name} / ${stem.name}`;
   try {
-    const { body } = await getDriveFile(stem.drive_file_id);
+    const { body } = await getDriveFile(stem.file_id);
     const original = await streamToBuffer(body);
     const before = original.length;
     stats.bytesBefore += before;
@@ -190,14 +190,14 @@ for (const stem of allStems) {
       continue;
     }
 
-    const currentName = driveFilename(stem.drive_file_id) || stem.name;
+    const currentName = driveFilename(stem.file_id) || stem.name;
     const newName = withMp3Ext(currentName);
     const needsRename = currentName !== newName;
 
     if (COMMIT) {
-      const res = await updateFile(stem.drive_file_id, 'audio/mpeg', encoded);
+      const res = await updateFile(stem.file_id, 'audio/mpeg', encoded);
       if (needsRename) {
-        const renamed = await renameAndRetype(stem.drive_file_id, newName, 'audio/mpeg');
+        const renamed = await renameAndRetype(stem.file_id, newName, 'audio/mpeg');
         updateDriveId.run(renamed.id, res.size, stem.id);
       } else {
         updateSize.run(res.size, stem.id);
@@ -213,7 +213,7 @@ for (const stem of allStems) {
     stats.failed++;
     const msg =
       e instanceof DriveNotFoundError
-        ? `drive file not found: ${stem.drive_file_id}`
+        ? `drive file not found: ${stem.file_id}`
         : e instanceof Error
           ? e.message
           : String(e);

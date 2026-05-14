@@ -57,7 +57,7 @@ describe('HttpProjectsRepo.list', () => {
     expect(url).toBe('/api/projects?band_id=band%2Fwith%20spaces');
   });
 
-  it('parses drive_folder_id into driveFolderId', async () => {
+  it('parses folder_id into driveFolderId', async () => {
     fetchSpy.mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -66,7 +66,7 @@ describe('HttpProjectsRepo.list', () => {
               id: 'p1',
               name: 'Project One',
               recorded_on: '2026-05-01',
-              drive_folder_id: 'drive-xyz',
+              folder_id: 'drive-xyz',
               created_at: 0,
               updated_at: 0,
             },
@@ -91,7 +91,7 @@ describe('HttpProjectsRepo.getById', () => {
             band_id: 'b1',
             name: 'Project One',
             recorded_on: '2026-05-01',
-            drive_folder_id: 'drv',
+            folder_id: 'drv',
             notes: null,
             created_at: 0,
             created_by: 'u1',

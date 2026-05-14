@@ -32,9 +32,9 @@ if (!band) {
   process.exit(1);
 }
 
-if (!band.drive_folder_id.startsWith('PENDING_')) {
+if (!band.folder_id.startsWith('PENDING_')) {
   console.error(
-    `Band ${band.id} already has folder ${band.drive_folder_id}; aborting. ` +
+    `Band ${band.id} already has folder ${band.folder_id}; aborting. ` +
       `(No --force flag in v1; edit the DB by hand if you really mean it.)`,
   );
   process.exit(1);
@@ -71,7 +71,7 @@ for (const email of memberEmails) {
 }
 
 stmts.updateBandDriveFolder.run(bandFolder.id, band.id);
-console.log(`updated bands.drive_folder_id for ${band.id} -> ${bandFolder.id}`);
+console.log(`updated bands.folder_id for ${band.id} -> ${bandFolder.id}`);
 console.log(
   `Summary: band=${band.id} folder=${bandFolder.id} shared_with=${memberEmails.length}`,
 );

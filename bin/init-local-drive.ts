@@ -41,7 +41,7 @@ const parent =
 console.log(`parent folder: ${PARENT_FOLDER_NAME} (${parent.id})`);
 
 for (const band of bands) {
-  const isAlreadyLocal = band.drive_folder_id.startsWith('local:');
+  const isAlreadyLocal = band.folder_id.startsWith('local:');
   if (isAlreadyLocal && !force) {
     console.log(`skip ${band.id} (${band.name}) — already local`);
     continue;

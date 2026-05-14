@@ -113,7 +113,7 @@ export async function runSnapshotsNow(): Promise<void> {
           const nowSec = Math.floor(Date.now() / 1000);
           const meta = buildProjectMeta(band, project, nowSec);
           const body = Buffer.from(JSON.stringify(meta, null, 2), 'utf8');
-          await writeMetaFile(project.drive_folder_id, body);
+          await writeMetaFile(project.folder_id, body);
           updated += 1;
         } catch (err) {
           console.error(

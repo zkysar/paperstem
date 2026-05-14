@@ -20,7 +20,7 @@ export type ProjectSummary = {
   id: string;
   name: string;
   recorded_on: string | null;
-  drive_folder_id: string | null;
+  folder_id: string | null;
   created_at: number;
   updated_at: number;
   stem_count: number;
@@ -41,7 +41,7 @@ export type ProjectDetail = {
   band_id: string;
   name: string;
   recorded_on: string | null;
-  drive_folder_id: string;
+  folder_id: string;
   notes: string | null;
   created_at: number;
   created_by: string;
