@@ -1,6 +1,6 @@
 import { render, renderHook, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AppToolbar } from './AppToolbar';
 import { useViewport } from '../hooks/useViewport';
 
@@ -14,7 +14,6 @@ const baseProps = {
   isPlaying: false,
   hasLoop: true,
   loopEnabled: false,
-  downloading: false,
   waveformNormalization: 'per-track' as const,
   masterVolume: 50,
   currentTime: 0,
@@ -28,7 +27,6 @@ const baseProps = {
   onSeek: vi.fn(),
   onTogglePlay: vi.fn(),
   onToggleLoopEnabled: vi.fn(),
-  onDownloadAll: vi.fn(),
   onToggleWaveformNormalization: vi.fn(),
   onToggleAnnotationCreate: vi.fn(),
   onToggleMarkersVisible: vi.fn(),
@@ -40,25 +38,28 @@ const baseProps = {
 };
 
 describe('AppToolbar', () => {
+  beforeEach(() => {
+    // Reset navigator.share between tests — defaults to clipboard path.
+    // Individual tests can opt into the Web Share path.
+    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
+  });
+
   it('renders all transport buttons', () => {
     render(<AppToolbar {...baseProps} />);
     expect(screen.getByLabelText('Restart')).not.toBeNull();
     expect(screen.getByLabelText('Play')).not.toBeNull();
     expect(screen.getByLabelText('Toggle loop')).not.toBeNull();
-    expect(screen.getByLabelText('Download all stems')).not.toBeNull();
   });
 
   it('disables transport when no project loaded', () => {
     render(<AppToolbar {...baseProps} hasProject={false} />);
     expect((screen.getByLabelText('Restart') as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByLabelText('Play') as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByLabelText('Download all stems') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('keeps ▥ ◉ enabled even without project (user prefs)', () => {
-    render(<AppToolbar {...baseProps} hasProject={false} canCreateAnnotations={false} />);
-    expect((screen.getByLabelText('Toggle waveform scale') as HTMLButtonElement).disabled).toBe(false);
-    expect((screen.getByLabelText('Toggle marker visibility') as HTMLButtonElement).disabled).toBe(false);
+  it('no longer renders the Download button (moved to header)', () => {
+    render(<AppToolbar {...baseProps} />);
+    expect(screen.queryByLabelText('Download all stems')).toBeNull();
   });
 
   it('disables ＋ when canCreateAnnotations is false', () => {
@@ -66,24 +67,11 @@ describe('AppToolbar', () => {
     expect((screen.getByLabelText('Add annotation') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('hides rail-toggle when showRailToggle is false', () => {
-    render(<AppToolbar {...baseProps} showRailToggle={false} />);
-    expect(screen.queryByLabelText('Hide track controls')).toBeNull();
-    expect(screen.queryByLabelText('Show track controls')).toBeNull();
-  });
-
-  it('renders rail-toggle on narrow viewports when showRailToggle is true', () => {
-    // Stems live in the rail; narrow-viewport users still need a way to open
-    // it to access stem rename/delete actions.
-    render(
-      <AppToolbar
-        {...baseProps}
-        isWide={false}
-        railCollapsed={true}
-        showRailToggle={true}
-      />,
-    );
-    expect(screen.getByLabelText('Show track controls')).not.toBeNull();
+  it('renders rail-toggle inside the overflow menu when showRailToggle is true', async () => {
+    const user = userEvent.setup();
+    render(<AppToolbar {...baseProps} showRailToggle={true} />);
+    await user.click(screen.getByLabelText('More options'));
+    expect(screen.getByRole('menuitem', { name: /track controls/i })).not.toBeNull();
   });
 
   it('renders 0:00 / 0:00 when duration is 0', () => {
@@ -117,6 +105,18 @@ describe('AppToolbar', () => {
     expect((screen.getByLabelText('Copy share link') as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('time display sits between the transport group and the share button', () => {
+    render(<AppToolbar {...baseProps} currentTime={84} duration={272.5} />);
+    const time = screen.getByText(/1:24 \/ 4:32/).closest('span');
+    const loop = screen.getByLabelText('Toggle loop');
+    const share = screen.getByLabelText('Copy share link');
+    expect(time).not.toBeNull();
+    if (!time) return;
+    // time appears after loop and before share in DOM order
+    expect(loop.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(time.compareDocumentPosition(share) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('Share button writes to clipboard and shows a Copied label', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn().mockResolvedValue(undefined);
@@ -133,6 +133,104 @@ describe('AppToolbar', () => {
     expect(onShare).toHaveBeenCalledOnce();
     expect(writeText).toHaveBeenCalledWith('https://x.app/#p=abc&t=10.00&l=1.00-2.00');
     expect(screen.getByRole('status').textContent).toMatch(/Copied — includes loop/);
+  });
+
+  it('share toast is anchored inside .atb-share-wrap (does not shift siblings)', async () => {
+    const onShare = vi.fn(() => ({ fullUrl: 'http://x.test/p/abc', categories: [] }));
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    render(<AppToolbar {...baseProps} onShare={onShare} />);
+    await user.click(screen.getByLabelText('Copy share link'));
+    const toast = await screen.findByRole('status');
+    expect(toast.className).toContain('atb-share-label');
+    // The toast must be a child of .atb-share-wrap (the anchor), not a sibling of share neighbors.
+    const wrap = toast.parentElement;
+    expect(wrap?.className).toContain('atb-share-wrap');
+  });
+
+  it('prefers navigator.share() when available, with title and URL', async () => {
+    const user = userEvent.setup();
+    const shareSpy = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'share', { configurable: true, value: shareSpy });
+    const onShare = vi.fn(() => ({
+      fullUrl: 'http://x.test/p/abc',
+      categories: [] as Array<'loop' | 'mix' | 'comment'>,
+      title: 'Tuesday rehearsal 5/12',
+    }));
+    render(<AppToolbar {...baseProps} onShare={onShare} />);
+    await user.click(screen.getByLabelText('Copy share link'));
+    expect(shareSpy).toHaveBeenCalledWith({
+      title: 'Tuesday rehearsal 5/12',
+      url: 'http://x.test/p/abc',
+    });
+  });
+
+  it('falls back to clipboard when navigator.share is unavailable', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const onShare = vi.fn(() => ({
+      fullUrl: 'http://x.test/p/abc',
+      categories: ['loop' as const],
+    }));
+    render(<AppToolbar {...baseProps} onShare={onShare} />);
+    await user.click(screen.getByLabelText('Copy share link'));
+    expect(writeText).toHaveBeenCalledWith('http://x.test/p/abc');
+  });
+
+  it('hides the toolbar time display on mobile (isWide=false)', () => {
+    render(<AppToolbar {...baseProps} isWide={false} currentTime={84} duration={272.5} />);
+    expect(screen.queryByText(/1:24 \/ 4:32/)).toBeNull();
+  });
+
+  it('shows the toolbar time display on desktop (isWide=true)', () => {
+    render(<AppToolbar {...baseProps} isWide={true} currentTime={84} duration={272.5} />);
+    expect(screen.getByText(/1:24 \/ 4:32/)).not.toBeNull();
+  });
+
+  it('on mobile, zoom collapses to a single popover trigger', async () => {
+    const user = userEvent.setup();
+    render(<AppToolbar {...baseProps} isWide={false} />);
+    // Inline zoom trio absent
+    expect(screen.queryByLabelText('Zoom out')).toBeNull();
+    expect(screen.queryByLabelText('Zoom in')).toBeNull();
+    // One zoom trigger button exists
+    const trigger = screen.getByLabelText('Zoom');
+    expect(trigger).not.toBeNull();
+    await user.click(trigger);
+    // Popover reveals the trio
+    expect(screen.getByLabelText('Zoom out')).not.toBeNull();
+    expect(screen.getByLabelText('Zoom in')).not.toBeNull();
+    expect(screen.getByLabelText('Fit to window')).not.toBeNull();
+  });
+
+  it('on desktop, the inline zoom trio is visible without a popover', () => {
+    render(<AppToolbar {...baseProps} isWide={true} />);
+    expect(screen.getByLabelText('Zoom out')).not.toBeNull();
+    expect(screen.getByLabelText('Zoom in')).not.toBeNull();
+    expect(screen.getByLabelText('Fit to window')).not.toBeNull();
+    expect(screen.queryByLabelText('Zoom')).toBeNull();
+  });
+
+  it('treats AbortError from navigator.share() as a silent user cancel', async () => {
+    const user = userEvent.setup();
+    const err = Object.assign(new Error('cancelled'), { name: 'AbortError' });
+    const shareSpy = vi.fn().mockRejectedValue(err);
+    Object.defineProperty(navigator, 'share', { configurable: true, value: shareSpy });
+    const onShare = vi.fn(() => ({
+      fullUrl: 'http://x.test/p/abc',
+      categories: [] as Array<'loop' | 'mix' | 'comment'>,
+    }));
+    render(<AppToolbar {...baseProps} onShare={onShare} />);
+    await user.click(screen.getByLabelText('Copy share link'));
+    // No toast on user cancel
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });
 
@@ -151,13 +249,6 @@ describe('AppToolbar zoom group', () => {
     render(<AppToolbar {...baseProps} viewport={viewport} />);
     fireEvent.click(screen.getByLabelText('Zoom in'));
     expect(zoomH).toHaveBeenCalledWith('in', expect.any(Object));
-  });
-
-  it('clicking ? button calls onOpenShortcuts', () => {
-    const onOpenShortcuts = vi.fn();
-    render(<AppToolbar {...baseProps} viewport={vp()} onOpenShortcuts={onOpenShortcuts} />);
-    fireEvent.click(screen.getByLabelText('Keyboard shortcuts'));
-    expect(onOpenShortcuts).toHaveBeenCalledOnce();
   });
 
   it('does not render a minimap toggle button', () => {

@@ -1,7 +1,7 @@
 import { Play, X } from 'lucide-react';
 import { fmt } from '../lib/format';
 
-export type ShareArrivalCategory = 'loop' | 'mix' | 'comment';
+export type ShareArrivalCategory = 'loop' | 'mix' | 'comment' | 'view';
 
 type Props = {
   time: number | null;
@@ -14,6 +14,7 @@ const CATEGORY_LABELS: Record<ShareArrivalCategory, string> = {
   loop: 'Loop region',
   mix: 'Custom mix',
   comment: 'Focused comment',
+  view: 'Zoom & position',
 };
 
 export function ShareArrivalBanner({ time, categories, onPlay, onDismiss }: Props) {

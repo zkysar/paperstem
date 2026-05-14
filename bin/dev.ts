@@ -32,6 +32,11 @@ if (localDriveRoot.trim()) {
   mkdirSync(localDriveRoot, { recursive: true });
 }
 
+const devLoginEmail =
+  process.env.PAPERSTEM_DEV_AUTO_LOGIN === undefined
+    ? 'dev@paperstem.local'
+    : process.env.PAPERSTEM_DEV_AUTO_LOGIN.trim();
+
 const env: NodeJS.ProcessEnv = {
   ...process.env,
   PORT: String(apiPort),
@@ -39,11 +44,11 @@ const env: NodeJS.ProcessEnv = {
   PAPERSTEM_VITE_PORT: String(vitePort),
   APP_URL: `http://localhost:${vitePort}`,
   PAPERSTEM_LOCAL_DRIVE_ROOT: localDriveRoot,
+  PAPERSTEM_DEV_AUTO_LOGIN: devLoginEmail,
 };
 
 const apiUrl = `http://localhost:${apiPort}`;
 const uiUrl = `http://localhost:${vitePort}`;
-const devLoginEmail = process.env.PAPERSTEM_DEV_AUTO_LOGIN?.trim();
 const devLoginLine = devLoginEmail
   ? `    Dev login (${devLoginEmail}): ${uiUrl}/api/auth/dev-login\n`
   : '';

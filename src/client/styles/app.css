@@ -36,12 +36,48 @@
 }
 
 html, body { margin: 0; padding: 0; }
+html, body {
+  /* Lock the document to the viewport so iOS doesn't rubber-band the whole
+     page when the user drags below the tracks area. .viewport handles its
+     own scrolling internally. */
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 body {
   font-family: var(--font-sans);
   background: var(--bg);
   color: var(--ink);
-  min-height: 100vh;
   -webkit-text-size-adjust: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* Selection policy: chrome is unselectable by default; opt user-facing
+   content back in (names, comments, share URLs, dialog bodies, error
+   messages). Form controls always stay selectable. */
+input,
+textarea,
+[contenteditable="true"],
+.ah-title-name,
+.track-name,
+.cl-body,
+.cp-body,
+.cs-body,
+.bd-title,
+.bd-body,
+.bd-error,
+.cd-title,
+.upload-file-name,
+.upload-error,
+.login-error,
+.fp-title,
+.fp-name,
+.fp-meta,
+.share-arrival-headline,
+.share-arrival-text,
+.share-arrival-cats {
+  -webkit-user-select: text;
+  user-select: text;
 }
 button { font: inherit; cursor: pointer; }
 kbd {
@@ -515,6 +551,11 @@ button.track-name:disabled { cursor: default; }
   background: var(--accent-tint-3);
   border-radius: 3px;
   border: 1px solid var(--accent-tint-2);
+  /* Without border-box, the 1px border on each side adds 2px past `width: 100%`,
+     which leaks past .wave's grid column and inflates .viewport-inner's
+     scrollWidth by 2 — enough for WASD pan to scroll right at hZoom=1 even
+     though the timeline appears fully zoomed out. */
+  box-sizing: border-box;
   overflow: hidden;
   touch-action: pan-y;
   opacity: 1;
@@ -713,11 +754,13 @@ button.track-name:disabled { cursor: default; }
   width: 1px;
   background: var(--accent);
   pointer-events: none;
-  /* Above the ruler-row (z:4) so the playhead line cuts through the
-     timeline labels. Rail-area overlap is handled in JS — Player.tsx
+  /* Above the ruler-row (z:4), the rail (z:8) and the ruler-rail-mask
+     (z:9). The 1px line is kept out of the rail by Player.tsx, which
      suppresses rendering when the playhead's screen position would fall
-     inside the sticky rail's column. */
-  z-index: 5;
+     inside the sticky rail's column. The high z-index is for the handle:
+     it extends 7px left of the line and would otherwise be clipped by
+     the rail/mask when the playhead sits right at the rail edge (t=0). */
+  z-index: 10;
 }
 /* Grabbable handle at the top of the playhead. Sits in the 22px ruler band.
    Down-pointing pentagon centered on the 1px line. The ::after gives it a
@@ -798,6 +841,57 @@ button.track-name:disabled { cursor: default; }
   .loop-handle.right { right: -8px; }
 
   .keys-hint { display: none; }
+
+  .atb-btn,
+  .ah-iconbtn,
+  .ah-avatar,
+  .atb-overflow-wrap > button,
+  .atb-share-wrap > button {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 8px;
+  }
+  /* The icon glyphs themselves stay 16-18px; only hit areas grow. */
+
+  .ah-hide-on-mobile {
+    display: none !important;
+  }
+
+  /* Pin the toolbar to the bottom of the viewport on mobile (Task 13). */
+  .app-toolbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 40;
+    background: var(--paper);
+    border-top: 1px solid var(--rule);
+    border-bottom: none;
+    padding-bottom: max(env(safe-area-inset-bottom), 4px);
+    padding-left: max(env(safe-area-inset-left), 8px);
+    padding-right: max(env(safe-area-inset-right), 8px);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  /* CommentsFab lifts above the new bottom toolbar. */
+  .comments-fab {
+    bottom: calc(56px + env(safe-area-inset-bottom) + 12px);
+  }
+
+  /* Popovers anchored inside the toolbar grow UPWARD on mobile. */
+  .atb-overflow-menu,
+  .atb-master-pop {
+    bottom: calc(100% + 6px);
+    top: auto;
+  }
+
+  /* Reserve scrollable canvas space so content doesn't sit under the bar.
+     .app-shell is the flex column that previously had the sticky toolbar
+     in flow; padding-bottom here shrinks the inner .viewport scroller so
+     it ends at the top of the fixed toolbar. */
+  .app-shell {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
 }
 
 /* ===== Login screen ===== */
@@ -1223,17 +1317,6 @@ button.track-name:disabled { cursor: default; }
   padding: 9px 16px;
   font-size: var(--fs-md);
 }
-.ah-files {
-  width: 28px; height: 28px;
-  background: var(--rule-2);
-  border: 1px solid var(--rule);
-  border-radius: 5px;
-  color: var(--ink);
-  display: inline-flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  padding: 0;
-}
-.ah-files:hover { background: var(--accent-tint); }
 .ah-brand {
   font-family: var(--font-display);
   font-weight: var(--fw-bold);
@@ -1318,6 +1401,46 @@ button.ah-title-name:disabled { cursor: default; }
   font-weight: var(--fw-semi); font-size: var(--fs-2xs);
   border: none; cursor: pointer;
 }
+.atb-overflow-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.atb-overflow-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  min-width: 220px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+}
+
+.atb-overflow-menu button[role="menuitem"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-size: var(--fs-md);
+  color: var(--ink);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.atb-overflow-menu button[role="menuitem"]:hover,
+.atb-overflow-menu button[role="menuitem"]:focus-visible {
+  background: var(--rule-2);
+  outline: none;
+}
+
 .ah-avatar-menu {
   position: absolute; top: 100%; right: 0;
   margin-top: 6px;
@@ -1449,7 +1572,6 @@ body.env-non-prod[data-env="local"]::before {
   min-width: 22px; text-align: right;
 }
 .atb-time {
-  margin-left: auto;
   font-family: var(--font-mono);
   font-size: var(--fs-sm); color: var(--ink-2);
 }
@@ -2773,16 +2895,37 @@ body.env-non-prod[data-env="local"]::before {
 
 /* Share button + transient "Copied — includes X" label + clipboard
  * fallback popover. Lives in the AppToolbar after the download button. */
-.atb-share-wrap { position: relative; display: inline-flex; align-items: center; }
+.atb-share-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
 .atb-share-label {
-  margin-left: 8px;
-  padding: 2px 8px;
-  background: var(--accent-tint);
-  color: var(--ink);
-  border: 1px solid var(--accent-tint-2);
-  border-radius: 3px;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
   font-size: var(--fs-xs);
   white-space: nowrap;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+.atb-share-label::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: var(--ink);
 }
 .atb-share-fallback {
   position: absolute;
@@ -2831,4 +2974,32 @@ body.env-non-prod[data-env="local"]::before {
 @keyframes share-arrival-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(193, 116, 70, 0); }
   50%      { box-shadow: 0 0 0 4px rgba(193, 116, 70, 0.55); }
+}
+
+.atb-zoom-pop-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.atb-zoom-pop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 60;
+}
+
+.atb-zoom-pop-pct {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  min-width: 40px;
+  text-align: center;
+  color: var(--ink-2);
 }

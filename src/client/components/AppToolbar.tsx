@@ -1,15 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  AudioWaveform,
-  Download,
-  Eye,
-  EyeOff,
-  HelpCircle,
-  Loader2,
   Maximize2,
   MessageSquarePlus,
-  PanelRightClose,
-  PanelRightOpen,
   Pause,
   Play,
   Repeat,
@@ -23,13 +15,13 @@ import {
 import { fmt } from '../lib/format';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
 import type { ViewportControls } from '../hooks/useViewport';
+import { ToolbarOverflowMenu } from './ToolbarOverflowMenu';
 
 type Props = {
   hasProject: boolean;
   isPlaying: boolean;
   hasLoop: boolean;
   loopEnabled: boolean;
-  downloading: boolean;
   waveformNormalization: 'per-track' | 'global';
   masterVolume: number;
   currentTime: number;
@@ -43,7 +35,6 @@ type Props = {
   onSeek(t: number): void;
   onTogglePlay(): void;
   onToggleLoopEnabled(): void;
-  onDownloadAll(): void;
   onToggleWaveformNormalization(): void;
   onToggleAnnotationCreate(): void;
   onToggleMarkersVisible(): void;
@@ -56,16 +47,16 @@ type Props = {
    * (plus the non-trivial category list for the "Copied — includes X" hint).
    * Returns `null` when there is no project to share.
    */
-  onShare(): { fullUrl: string; categories: Array<'loop' | 'mix' | 'comment'> } | null;
+  onShare(): { fullUrl: string; categories: Array<'loop' | 'mix' | 'comment'>; title?: string } | null;
 };
 
 export function AppToolbar(props: Props) {
   const {
-    hasProject, isPlaying, hasLoop, loopEnabled, downloading,
+    hasProject, isPlaying, hasLoop, loopEnabled,
     waveformNormalization, masterVolume, currentTime, duration,
     annotationCreateMode, canCreateAnnotations, markersVisible,
     railCollapsed, showRailToggle, isWide,
-    onSeek, onTogglePlay, onToggleLoopEnabled, onDownloadAll,
+    onSeek, onTogglePlay, onToggleLoopEnabled,
     onToggleWaveformNormalization, onToggleAnnotationCreate,
     onToggleMarkersVisible, onSetMasterVolume, onToggleRailCollapsed,
     viewport, onOpenShortcuts,
@@ -90,6 +81,18 @@ export function AppToolbar(props: Props) {
   async function handleShareClick() {
     const snap = onShare();
     if (!snap) return;
+    const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+    if (canNativeShare) {
+      try {
+        await navigator.share({ title: snap.title ?? 'Paperstem', url: snap.fullUrl });
+        // Native sheet provides its own confirmation UI — no toast needed.
+        return;
+      } catch (e) {
+        const name = (e as { name?: string } | null | undefined)?.name;
+        if (name === 'AbortError') return; // user cancelled
+        // Any other error: fall through to clipboard fallback below.
+      }
+    }
     try {
       await navigator.clipboard.writeText(snap.fullUrl);
       const cats = snap.categories.length
@@ -128,16 +131,14 @@ export function AppToolbar(props: Props) {
         disabled={!hasLoop}
         onClick={onToggleLoopEnabled}><Repeat size={16} strokeWidth={2} aria-hidden="true" /></button>
 
+      {isWide && (
+        <span className="atb-time">
+          {fmt(currentTime)} / {fmt(duration)}
+        </span>
+      )}
+
       <span className="atb-divider" />
 
-      <button type="button" className="atb-btn"
-        aria-label="Download all stems"
-        disabled={!hasProject || downloading}
-        onClick={onDownloadAll}>
-        {downloading
-          ? <Loader2 size={16} strokeWidth={2} className="atb-spin" aria-hidden="true" />
-          : <Download size={16} strokeWidth={2} aria-hidden="true" />}
-      </button>
       <div className="atb-share-wrap">
         <button type="button" className="atb-btn"
           aria-label="Copy share link"
@@ -167,11 +168,6 @@ export function AppToolbar(props: Props) {
           </div>
         )}
       </div>
-      <button type="button" className={'atb-btn' + (waveformNormalization === 'global' ? ' on' : '')}
-        aria-label="Toggle waveform scale"
-        aria-pressed={waveformNormalization === 'global'}
-        onClick={onToggleWaveformNormalization}><AudioWaveform size={16} strokeWidth={2} aria-hidden="true" /></button>
-
       <span className="atb-divider" />
 
       <button type="button"
@@ -180,87 +176,56 @@ export function AppToolbar(props: Props) {
         aria-pressed={annotationCreateMode}
         disabled={!canCreateAnnotations}
         onClick={onToggleAnnotationCreate}><MessageSquarePlus size={16} strokeWidth={2} aria-hidden="true" /></button>
-      <button type="button"
-        className={'atb-btn' + (markersVisible ? ' on' : '')}
-        aria-label="Toggle marker visibility"
-        aria-pressed={markersVisible}
-        onClick={onToggleMarkersVisible}>
-        {markersVisible
-          ? <Eye size={16} strokeWidth={2} aria-hidden="true" />
-          : <EyeOff size={16} strokeWidth={2} aria-hidden="true" />}
-      </button>
-
-      {showRailToggle && (
-        <>
-          <span className="atb-divider" />
-          <button type="button"
-            className={'atb-btn' + (railCollapsed ? ' on' : '')}
-            aria-label={railCollapsed ? 'Show track controls' : 'Hide track controls'}
-            aria-pressed={railCollapsed}
-            onClick={onToggleRailCollapsed}>
-            {railCollapsed
-              ? <PanelRightOpen size={16} strokeWidth={2} aria-hidden="true" />
-              : <PanelRightClose size={16} strokeWidth={2} aria-hidden="true" />}
-          </button>
-        </>
-      )}
 
       <span className="atb-divider" />
 
-      <div className="toolbar-group">
-        <button
-          type="button"
-          className="atb-btn"
-          onClick={() => {
-            const stage = document.querySelector('.stage') as HTMLDivElement | null;
-            const sw = stage?.getBoundingClientRect().width ?? 800;
-            viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
-          }}
-          aria-label="Zoom out"
-          title="Zoom out (⌘−)"
-        >
-          <ZoomOut size={14} aria-hidden="true" />
-        </button>
-        <span
-          className="toolbar-readout"
-          title={`Horizontal ${Math.round(viewport.state.hZoom * 100)}%, track ${viewport.state.trackHeight}px`}
-        >
-          {Math.round(viewport.state.hZoom * 100)}%
-        </span>
-        <button
-          type="button"
-          className="atb-btn"
-          onClick={() => {
-            const stage = document.querySelector('.stage') as HTMLDivElement | null;
-            const sw = stage?.getBoundingClientRect().width ?? 800;
-            viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
-          }}
-          aria-label="Zoom in"
-          title="Zoom in (⌘=)"
-        >
-          <ZoomIn size={14} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="atb-btn"
-          onClick={() => viewport.fitToWindow()}
-          aria-label="Fit to window"
-          title="Fit to window (⌘0)"
-        >
-          <Maximize2 size={14} aria-hidden="true" />
-        </button>
-        {isWide && (
+      {isWide ? (
+        <div className="toolbar-group">
           <button
             type="button"
             className="atb-btn"
-            onClick={onOpenShortcuts}
-            aria-label="Keyboard shortcuts"
-            title="Keyboard shortcuts (?)"
+            onClick={() => {
+              const stage = document.querySelector('.stage') as HTMLDivElement | null;
+              const sw = stage?.getBoundingClientRect().width ?? 800;
+              viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+            }}
+            aria-label="Zoom out"
+            title="Zoom out (⌘−)"
           >
-            <HelpCircle size={14} aria-hidden="true" />
+            <ZoomOut size={14} aria-hidden="true" />
           </button>
-        )}
-      </div>
+          <span
+            className="toolbar-readout"
+            title={`Horizontal ${Math.round(viewport.state.hZoom * 100)}%, track ${viewport.state.trackHeight}px`}
+          >
+            {Math.round(viewport.state.hZoom * 100)}%
+          </span>
+          <button
+            type="button"
+            className="atb-btn"
+            onClick={() => {
+              const stage = document.querySelector('.stage') as HTMLDivElement | null;
+              const sw = stage?.getBoundingClientRect().width ?? 800;
+              viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+            }}
+            aria-label="Zoom in"
+            title="Zoom in (⌘=)"
+          >
+            <ZoomIn size={14} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="atb-btn"
+            onClick={() => viewport.fitToWindow()}
+            aria-label="Fit to window"
+            title="Fit to window (⌘0)"
+          >
+            <Maximize2 size={14} aria-hidden="true" />
+          </button>
+        </div>
+      ) : (
+        <MobileZoomPopover viewport={viewport} />
+      )}
 
       <span className="atb-divider" />
 
@@ -285,9 +250,16 @@ export function AppToolbar(props: Props) {
         />
       )}
 
-      <span className="atb-time">
-        {fmt(currentTime)} / {fmt(duration)}
-      </span>
+      <ToolbarOverflowMenu
+        waveformNormalization={waveformNormalization}
+        markersVisible={markersVisible}
+        railCollapsed={railCollapsed}
+        showRailToggle={showRailToggle}
+        onToggleWaveformNormalization={onToggleWaveformNormalization}
+        onToggleMarkersVisible={onToggleMarkersVisible}
+        onToggleRailCollapsed={onToggleRailCollapsed}
+        onOpenShortcuts={onOpenShortcuts}
+      />
     </div>
   );
 }
@@ -337,6 +309,74 @@ function MasterVolumePopover({
             />
             <span className="atb-master-pop-num">{masterVolume}</span>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileZoomPopover({ viewport }: { viewport: ViewportControls }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  function getStageWidth() {
+    const stage = document.querySelector('.stage') as HTMLDivElement | null;
+    return stage?.getBoundingClientRect().width ?? 800;
+  }
+
+  return (
+    <div className="atb-zoom-pop-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className="atb-btn"
+        aria-label="Zoom"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <ZoomIn size={16} strokeWidth={2} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="atb-zoom-pop" role="menu">
+          <button
+            type="button"
+            className="atb-btn"
+            aria-label="Zoom out"
+            onClick={() => {
+              const sw = getStageWidth();
+              viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+            }}
+          >
+            <ZoomOut size={16} aria-hidden="true" />
+          </button>
+          <span className="atb-zoom-pop-pct">{Math.round(viewport.state.hZoom * 100)}%</span>
+          <button
+            type="button"
+            className="atb-btn"
+            aria-label="Zoom in"
+            onClick={() => {
+              const sw = getStageWidth();
+              viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+            }}
+          >
+            <ZoomIn size={16} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="atb-btn"
+            aria-label="Fit to window"
+            onClick={() => viewport.fitToWindow()}
+          >
+            <Maximize2 size={16} aria-hidden="true" />
+          </button>
         </div>
       )}
     </div>
