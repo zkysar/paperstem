@@ -244,6 +244,11 @@ kbd {
      own overflow, sticky would anchor there instead, and the rail would
      scroll off-screen along with .tracks's content. */
   overflow: auto;
+  /* Stop horizontal overscroll from chaining to the page — without this,
+     scrolling past the timeline's left edge triggers Chrome's two-finger
+     swipe-back navigation. `contain` keeps scroll chaining off while still
+     allowing the normal bounce within this container. */
+  overscroll-behavior: contain;
   width: 100%;
   flex: 1;
   min-height: 0;
