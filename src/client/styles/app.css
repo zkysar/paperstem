@@ -802,22 +802,6 @@ button.track-name:disabled { cursor: default; }
   min-height: 1em;
   word-break: break-word;
 }
-.debug-info {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 99999;
-  background: rgba(0, 0, 0, 0.85);
-  color: #ffeb3b;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
-  line-height: 1.3;
-  padding: 6px 10px;
-  white-space: pre-line;
-  word-break: break-word;
-  pointer-events: none;
-}
 .keys-hint {
   margin-top: 16px;
   padding: 10px 12px;
@@ -1465,6 +1449,18 @@ button.ah-title-name:disabled { cursor: default; }
 .ah-avatar-version:hover {
   color: var(--text);
   text-decoration: underline;
+}
+.ah-avatar-debug {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--muted);
+  padding: 6px 8px;
+  border-top: 1px solid var(--rule);
+  margin-top: 4px;
+  white-space: pre-line;
+  word-break: break-word;
+  max-width: 320px;
 }
 
 /* ===== Environment indicator ===== */

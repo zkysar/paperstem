@@ -16,6 +16,7 @@ const baseProps = {
   appVersion: 'test-1.0.0',
   appEnv: null,
   downloading: false,
+  debugInfo: '',
   onOpenPicker: vi.fn(),
   onToggleAnnotations: vi.fn(),
   onSignOut: vi.fn(),

@@ -836,6 +836,7 @@ function PaperstemApp({
         appVersion={appInfo?.version ?? null}
         appEnv={appInfo?.env ?? null}
         downloading={downloading}
+        debugInfo={player.debugInfo}
         onOpenPicker={openPicker}
         onToggleAnnotations={toggleDrawer}
         onSignOut={onLogout}

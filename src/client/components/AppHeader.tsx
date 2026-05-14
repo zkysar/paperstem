@@ -16,6 +16,7 @@ type Props = {
   appVersion: string | null;
   appEnv: string | null;
   downloading: boolean;
+  debugInfo: string;
   onOpenPicker(): void;
   onToggleAnnotations(): void;
   onSignOut(): void;
@@ -28,6 +29,7 @@ type Props = {
 export function AppHeader({
   userEmail, userInitials, projectTitle, stemCount, duration,
   annotationsOpen, hasProject, canRename, isWide, appVersion, appEnv, downloading,
+  debugInfo,
   onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenameProject,
   onOpenTokens, onDownloadAll,
 }: Props) {
@@ -198,6 +200,7 @@ export function AppHeader({
                 {appVersion}
               </a>
             )}
+            {debugInfo && <div className="ah-avatar-debug">{debugInfo}</div>}
           </div>
         )}
       </div>
