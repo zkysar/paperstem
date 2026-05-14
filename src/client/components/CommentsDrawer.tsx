@@ -118,6 +118,10 @@ export function CommentsDrawer({
                   e.preventDefault();
                   handleSaveDraft();
                 }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  onDraftCancel();
+                }
               }}
             />
             <div className="cd-draft-actions">
