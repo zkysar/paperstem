@@ -176,9 +176,12 @@ export function AppToolbar(props: Props) {
 
       <button type="button"
         className={'atb-btn' + (annotationCreateMode ? ' annotate-on' : '')}
-        aria-label="Add annotation"
+        aria-label="Add comment"
         aria-pressed={annotationCreateMode}
         disabled={!canCreateAnnotations}
+        title={annotationCreateMode
+          ? 'Cancel comment mode'
+          : 'Add comment — click the timeline for a point, drag for a region'}
         onClick={onToggleAnnotationCreate}><MessageSquarePlus size={16} strokeWidth={2} aria-hidden="true" /></button>
 
       <span className="atb-divider" />
