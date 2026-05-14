@@ -876,6 +876,7 @@ function PaperstemApp({
         hasProject={player.state.stems.length > 0}
         isPlaying={player.state.isPlaying}
         loopEnabled={!!player.state.loop?.enabled || player.state.loopArmed}
+        loopArmed={player.state.loopArmed}
         waveformNormalization={player.state.waveformNormalization}
         masterVolume={player.state.masterVolume}
         currentTime={player.currentTime}

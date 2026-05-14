@@ -21,6 +21,14 @@ type Props = {
   hasProject: boolean;
   isPlaying: boolean;
   loopEnabled: boolean;
+  /**
+   * The loop button has been clicked but no region has been dragged out yet,
+   * so the *next* ruler drag will create a region. Lights the same as
+   * `loopEnabled` (the visual state is "loop is active"), but the tooltip
+   * needs to distinguish so it can say "drag the timeline" rather than
+   * pretending playback is repeating something.
+   */
+  loopArmed?: boolean;
   waveformNormalization: 'per-track' | 'global';
   masterVolume: number;
   currentTime: number;
@@ -51,7 +59,7 @@ type Props = {
 
 export function AppToolbar(props: Props) {
   const {
-    hasProject, isPlaying, loopEnabled,
+    hasProject, isPlaying, loopEnabled, loopArmed = false,
     waveformNormalization, masterVolume, currentTime, duration,
     annotationCreateMode, canCreateAnnotations, markersVisible,
     railCollapsed, showRailToggle, isWide,
@@ -134,9 +142,11 @@ export function AppToolbar(props: Props) {
       </button>
       <button type="button" className={'atb-btn' + (loopEnabled ? ' loop-on' : '')}
         aria-label="Toggle loop"
-        title={loopEnabled
-          ? 'Loop is on — playback repeats the selected region. Click to turn off.'
-          : 'Loop — repeat a region of the song. Drag on the timeline to set the region, then click here to toggle.'}
+        title={loopArmed
+          ? 'Loop armed — drag on the timeline to set the region. Click here again to cancel.'
+          : loopEnabled
+            ? 'Loop is on — playback repeats the selected region. Click to turn off.'
+            : 'Loop — repeat a region of the song. Click here to arm, then drag on the timeline to set the region.'}
         disabled={!hasProject}
         onClick={onToggleLoopEnabled}><Repeat size={16} strokeWidth={2} aria-hidden="true" /></button>
 

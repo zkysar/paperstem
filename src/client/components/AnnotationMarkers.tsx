@@ -79,7 +79,6 @@ export function AnnotationMarkers({
             className={className}
             style={style}
             title={markerTitle(m.ann)}
-            role="button"
             aria-label={`Comment by ${authorLabel(m.ann)}`}
             onPointerEnter={() => { if (!createMode) onHover(m.ann.id); }}
             onPointerLeave={() => { onHover((cur) => (cur === m.ann.id ? null : cur)); }}
