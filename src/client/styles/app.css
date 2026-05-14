@@ -42,6 +42,35 @@ body {
   color: var(--ink);
   min-height: 100vh;
   -webkit-text-size-adjust: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* Selection policy: chrome is unselectable by default; opt user-facing
+   content back in (names, comments, share URLs, dialog bodies, error
+   messages). Form controls always stay selectable. */
+input,
+textarea,
+[contenteditable="true"],
+.ah-title-name,
+.track-name,
+.cl-body,
+.cp-body,
+.cs-body,
+.bd-title,
+.bd-body,
+.bd-error,
+.cd-title,
+.upload-file-name,
+.upload-error,
+.login-error,
+.fp-title,
+.fp-name,
+.fp-meta,
+.share-arrival-headline,
+.share-arrival-text,
+.share-arrival-cats {
+  -webkit-user-select: text;
+  user-select: text;
 }
 button { font: inherit; cursor: pointer; }
 kbd {
