@@ -30,8 +30,6 @@ Prefer inline literals or small helper builders over fixture files. The repo cur
 
 ## Categories
 
-(Filled in by subsequent tasks.)
-
 - [Server route handlers](#server-route-handlers)
 - [Server libs](#server-libs)
 - [Server migrations](#server-migrations)
@@ -47,7 +45,7 @@ Prefer inline literals or small helper builders over fixture files. The repo cur
 
 **Canonical example:** `src/server/projects.test.ts`. It exercises read, rename, soft-delete, and restore endpoints; uses Drive mocking; calls `_resetTokenCacheForTests`; and shows every helper factory in use. It is the most self-contained and broadly representative file in the category.
 
-> **Note:** `src/server/onboard-band.test.ts` lives in this directory but is a bin-script test, not a route-handler test — it spawns a subprocess via `spawnSync` and never constructs a Hono `app`. See the Bin scripts section.
+> **Note:** `src/server/onboard-band.test.ts` lives in this directory but is a bin-script test, not a route-handler test — it spawns a subprocess via `spawnSync` and never constructs a Hono `app`. See [Bin scripts](#bin-scripts).
 
 #### Harness setup
 
@@ -1018,3 +1016,47 @@ Test representative inputs, boundary values, and edge cases (NaN, Infinity, nega
 #### What not to do
 
 See [Server libs](#server-libs). The same rules apply: don't reach for mocks when the function is pure, don't assert on implementation details, and don't test multiple orthogonal behaviors in a single `it` block when separate blocks would be clearer.
+
+### Bin scripts
+
+Bin scripts live in `bin/` and are CLI entry points meant to be run directly (e.g. `npx tsx bin/import-from-device.ts`). Their tests live next to the script: `bin/X.test.ts`. All bin tests run under the **`server`** vitest project (node environment) per `vitest.config.ts`.
+
+Two invocation patterns appear in this codebase:
+
+**Direct function call (preferred when the script exposes an importable function):** `bin/import-from-device.ts` exports `runImporter()` so the test imports and calls it directly, passing dependencies (fetch, encoder) as explicit parameters. This is the pattern to follow for new scripts when possible — it avoids process overhead and makes assertions straightforward.
+
+**Subprocess via `spawnSync` (used when the script has no importable entry point):** `src/server/onboard-band.test.ts` (note: lives in `src/server/` but tests a bin script) spawns the script in a child process to assert on its exit code and stdout. Use this only when the script cannot reasonably expose an importable function.
+
+#### Harness setup (direct call)
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { runImporter } from './import-from-device.js';
+
+it('exits gracefully when SD card path does not exist', async () => {
+  const result = await runImporter({
+    config: {
+      device: 'model12',
+      sd_card_path: '/tmp/nonexistent-path',
+      paperstem_url: 'https://paperstem.test',
+      band_id: 'b1',
+    },
+    token: 'tok',
+    fetchImpl: vi.fn(),
+  });
+  expect(result.status).toBe('no-card');
+});
+```
+
+No env prelude needed: `runImporter` receives all dependencies as explicit parameters and does not import `db.ts` or `mailer.ts`.
+
+#### What to assert
+
+Assert `result.status` for each code path. For end-to-end success paths, also assert side effects on the filesystem (marker file written to the SD card tree). For skip paths (already-imported marker, still-recording mtime), assert both `result.status === 'ok'` and that the injected `fetchImpl` was never called.
+
+See [Server import](#server-import) for the full orchestration test harness, including how to build a fake SD card tree with `placeOneStemFolder`, how to route the `fetchImpl` mock by URL and method, and how to use `utimesSync` to control file mtime.
+
+#### What not to do
+
+- **Do not test the CLI argument parsing inline with the business logic.** Scripts that expose a `run*` function separate argument parsing (top-level `if (import.meta.main)` block or `parseArgs`) from the importable function. Test the importable function directly; argument-parsing wiring is typically too thin to need its own tests.
+- **Do not spawn a subprocess when a direct function call is available.** Subprocess tests are slower, harder to debug, and cannot use `vi.fn()` spies. If the script is new, design it to export an importable entry point from the start.
