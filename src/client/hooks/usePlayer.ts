@@ -24,30 +24,13 @@ import { fmt, longestStemIdx } from '../lib/format';
 const LOOP_TAIL = 0.005;
 const END_TAIL = 0.02;
 
-// Schedule a near-silent buffer with a single tiny non-zero sample as part
-// of an iOS audio-session unlock. Pure-silent buffers may be optimized away
-// by iOS; an actual sample forces the engine to treat this as real audio.
-function playUnlockBuffer(ctx: AudioContext): void {
-  try {
-    const buffer = ctx.createBuffer(1, 256, ctx.sampleRate);
-    buffer.getChannelData(0)[0] = 0.0001;
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    src.connect(ctx.destination);
-    src.start(0);
-  } catch {
-    // ignore — failure here doesn't block the real sources
-  }
-}
-
-// Short silent MP3 used to activate the iOS audio session inside a tap
-// handler. iOS Safari refuses to load data: URL audio sources (.play()
-// returns a forever-pending promise — confirmed via on-device diagnostic
-// reading htmlAudio:pending), so we serve a real ~2KB MP3 from origin.
-// HTMLAudioElement.play() unlocks the device-level session more reliably
-// than scheduling a Web Audio BufferSource alone; we run both for
-// belt-and-suspenders coverage.
+// Probe audio used to detect when iOS Focus / Do Not Disturb is suppressing
+// playback. Under DND, HTMLAudioElement.play() returns a promise that never
+// resolves — it just hangs in HAVE_NOTHING. Under normal conditions a
+// ~2KB same-origin MP3 .play() resolves in well under a second. We race
+// the promise against a timeout to decide whether to show a UX warning.
 const SILENT_AUDIO_URL = '/silent.mp3';
+const DND_PROBE_TIMEOUT_MS = 1500;
 
 type Action =
   | { type: 'TEARDOWN' }
@@ -220,6 +203,7 @@ export type PlayerControls = {
   state: PlayerState;
   currentTime: number;
   debugInfo: string;
+  audioSuppressed: boolean;
   load(input: {
     projectId: string | null;
     title: string;
@@ -248,15 +232,15 @@ export type PlayerControls = {
 export function usePlayer(): PlayerControls {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [currentTime, setCurrentTime] = useState(0);
-  // iOS audio diagnostics — surfaced in the UI so the user can read the
-  // actual context state from their phone. Two slots so the page-unlock
-  // line isn't clobbered when togglePlay fires. Promise resolutions from
-  // ctx.resume() and HTMLAudio.play() update their lines asynchronously,
-  // so the user gets the actual post-transition state, not the synchronous
-  // (and still 'suspended') reading from immediately after calling resume.
-  const [unlockLine, setUnlockLine] = useState('');
-  const [playLine, setPlayLine] = useState('');
-  const debugInfo = [unlockLine, playLine].filter(Boolean).join('\n');
+  // iOS DND / Focus detection. Set to true when the /silent.mp3 probe
+  // .play() promise hasn't resolved within DND_PROBE_TIMEOUT_MS — the
+  // observed signature of Focus/DND-suppressed audio. UI surfaces a
+  // banner. Resets to false when a subsequent probe resolves (user
+  // disabled DND and tapped play again).
+  const [audioSuppressed, setAudioSuppressed] = useState(false);
+  // Dev-only diagnostic surfaced in the avatar dropdown — visible local
+  // and on paperstem-dev, hidden in prod via AppHeader's appEnv check.
+  const [debugInfo, setDebugInfo] = useState('');
 
   // Refs that the rAF / interval callbacks read live, so they don't capture
   // stale state.
@@ -279,9 +263,9 @@ export function usePlayer(): PlayerControls {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
 
-  // iOS audio-session unlocker: a silent HTMLAudio whose .play() runs inside
-  // the first togglePlay gesture to activate the device audio session.
-  const unlockAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Generation counter for DND probes. Each togglePlay starts a fresh probe;
+  // older probes' callbacks no-op so a fast tap-tap doesn't flap the banner.
+  const dndProbeGenRef = useRef(0);
 
   function ensureAudioGraph(): { ctx: AudioContext; master: GainNode } | null {
     if (audioCtxRef.current && masterGainRef.current) {
@@ -445,87 +429,6 @@ export function usePlayer(): PlayerControls {
     };
   }, []);
 
-  // ---- iOS audio-session pre-unlock on the FIRST tap anywhere on the page ----
-  // The play button's own gesture handler should be enough to unlock the audio
-  // session on iOS, but in practice some iOS versions are stricter — the
-  // unlock attempt has to be the user's *first* audio-touching gesture, and
-  // by the time they reach the play button they've already tapped the project
-  // picker, scrolled, etc. So we attach one-shot listeners at the document
-  // level: any pointerdown/touchend fires resume + an unlock buffer + a
-  // silent HTMLAudio play. Then by the time the user actually taps play, the
-  // session is already hot. This is the same pattern Howler.js and Tone.js
-  // use in production. (Side effect: the AudioContext gets created on first
-  // page tap rather than on first project load — but ensureAudioGraph is
-  // idempotent so a later load() call reuses it.)
-  useEffect(() => {
-    const unlock = (): void => {
-      const graph = ensureAudioGraph();
-      let preState: string = '-';
-      let sampleRate = 0;
-      let resumePromise: Promise<void> | null = null;
-      if (graph) {
-        preState = graph.ctx.state;
-        sampleRate = graph.ctx.sampleRate;
-        if (graph.ctx.state !== 'running') {
-          resumePromise = graph.ctx.resume();
-        }
-        playUnlockBuffer(graph.ctx);
-      }
-      if (!unlockAudioRef.current) {
-        const a = new Audio(SILENT_AUDIO_URL);
-        a.preload = 'auto';
-        unlockAudioRef.current = a;
-      }
-      const htmlPromise = unlockAudioRef.current.play();
-      // Shared mutable status; the .then/.catch handlers update them and
-      // re-render the line.
-      const status = {
-        postState: preState,
-        resumeResult: resumePromise ? 'pending' : 'skip',
-        htmlAudio: 'pending',
-      };
-      const render = (): void => {
-        setUnlockLine(
-          `pg-unlock fired · ctx:${preState}→${status.postState} · resume:${status.resumeResult} · sr:${sampleRate} · htmlAudio:${status.htmlAudio}`,
-        );
-      };
-      render();
-      if (resumePromise) {
-        resumePromise
-          .then(() => {
-            status.resumeResult = 'ok';
-            if (graph) status.postState = graph.ctx.state;
-            render();
-          })
-          .catch((err: unknown) => {
-            status.resumeResult = `rej(${(err as Error)?.name ?? 'err'})`;
-            if (graph) status.postState = graph.ctx.state;
-            render();
-          });
-      }
-      void htmlPromise
-        ?.then(() => {
-          status.htmlAudio = 'ok';
-          render();
-        })
-        .catch((err: unknown) => {
-          status.htmlAudio = `rej(${(err as Error)?.name ?? 'err'})`;
-          render();
-        });
-      document.removeEventListener('pointerdown', unlock);
-      document.removeEventListener('touchend', unlock);
-    };
-    document.addEventListener('pointerdown', unlock, { passive: true });
-    document.addEventListener('touchend', unlock, { passive: true });
-    return () => {
-      document.removeEventListener('pointerdown', unlock);
-      document.removeEventListener('touchend', unlock);
-    };
-    // ensureAudioGraph and unlockAudioRef are stable closures over refs; the
-    // empty deps are intentional so we attach exactly once per hook lifetime.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // ---- API ----
   const load = useCallback<PlayerControls['load']>(async (input) => {
     // Tear down current stems before building new ones.
@@ -654,46 +557,70 @@ export function usePlayer(): PlayerControls {
       pause();
       return;
     }
-    // iOS Safari only unlocks the device audio session when a gesture
-    // handler synchronously triggers actual playback. Web Audio
-    // BufferSource.start() alone is not enough on current iOS — the device
-    // session stays locked, so the context plays inaudibly until something
-    // else on the device (e.g. tapping a YouTube video) flips the session
-    // on. Playing a silent HTMLAudioElement inside the same gesture is the
-    // pathway iOS reliably accepts. We also schedule a silent Web Audio
-    // buffer and fire resume() (no await — awaiting would consume the
-    // gesture token) as belt-and-suspenders.
-    if (!unlockAudioRef.current) {
-      const a = new Audio(SILENT_AUDIO_URL);
-      a.preload = 'auto';
-      unlockAudioRef.current = a;
-    }
-    const htmlPromise = unlockAudioRef.current.play();
+    // iOS has a non-standard 'interrupted' AudioContext state in addition
+    // to 'suspended' (entered on tab switch, screen lock, headphones
+    // unplug, calls). Resume on anything that isn't running. Fire and
+    // forget — awaiting here would consume the user-activation token and
+    // break iOS gesture chaining.
     const ctx = audioCtxRef.current;
     const preState: string = ctx?.state ?? 'no-ctx';
     let resumePromise: Promise<void> | null = null;
-    if (ctx) {
-      if (ctx.state !== 'running') {
-        resumePromise = ctx.resume();
-      }
-      playUnlockBuffer(ctx);
+    if (ctx && ctx.state !== 'running') {
+      resumePromise = ctx.resume();
     }
     dispatch({ type: 'SET_PLAYING', isPlaying: true });
     stateRef.current = { ...stateRef.current, isPlaying: true };
     isPlayingInternalRef.current = true;
     const offset = pausedOffsetRef.current;
     const ok = startSourcesAt(offset);
+    if (!ok) {
+      dispatch({ type: 'SET_PLAYING', isPlaying: false });
+      stateRef.current = { ...stateRef.current, isPlaying: false };
+      isPlayingInternalRef.current = false;
+      dispatch({
+        type: 'SET_STATUS',
+        status: 'Playback blocked — click the page once and try again.',
+      });
+      return;
+    }
+    // DND / Focus probe: under iOS Focus modes that suppress media, an
+    // HTMLAudio.play() promise on a small same-origin source never
+    // settles (the element hangs in HAVE_NOTHING). Under normal
+    // conditions it resolves in well under a second. Race it against a
+    // timeout to drive the audio-suppressed banner.
+    const myGen = ++dndProbeGenRef.current;
+    const probeAudio = new Audio(SILENT_AUDIO_URL);
+    probeAudio.volume = 0;
+    const probePromise = probeAudio.play();
+    let probeSettled = false;
+    void probePromise
+      ?.then(() => {
+        probeSettled = true;
+        if (myGen !== dndProbeGenRef.current) return;
+        setAudioSuppressed(false);
+      })
+      .catch(() => {
+        // Autoplay rejection is fine — we know audio is permitted at this
+        // point because real Web Audio sources were just scheduled in the
+        // same gesture. Leave audioSuppressed as it was.
+        probeSettled = true;
+      });
+    window.setTimeout(() => {
+      if (myGen !== dndProbeGenRef.current) return;
+      if (!probeSettled) setAudioSuppressed(true);
+    }, DND_PROBE_TIMEOUT_MS);
+    // Dev diagnostic — gated to dev environments at the render site.
     const stems = stateRef.current.stems;
     const decodedCount = stems.filter((stem) => stem.audioBuffer != null).length;
     const srcCount = sourcesRef.current?.length ?? 0;
     const status = {
       postState: preState,
       resumeResult: resumePromise ? 'pending' : 'skip',
-      htmlAudio: 'pending',
+      probe: 'pending',
     };
     const render = (): void => {
-      setPlayLine(
-        `play · ctx:${preState}→${status.postState} · resume:${status.resumeResult} · bufs:${decodedCount}/${stems.length} · srcs:${srcCount} · ok:${ok ? 'y' : 'n'} · htmlAudio:${status.htmlAudio}`,
+      setDebugInfo(
+        `play · ctx:${preState}→${status.postState} · resume:${status.resumeResult} · bufs:${decodedCount}/${stems.length} · srcs:${srcCount} · probe:${status.probe}`,
       );
     };
     render();
@@ -710,24 +637,15 @@ export function usePlayer(): PlayerControls {
           render();
         });
     }
-    void htmlPromise
+    void probePromise
       ?.then(() => {
-        status.htmlAudio = 'ok';
+        status.probe = 'ok';
         render();
       })
       .catch((err: unknown) => {
-        status.htmlAudio = `rej(${(err as Error)?.name ?? 'err'})`;
+        status.probe = `rej(${(err as Error)?.name ?? 'err'})`;
         render();
       });
-    if (!ok) {
-      dispatch({ type: 'SET_PLAYING', isPlaying: false });
-      stateRef.current = { ...stateRef.current, isPlaying: false };
-      isPlayingInternalRef.current = false;
-      dispatch({
-        type: 'SET_STATUS',
-        status: 'Playback blocked — click the page once and try again.',
-      });
-    }
   }, [pause]);
 
   // Coalesce rapid seeks (e.g. spam-clicking the timeline) into one audio
@@ -873,6 +791,7 @@ export function usePlayer(): PlayerControls {
     state,
     currentTime,
     debugInfo,
+    audioSuppressed,
     load,
     togglePlay,
     pause,

@@ -200,7 +200,9 @@ export function AppHeader({
                 {appVersion}
               </a>
             )}
-            {debugInfo && <div className="ah-avatar-debug">{debugInfo}</div>}
+            {debugInfo && (import.meta.env.DEV || appEnv === 'dev') && (
+              <div className="ah-avatar-debug">{debugInfo}</div>
+            )}
           </div>
         )}
       </div>

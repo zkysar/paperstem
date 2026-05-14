@@ -823,6 +823,12 @@ function PaperstemApp({
           onDismiss={() => setArrival(null)}
         />
       )}
+      {player.audioSuppressed && (
+        <div className="audio-suppressed-banner" role="status">
+          Audio is being suppressed by your iOS Focus or Do Not Disturb. Turn
+          it off in Control Center to hear playback.
+        </div>
+      )}
       <AppHeader
         userEmail={user.email}
         userInitials={initialsFromEmail(user.email)}

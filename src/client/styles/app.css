@@ -1467,6 +1467,15 @@ button.ah-title-name:disabled { cursor: default; }
   word-break: break-word;
   max-width: 320px;
 }
+.audio-suppressed-banner {
+  background: #fff4c2;
+  color: #5a4a18;
+  border-bottom: 1px solid #e6d57a;
+  padding: 8px 14px;
+  font-size: var(--fs-sm);
+  text-align: center;
+  line-height: 1.4;
+}
 
 /* ===== Environment indicator ===== */
 .ah-env-badge {
