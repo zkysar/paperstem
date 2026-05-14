@@ -36,7 +36,7 @@ Prefer inline literals (object constructors, hand-rolled buffers) over fixture f
 - [Server libs](#server-libs)
 - [Server migrations](#server-migrations)
 - [Server jobs](#server-jobs)
-- Server import
+- [Server import](#server-import)
 - Server auth
 - Client components
 - Client hooks
@@ -535,3 +535,133 @@ If you add a test for the job entry point (`runSnapshotsNow`, `runBackupsNow`), 
 - **Do not use real `setTimeout` delays to exercise scheduler timing.** The scheduler (`startScheduler`) relies on wall-clock `setTimeout` with delays up to 24 hours. Testing it without fake timers is either instant-but-meaningless or painfully slow. Use `msUntilNextDailyUtc` / `msUntilNextWeeklyUtc` directly — they accept a `nowMs` parameter that makes time injectable without any vitest fake-timer setup.
 - **Do not share scheduler state across tests without stopping it.** `startScheduler` sets module-level `snapshotTimer` and `backupTimer`. If you start the scheduler in one test and do not call `stopScheduler` in teardown, the dangling timers will fire in later tests and pollute results. If testing lifecycle, always pair `startScheduler` with `stopScheduler` in `afterEach`.
 - **Do not import `db.ts` before setting `process.env.DATABASE_PATH`.** The env prelude (setting `DATABASE_PATH`, `GMAIL_USER`, etc.) must appear at module level, before any `import` or `await import` that transitively loads `db.ts` or `mailer.ts`. See the route-handler section for the full explanation.
+
+### Server import
+
+This category covers the `src/server/import/` modules and the `bin/import-from-device.ts` orchestrator. It mixes two distinct testing surfaces:
+
+1. **Binary parsing tests** — read WAV chunk structures and return structured data (`readCuePoints`, `model12.scan`). No DB, no HTTP, no env prelude needed.
+2. **Orchestration tests** — invoke the end-to-end device-import flow (`runImporter`), which scans a fake SD card, calls the Paperstem API, and writes marker files to disk.
+
+**Canonical examples:**
+
+- **Parsing: `src/server/import/wav-cue.test.ts`** — the purest example. A single `buildWav()` helper constructs a RIFF/WAVE buffer from parameters, `writeTempWav()` drops it into a `mkdtempSync` dir, and `readCuePoints()` is called against the resulting path. No setup beyond the buffer construction; assertions are direct equality checks on the returned sample-offset array.
+- **Orchestration: `bin/import-from-device.test.ts`** — the sole end-to-end test. It builds a fake SD card tree in a `mkdtempSync` dir, injects a `vi.fn()` fetch mock and an `encodeFn` stub, calls `runImporter()`, then asserts `result.status` and the marker file written to the card.
+
+#### Where fixtures live
+
+There is no `__fixtures__/` directory. All WAV input data is generated programmatically using a `buildWav()` (or `buildSilentWav()`) helper function defined at the top of each parsing test file. The helper assembles RIFF, `fmt `, `cue `, and `data` chunks from Buffer writes and returns a complete in-memory `Buffer`. That buffer is written to a `mkdtempSync` temporary directory before the function under test is called.
+
+This is intentional: the WAV structures relevant to these tests (cue-chunk layout, sample offsets, reserved empty slots) are simple enough to construct in ~50 lines of Buffer manipulation, and doing so keeps the tests self-documenting and free of opaque binary blobs.
+
+#### Harness setup (parsing)
+
+No env prelude or dynamic imports. The test file imports the module under test statically, defines a `buildWav()` helper, and calls it inline:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { readCuePoints } from './wav-cue.js';
+
+function buildWav(opts: { cueSampleOffsets: number[]; reservedEmptySlots?: number; ... }): Buffer {
+  // Assembles RIFF/WAVE buffer with a cue chunk from opts.cueSampleOffsets.
+  // Reserved empty slots are written as sample_offset=0 and are filtered out by readCuePoints.
+  // ...
+}
+
+function writeTempWav(buf: Buffer): string {
+  const dir = mkdtempSync(join(tmpdir(), 'wav-cue-'));
+  const path = join(dir, 'test.wav');
+  writeFileSync(path, buf);
+  return path;
+}
+
+it('returns real cue offsets in ascending order, deduped', () => {
+  const wav = buildWav({ cueSampleOffsets: [44100, 88200, 44100, 132300], reservedEmptySlots: 95 });
+  expect(readCuePoints(writeTempWav(wav))).toEqual([44100, 88200, 132300]);
+});
+```
+
+`model12.test.ts` uses the same `buildWav()` pattern but wraps it in a `placeSong()` helper that writes multiple track files into a `<card>/MTR/<songName>/` directory tree, mirroring the on-device layout that `model12.scan()` expects.
+
+#### Harness setup (orchestration)
+
+The `bin/import-from-device.test.ts` orchestration test builds a minimal fake SD card in a `mkdtempSync` temp dir and injects dependencies via the `runImporter` options object:
+
+```typescript
+import { describe, it, expect, vi } from 'vitest';
+import { mkdirSync, mkdtempSync, existsSync, readFileSync, writeFileSync, utimesSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { runImporter } from './import-from-device.js';
+import { markerImportedFilename } from '../src/server/import/marker.js';
+
+function tempCard(): string {
+  return mkdtempSync(join(tmpdir(), 'orch-card-'));
+}
+
+function placeOneStemFolder(card: string, songName: string, mtime: Date): string {
+  const dir = join(card, 'MTR', songName);
+  mkdirSync(dir, { recursive: true });
+  // ... write a minimal RIFF/WAVE file at dir/01_<songName>_TR01.wav with utimesSync for mtime
+  return dir;
+}
+
+it('imports a single-segment folder, writes the imported marker', async () => {
+  const card = tempCard();
+  placeOneStemFolder(card, '260512_0001', new Date(Date.now() - 60 * 60 * 1000));
+
+  const cfg = {
+    device: 'model12',
+    sd_card_path: card,
+    paperstem_url: 'https://paperstem.test',
+    band_id: 'b1',
+  };
+
+  const fetchMock = vi.fn().mockImplementation((url: string, init: RequestInit) => {
+    if (url === 'https://paperstem.test/api/projects' && init.method === 'POST') {
+      return Promise.resolve(
+        new Response(JSON.stringify({ project: { id: 'pr_new' } }), { status: 201 }),
+      );
+    }
+    // ... handle stem upload endpoints
+  });
+
+  const result = await runImporter({
+    config: cfg,
+    token: 'tok',
+    fetchImpl: fetchMock,
+    encodeFn: async ({ outputPath }) => {
+      writeFileSync(outputPath, Buffer.from('fake mp3 bytes'));
+    },
+  });
+
+  expect(result.status).toBe('ok');
+  const dir = join(card, 'MTR', '260512_0001');
+  expect(existsSync(join(dir, markerImportedFilename))).toBe(true);
+});
+```
+
+Key points:
+- `fetchImpl` replaces `globalThis.fetch` for the entire orchestrator run. Route it by `url` + `init.method` and throw on unexpected URLs — this catches silent misrouting.
+- `encodeFn` replaces the real ffmpeg-based MP3 encoder. Writing any non-empty buffer to `outputPath` is sufficient; the orchestrator only checks that the file exists and is non-empty before uploading.
+- `mtime` must be old enough (here, one hour ago) to clear the `stillRecordingThreshold`; otherwise `model12.scan` marks the task `still-recording` and the orchestrator skips it without calling fetch.
+- No env prelude needed: `runImporter` takes all dependencies as explicit parameters and does not import `db.ts` or `mailer.ts`.
+
+#### What to assert
+
+**Parsing tests:** assert the structured output of the parser against the exact input buffer. For `readCuePoints`: the returned array of sample offsets, its sort order, deduplication behavior, and that reserved empty slots (sample_offset=0) are filtered out. For `model12.scan`: the `tasks` array length, each `task.segment` (start/end sample, index), `task.trackPositions`, `task.recordedOn`, `task.defaultProjectName`, and `task.status.kind`.
+
+**Orchestration tests:** assert two things after `runImporter` returns:
+1. `result.status` — `'ok'`, `'no-card'`, etc.
+2. The marker file on disk — `existsSync(join(dir, markerImportedFilename))` is `true`, and the parsed JSON contains the expected `project_id` and a truthy `uploaded_at` for each segment.
+
+For skip-path tests (already-imported marker, still-recording mtime), assert `result.status === 'ok'` and `fetchMock` was never called.
+
+#### What not to do
+
+- **Do not construct ad-hoc byte arrays inline inside an `it` block.** Each parsing test file defines a `buildWav()` helper at the top that produces a well-formed RIFF/WAVE buffer from parameters. Use it. Inlining raw `Buffer.alloc` writes in a test body obscures intent and makes it easy to produce a malformed buffer that the function under test rejects before the assertion is ever reached.
+- **Do not use real ffmpeg in orchestration tests.** `compressToMp3` is injectable via `encodeFn`. Calling the real encoder requires ffmpeg on PATH, takes ~100ms per file, and is already covered by `audio-compress-local.test.ts`. Pass an `encodeFn` stub that writes a placeholder buffer.
+- **Do not omit `utimesSync` when mtime matters.** `model12.scan` uses file mtime to decide `recordedOn` and whether a task is still-recording. If you write a WAV file without setting mtime, the OS assigns the current time, which will trigger the still-recording guard and cause the orchestrator to skip the task silently.
