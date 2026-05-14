@@ -13,6 +13,8 @@ process.env.GOOGLE_CLIENT_ID = 'cid';
 process.env.GOOGLE_CLIENT_SECRET = 'csec';
 process.env.GOOGLE_REFRESH_TOKEN = 'rtok';
 
+import type { AuthVariables } from './middleware.js';
+
 type DbModule = typeof import('../db.js');
 type MiddlewareModule = typeof import('./middleware.js');
 type CookieModule = typeof import('./cookie.js');
@@ -20,14 +22,14 @@ type CookieModule = typeof import('./cookie.js');
 let dbMod: DbModule;
 let middlewareMod: MiddlewareModule;
 let cookieMod: CookieModule;
-let app: import('hono').Hono;
+let app: import('hono').Hono<{ Variables: AuthVariables }>;
 
 beforeAll(async () => {
   dbMod = await import('../db.js');
   middlewareMod = await import('./middleware.js');
   cookieMod = await import('./cookie.js');
   const { Hono } = await import('hono');
-  app = new Hono();
+  app = new Hono<{ Variables: AuthVariables }>();
   app.use('*', middlewareMod.sessionMiddleware);
   app.get('/probe', (c) => {
     return c.json({ user: c.var.user, sessionId: c.var.sessionId });
