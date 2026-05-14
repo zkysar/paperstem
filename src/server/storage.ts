@@ -338,8 +338,6 @@ export async function uploadFile(
   sanitizeSegment(name);
   const root = audioRoot();
   const parentRel = decodeId(parentFolderId);
-  const parentAbs = pathFromRel(root, parentRel);
-  await mkdir(parentAbs, { recursive: true });
   const childRel = parentRel === '' ? name : `${parentRel}/${name}`;
   const abs = pathFromRel(root, childRel);
   let size: number;
