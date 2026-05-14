@@ -21,6 +21,14 @@ type Props = {
   hasProject: boolean;
   isPlaying: boolean;
   loopEnabled: boolean;
+  /**
+   * The loop button has been clicked but no region has been dragged out yet,
+   * so the *next* ruler drag will create a region. Lights the same as
+   * `loopEnabled` (the visual state is "loop is active"), but the tooltip
+   * needs to distinguish so it can say "drag the timeline" rather than
+   * pretending playback is repeating something.
+   */
+  loopArmed?: boolean;
   waveformNormalization: 'per-track' | 'global';
   masterVolume: number;
   currentTime: number;
@@ -51,7 +59,7 @@ type Props = {
 
 export function AppToolbar(props: Props) {
   const {
-    hasProject, isPlaying, loopEnabled,
+    hasProject, isPlaying, loopEnabled, loopArmed = false,
     waveformNormalization, masterVolume, currentTime, duration,
     annotationCreateMode, canCreateAnnotations, markersVisible,
     railCollapsed, showRailToggle, isWide,
@@ -66,10 +74,12 @@ export function AppToolbar(props: Props) {
     <div className="app-toolbar">
       <button type="button" className="atb-btn"
         aria-label="Restart"
+        title="Jump back to the start"
         disabled={!hasProject}
         onClick={() => onSeek(0)}><SkipBack size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" /></button>
       <button type="button" className={'atb-btn play' + (isPlaying ? ' on' : '')}
         aria-label="Play"
+        title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
         disabled={!hasProject}
         onClick={onTogglePlay}>
         {isPlaying
@@ -78,6 +88,11 @@ export function AppToolbar(props: Props) {
       </button>
       <button type="button" className={'atb-btn' + (loopEnabled ? ' loop-on' : '')}
         aria-label="Toggle loop"
+        title={loopArmed
+          ? 'Loop armed — drag on the timeline to set the region. Click here again to cancel.'
+          : loopEnabled
+            ? 'Loop is on — playback repeats the selected region. Click to turn off.'
+            : 'Loop — repeat a region of the song. Click here to arm, then drag on the timeline to set the region.'}
         disabled={!hasProject}
         onClick={onToggleLoopEnabled}><Repeat size={16} strokeWidth={2} aria-hidden="true" /></button>
 
@@ -92,6 +107,7 @@ export function AppToolbar(props: Props) {
       <div className="atb-share-wrap">
         <button type="button" className="atb-btn"
           aria-label="Share link"
+          title="Share link — pick what to include (time, loop, mix, view, comment) before copying"
           disabled={!hasProject}
           onClick={onShare}>
           <Share2 size={16} strokeWidth={2} aria-hidden="true" />
@@ -101,9 +117,12 @@ export function AppToolbar(props: Props) {
 
       <button type="button"
         className={'atb-btn' + (annotationCreateMode ? ' annotate-on' : '')}
-        aria-label="Add annotation"
+        aria-label="Add comment"
         aria-pressed={annotationCreateMode}
         disabled={!canCreateAnnotations}
+        title={annotationCreateMode
+          ? 'Cancel comment mode'
+          : 'Add comment — click the timeline for a point, drag for a region'}
         onClick={onToggleAnnotationCreate}><MessageSquarePlus size={16} strokeWidth={2} aria-hidden="true" /></button>
 
       <span className="atb-divider" />
@@ -216,6 +235,7 @@ function MasterVolumePopover({
         type="button"
         className={'atb-btn' + (masterVolume > VOLUME_UNITY ? ' boosted' : '')}
         aria-label="Master volume"
+        title="Master volume"
         aria-pressed={open}
         onClick={() => setOpen((v) => !v)}
       >
@@ -267,6 +287,7 @@ function MobileZoomPopover({ viewport }: { viewport: ViewportControls }) {
         type="button"
         className="atb-btn"
         aria-label="Zoom"
+        title="Zoom controls"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
@@ -279,6 +300,7 @@ function MobileZoomPopover({ viewport }: { viewport: ViewportControls }) {
             type="button"
             className="atb-btn"
             aria-label="Zoom out"
+            title="Zoom out"
             onClick={() => {
               const sw = getStageWidth();
               viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
@@ -291,6 +313,7 @@ function MobileZoomPopover({ viewport }: { viewport: ViewportControls }) {
             type="button"
             className="atb-btn"
             aria-label="Zoom in"
+            title="Zoom in"
             onClick={() => {
               const sw = getStageWidth();
               viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
@@ -302,6 +325,7 @@ function MobileZoomPopover({ viewport }: { viewport: ViewportControls }) {
             type="button"
             className="atb-btn"
             aria-label="Fit to window"
+            title="Fit the whole song to the window"
             onClick={() => viewport.fitToWindow()}
           >
             <Maximize2 size={16} aria-hidden="true" />

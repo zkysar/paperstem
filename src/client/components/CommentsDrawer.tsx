@@ -89,6 +89,7 @@ export function CommentsDrawer({
               type="button"
               className="cd-back"
               aria-label="Back"
+              title="Back"
               onClick={onClose}
             ><ChevronLeft size={16} strokeWidth={2} aria-hidden="true" /></button>
           )}
@@ -99,6 +100,7 @@ export function CommentsDrawer({
               type="button"
               className="cd-close"
               aria-label="Close"
+              title="Close the comments panel"
               onClick={onClose}
             ><X size={16} strokeWidth={2} aria-hidden="true" /></button>
           )}
@@ -117,6 +119,10 @@ export function CommentsDrawer({
                 if (isSubmitShortcut(e) && draftBody.trim().length > 0) {
                   e.preventDefault();
                   handleSaveDraft();
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  onDraftCancel();
                 }
               }}
             />

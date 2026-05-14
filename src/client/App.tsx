@@ -831,8 +831,9 @@ function PaperstemApp({
       )}
       {player.audioSuppressed && (
         <div className="audio-suppressed-banner" role="status">
-          Audio is being suppressed by your iOS Focus or Do Not Disturb. Turn
-          it off in Control Center to hear playback.
+          Playback hasn't started. On iOS this usually means Focus or Do Not
+          Disturb is suppressing audio — try toggling it off in Control Center.
+          If that's not it, try playing again.
         </div>
       )}
       <AppHeader
@@ -870,6 +871,7 @@ function PaperstemApp({
         hasProject={player.state.stems.length > 0}
         isPlaying={player.state.isPlaying}
         loopEnabled={!!player.state.loop?.enabled || player.state.loopArmed}
+        loopArmed={player.state.loopArmed}
         waveformNormalization={player.state.waveformNormalization}
         masterVolume={player.state.masterVolume}
         currentTime={player.currentTime}

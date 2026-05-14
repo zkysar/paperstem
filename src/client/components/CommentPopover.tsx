@@ -148,6 +148,7 @@ export function CommentPopover({
             type="button"
             className={'cp-iconbtn cp-star' + (annotation.starred ? ' on' : '')}
             aria-label={annotation.starred ? 'Unstar' : 'Star'}
+            title={annotation.starred ? 'Unstar this comment' : 'Star this comment to flag it for review'}
             onClick={(e) => { e.stopPropagation(); onToggleStar(); }}
           >
             <Star size={14} strokeWidth={2} fill={annotation.starred ? 'currentColor' : 'none'} aria-hidden="true" />
@@ -166,6 +167,7 @@ export function CommentPopover({
           type="button"
           className="cp-iconbtn cp-close"
           aria-label="Close"
+          title="Close this comment"
           onClick={(e) => { e.stopPropagation(); onClose(); }}
         >
           <X size={14} strokeWidth={2} aria-hidden="true" />
@@ -210,6 +212,7 @@ export function CommentPopover({
                 type="button"
                 className="cp-iconbtn"
                 aria-label="Edit"
+                title="Edit this comment"
                 onClick={(e) => { e.stopPropagation(); startEdit(); }}
               >
                 <Pencil size={14} strokeWidth={2} aria-hidden="true" />
@@ -218,6 +221,7 @@ export function CommentPopover({
                 type="button"
                 className="cp-iconbtn"
                 aria-label="Delete"
+                title="Delete this comment"
                 onClick={(e) => { e.stopPropagation(); handleDelete(); }}
               >
                 <Trash2 size={14} strokeWidth={2} aria-hidden="true" />

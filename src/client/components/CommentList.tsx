@@ -166,6 +166,7 @@ export function CommentList({
                       type="button"
                       className={'cl-star' + (a.starred ? ' on' : '')}
                       aria-label={a.starred ? 'Unstar' : 'Star'}
+                      title={a.starred ? 'Unstar this comment' : 'Star this comment to flag it for review'}
                       onClick={(e) => { e.stopPropagation(); onToggleStar(a); }}
                     ><Star size={14} strokeWidth={2} fill={a.starred ? 'currentColor' : 'none'} aria-hidden="true" /></button>
                   ) : (
@@ -226,6 +227,7 @@ export function CommentList({
                           type="button"
                           className="cl-iconbtn"
                           aria-label="Edit"
+                          title="Edit this comment"
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditBody(a.body);
@@ -236,6 +238,7 @@ export function CommentList({
                           type="button"
                           className="cl-iconbtn"
                           aria-label="Delete"
+                          title="Delete this comment"
                           onClick={(e) => {
                             e.stopPropagation();
                             if (window.confirm('Delete this comment?')) onDelete(a);
