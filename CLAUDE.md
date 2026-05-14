@@ -46,10 +46,13 @@ The session cookie survives a server restart because sessions are DB-backed.
 
 ### Skipping the magic-link flow in dev
 
-Set `PAPERSTEM_DEV_AUTO_LOGIN=<email>` and the launcher prints a `Dev login:` URL
-under the UI/API lines. Hitting `${UI}/api/auth/dev-login` mints a session for
-that email (creating the user if missing) and 302s to `/`. The route is only
-registered when `NODE_ENV !== 'production'` and the env var is set.
+`npm run dev` defaults `PAPERSTEM_DEV_AUTO_LOGIN` to `dev@paperstem.local`, so
+the launcher always prints a `Dev login:` URL under the UI/API lines and the
+client auto-follows it on first load (via `devLoginUrl` in `/api/me`). Open the
+UI and you're logged in — no magic link, no manual curl. To use a different
+identity, set the env var to that email; to disable, set it to empty
+(`PAPERSTEM_DEV_AUTO_LOGIN= npm run dev`). The route is only registered when
+`NODE_ENV !== 'production'` and the env var is non-empty.
 
 ## Local-folder Drive backend (dev)
 
