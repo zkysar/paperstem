@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { Buffer } from 'node:buffer';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -6,22 +7,20 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 
 const tmpDir = mkdtempSync(join(tmpdir(), 'paperstem-audio-test-'));
 const dbPath = join(tmpDir, 'test.sqlite');
+const audioRoot = join(tmpDir, 'audio');
+mkdirSync(audioRoot, { recursive: true });
 process.env.DATABASE_PATH = dbPath;
+process.env.PAPERSTEM_AUDIO_ROOT = audioRoot;
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
-process.env.GOOGLE_CLIENT_ID = 'cid';
-process.env.GOOGLE_CLIENT_SECRET = 'csec';
-process.env.GOOGLE_REFRESH_TOKEN = 'rtok';
 
 type DbModule = typeof import('./db.js');
 type AudioModule = typeof import('./audio.js');
-type DriveModule = typeof import('./drive.js');
 type MiddlewareModule = typeof import('./auth/middleware.js');
 type CookieModule = typeof import('./auth/cookie.js');
 
 let dbMod: DbModule;
 let audioMod: AudioModule;
-let driveMod: DriveModule;
 let middlewareMod: MiddlewareModule;
 let cookieMod: CookieModule;
 let app: import('hono').Hono;
@@ -29,7 +28,6 @@ let app: import('hono').Hono;
 beforeAll(async () => {
   dbMod = await import('./db.js');
   audioMod = await import('./audio.js');
-  driveMod = await import('./drive.js');
   middlewareMod = await import('./auth/middleware.js');
   cookieMod = await import('./auth/cookie.js');
   const { Hono } = await import('hono');
@@ -42,11 +40,16 @@ afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true });
 });
 
+function encodeId(rel: string): string {
+  return Buffer.from(rel, 'utf8').toString('base64url');
+}
+
 function reset() {
   dbMod.db.exec(
     'DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
-  driveMod._resetTokenCacheForTests();
+  rmSync(audioRoot, { recursive: true, force: true });
+  mkdirSync(audioRoot, { recursive: true });
   vi.restoreAllMocks();
 }
 
@@ -59,31 +62,40 @@ function createUser(email: string): string {
 function createBand(name: string, ownerId: string): string {
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  dbMod.stmts.insertBand.run(id, name, 'drive-folder-x', ownerId, now);
+  dbMod.stmts.insertBand.run(id, name, encodeId(name), ownerId, now);
   dbMod.stmts.insertMembership.run(id, ownerId, 'owner', now);
   return id;
 }
 
-function createProjectAndStem(bandId: string, ownerId: string): {
-  projectId: string;
-  stemId: string;
-} {
+function createProjectAndStem(
+  bandFolderName: string,
+  bandId: string,
+  ownerId: string,
+  options: { contents?: Buffer; createFile?: boolean } = {},
+): { projectId: string; stemId: string; fileId: string; rel: string } {
+  const { contents = Buffer.from('AUDIODATA'), createFile = true } = options;
+  const stemRel = `${bandFolderName}/p1/drums.mp3`;
+  if (createFile) {
+    mkdirSync(join(audioRoot, bandFolderName, 'p1'), { recursive: true });
+    writeFileSync(join(audioRoot, stemRel), contents);
+  }
   const projectId = randomUUID();
   const stemId = randomUUID();
+  const fileId = encodeId(stemRel);
   const now = Math.floor(Date.now() / 1000);
   dbMod.stmts.insertProject.run(
     projectId,
     bandId,
     'project-1',
     null,
-    'project-folder',
+    encodeId(`${bandFolderName}/p1`),
     null,
     now,
     ownerId,
     now,
   );
-  dbMod.stmts.insertStem.run(stemId, projectId, 'drums', 0, 'drive-file-abc', null, 1024, null);
-  return { projectId, stemId };
+  dbMod.stmts.insertStem.run(stemId, projectId, 'drums', 0, fileId, null, contents.length, null);
+  return { projectId, stemId, fileId, rel: stemRel };
 }
 
 function createSession(userId: string): string {
@@ -111,9 +123,8 @@ describe('GET /api/audio/:stem_id', () => {
     const owner = createUser('owner@example.com');
     const stranger = createUser('stranger@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createProjectAndStem(bandId, owner);
+    const { stemId } = createProjectAndStem('Alpha', bandId, owner);
 
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const sid = createSession(stranger);
     const res = await app.fetch(
       new Request(`http://x/api/audio/${stemId}`, {
@@ -121,7 +132,6 @@ describe('GET /api/audio/:stem_id', () => {
       }),
     );
     expect(res.status).toBe(404);
-    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('returns 404 for missing stem', async () => {
@@ -135,38 +145,11 @@ describe('GET /api/audio/:stem_id', () => {
     expect(res.status).toBe(404);
   });
 
-  it('forwards Drive bytes and headers for members', async () => {
+  it('forwards audio bytes and headers for members, supporting Range', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createProjectAndStem(bandId, owner);
-
-    vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
-      const url = typeof input === 'string' ? input : (input as Request).url;
-      if (url.startsWith('https://oauth2.googleapis.com/token')) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
-            { status: 200, headers: { 'Content-Type': 'application/json' } },
-          ),
-        );
-      }
-      if (url.includes('/drive/v3/files/drive-file-abc')) {
-        const headersInit = init?.headers as Record<string, string> | undefined;
-        const ranged = headersInit && 'Range' in headersInit;
-        return Promise.resolve(
-          new Response('AUDIODATA', {
-            status: ranged ? 206 : 200,
-            headers: {
-              'Content-Type': 'audio/mpeg',
-              'Content-Length': '9',
-              'Accept-Ranges': 'bytes',
-              ...(ranged ? { 'Content-Range': 'bytes 0-8/9' } : {}),
-            },
-          }),
-        );
-      }
-      throw new Error(`unexpected fetch ${url}`);
-    });
+    const body = Buffer.from('AUDIODATA');
+    const { stemId } = createProjectAndStem('Alpha', bandId, owner, { contents: body });
 
     const sid = createSession(owner);
     const res = await app.fetch(
@@ -176,33 +159,20 @@ describe('GET /api/audio/:stem_id', () => {
     );
     expect(res.status).toBe(206);
     expect(res.headers.get('content-type')).toBe('audio/mpeg');
-    expect(res.headers.get('content-range')).toBe('bytes 0-8/9');
+    expect(res.headers.get('content-range')).toBe(`bytes 0-8/${body.length}`);
     expect(res.headers.get('cache-control')).toBe(
       'private, max-age=31536000, immutable',
     );
-    const body = await res.text();
-    expect(body).toBe('AUDIODATA');
+    const got = await res.text();
+    expect(got).toBe('AUDIODATA');
   });
 
-  it('marks the stem as drive_missing when Drive returns 404', async () => {
+  it('marks the stem as drive_missing when the file is gone', async () => {
     const owner = createUser('alice@example.com');
     const bandId = createBand('B', owner);
     const sid = createSession(owner);
-    const { stemId } = createProjectAndStem(bandId, owner);
+    const { stemId } = createProjectAndStem('B', bandId, owner, { createFile: false });
 
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = typeof input === 'string' ? input : (input as Request).url;
-      if (url.startsWith('https://oauth2.googleapis.com/token')) {
-        return new Response(
-          JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
-          {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        );
-      }
-      return new Response('not found', { status: 404 });
-    });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const res = await app.fetch(
@@ -223,23 +193,15 @@ describe('GET /api/audio/:stem_id', () => {
     expect(row.deleted_reason).toBe('drive_missing');
   });
 
-  it('returns 502 when Drive errors', async () => {
+  it('returns 502 when storage errors unexpectedly', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
-    const { stemId } = createProjectAndStem(bandId, owner);
+    const { stemId, rel } = createProjectAndStem('Alpha', bandId, owner);
+    // Replace the file with a directory at the same path so stat().isFile() returns false
+    // and storage throws a non-NotFound error.
+    rmSync(join(audioRoot, rel));
+    mkdirSync(join(audioRoot, rel));
 
-    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
-      const url = typeof input === 'string' ? input : (input as Request).url;
-      if (url.startsWith('https://oauth2.googleapis.com/token')) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
-            { status: 200 },
-          ),
-        );
-      }
-      return Promise.resolve(new Response('boom', { status: 500 }));
-    });
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const sid = createSession(owner);

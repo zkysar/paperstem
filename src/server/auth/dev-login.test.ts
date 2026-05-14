@@ -7,9 +7,6 @@ const tmpDir = mkdtempSync(join(tmpdir(), 'paperstem-dev-login-test-'));
 process.env.DATABASE_PATH = join(tmpDir, 'test.sqlite');
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
-process.env.GOOGLE_CLIENT_ID = 'cid';
-process.env.GOOGLE_CLIENT_SECRET = 'csec';
-process.env.GOOGLE_REFRESH_TOKEN = 'rtok';
 
 type DbModule = typeof import('../db.js');
 type DevLoginModule = typeof import('./dev-login.js');

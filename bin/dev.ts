@@ -24,13 +24,10 @@ const apiPort = await getFreePort();
 const vitePort = await getFreePort();
 if (apiPort === vitePort) throw new Error('dev.ts: collision picking free ports');
 
-const localDriveRoot =
-  process.env.PAPERSTEM_LOCAL_DRIVE_ROOT === undefined
-    ? resolve(process.cwd(), 'drive-dev')
-    : process.env.PAPERSTEM_LOCAL_DRIVE_ROOT;
-if (localDriveRoot.trim()) {
-  mkdirSync(localDriveRoot, { recursive: true });
-}
+const audioRoot =
+  process.env.PAPERSTEM_AUDIO_ROOT?.trim() ||
+  resolve(process.cwd(), 'audio-dev');
+mkdirSync(audioRoot, { recursive: true });
 
 const devLoginEmail =
   process.env.PAPERSTEM_DEV_AUTO_LOGIN === undefined
@@ -43,7 +40,7 @@ const env: NodeJS.ProcessEnv = {
   PAPERSTEM_API_PORT: String(apiPort),
   PAPERSTEM_VITE_PORT: String(vitePort),
   APP_URL: `http://localhost:${vitePort}`,
-  PAPERSTEM_LOCAL_DRIVE_ROOT: localDriveRoot,
+  PAPERSTEM_AUDIO_ROOT: audioRoot,
   PAPERSTEM_DEV_AUTO_LOGIN: devLoginEmail,
 };
 
@@ -52,14 +49,11 @@ const uiUrl = `http://localhost:${vitePort}`;
 const devLoginLine = devLoginEmail
   ? `    Dev login (${devLoginEmail}): ${uiUrl}/api/auth/dev-login\n`
   : '';
-const driveLine = localDriveRoot.trim()
-  ? `    Drive: local folder ${localDriveRoot}\n`
-  : `    Drive: GOOGLE (PAPERSTEM_LOCAL_DRIVE_ROOT explicitly empty)\n`;
 process.stdout.write(
   `\n  paperstem dev\n` +
     `    UI:  ${uiUrl}\n` +
     `    API: ${apiUrl}\n` +
-    driveLine +
+    `    Audio: ${audioRoot}\n` +
     devLoginLine +
     `\n`,
 );

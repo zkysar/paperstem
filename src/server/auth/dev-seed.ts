@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { stmts } from '../db.js';
-import { createFolder, findFolderByName, uploadFile } from '../drive.js';
+import { createFolder, findFolderByName, uploadFile } from '../storage.js';
 import { isDevLoginEnabled } from './dev-login.js';
 
 const DEFAULT_BAND_NAME = 'Dev Band';
@@ -44,7 +44,7 @@ export async function seedDevBandIfNeeded(): Promise<void> {
   stmts.insertMembership.run(bandId, user.id, 'owner', nowSec);
 
   console.log(
-    `[dev-seed] created band '${bandName}' (${bandId}) for ${email}, drive=${bandFolder.id}`,
+    `[dev-seed] created band '${bandName}' (${bandId}) for ${email}, folder=${bandFolder.id}`,
   );
 
   await seedSampleProject(bandId, bandFolder.id, user.id, nowSec);

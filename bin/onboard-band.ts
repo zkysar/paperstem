@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { db, stmts } from '../src/server/db.js';
 import { sendBandInvite } from '../src/server/mailer.js';
+import { createFolder } from '../src/server/storage.js';
 
 const MAGIC_LINK_TTL_SECONDS = 15 * 60;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -9,7 +10,6 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const { values } = parseArgs({
   options: {
     name: { type: 'string' },
-    'drive-folder-id': { type: 'string' },
     'owner-email': { type: 'string' },
     'member-emails': { type: 'string' },
   },
@@ -17,13 +17,12 @@ const { values } = parseArgs({
 });
 
 const name = values.name?.trim();
-const driveFolderId = values['drive-folder-id']?.trim();
 const ownerEmailRaw = values['owner-email']?.trim().toLowerCase();
 const memberEmailsRaw = values['member-emails']?.trim() ?? '';
 
-if (!name || !driveFolderId || !ownerEmailRaw) {
+if (!name || !ownerEmailRaw) {
   console.error(
-    'Usage: tsx bin/onboard-band.ts --name <name> --drive-folder-id <id> --owner-email <email> [--member-emails <a@x,b@y>]',
+    'Usage: tsx bin/onboard-band.ts --name <name> --owner-email <email> [--member-emails <a@x,b@y>]',
   );
   process.exit(1);
 }
@@ -59,6 +58,17 @@ function upsertUser(email: string): string {
   return id;
 }
 
+let folder: { id: string };
+try {
+  folder = await createFolder(name!);
+} catch (err) {
+  console.error(
+    `[onboard-band] createFolder failed:`,
+    err instanceof Error ? err.message : String(err),
+  );
+  process.exit(1);
+}
+
 const seedBand = db.transaction(() => {
   const ownerId = upsertUser(ownerEmailRaw!);
 
@@ -77,7 +87,7 @@ const seedBand = db.transaction(() => {
 
   const bandId = randomUUID();
   const createdAt = Math.floor(Date.now() / 1000);
-  stmts.insertBand.run(bandId, name!, driveFolderId!, ownerId, createdAt);
+  stmts.insertBand.run(bandId, name!, folder.id, ownerId, createdAt);
 
   stmts.insertMembership.run(bandId, ownerId, 'owner', createdAt);
   for (const m of memberIds) {

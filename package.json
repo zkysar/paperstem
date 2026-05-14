@@ -19,7 +19,6 @@
     "add-user": "tsx bin/add-user.ts",
     "onboard-band": "scripts/onboard-band.sh",
     "seed-project": "scripts/seed-project.sh",
-    "backfill-band-folder": "scripts/backfill-band-folder.sh",
     "run-job": "scripts/run-job.sh"
   },
   "dependencies": {

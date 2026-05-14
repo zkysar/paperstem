@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { basename, extname, isAbsolute, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { stmts } from '../src/server/db.js';
-import { createFolder, uploadFile } from '../src/server/drive.js';
+import { createFolder, uploadFile } from '../src/server/storage.js';
 
 const MIME_BY_EXT: Record<string, string> = {
   '.mp3': 'audio/mpeg',
@@ -53,21 +53,13 @@ if (!band) {
   console.error(`Band not found: ${bandId}`);
   process.exit(1);
 }
-if (band.drive_folder_id.startsWith('PENDING_')) {
-  console.error(
-    `Band ${band.id} has placeholder drive_folder_id (${band.drive_folder_id}); ` +
-      `run backfill-band-folder first`,
-  );
-  process.exit(1);
-}
-
 const owner = stmts.findUserById.get(band.owner_user_id);
 if (!owner) {
   console.error(`Owner user not found: ${band.owner_user_id}`);
   process.exit(1);
 }
 
-const projectFolder = await createFolder(projectName, band.drive_folder_id);
+const projectFolder = await createFolder(projectName, band.folder_id);
 console.log(`created project folder ${projectName} (${projectFolder.id})`);
 
 const projectId = randomUUID();
@@ -110,7 +102,7 @@ for (let i = 0; i < filePaths.length; i++) {
     null,
   );
   console.log(
-    `uploaded ${filename} (${uploaded.size} bytes) -> drive=${uploaded.id} stem=${stemId}`,
+    `uploaded ${filename} (${uploaded.size} bytes) -> file=${uploaded.id} stem=${stemId}`,
   );
   stemSummaries.push({ id: stemId, name: stemName, size: uploaded.size });
 }
