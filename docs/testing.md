@@ -43,40 +43,37 @@ Prefer inline literals or small helper builders over fixture files. The repo cur
 
 ### Server route handlers
 
-**Canonical example:** `src/server/projects.test.ts`. It exercises read, rename, soft-delete, and restore endpoints; uses Drive mocking; calls `_resetTokenCacheForTests`; and shows every helper factory in use. It is the most self-contained and broadly representative file in the category.
+**Canonical example:** `src/server/projects.test.ts`. It exercises list, get, rename, soft-delete, and restore endpoints; shows every helper factory and the `PAPERSTEM_AUDIO_ROOT` env setup for filesystem-backed tests; and covers both happy-path and auth-guard cases with no external service dependencies. It is the most self-contained and broadly representative file in the category.
 
 > **Note:** `src/server/onboard-band.test.ts` lives in this directory but is a bin-script test, not a route-handler test — it spawns a subprocess via `spawnSync` and never constructs a Hono `app`. See [Bin scripts](#bin-scripts).
 
 #### Harness setup
 
 ```typescript
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-// ---- env prelude (must happen before any import of db.ts / drive.ts / mailer.ts) ----
+// ---- env prelude (must happen before any import of db.ts / mailer.ts / storage.ts) ----
 const tmpDir = mkdtempSync(join(tmpdir(), 'paperstem-myroute-test-'));
 const dbPath = join(tmpDir, 'test.sqlite');
+const audioRoot = join(tmpDir, 'audio');
+mkdirSync(audioRoot, { recursive: true });
 process.env.DATABASE_PATH = dbPath;
+process.env.PAPERSTEM_AUDIO_ROOT = audioRoot;
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
-// Only needed when the route under test calls Drive:
-process.env.GOOGLE_CLIENT_ID = 'cid';
-process.env.GOOGLE_CLIENT_SECRET = 'csec';
-process.env.GOOGLE_REFRESH_TOKEN = 'rtok';
 
 // ---- module-level type aliases (avoids repeated typeof import) ----
 type DbModule = typeof import('./db.js');
 type MyRouteModule = typeof import('./my-route.js');
-type DriveModule = typeof import('./drive.js');
 type MiddlewareModule = typeof import('./auth/middleware.js');
 type CookieModule = typeof import('./auth/cookie.js');
 
 let dbMod: DbModule;
 let myRouteMod: MyRouteModule;
-let driveMod: DriveModule;
 let middlewareMod: MiddlewareModule;
 let cookieMod: CookieModule;
 let app: import('hono').Hono;
@@ -85,7 +82,6 @@ let app: import('hono').Hono;
 beforeAll(async () => {
   dbMod = await import('./db.js');
   myRouteMod = await import('./my-route.js');
-  driveMod = await import('./drive.js');
   middlewareMod = await import('./auth/middleware.js');
   cookieMod = await import('./auth/cookie.js');
   const { Hono } = await import('hono');
@@ -101,7 +97,7 @@ afterAll(() => {
 });
 ```
 
-**Why dynamic imports?** `db.ts`, `drive.ts`, and `mailer.ts` all read env vars at module initialisation time. If they are imported before `process.env.DATABASE_PATH` (and the Google/Gmail vars) are set, they will throw or open the wrong database. Setting env vars first and importing inside `beforeAll` is the only safe ordering in vitest's node environment.
+**Why dynamic imports?** `db.ts` and `mailer.ts` both read env vars at module initialisation time. If they are imported before `process.env.DATABASE_PATH` (and the Gmail vars) are set, they will throw or open the wrong database. Setting env vars first and importing inside `beforeAll` is the only safe ordering in vitest's node environment.
 
 #### Helper factories
 
@@ -123,8 +119,8 @@ function reset() {
   dbMod.db.exec(
     'DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
-  driveMod._resetTokenCacheForTests();
-  vi.restoreAllMocks();
+  rmSync(audioRoot, { recursive: true, force: true });
+  mkdirSync(audioRoot, { recursive: true });
 }
 
 beforeEach(() => {
@@ -134,36 +130,14 @@ beforeEach(() => {
 
 The DELETE order matters: child tables before parents (foreign keys are enforced). `sessions` and `magic_links` are cleared even when a test does not exercise auth flows — leftover sessions from a previous test could accidentally authenticate a request in the next one. `memberships` is cleared before `bands` and `users` for the same reason.
 
-`vi.restoreAllMocks()` undoes any `vi.spyOn(globalThis, 'fetch')` calls from the previous test so mock implementations do not bleed across tests.
-
-#### Drive mock convention
-
-Tests that exercise routes that call the Drive API mock `globalThis.fetch` with `vi.spyOn`:
-
-```typescript
-vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
-  const url = typeof input === 'string' ? input : (input as Request).url;
-  if (url.startsWith('https://oauth2.googleapis.com/token')) {
-    return new Response(
-      JSON.stringify({ access_token: 'tok', expires_in: 3600 }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
-  // ... handle other Drive URLs or return a stub response
-  return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
-});
-```
-
-`driveMod._resetTokenCacheForTests()` clears the in-memory OAuth token cache that `drive.ts` maintains. Without it, a token fetched (or mocked) in one test would be reused in the next, potentially defeating the spy. It is called in `reset()` alongside `vi.restoreAllMocks()`.
-
-> **Sunset note:** `_resetTokenCacheForTests` and the `vi.spyOn(globalThis, 'fetch')` pattern for Drive are temporary. Drive is being removed from the codebase; once that work lands, both the Drive mock setup and the `_resetTokenCacheForTests` call in `reset()` will be deleted from all route-handler tests.
+`reset()` also wipes and recreates the `audioRoot` directory so on-disk state from a previous test (renamed folders, trashed items) does not leak into the next one.
 
 #### What to assert
 
 Assert **status code first**, then **parse the JSON body** and check its shape:
 
 ```typescript
-// From projects.test.ts — happy-path rename
+// From projects.test.ts — happy-path rename (checks HTTP response + DB + filesystem)
 const res = await app.fetch(
   new Request(`http://localhost/api/projects/${pid}`, {
     method: 'PATCH',
@@ -178,8 +152,10 @@ expect(res.status).toBe(200);
 const body = (await res.json()) as { ok: boolean; name: string };
 expect(body).toMatchObject({ ok: true, name: 'new name' });
 
-// From projects.test.ts — non-member gets 404, no Drive call happens
-const fetchSpy = vi.spyOn(globalThis, 'fetch');
+// From projects.test.ts — confirm filesystem side-effect
+expect(existsSync(join(audioRoot, 'Alpha', 'new name'))).toBe(true);
+
+// From projects.test.ts — non-member gets 404, disk untouched
 const res = await app.fetch(
   new Request(`http://localhost/api/projects/${pid}`, {
     method: 'PATCH',
@@ -188,23 +164,24 @@ const res = await app.fetch(
   }),
 );
 expect(res.status).toBe(404);
-expect(fetchSpy).not.toHaveBeenCalled();
+expect(existsSync(join(audioRoot, folderRel))).toBe(true);
 ```
 
-Use `toMatchObject` when you want to check a subset of fields; use `toEqual` when you want an exact match. For security-sensitive responses, confirm that internal fields like `drive_file_id` are absent from the serialised response body rather than just from the typed object.
+Use `toMatchObject` when you want to check a subset of fields; use `toEqual` when you want an exact match. For security-sensitive responses, confirm that internal fields like `file_id` are absent from the serialised response body rather than just from the typed object.
 
 #### What not to do
 
-No significant anti-patterns were spotted across the nine files. A few minor notes:
+No significant anti-patterns were spotted across the route-handler test files. One minor note:
 
 - `bands.test.ts` names its reset function `resetTables()` instead of `reset()`. This is cosmetic but inconsistent with the other files; prefer `reset()` for uniformity.
-- `annotations.test.ts` omits `driveMod._resetTokenCacheForTests()` and `vi.restoreAllMocks()` from its `reset()` — acceptable because annotations routes never call Drive, but it means the function signature diverges from the canonical pattern. If Drive calls are ever added to annotations, the omission will be easy to miss.
 
 ### Server libs
 
 **Canonical example:** `src/server/auth/rate-limit.test.ts`. It is the purest example in the category: a plain import, no DB, no Hono app, no `beforeEach`/`afterEach` setup, just `describe`/`it` with direct assertions against a single class.
 
-Pure-function server modules are uncommon in this codebase — most `src/server/*.ts` is exposed through a Hono handler and shows up under [Server route handlers](#server-route-handlers) instead. The auth helpers (`rate-limit.ts`, `cookie.ts`) are the main exceptions.
+Pure-function server modules are uncommon in this codebase — most `src/server/*.ts` is exposed through a Hono handler and shows up under [Server route handlers](#server-route-handlers) instead. The auth helpers (`rate-limit.ts`, `cookie.ts`) and `storage.ts` are the main exceptions.
+
+`src/server/storage.test.ts` is a representative example for modules that are filesystem-backed rather than pure: each test uses `beforeEach`/`afterEach` to create a fresh `mkdtemp` directory, sets `process.env.PAPERSTEM_AUDIO_ROOT` to that directory, and calls storage functions directly (no Hono app, no DB). The approach is otherwise identical to a pure lib test — no dynamic imports needed because `storage.ts` reads `PAPERSTEM_AUDIO_ROOT` inside each function call, not at module load time.
 
 #### Harness setup
 
@@ -247,7 +224,7 @@ Where the class accepts an injectable clock (`() => now`), use it — it removes
 
 #### What not to do
 
-Don't reach for mocks or fakes when the function is pure. If the unit you're testing is not pure — it calls the DB, calls Drive, or handles HTTP — it belongs in another category:
+Don't reach for mocks or fakes when the function is pure. If the unit you're testing is not pure — it calls the DB, reads/writes the filesystem, or handles HTTP — it belongs in another category:
 
 - Has a `c: Context` parameter and returns a `Response`? Route handler.
 - Runs in a scheduler loop, reads from DB, writes back? Job.
@@ -439,9 +416,6 @@ const dbPath = join(tmpDir, 'test.sqlite');
 process.env.DATABASE_PATH = dbPath;
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
-process.env.GOOGLE_CLIENT_ID = 'cid';
-process.env.GOOGLE_CLIENT_SECRET = 'csec';
-process.env.GOOGLE_REFRESH_TOKEN = 'rtok';
 
 type DbModule    = typeof import('../db.js');
 type BackupsMod  = typeof import('./backups.js');
@@ -526,7 +500,7 @@ export async function runSnapshotsNow(): Promise<void> {
 }
 ```
 
-If you add a test for the job entry point (`runSnapshotsNow`, `runBackupsNow`), assert idempotency explicitly: calling the function twice in rapid succession should result in only one execution, not two. The simplest assertion is a spy on a downstream call (e.g. `vi.spyOn(driveMod, 'uploadFile')`) confirming it is invoked only once even when the function is called concurrently.
+If you add a test for the job entry point (`runSnapshotsNow`, `runBackupsNow`), assert idempotency explicitly: calling the function twice in rapid succession should result in only one execution, not two. The simplest assertion is a spy on a downstream call (e.g. `vi.spyOn(storageMod, 'uploadFile')`) confirming it is invoked only once even when the function is called concurrently.
 
 #### What not to do
 
