@@ -35,6 +35,12 @@ import {
   createAnnotation,
   patchAnnotation,
   deleteAnnotation,
+  addReaction,
+  createReply as createReplyApi,
+  deleteReply as deleteReplyApi,
+  listReplies,
+  patchReply as patchReplyApi,
+  removeReaction,
 } from './data/annotations-repo';
 import { HttpProjectsRepo, type ProjectsRepo } from './data/projects-repo';
 import type { Project, StemSource, TrashList } from './data/types';
@@ -45,7 +51,13 @@ import { usePlayer } from './hooks/usePlayer';
 import { useViewport } from './hooks/useViewport';
 import { buildUserColorMap } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
-import type { Annotation, User } from '../shared/types';
+import type {
+  Annotation,
+  AnnotationReply,
+  Reaction,
+  ReactionTarget,
+  User,
+} from '../shared/types';
 
 const UPLOAD_MIN_VIEWPORT_PX = 720;
 
@@ -146,6 +158,9 @@ function PaperstemApp({
   // around so "Save to band" can hand them to UploadDrawer for promotion.
   const [draftFiles, setDraftFiles] = useState<File[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [replies, setReplies] = useState<Map<string, AnnotationReply[]>>(
+    () => new Map(),
+  );
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [annotationCreateMode, setAnnotationCreateMode] = useState(false);
   const [markersVisible, setMarkersVisible] = useState(true);
@@ -749,6 +764,203 @@ function PaperstemApp({
     setPendingDraft(null);
   }
 
+  async function loadReplies(annotationId: string): Promise<void> {
+    if (replies.has(annotationId)) return;
+    try {
+      const fetched = await listReplies(annotationId);
+      setReplies((m) => {
+        const next = new Map(m);
+        next.set(annotationId, fetched);
+        return next;
+      });
+    } catch (err) {
+      console.error('loadReplies failed', err);
+    }
+  }
+
+  async function createReply(
+    annotationId: string,
+    body: string,
+  ): Promise<void> {
+    const reply = await createReplyApi(annotationId, body);
+    setReplies((m) => {
+      const next = new Map(m);
+      next.set(annotationId, [...(next.get(annotationId) ?? []), reply]);
+      return next;
+    });
+    setAnnotations((list) =>
+      list.map((a) =>
+        a.id === annotationId ? { ...a, reply_count: a.reply_count + 1 } : a,
+      ),
+    );
+  }
+
+  async function editReply(replyId: string, body: string): Promise<void> {
+    const updated = await patchReplyApi(replyId, body);
+    setReplies((m) => {
+      const next = new Map(m);
+      const arr = next.get(updated.annotation_id);
+      if (arr) {
+        next.set(
+          updated.annotation_id,
+          arr.map((r) => (r.id === replyId ? updated : r)),
+        );
+      }
+      return next;
+    });
+  }
+
+  async function deleteReply(annotationId: string, replyId: string): Promise<void> {
+    await deleteReplyApi(replyId);
+    setReplies((m) => {
+      const next = new Map(m);
+      const arr = next.get(annotationId);
+      if (arr) next.set(annotationId, arr.filter((r) => r.id !== replyId));
+      return next;
+    });
+    setAnnotations((list) =>
+      list.map((a) =>
+        a.id === annotationId
+          ? { ...a, reply_count: Math.max(0, a.reply_count - 1) }
+          : a,
+      ),
+    );
+  }
+
+  function applyReactionDelta(
+    reactions: Reaction[],
+    emoji: string,
+    selfUserId: string,
+    delta: 1 | -1,
+  ): Reaction[] {
+    const existing = reactions.find((r) => r.emoji === emoji);
+    if (delta === 1) {
+      if (existing && existing.reacted_by_self) return reactions;
+      if (existing) {
+        return reactions.map((r) =>
+          r.emoji === emoji
+            ? {
+                ...r,
+                count: r.count + 1,
+                user_ids: [...r.user_ids, selfUserId],
+                reacted_by_self: true,
+              }
+            : r,
+        );
+      }
+      return [
+        ...reactions,
+        {
+          emoji,
+          count: 1,
+          user_ids: [selfUserId],
+          reacted_by_self: true,
+        },
+      ];
+    }
+    if (!existing || !existing.reacted_by_self) return reactions;
+    if (existing.count === 1) return reactions.filter((r) => r.emoji !== emoji);
+    return reactions.map((r) =>
+      r.emoji === emoji
+        ? {
+            ...r,
+            count: r.count - 1,
+            user_ids: r.user_ids.filter((u) => u !== selfUserId),
+            reacted_by_self: false,
+          }
+        : r,
+    );
+  }
+
+  async function toggleReaction(
+    target: ReactionTarget,
+    emoji: string,
+  ): Promise<void> {
+    const selfId = user.id;
+
+    let isOn = false;
+    if (target.kind === 'annotation') {
+      const a = annotations.find((x) => x.id === target.id);
+      isOn = !!a?.reactions.find(
+        (r) => r.emoji === emoji && r.reacted_by_self,
+      );
+    } else {
+      for (const arr of replies.values()) {
+        const r = arr.find((x) => x.id === target.id);
+        if (r) {
+          isOn = !!r.reactions.find(
+            (x) => x.emoji === emoji && x.reacted_by_self,
+          );
+          break;
+        }
+      }
+    }
+    const delta: 1 | -1 = isOn ? -1 : 1;
+
+    if (target.kind === 'annotation') {
+      setAnnotations((list) =>
+        list.map((a) =>
+          a.id === target.id
+            ? { ...a, reactions: applyReactionDelta(a.reactions, emoji, selfId, delta) }
+            : a,
+        ),
+      );
+    } else {
+      setReplies((m) => {
+        const next = new Map(m);
+        for (const [annId, arr] of next.entries()) {
+          if (arr.some((r) => r.id === target.id)) {
+            next.set(
+              annId,
+              arr.map((r) =>
+                r.id === target.id
+                  ? { ...r, reactions: applyReactionDelta(r.reactions, emoji, selfId, delta) }
+                  : r,
+              ),
+            );
+            break;
+          }
+        }
+        return next;
+      });
+    }
+
+    try {
+      if (delta === 1) await addReaction(target, emoji);
+      else await removeReaction(target, emoji);
+    } catch (err) {
+      const roll: 1 | -1 = delta === 1 ? -1 : 1;
+      if (target.kind === 'annotation') {
+        setAnnotations((list) =>
+          list.map((a) =>
+            a.id === target.id
+              ? { ...a, reactions: applyReactionDelta(a.reactions, emoji, selfId, roll) }
+              : a,
+          ),
+        );
+      } else {
+        setReplies((m) => {
+          const next = new Map(m);
+          for (const [annId, arr] of next.entries()) {
+            if (arr.some((r) => r.id === target.id)) {
+              next.set(
+                annId,
+                arr.map((r) =>
+                  r.id === target.id
+                    ? { ...r, reactions: applyReactionDelta(r.reactions, emoji, selfId, roll) }
+                    : r,
+                ),
+              );
+              break;
+            }
+          }
+          return next;
+        });
+      }
+      console.error('toggleReaction failed', err);
+    }
+  }
+
   function loadFolder(files: File[], folderName: string) {
     if (!files.length) {
       setDraftFiles([]);
@@ -959,6 +1171,12 @@ function PaperstemApp({
                 onSaveEdit={(a, body) => void handleSaveEdit(a, body)}
                 onDelete={(a) => void handleDelete(a)}
                 onCopyLink={(a) => void handleCopyCommentLink(a)}
+                replies={replies}
+                onLoadReplies={loadReplies}
+                onCreateReply={createReply}
+                onEditReply={editReply}
+                onDeleteReply={deleteReply}
+                onToggleReaction={toggleReaction}
               />
               {!drawerOpen && (
                 <CommentsFab
@@ -984,6 +1202,13 @@ function PaperstemApp({
                     onDelete={() => void handleDelete(active)}
                     onCopyLink={() => void handleCopyCommentLink(active)}
                     onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
+                    replies={replies.get(active.id)}
+                    replyCount={active.reply_count}
+                    onLoadReplies={loadReplies}
+                    onCreateReply={createReply}
+                    onEditReply={editReply}
+                    onDeleteReply={deleteReply}
+                    onToggleReaction={toggleReaction}
                   />,
                   document.body,
                 )}
@@ -1010,6 +1235,13 @@ function PaperstemApp({
                         onSaveEdit={(body) => void handleSaveEdit(active, body)}
                         onDelete={() => void handleDelete(active)}
                         onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
+                        replies={replies.get(active.id)}
+                        replyCount={active.reply_count}
+                        onLoadReplies={loadReplies}
+                        onCreateReply={createReply}
+                        onEditReply={editReply}
+                        onDeleteReply={deleteReply}
+                        onToggleReaction={toggleReaction}
                       />
                     );
                   })(),
