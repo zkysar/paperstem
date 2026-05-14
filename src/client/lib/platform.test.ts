@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { keyGlyph, isMac } from './platform';
+import { keyGlyph, isMac, isIOS } from './platform';
+
+function setNav(props: Partial<{ platform: string; userAgent: string; maxTouchPoints: number }>) {
+  for (const [k, v] of Object.entries(props)) {
+    Object.defineProperty(navigator, k, { value: v, configurable: true });
+  }
+}
 
 describe('keyGlyph', () => {
   it('renders Mac glyphs when forceMac=true', () => {
@@ -42,5 +48,53 @@ describe('isMac', () => {
       value: orig,
       configurable: true,
     });
+  });
+});
+
+describe('isIOS', () => {
+  const orig = {
+    platform: navigator.platform,
+    userAgent: navigator.userAgent,
+    maxTouchPoints: navigator.maxTouchPoints,
+  };
+
+  function restore() {
+    setNav(orig);
+  }
+
+  it('returns true for iPhone userAgent', () => {
+    setNav({
+      platform: 'iPhone',
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+      maxTouchPoints: 5,
+    });
+    expect(isIOS()).toBe(true);
+    restore();
+  });
+
+  it('returns true for iPadOS masquerading as Mac', () => {
+    setNav({
+      platform: 'MacIntel',
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15',
+      maxTouchPoints: 5,
+    });
+    expect(isIOS()).toBe(true);
+    restore();
+  });
+
+  it('returns false on macOS (no touch)', () => {
+    setNav({
+      platform: 'MacIntel',
+      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15',
+      maxTouchPoints: 0,
+    });
+    expect(isIOS()).toBe(false);
+    restore();
+  });
+
+  it('returns false on Windows', () => {
+    setNav({ platform: 'Win32', userAgent: 'Mozilla/5.0 (Windows NT 10.0)', maxTouchPoints: 0 });
+    expect(isIOS()).toBe(false);
+    restore();
   });
 });
