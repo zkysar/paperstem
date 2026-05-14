@@ -1259,17 +1259,6 @@ button.track-name:disabled { cursor: default; }
   padding: 9px 16px;
   font-size: var(--fs-md);
 }
-.ah-files {
-  width: 28px; height: 28px;
-  background: var(--rule-2);
-  border: 1px solid var(--rule);
-  border-radius: 5px;
-  color: var(--ink);
-  display: inline-flex; align-items: center; justify-content: center;
-  cursor: pointer;
-  padding: 0;
-}
-.ah-files:hover { background: var(--accent-tint); }
 .ah-brand {
   font-family: var(--font-display);
   font-weight: var(--fw-bold);

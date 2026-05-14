@@ -31,12 +31,9 @@ describe('AppHeader', () => {
     expect(screen.getByText(/9 stems/)).not.toBeNull();
   });
 
-  it('clicking ▦ calls onOpenPicker', async () => {
-    const onOpen = vi.fn();
-    const user = userEvent.setup();
-    render(<AppHeader {...baseProps} onOpenPicker={onOpen} />);
-    await user.click(screen.getByLabelText('Open projects'));
-    expect(onOpen).toHaveBeenCalledOnce();
+  it('does not render a standalone Library button anymore', () => {
+    render(<AppHeader {...baseProps} />);
+    expect(screen.queryByLabelText('Open projects')).toBeNull();
   });
 
   it('clicking ▾ caret calls onOpenPicker', async () => {

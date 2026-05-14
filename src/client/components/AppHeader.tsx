@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, ChevronDown, ExternalLink, KeyRound, Library, LogOut, MessageSquare } from 'lucide-react';
+import { Bug, ChevronDown, ExternalLink, KeyRound, LogOut, MessageSquare } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
 
@@ -65,15 +65,6 @@ export function AppHeader({
 
   return (
     <header className="app-header">
-      <button
-        type="button"
-        className="ah-files"
-        onClick={onOpenPicker}
-        title="Open projects (⌘K)"
-        aria-label="Open projects"
-      >
-        <Library size={16} strokeWidth={2} aria-hidden="true" />
-      </button>
       <h1 className="ah-brand">Paperstem</h1>
       {envBadge && (
         <span
