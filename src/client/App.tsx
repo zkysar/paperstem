@@ -436,6 +436,13 @@ function PaperstemApp({
         setAnnotationCreateMode(false);
         setActiveCommentId(null);
         setPopoverAnchor(null);
+        // Reset zoom/scroll/follow so the new project lands at t=0 in the
+        // visible window. Without this, a prior project's scrollLeft can
+        // place t=0 behind the sticky rail, hiding the playhead and its
+        // handle until the user manually pans back. Share-link loads
+        // re-apply their saved view in a later effect, so this reset is
+        // safe in that path too.
+        viewport.fitToWindow();
       }
       try {
         const detail = await repo.getById(id);
@@ -463,7 +470,7 @@ function PaperstemApp({
         setLoadError(msg);
       }
     },
-    [repo, player],
+    [repo, player, viewport],
   );
 
   const reloadActive = useCallback(async () => {
