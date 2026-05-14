@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -7,6 +8,7 @@ import {
 } from 'react';
 import { Link2, Pencil, Repeat, Star, Trash2, X } from 'lucide-react';
 import type { Annotation } from '../../shared/types';
+import type { CopyCommentLinkResult } from '../lib/share-url';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
 
@@ -24,9 +26,20 @@ type Props = {
   onToggleStar(): void;
   onSaveEdit(body: string): void;
   onDelete(): void;
-  onCopyLink(): void;
+  /**
+   * "Copy link to this comment" — writes a share URL to the clipboard and
+   * returns `{ ok, categories }` so we can render a "Copied — includes X"
+   * toast next to the button.
+   */
+  onCopyLink(): Promise<CopyCommentLinkResult>;
   onClose(): void;
 };
+
+function copyLabel(result: CopyCommentLinkResult): string {
+  if (!result.ok) return 'Copy failed';
+  if (result.categories.length === 0) return 'Link copied';
+  return `Link copied — includes ${result.categories.join(', ')}`;
+}
 
 function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;
@@ -54,6 +67,24 @@ export function CommentPopover({
   const [translateX, setTranslateX] = useState(0);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(annotation.body);
+  const [copyToast, setCopyToast] = useState<string | null>(null);
+  const copyTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current != null) window.clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
+  async function handleCopyClick() {
+    const result = await onCopyLink();
+    setCopyToast(copyLabel(result));
+    if (copyTimerRef.current != null) window.clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = window.setTimeout(() => {
+      setCopyToast(null);
+      copyTimerRef.current = null;
+    }, 2000);
+  }
 
   const DRAWER_W = 320;
 
@@ -149,15 +180,22 @@ export function CommentPopover({
             <Star size={14} strokeWidth={2} fill={annotation.starred ? 'currentColor' : 'none'} aria-hidden="true" />
           </button>
         )}
-        <button
-          type="button"
-          className="cp-iconbtn"
-          aria-label="Copy link to this comment"
-          title="Copy link to this comment"
-          onClick={(e) => { e.stopPropagation(); onCopyLink(); }}
-        >
-          <Link2 size={14} strokeWidth={2} aria-hidden="true" />
-        </button>
+        <span className="cp-copy-wrap">
+          <button
+            type="button"
+            className="cp-iconbtn"
+            aria-label="Copy link to this comment"
+            title="Copy link — includes time, plus loop / mix / view if set"
+            onClick={(e) => { e.stopPropagation(); void handleCopyClick(); }}
+          >
+            <Link2 size={14} strokeWidth={2} aria-hidden="true" />
+          </button>
+          {copyToast && (
+            <span className="cp-copy-toast" role="status" aria-live="polite">
+              {copyToast}
+            </span>
+          )}
+        </span>
         <button
           type="button"
           className="cp-iconbtn cp-close"

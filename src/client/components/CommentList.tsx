@@ -1,6 +1,7 @@
-import { useMemo, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { Link2, Pencil, Star, Trash2 } from 'lucide-react';
 import type { Annotation } from '../../shared/types';
+import type { CopyCommentLinkResult } from '../lib/share-url';
 import { SELF_ANNOTATION_COLOR } from '../lib/colors';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
@@ -29,10 +30,17 @@ type Props = {
   onDelete(annotation: Annotation): void;
   /**
    * "Copy link to this comment" — captures project + comment + its timestamp
-   * and writes a share URL to the clipboard.
+   * and writes a share URL to the clipboard. Returns `{ ok, categories }`
+   * so a "Copied — includes X" toast can render next to the clicked row.
    */
-  onCopyLink(annotation: Annotation): void;
+  onCopyLink(annotation: Annotation): Promise<CopyCommentLinkResult>;
 };
+
+function copyLabel(result: CopyCommentLinkResult): string {
+  if (!result.ok) return 'Copy failed';
+  if (result.categories.length === 0) return 'Link copied';
+  return `Link copied — includes ${result.categories.join(', ')}`;
+}
 
 function authorLabel(a: Annotation): string {
   return a.user_display_name ?? a.user_email;
@@ -65,6 +73,24 @@ export function CommentList({
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
+  const [copyFeedback, setCopyFeedback] = useState<{ id: string; label: string } | null>(null);
+  const copyTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current != null) window.clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
+  async function handleCopyClick(a: Annotation) {
+    const result = await onCopyLink(a);
+    setCopyFeedback({ id: a.id, label: copyLabel(result) });
+    if (copyTimerRef.current != null) window.clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = window.setTimeout(() => {
+      setCopyFeedback(null);
+      copyTimerRef.current = null;
+    }, 2000);
+  }
 
   const authors = useMemo(() => {
     const seen = new Map<string, { userId: string; label: string }>();
@@ -170,13 +196,20 @@ export function CommentList({
                   ) : (
                     a.starred && <span className="cl-star on" aria-hidden="true"><Star size={14} strokeWidth={2} fill="currentColor" aria-hidden="true" /></span>
                   )}
-                  <button
-                    type="button"
-                    className="cl-iconbtn cl-copy-link"
-                    aria-label="Copy link to this comment"
-                    title="Copy link to this comment"
-                    onClick={(e) => { e.stopPropagation(); onCopyLink(a); }}
-                  ><Link2 size={14} strokeWidth={2} aria-hidden="true" /></button>
+                  <span className="cl-copy-wrap">
+                    <button
+                      type="button"
+                      className="cl-iconbtn cl-copy-link"
+                      aria-label="Copy link to this comment"
+                      title="Copy link — includes time, plus loop / mix / view if set"
+                      onClick={(e) => { e.stopPropagation(); void handleCopyClick(a); }}
+                    ><Link2 size={14} strokeWidth={2} aria-hidden="true" /></button>
+                    {copyFeedback?.id === a.id && (
+                      <span className="cl-copy-toast" role="status" aria-live="polite">
+                        {copyFeedback.label}
+                      </span>
+                    )}
+                  </span>
                 </div>
                 {isEditing ? (
                   <div className="cl-edit" onClick={(e) => e.stopPropagation()}>

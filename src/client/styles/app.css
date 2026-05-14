@@ -1966,6 +1966,7 @@ body.env-non-prod[data-env="local"]::before {
   border-radius: 3px;
 }
 .cp-iconbtn:hover { color: var(--ink); background: var(--rule-2); }
+.cp-copy-wrap { position: relative; display: inline-flex; align-items: center; }
 .cp-star.on { color: var(--accent); }
 .cp-body {
   font-size: var(--fs-md);
@@ -2191,6 +2192,38 @@ body.env-non-prod[data-env="local"]::before {
   border-radius: 3px;
 }
 .cl-iconbtn:hover { color: var(--ink); background: var(--rule-2); }
+
+/* Transient "Copied — includes X" toast next to a comment's copy-link
+ * button. Mirrors .atb-share-label so the feedback feels consistent across
+ * share and copy-link flows. Absolute-positioned and pointer-events: none
+ * so it never interferes with click/hover on neighbours. */
+.cl-copy-wrap { position: relative; display: inline-flex; align-items: center; }
+.cl-copy-toast,
+.cp-copy-toast {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--ink);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: var(--fs-xs);
+  white-space: nowrap;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+.cl-copy-toast::before,
+.cp-copy-toast::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  right: 8px;
+  transform: rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: var(--ink);
+}
 .cl-edit textarea {
   width: 100%;
   font: inherit;

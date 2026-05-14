@@ -1,6 +1,7 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { ChevronLeft, X } from 'lucide-react';
 import type { Annotation } from '../../shared/types';
+import type { CopyCommentLinkResult } from '../lib/share-url';
 import { CommentList } from './CommentList';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
@@ -24,7 +25,7 @@ type Props = {
   onToggleStar(annotation: Annotation): void;
   onSaveEdit(annotation: Annotation, body: string): void;
   onDelete(annotation: Annotation): void;
-  onCopyLink(annotation: Annotation): void;
+  onCopyLink(annotation: Annotation): Promise<CopyCommentLinkResult>;
 };
 
 const SUBMIT_HINT = isMac() ? '⌘↵' : 'Ctrl+↵';

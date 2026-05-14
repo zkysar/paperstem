@@ -29,7 +29,7 @@ const baseProps = {
   onToggleStar: vi.fn(),
   onSaveEdit: vi.fn(),
   onDelete: vi.fn(),
-  onCopyLink: vi.fn(),
+  onCopyLink: vi.fn().mockResolvedValue({ ok: true, categories: [] }),
   onClose: vi.fn(),
 };
 
@@ -87,5 +87,24 @@ describe('CommentPopover', () => {
     render(<CommentPopover {...baseProps} isOwn={false} />);
     expect(screen.queryByLabelText('Edit')).toBeNull();
     expect(screen.queryByLabelText('Delete')).toBeNull();
+  });
+
+  it('copy-link click shows a "Link copied — includes X" toast next to the button', async () => {
+    const user = userEvent.setup();
+    const onCopyLink = vi.fn().mockResolvedValue({ ok: true, categories: ['loop', 'view'] });
+    render(<CommentPopover {...baseProps} onCopyLink={onCopyLink} />);
+    await user.click(screen.getByLabelText('Copy link to this comment'));
+    expect(onCopyLink).toHaveBeenCalledOnce();
+    const toast = await screen.findByRole('status');
+    expect(toast.textContent).toMatch(/Link copied — includes loop, view/);
+  });
+
+  it('copy-link toast shows "Link copied" when no extra state is included', async () => {
+    const user = userEvent.setup();
+    const onCopyLink = vi.fn().mockResolvedValue({ ok: true, categories: [] });
+    render(<CommentPopover {...baseProps} onCopyLink={onCopyLink} />);
+    await user.click(screen.getByLabelText('Copy link to this comment'));
+    const toast = await screen.findByRole('status');
+    expect(toast.textContent).toBe('Link copied');
   });
 });
