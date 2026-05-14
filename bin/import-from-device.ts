@@ -65,7 +65,7 @@ export type RunResult =
   | { status: 'error'; message: string };
 
 const DEFAULT_THRESHOLD_MIN = 5;
-const DEFAULT_BITRATE = 128;
+const DEFAULT_BITRATE = 64;
 const TICK_BUDGET_DEFAULT_MIN = 30;
 
 function nowIso(now: () => number): string {

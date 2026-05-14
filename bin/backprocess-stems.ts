@@ -13,7 +13,7 @@ import type { StemRow } from '../src/server/db.js';
 const { values } = parseArgs({
   options: {
     commit: { type: 'boolean', default: false },
-    bitrate: { type: 'string', default: '128' },
+    bitrate: { type: 'string', default: '64' },
     id: { type: 'string' },
     'min-savings-bytes': { type: 'string', default: '524288' },
   },
