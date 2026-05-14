@@ -42,11 +42,11 @@ type Props = {
   viewport: ViewportControls;
   onOpenShortcuts(): void;
   /**
-   * Builds a share-snapshot URL of the current player state and returns it
-   * (plus the non-trivial category list for the "Copied — includes X" hint).
-   * Returns `null` when there is no project to share.
+   * Opens the share dialog seeded with the current player + UI state. The
+   * dialog itself shows toggles for each piece of bundled state and owns
+   * the clipboard write.
    */
-  onShare(): { fullUrl: string; categories: Array<'loop' | 'mix' | 'comment'>; title?: string } | null;
+  onShare(): void;
 };
 
 export function AppToolbar(props: Props) {
@@ -61,60 +61,6 @@ export function AppToolbar(props: Props) {
     viewport, onOpenShortcuts,
     onShare,
   } = props;
-
-  // Share button state — flips to "Copied — includes X" for ~2s after click.
-  // Fallback popover surfaces the URL for manual selection when clipboard
-  // writes fail (insecure contexts, denied permissions).
-  const [shareLabel, setShareLabel] = useState<string | null>(null);
-  const [shareFallback, setShareFallback] = useState<string | null>(null);
-  const shareLabelTimerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (shareLabelTimerRef.current != null) {
-        window.clearTimeout(shareLabelTimerRef.current);
-      }
-    };
-  }, []);
-
-  async function handleShareClick() {
-    const snap = onShare();
-    if (!snap) return;
-    // Only invoke the native share sheet on iPhone — on desktop and other
-    // platforms the OS share UI is either absent or worse than a copy-to-clipboard
-    // toast. iPad is intentionally excluded (a clipboard toast is friendlier
-    // in a desktop-class environment).
-    const isIPhone = typeof navigator !== 'undefined' && /iPhone/.test(navigator.userAgent);
-    const canNativeShare = isIPhone && typeof navigator.share === 'function';
-    if (canNativeShare) {
-      try {
-        await navigator.share({ title: snap.title ?? 'Paperstem', url: snap.fullUrl });
-        // Native sheet provides its own confirmation UI — no toast needed.
-        return;
-      } catch (e) {
-        const name = (e as { name?: string } | null | undefined)?.name;
-        if (name === 'AbortError') return; // user cancelled
-        // Any other error: fall through to clipboard fallback below.
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(snap.fullUrl);
-      const cats = snap.categories.length
-        ? ` — includes ${snap.categories.join(', ')}`
-        : '';
-      setShareLabel(`Copied${cats}`);
-    } catch {
-      setShareLabel('Copy failed');
-      setShareFallback(snap.fullUrl);
-    }
-    if (shareLabelTimerRef.current != null) {
-      window.clearTimeout(shareLabelTimerRef.current);
-    }
-    shareLabelTimerRef.current = window.setTimeout(() => {
-      setShareLabel(null);
-      shareLabelTimerRef.current = null;
-    }, 2000);
-  }
 
   return (
     <div className="app-toolbar">
@@ -145,32 +91,11 @@ export function AppToolbar(props: Props) {
 
       <div className="atb-share-wrap">
         <button type="button" className="atb-btn"
-          aria-label="Copy share link"
+          aria-label="Share link"
           disabled={!hasProject}
-          onClick={handleShareClick}>
+          onClick={onShare}>
           <Share2 size={16} strokeWidth={2} aria-hidden="true" />
         </button>
-        {shareLabel && (
-          <span className="atb-share-label" role="status">{shareLabel}</span>
-        )}
-        {shareFallback && (
-          <div className="atb-share-fallback">
-            <input
-              type="text"
-              readOnly
-              value={shareFallback}
-              onFocus={(e) => e.currentTarget.select()}
-              autoFocus
-              aria-label="Share URL"
-            />
-            <button
-              type="button"
-              className="atb-share-fallback-close"
-              aria-label="Close share URL"
-              onClick={() => setShareFallback(null)}
-            >×</button>
-          </div>
-        )}
       </div>
       <span className="atb-divider" />
 

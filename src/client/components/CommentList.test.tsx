@@ -30,7 +30,7 @@ const baseProps = {
   onToggleStar: vi.fn(),
   onSaveEdit: vi.fn(),
   onDelete: vi.fn(),
-  onCopyLink: vi.fn().mockResolvedValue({ ok: true, categories: [] }),
+  onCopyLink: vi.fn(),
 };
 
 describe('CommentList', () => {
@@ -124,42 +124,14 @@ describe('CommentList', () => {
     expect(miraCard.querySelector('[aria-label="Delete"]')).toBeNull();
   });
 
-  it('copy-link click shows a "Link copied — includes X" toast next to the clicked row', async () => {
+  it('copy-link click calls onCopyLink with the row\'s annotation (and not onSelect)', async () => {
     const user = userEvent.setup();
-    const onCopyLink = vi.fn().mockResolvedValue({ ok: true, categories: ['loop', 'mix'] });
-    render(<CommentList {...baseProps} onCopyLink={onCopyLink} />);
+    const onCopyLink = vi.fn();
+    const onSelect = vi.fn();
+    render(<CommentList {...baseProps} onCopyLink={onCopyLink} onSelect={onSelect} />);
     const card = screen.getByTestId('list-card-1');
     await user.click(card.querySelector('[aria-label="Copy link to this comment"]')!);
     expect(onCopyLink).toHaveBeenCalledWith(annotations[0]);
-    const toast = await screen.findByRole('status');
-    expect(toast.textContent).toMatch(/Link copied — includes loop, mix/);
-    expect(card.contains(toast)).toBe(true);
-  });
-
-  it('copy-link toast falls back to "Link copied" when there are no extra categories', async () => {
-    const user = userEvent.setup();
-    const onCopyLink = vi.fn().mockResolvedValue({ ok: true, categories: [] });
-    render(<CommentList {...baseProps} onCopyLink={onCopyLink} />);
-    await user.click(screen.getAllByLabelText('Copy link to this comment')[0]);
-    const toast = await screen.findByRole('status');
-    expect(toast.textContent).toBe('Link copied');
-  });
-
-  it('copy-link toast shows "Copy failed" when the clipboard write rejects', async () => {
-    const user = userEvent.setup();
-    const onCopyLink = vi.fn().mockResolvedValue({ ok: false, categories: ['loop'] });
-    render(<CommentList {...baseProps} onCopyLink={onCopyLink} />);
-    await user.click(screen.getAllByLabelText('Copy link to this comment')[0]);
-    const toast = await screen.findByRole('status');
-    expect(toast.textContent).toBe('Copy failed');
-  });
-
-  it('copy-link click does not also trigger onSelect', async () => {
-    const user = userEvent.setup();
-    const onSelect = vi.fn();
-    const onCopyLink = vi.fn().mockResolvedValue({ ok: true, categories: [] });
-    render(<CommentList {...baseProps} onSelect={onSelect} onCopyLink={onCopyLink} />);
-    await user.click(screen.getAllByLabelText('Copy link to this comment')[0]);
     expect(onSelect).not.toHaveBeenCalled();
   });
 });

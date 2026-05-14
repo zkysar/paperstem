@@ -1,6 +1,6 @@
 import { render, renderHook, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { AppToolbar } from './AppToolbar';
 import { useViewport } from '../hooks/useViewport';
 
@@ -33,20 +33,10 @@ const baseProps = {
   onToggleRailCollapsed: vi.fn(),
   viewport: vp(),
   onOpenShortcuts: vi.fn(),
-  onShare: vi.fn(() => null),
+  onShare: vi.fn(),
 };
 
 describe('AppToolbar', () => {
-  beforeEach(() => {
-    // Reset navigator.share between tests — defaults to clipboard path.
-    // Individual tests can opt into the Web Share path.
-    Object.defineProperty(navigator, 'share', { configurable: true, value: undefined });
-    // Reset userAgent — the native share path is gated on iPhone.
-    Object.defineProperty(navigator, 'userAgent', {
-      configurable: true,
-      value: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
-    });
-  });
 
   it('renders all transport buttons', () => {
     render(<AppToolbar {...baseProps} />);
@@ -106,14 +96,14 @@ describe('AppToolbar', () => {
 
   it('Share button is disabled when no project loaded', () => {
     render(<AppToolbar {...baseProps} hasProject={false} />);
-    expect((screen.getByLabelText('Copy share link') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Share link') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('time display sits between the transport group and the share button', () => {
     render(<AppToolbar {...baseProps} currentTime={84} duration={272.5} />);
     const time = screen.getByText(/1:24 \/ 4:32/).closest('span');
     const loop = screen.getByLabelText('Toggle loop');
-    const share = screen.getByLabelText('Copy share link');
+    const share = screen.getByLabelText('Share link');
     expect(time).not.toBeNull();
     if (!time) return;
     // time appears after loop and before share in DOM order
@@ -121,99 +111,12 @@ describe('AppToolbar', () => {
     expect(time.compareDocumentPosition(share) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('Share button writes to clipboard and shows a Copied label', async () => {
+  it('clicking the Share button calls onShare to open the share dialog', async () => {
     const user = userEvent.setup();
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText },
-    });
-    const onShare = vi.fn(() => ({
-      fullUrl: 'https://x.app/#p=abc&t=10.00&l=1.00-2.00',
-      categories: ['loop' as const],
-    }));
+    const onShare = vi.fn();
     render(<AppToolbar {...baseProps} onShare={onShare} />);
-    await user.click(screen.getByLabelText('Copy share link'));
+    await user.click(screen.getByLabelText('Share link'));
     expect(onShare).toHaveBeenCalledOnce();
-    expect(writeText).toHaveBeenCalledWith('https://x.app/#p=abc&t=10.00&l=1.00-2.00');
-    expect(screen.getByRole('status').textContent).toMatch(/Copied — includes loop/);
-  });
-
-  it('share toast is anchored inside .atb-share-wrap (does not shift siblings)', async () => {
-    const onShare = vi.fn(() => ({ fullUrl: 'http://x.test/p/abc', categories: [] }));
-    const user = userEvent.setup();
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText: vi.fn().mockResolvedValue(undefined) },
-    });
-    render(<AppToolbar {...baseProps} onShare={onShare} />);
-    await user.click(screen.getByLabelText('Copy share link'));
-    const toast = await screen.findByRole('status');
-    expect(toast.className).toContain('atb-share-label');
-    // The toast must be a child of .atb-share-wrap (the anchor), not a sibling of share neighbors.
-    const wrap = toast.parentElement;
-    expect(wrap?.className).toContain('atb-share-wrap');
-  });
-
-  it('prefers navigator.share() on iPhone when available, with title and URL', async () => {
-    const user = userEvent.setup();
-    const shareSpy = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'share', { configurable: true, value: shareSpy });
-    Object.defineProperty(navigator, 'userAgent', {
-      configurable: true,
-      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
-    });
-    const onShare = vi.fn(() => ({
-      fullUrl: 'http://x.test/p/abc',
-      categories: [] as Array<'loop' | 'mix' | 'comment'>,
-      title: 'Tuesday rehearsal 5/12',
-    }));
-    render(<AppToolbar {...baseProps} onShare={onShare} />);
-    await user.click(screen.getByLabelText('Copy share link'));
-    expect(shareSpy).toHaveBeenCalledWith({
-      title: 'Tuesday rehearsal 5/12',
-      url: 'http://x.test/p/abc',
-    });
-  });
-
-  it('ignores navigator.share() off-iPhone and uses clipboard instead', async () => {
-    const user = userEvent.setup();
-    const shareSpy = vi.fn().mockResolvedValue(undefined);
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'share', { configurable: true, value: shareSpy });
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText },
-    });
-    // userAgent reset in beforeEach is non-iPhone — explicit for clarity:
-    Object.defineProperty(navigator, 'userAgent', {
-      configurable: true,
-      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X) AppleWebKit/605.1.15',
-    });
-    const onShare = vi.fn(() => ({
-      fullUrl: 'http://x.test/p/abc',
-      categories: [] as Array<'loop' | 'mix' | 'comment'>,
-    }));
-    render(<AppToolbar {...baseProps} onShare={onShare} />);
-    await user.click(screen.getByLabelText('Copy share link'));
-    expect(shareSpy).not.toHaveBeenCalled();
-    expect(writeText).toHaveBeenCalledWith('http://x.test/p/abc');
-  });
-
-  it('falls back to clipboard when navigator.share is unavailable', async () => {
-    const user = userEvent.setup();
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: { writeText },
-    });
-    const onShare = vi.fn(() => ({
-      fullUrl: 'http://x.test/p/abc',
-      categories: ['loop' as const],
-    }));
-    render(<AppToolbar {...baseProps} onShare={onShare} />);
-    await user.click(screen.getByLabelText('Copy share link'));
-    expect(writeText).toHaveBeenCalledWith('http://x.test/p/abc');
   });
 
   it('hides the toolbar time display on mobile (isWide=false)', () => {
@@ -250,24 +153,6 @@ describe('AppToolbar', () => {
     expect(screen.queryByLabelText('Zoom')).toBeNull();
   });
 
-  it('treats AbortError from navigator.share() as a silent user cancel', async () => {
-    const user = userEvent.setup();
-    const err = Object.assign(new Error('cancelled'), { name: 'AbortError' });
-    const shareSpy = vi.fn().mockRejectedValue(err);
-    Object.defineProperty(navigator, 'share', { configurable: true, value: shareSpy });
-    Object.defineProperty(navigator, 'userAgent', {
-      configurable: true,
-      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
-    });
-    const onShare = vi.fn(() => ({
-      fullUrl: 'http://x.test/p/abc',
-      categories: [] as Array<'loop' | 'mix' | 'comment'>,
-    }));
-    render(<AppToolbar {...baseProps} onShare={onShare} />);
-    await user.click(screen.getByLabelText('Copy share link'));
-    // No toast on user cancel
-    expect(screen.queryByRole('status')).toBeNull();
-  });
 });
 
 describe('AppToolbar zoom group', () => {

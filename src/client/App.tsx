@@ -9,10 +9,8 @@ import {
   type ShareArrivalCategory,
 } from './components/ShareArrivalBanner';
 import {
-  buildShareUrl,
-  describeShareCategories,
   snapshotShareState,
-  type CopyCommentLinkResult,
+  type ShareState,
 } from './lib/share-url';
 import { CommentsDrawer, type DraftSpec } from './components/CommentsDrawer';
 import { CommentsFab } from './components/CommentsFab';
@@ -30,6 +28,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { FilePicker } from './components/FilePicker';
 import { Player } from './components/Player';
 import { ShortcutsOverlay } from './components/ShortcutsOverlay';
+import { ShareDialog } from './components/ShareDialog';
 import { UploadDrawer } from './components/UploadDrawer';
 import {
   listAnnotations,
@@ -663,41 +662,19 @@ function PaperstemApp({
     [player],
   );
 
-  // Snapshot current player + UI state into a full share URL. Called by the
-  // AppToolbar Share button (which then writes the URL to the clipboard).
-  // Returns null when nothing is loaded — the toolbar treats that as a no-op.
-  const handleShareSnapshot = useCallback(() => {
-    if (!activeProjectId) return null;
-    const state = snapshotShareState({
-      projectId: activeProjectId,
-      player: player.state,
-      currentTime: player.currentTime,
-      activeCommentId,
-      viewport: {
-        hZoom: viewport.state.hZoom,
-        trackHeight: viewport.state.trackHeight,
-        scrollLeft: viewport.state.scrollLeft,
-        stageWidth: viewport.state.stageWidth,
-        railWidth: viewport.state.railWidth,
-      },
-    });
-    const url = buildShareUrl(state, window.location.href);
-    return {
-      fullUrl: url,
-      categories: describeShareCategories(state),
-      title: player.state.title ?? undefined,
-    };
-  }, [activeProjectId, player.state, player.currentTime, activeCommentId, viewport.state]);
+  // Share dialog state. Non-null while the dialog is open; the snapshot is
+  // captured at open time so toggling state inside the dialog can't be
+  // influenced by ongoing playback or zoom changes underneath.
+  const [shareDialog, setShareDialog] = useState<{
+    state: ShareState;
+    focusedAnnotation: Annotation | null;
+  } | null>(null);
 
-  // "Copy link to this comment" — overrides the time and focused comment to
-  // pin the URL to the annotation rather than the live playhead. Returns
-  // `{ ok, categories }` so the caller can render a "Copied — includes X"
-  // toast right next to the clicked button (mirrors the toolbar's share
-  // flow). `comment` is filtered out: the comment is the link's *target*,
-  // not a piece of bundled state, so listing it would be redundant.
-  const handleCopyCommentLink = useCallback(async (a: Annotation): Promise<CopyCommentLinkResult> => {
-    if (!activeProjectId) return { ok: false, categories: [] };
-    const state = snapshotShareState(
+  // Build a ShareState snapshot from the current player + UI state. Used by
+  // both the toolbar Share button and the comment copy-link flow.
+  const snapshotCurrent = useCallback((overrides?: { time?: number; focusedCommentId?: string }) => {
+    if (!activeProjectId) return null;
+    return snapshotShareState(
       {
         projectId: activeProjectId,
         player: player.state,
@@ -711,20 +688,29 @@ function PaperstemApp({
           railWidth: viewport.state.railWidth,
         },
       },
-      { time: a.start_ms / 1000, focusedCommentId: a.id },
+      overrides,
     );
-    const url = buildShareUrl(state, window.location.href);
-    const categories = describeShareCategories(state).filter(
-      (c): c is 'loop' | 'mix' | 'view' => c !== 'comment',
-    );
-    try {
-      await navigator.clipboard.writeText(url);
-      return { ok: true, categories };
-    } catch (err) {
-      console.warn('Failed to copy comment link', err);
-      return { ok: false, categories };
-    }
   }, [activeProjectId, player.state, player.currentTime, activeCommentId, viewport.state]);
+
+  // Toolbar Share button: open the dialog with the current snapshot.
+  // The dialog itself handles toggles + clipboard write.
+  const handleShareSnapshot = useCallback(() => {
+    const state = snapshotCurrent();
+    if (!state) return;
+    const focused = state.focusedCommentId
+      ? annotations.find((a) => a.id === state.focusedCommentId) ?? null
+      : null;
+    setShareDialog({ state, focusedAnnotation: focused });
+  }, [snapshotCurrent, annotations]);
+
+  // Comment copy-link: open the dialog pinned to the comment. Time + focus
+  // are overridden so the snapshot reflects the comment rather than the
+  // live playhead, even if the user clicked while playback was elsewhere.
+  const handleCopyCommentLink = useCallback((a: Annotation) => {
+    const state = snapshotCurrent({ time: a.start_ms / 1000, focusedCommentId: a.id });
+    if (!state) return;
+    setShareDialog({ state, focusedAnnotation: a });
+  }, [snapshotCurrent]);
 
   async function handleToggleStar(a: Annotation): Promise<void> {
     const prev = annotations;
@@ -1117,6 +1103,12 @@ function PaperstemApp({
       <ShortcutsOverlay
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
+      />
+      <ShareDialog
+        open={shareDialog !== null}
+        state={shareDialog?.state ?? { projectId: '' }}
+        focusedAnnotation={shareDialog?.focusedAnnotation ?? null}
+        onClose={() => setShareDialog(null)}
       />
       <TokensDrawer open={tokensOpen} onClose={() => setTokensOpen(false)} />
     </div>

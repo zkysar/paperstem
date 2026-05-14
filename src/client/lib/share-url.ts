@@ -226,14 +226,3 @@ export function describeShareCategories(
   if (state.view || state.trackHeight != null) cats.push('view');
   return cats;
 }
-
-/**
- * Result returned by the "Copy link to this comment" handler. Lets the
- * caller render a transient "Copied — includes X" toast right next to the
- * clicked button (matching the toolbar share flow). `comment` is excluded
- * here: the comment is the link's *target*, not bundled state.
- */
-export type CopyCommentLinkResult = {
-  ok: boolean;
-  categories: Array<'loop' | 'mix' | 'view'>;
-};
