@@ -68,7 +68,7 @@ describe('AppToolbar', () => {
 
   it('disables ＋ when canCreateAnnotations is false', () => {
     render(<AppToolbar {...baseProps} canCreateAnnotations={false} />);
-    expect((screen.getByLabelText('Add annotation') as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Add comment') as HTMLButtonElement).disabled).toBe(true);
   });
 
   it('renders rail-toggle inside the overflow menu when showRailToggle is true', async () => {
@@ -87,7 +87,7 @@ describe('AppToolbar', () => {
     const onToggle = vi.fn();
     const user = userEvent.setup();
     render(<AppToolbar {...baseProps} onToggleAnnotationCreate={onToggle} />);
-    await user.click(screen.getByLabelText('Add annotation'));
+    await user.click(screen.getByLabelText('Add comment'));
     expect(onToggle).toHaveBeenCalledOnce();
   });
 
