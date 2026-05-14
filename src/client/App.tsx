@@ -832,6 +832,7 @@ function PaperstemApp({
         annotationsOpen={drawerOpen}
         hasProject={player.state.stems.length > 0}
         canRename={player.state.stems.length > 0}
+        isWide={isWide}
         appVersion={appInfo?.version ?? null}
         appEnv={appInfo?.env ?? null}
         downloading={downloading}

@@ -12,6 +12,7 @@ const baseProps = {
   annotationsOpen: false,
   hasProject: true,
   canRename: true,
+  isWide: true,
   appVersion: 'test-1.0.0',
   appEnv: null,
   downloading: false,
@@ -238,9 +239,36 @@ describe('AppHeader inline rename', () => {
     await waitFor(() => expect(onRename).toHaveBeenCalledWith('Keyboard name'));
   });
 
-  it('rename trigger is disabled when canRename is false', () => {
-    render(<AppHeader {...baseProps} canRename={false} />);
+  it('rename trigger is disabled when no project is loaded', () => {
+    render(<AppHeader {...baseProps} hasProject={false} />);
     const trigger = screen.getByRole('button', { name: 'Project 2026-04-28' });
     expect((trigger as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('on mobile, clicking the project title opens the picker (no inline rename)', async () => {
+    const onOpen = vi.fn();
+    const onRename = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...baseProps}
+        isWide={false}
+        onOpenPicker={onOpen}
+        onRenameProject={onRename}
+      />,
+    );
+    await user.click(screen.getByText('Project 2026-04-28'));
+    expect(onOpen).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('textbox', { name: /rename project/i })).toBeNull();
+    expect(onRename).not.toHaveBeenCalled();
+  });
+
+  it('on desktop, clicking the title still opens the inline rename input', async () => {
+    const onOpen = vi.fn();
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} isWide={true} onOpenPicker={onOpen} />);
+    await user.click(screen.getByText('Project 2026-04-28'));
+    expect(screen.getByRole('textbox', { name: /rename project/i })).not.toBeNull();
+    expect(onOpen).not.toHaveBeenCalled();
   });
 });

@@ -12,6 +12,7 @@ type Props = {
   annotationsOpen: boolean;
   hasProject: boolean;
   canRename: boolean;
+  isWide: boolean;
   appVersion: string | null;
   appEnv: string | null;
   downloading: boolean;
@@ -26,7 +27,7 @@ type Props = {
 
 export function AppHeader({
   userEmail, userInitials, projectTitle, stemCount, duration,
-  annotationsOpen, hasProject, canRename, appVersion, appEnv, downloading,
+  annotationsOpen, hasProject, canRename, isWide, appVersion, appEnv, downloading,
   onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenameProject,
   onOpenTokens, onDownloadAll,
 }: Props) {
@@ -62,7 +63,7 @@ export function AppHeader({
     setDraft(projectTitle ?? '');
   }
 
-  const titleEditable = hasProject && canRename;
+  const titleEditable = hasProject && canRename && isWide;
 
   return (
     <header className="app-header">
@@ -102,9 +103,15 @@ export function AppHeader({
             <button
               type="button"
               className={'ah-title-name' + (titleEditable ? ' ah-title-name-editable' : '')}
-              onClick={() => { if (titleEditable) setEditing(true); }}
-              disabled={!titleEditable}
-              title={titleEditable ? 'Click to rename' : undefined}
+              onClick={() => {
+                if (titleEditable) {
+                  setEditing(true);
+                } else if (hasProject) {
+                  onOpenPicker();
+                }
+              }}
+              disabled={!hasProject}
+              title={titleEditable ? 'Click to rename' : 'Switch project'}
             >
               {projectTitle ?? 'No project'}
             </button>
