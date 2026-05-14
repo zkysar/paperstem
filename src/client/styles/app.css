@@ -2797,16 +2797,37 @@ body.env-non-prod[data-env="local"]::before {
 
 /* Share button + transient "Copied — includes X" label + clipboard
  * fallback popover. Lives in the AppToolbar after the download button. */
-.atb-share-wrap { position: relative; display: inline-flex; align-items: center; }
+.atb-share-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
 .atb-share-label {
-  margin-left: 8px;
-  padding: 2px 8px;
-  background: var(--accent-tint);
-  color: var(--ink);
-  border: 1px solid var(--accent-tint-2);
-  border-radius: 3px;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 6px;
   font-size: var(--fs-xs);
   white-space: nowrap;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
+.atb-share-label::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: var(--ink);
 }
 .atb-share-fallback {
   position: absolute;

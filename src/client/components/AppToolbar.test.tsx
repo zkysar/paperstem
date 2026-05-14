@@ -147,6 +147,22 @@ describe('AppToolbar', () => {
     expect(writeText).toHaveBeenCalledWith('https://x.app/#p=abc&t=10.00&l=1.00-2.00');
     expect(screen.getByRole('status').textContent).toMatch(/Copied — includes loop/);
   });
+
+  it('share toast is anchored inside .atb-share-wrap (does not shift siblings)', async () => {
+    const onShare = vi.fn(() => ({ fullUrl: 'http://x.test/p/abc', categories: [] }));
+    const user = userEvent.setup();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+    });
+    render(<AppToolbar {...baseProps} onShare={onShare} />);
+    await user.click(screen.getByLabelText('Copy share link'));
+    const toast = await screen.findByRole('status');
+    expect(toast.className).toContain('atb-share-label');
+    // The toast must be a child of .atb-share-wrap (the anchor), not a sibling of share neighbors.
+    const wrap = toast.parentElement;
+    expect(wrap?.className).toContain('atb-share-wrap');
+  });
 });
 
 describe('AppToolbar zoom group', () => {
