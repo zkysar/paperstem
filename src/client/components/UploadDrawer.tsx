@@ -313,6 +313,7 @@ export function UploadDrawer({
             type="button"
             className="upload-modal-close"
             aria-label="Close upload"
+            title="Close"
             onClick={onClose}
           >
             <X size={16} strokeWidth={2} aria-hidden="true" />

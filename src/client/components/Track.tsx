@@ -391,6 +391,9 @@ export function Track({
             <button
               type="button"
               className={'pill mute' + (stem.userMuted ? ' on' : '')}
+              aria-label={stem.userMuted ? `Unmute ${stem.displayName}` : `Mute ${stem.displayName}`}
+              aria-pressed={stem.userMuted}
+              title={stem.userMuted ? 'Muted — click to hear this stem again' : 'Mute — silence this stem'}
               onClick={() => onToggleMute(idx)}
             >
               M
@@ -398,6 +401,9 @@ export function Track({
             <button
               type="button"
               className={'pill solo' + (stem.soloed ? ' on' : '')}
+              aria-label={stem.soloed ? `Unsolo ${stem.displayName}` : `Solo ${stem.displayName}`}
+              aria-pressed={stem.soloed}
+              title={stem.soloed ? 'Soloed — click to hear all stems again' : 'Solo — hear only this stem (mutes the others)'}
               onClick={() => onToggleSolo(idx)}
             >
               S
