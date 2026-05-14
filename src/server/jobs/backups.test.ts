@@ -10,9 +10,6 @@ const dbPath = join(tmpDir, 'test.sqlite');
 process.env.DATABASE_PATH = dbPath;
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
-process.env.GOOGLE_CLIENT_ID = 'cid';
-process.env.GOOGLE_CLIENT_SECRET = 'csec';
-process.env.GOOGLE_REFRESH_TOKEN = 'rtok';
 
 type DbModule = typeof import('../db.js');
 type BackupsModule = typeof import('./backups.js');
@@ -44,7 +41,7 @@ function createUser(email: string): string {
 function createBand(name: string, ownerId: string): string {
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  dbMod.stmts.insertBand.run(id, name, 'drive-x', ownerId, now);
+  dbMod.stmts.insertBand.run(id, name, 'folder-x', ownerId, now);
   dbMod.stmts.insertMembership.run(id, ownerId, 'owner', now);
   return id;
 }
@@ -77,7 +74,7 @@ function insertProject(bandId: string, userId: string, name: string): string {
 
 function insertStem(projectId: string, position: number, name: string): string {
   const id = randomUUID();
-  dbMod.stmts.insertStem.run(id, projectId, name, position, 'drive-file', 1000, 100, null);
+  dbMod.stmts.insertStem.run(id, projectId, name, position, 'file-x', 1000, 100, null);
   return id;
 }
 

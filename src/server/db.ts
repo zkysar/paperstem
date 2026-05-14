@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renamePracticesToProjects } from './migrate-rename.js';
+import { dropDriveColumnPrefixes } from './migrate-drive-columns.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -29,6 +30,7 @@ function columnExists(table: string, col: string): boolean {
 }
 
 renamePracticesToProjects(db);
+dropDriveColumnPrefixes(db);
 
 if (tableExists('projects')) {
   if (columnExists('projects', 'bpm')) {
@@ -98,7 +100,7 @@ export type TokenListRow = {
 export type BandRow = {
   id: string;
   name: string;
-  drive_folder_id: string;
+  folder_id: string;
   owner_user_id: string;
   created_at: number;
   last_snapshot_at: number | null;
@@ -124,7 +126,7 @@ export type ProjectRow = {
   band_id: string;
   name: string;
   recorded_on: string | null;
-  drive_folder_id: string;
+  folder_id: string;
   notes: string | null;
   created_at: number;
   created_by: string;
@@ -139,7 +141,7 @@ export type StemRow = {
   project_id: string;
   name: string;
   position: number;
-  drive_file_id: string;
+  file_id: string;
   duration_ms: number | null;
   size_bytes: number | null;
   peaks: string | null;
@@ -273,7 +275,7 @@ export const stmts = {
     'SELECT COUNT(*) AS c FROM stems WHERE project_id = ? AND deleted_at IS NULL',
   ),
   insertBand: db.prepare<[string, string, string, string, number]>(
-    `INSERT INTO bands (id, name, drive_folder_id, owner_user_id, created_at)
+    `INSERT INTO bands (id, name, folder_id, owner_user_id, created_at)
      VALUES (?, ?, ?, ?, ?)`,
   ),
   insertMembership: db.prepare<[string, string, 'owner' | 'member', number]>(
@@ -282,9 +284,6 @@ export const stmts = {
   ),
   findBandByNameAndOwner: db.prepare<[string, string], BandRow>(
     'SELECT * FROM bands WHERE name = ? AND owner_user_id = ?',
-  ),
-  updateBandDriveFolder: db.prepare<[string, string]>(
-    'UPDATE bands SET drive_folder_id = ? WHERE id = ?',
   ),
   findProjectById: db.prepare<[string], ProjectRow>(
     'SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL',
@@ -331,14 +330,14 @@ export const stmts = {
     [string, string, string, string | null, string, string | null, number, string, number]
   >(
     `INSERT INTO projects
-       (id, band_id, name, recorded_on, drive_folder_id, notes, created_at, created_by, updated_at)
+       (id, band_id, name, recorded_on, folder_id, notes, created_at, created_by, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ),
   insertStem: db.prepare<
     [string, string, string, number, string, number | null, number | null, string | null]
   >(
     `INSERT INTO stems
-       (id, project_id, name, position, drive_file_id, duration_ms, size_bytes, peaks)
+       (id, project_id, name, position, file_id, duration_ms, size_bytes, peaks)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   ),
   updateStemPeaks: db.prepare<[string, string]>(

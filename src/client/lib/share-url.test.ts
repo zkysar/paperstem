@@ -131,7 +131,7 @@ function makePlayer(over: Partial<PlayerState> = {}): PlayerState {
   return {
     projectId: 'p',
     title: 't',
-    driveFolderId: null,
+    folderId: null,
     stems: [],
     duration: 60,
     referenceIdx: 0,

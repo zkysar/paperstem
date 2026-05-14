@@ -143,7 +143,7 @@ describe('Track unavailable state', () => {
 
     await user.click(icon);
     const tooltip = screen.getByRole('tooltip');
-    expect(tooltip.textContent).toMatch(/missing in Drive/i);
+    expect(tooltip.textContent).toMatch(/audio file is missing/i);
     expect(icon.getAttribute('aria-expanded')).toBe('true');
   });
 

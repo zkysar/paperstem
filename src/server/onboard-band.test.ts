@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -8,6 +8,7 @@ import Database from 'better-sqlite3';
 const repoRoot = resolve(__dirname, '../..');
 const tmpDir = mkdtempSync(join(tmpdir(), 'paperstem-onboard-test-'));
 const dbPath = join(tmpDir, 'test.sqlite');
+const audioRoot = join(tmpDir, 'audio');
 
 type RunResult = {
   status: number | null;
@@ -24,6 +25,7 @@ function runOnboard(args: string[]): RunResult {
       env: {
         ...process.env,
         DATABASE_PATH: dbPath,
+        PAPERSTEM_AUDIO_ROOT: audioRoot,
         GMAIL_USER: 'test@example.com',
         GMAIL_APP_PASSWORD: 'test-pass',
         PAPERSTEM_SKIP_MAIL: '1',
@@ -61,15 +63,18 @@ beforeEach(() => {
   raw.exec(
     'DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
+  rmSync(audioRoot, { recursive: true, force: true });
 });
 
+function decodeId(id: string): string {
+  return Buffer.from(id, 'base64url').toString('utf8');
+}
+
 describe('onboard-band CLI', () => {
-  it('creates a band, owner, members, and memberships', () => {
+  it('creates a band, owner, members, memberships, and on-disk folder', () => {
     const res = runOnboard([
       '--name',
       'Test Band',
-      '--drive-folder-id',
-      'drive-abc',
       '--owner-email',
       'owner@example.com',
       '--member-emails',
@@ -79,13 +84,16 @@ describe('onboard-band CLI', () => {
     expect(res.status, res.stderr).toBe(0);
 
     const bands = raw
-      .prepare<[], { id: string; name: string; drive_folder_id: string; owner_user_id: string }>(
-        'SELECT id, name, drive_folder_id, owner_user_id FROM bands',
+      .prepare<[], { id: string; name: string; folder_id: string; owner_user_id: string }>(
+        'SELECT id, name, folder_id, owner_user_id FROM bands',
       )
       .all();
     expect(bands).toHaveLength(1);
     expect(bands[0].name).toBe('Test Band');
-    expect(bands[0].drive_folder_id).toBe('drive-abc');
+    expect(bands[0].folder_id).not.toMatch(/^PENDING_/);
+    expect(existsSync(join(audioRoot, decodeId(bands[0].folder_id)))).toBe(
+      true,
+    );
 
     const users = raw
       .prepare<[], { email: string }>('SELECT email FROM users ORDER BY email')
@@ -115,8 +123,6 @@ describe('onboard-band CLI', () => {
     const res = runOnboard([
       '--name',
       'Case Band',
-      '--drive-folder-id',
-      'drv',
       '--owner-email',
       '  Owner@Example.COM ',
       '--member-emails',
@@ -134,8 +140,6 @@ describe('onboard-band CLI', () => {
     const first = runOnboard([
       '--name',
       'Dup Band',
-      '--drive-folder-id',
-      'drv',
       '--owner-email',
       'owner@example.com',
     ]);
@@ -144,8 +148,6 @@ describe('onboard-band CLI', () => {
     const second = runOnboard([
       '--name',
       'Dup Band',
-      '--drive-folder-id',
-      'drv',
       '--owner-email',
       'owner@example.com',
     ]);
@@ -162,8 +164,6 @@ describe('onboard-band CLI', () => {
     const res = runOnboard([
       '--name',
       'Bad Band',
-      '--drive-folder-id',
-      'drv',
       '--owner-email',
       'not-an-email',
     ]);
@@ -171,7 +171,7 @@ describe('onboard-band CLI', () => {
     expect(res.stderr).toMatch(/Invalid owner email/);
   });
 
-  it('requires --name, --drive-folder-id, --owner-email', () => {
+  it('requires --name and --owner-email', () => {
     const res = runOnboard(['--name', 'Just Name']);
     expect(res.status).not.toBe(0);
     expect(res.stderr).toMatch(/Usage:/);

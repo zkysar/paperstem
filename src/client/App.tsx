@@ -444,7 +444,7 @@ function PaperstemApp({
         void player.load({
           projectId: detail.id,
           title: detail.title,
-          driveFolderId: detail.driveFolderId,
+          folderId: detail.folderId,
           sources,
         });
         try {
@@ -755,7 +755,7 @@ function PaperstemApp({
       void player.load({
         projectId: null,
         title: folderName || 'Local folder',
-        driveFolderId: null,
+        folderId: null,
         sources: [],
       });
       return;
@@ -769,7 +769,7 @@ function PaperstemApp({
     void player.load({
       projectId: `local:${folderName}`,
       title: folderName,
-      driveFolderId: null,
+      folderId: null,
       sources,
     });
   }

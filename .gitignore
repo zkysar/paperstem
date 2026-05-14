@@ -41,5 +41,5 @@ dev.sqlite-*
 dist/server
 dist/client
 
-# Local-folder Drive backend (dev only)
-drive-dev/
+# Audio storage root (dev only)
+audio-dev/

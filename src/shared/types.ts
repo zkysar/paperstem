@@ -16,7 +16,7 @@ export type BandRole = 'owner' | 'member';
 export type Band = {
   id: string;
   name: string;
-  drive_folder_id: string;
+  folder_id: string;
   owner_user_id: string;
   created_at: number;
 };

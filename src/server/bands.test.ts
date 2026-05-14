@@ -49,10 +49,10 @@ function createUser(email: string): string {
   return id;
 }
 
-function createBand(name: string, ownerId: string, driveFolderId = 'drive-x') {
+function createBand(name: string, ownerId: string, folderId = 'folder-x') {
   const id = randomUUID();
   const createdAt = Math.floor(Date.now() / 1000);
-  dbMod.stmts.insertBand.run(id, name, driveFolderId, ownerId, createdAt);
+  dbMod.stmts.insertBand.run(id, name, folderId, ownerId, createdAt);
   dbMod.stmts.insertMembership.run(id, ownerId, 'owner', createdAt);
   return id;
 }
@@ -156,7 +156,7 @@ describe('GET /api/bands/:id', () => {
   it('returns band detail with members when caller is a member', async () => {
     const owner = createUser('owner@example.com');
     const member = createUser('member@example.com');
-    const bandId = createBand('Alpha', owner, 'drive-folder-abc');
+    const bandId = createBand('Alpha', owner, 'folder-abc');
     addMember(bandId, member);
 
     const sid = createSession(member);
@@ -167,12 +167,12 @@ describe('GET /api/bands/:id', () => {
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      band: { id: string; name: string; drive_folder_id: string };
+      band: { id: string; name: string; folder_id: string };
       members: { email: string; role: string }[];
     };
     expect(body.band.id).toBe(bandId);
     expect(body.band.name).toBe('Alpha');
-    expect(body.band.drive_folder_id).toBe('drive-folder-abc');
+    expect(body.band.folder_id).toBe('folder-abc');
     expect(body.members).toHaveLength(2);
     const emails = body.members.map((m) => m.email).sort();
     expect(emails).toEqual(['member@example.com', 'owner@example.com']);

@@ -92,7 +92,7 @@ export function Track({
   }, [confirmDelete]);
 
   // Watch the audio element for load failures (e.g. server returns 410 for a
-  // ghost stem whose Drive file was deleted out-of-band).
+  // ghost stem whose audio file was deleted out-of-band).
   useEffect(() => {
     function onErr() {
       setUnavailable(true);
@@ -304,7 +304,7 @@ export function Track({
                 ref={unavailableBtnRef}
                 type="button"
                 className="pill unavailable-icon"
-                aria-label="Stem unavailable — the audio file is missing in Drive"
+                aria-label="Stem unavailable — the audio file is missing"
                 aria-expanded={unavailableOpen}
                 aria-describedby={unavailableOpen ? unavailablePopId : undefined}
                 onClick={() => setUnavailablePinned((p) => !p)}
@@ -318,7 +318,7 @@ export function Track({
                   role="tooltip"
                   className="unavailable-popover"
                 >
-                  Stem unavailable. The audio file is missing in Drive.
+                  Stem unavailable. The audio file is missing.
                 </div>
               )}
             </span>

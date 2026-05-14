@@ -3,11 +3,11 @@ import { spawn } from 'node:child_process';
 import { parseArgs } from 'node:util';
 import { db } from '../src/server/db.js';
 import {
-  DriveNotFoundError,
-  getDriveFile,
+  StorageNotFoundError,
+  getFile,
   renameAndRetype,
   updateFile,
-} from '../src/server/drive.js';
+} from '../src/server/storage.js';
 import type { StemRow } from '../src/server/db.js';
 
 const { values } = parseArgs({
@@ -72,8 +72,8 @@ if (allStems.length === 0) process.exit(0);
 const updateSize = db.prepare<[number, string]>(
   'UPDATE stems SET size_bytes = ? WHERE id = ?',
 );
-const updateDriveId = db.prepare<[string, number, string]>(
-  'UPDATE stems SET drive_file_id = ?, size_bytes = ? WHERE id = ?',
+const updateFileId = db.prepare<[string, number, string]>(
+  'UPDATE stems SET file_id = ?, size_bytes = ? WHERE id = ?',
 );
 
 function withMp3Ext(name: string): string {
@@ -82,13 +82,10 @@ function withMp3Ext(name: string): string {
   return `${base}.mp3`;
 }
 
-function driveFilename(driveFileId: string): string {
-  if (driveFileId.startsWith('local:')) {
-    const rel = Buffer.from(driveFileId.slice('local:'.length), 'base64url').toString('utf8');
-    const slash = rel.lastIndexOf('/');
-    return slash === -1 ? rel : rel.slice(slash + 1);
-  }
-  return '';
+function storageFilename(fileId: string): string {
+  const rel = Buffer.from(fileId, 'base64url').toString('utf8');
+  const slash = rel.lastIndexOf('/');
+  return slash === -1 ? rel : rel.slice(slash + 1);
 }
 
 type Stats = {
@@ -166,7 +163,7 @@ for (const stem of allStems) {
   index++;
   const label = `[${index}/${allStems.length}] ${stem.band_name} / ${stem.project_name} / ${stem.name}`;
   try {
-    const { body } = await getDriveFile(stem.drive_file_id);
+    const { body } = await getFile(stem.file_id);
     const original = await streamToBuffer(body);
     const before = original.length;
     stats.bytesBefore += before;
@@ -190,15 +187,15 @@ for (const stem of allStems) {
       continue;
     }
 
-    const currentName = driveFilename(stem.drive_file_id) || stem.name;
+    const currentName = storageFilename(stem.file_id) || stem.name;
     const newName = withMp3Ext(currentName);
     const needsRename = currentName !== newName;
 
     if (COMMIT) {
-      const res = await updateFile(stem.drive_file_id, 'audio/mpeg', encoded);
+      const res = await updateFile(stem.file_id, 'audio/mpeg', encoded);
       if (needsRename) {
-        const renamed = await renameAndRetype(stem.drive_file_id, newName, 'audio/mpeg');
-        updateDriveId.run(renamed.id, res.size, stem.id);
+        const renamed = await renameAndRetype(stem.file_id, newName, 'audio/mpeg');
+        updateFileId.run(renamed.id, res.size, stem.id);
       } else {
         updateSize.run(res.size, stem.id);
       }
@@ -212,8 +209,8 @@ for (const stem of allStems) {
   } catch (e) {
     stats.failed++;
     const msg =
-      e instanceof DriveNotFoundError
-        ? `drive file not found: ${stem.drive_file_id}`
+      e instanceof StorageNotFoundError
+        ? `storage file not found: ${stem.file_id}`
         : e instanceof Error
           ? e.message
           : String(e);

@@ -7,6 +7,7 @@ primary_region = "sjc"
   NODE_ENV = "production"
   PORT = "8080"
   DATABASE_PATH = "/data/paperstem.sqlite"
+  PAPERSTEM_AUDIO_ROOT = "/data/audio"
   APP_URL = "https://paperstem-dev.fly.dev"
   APP_ENV = "dev"
 

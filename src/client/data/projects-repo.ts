@@ -25,7 +25,7 @@ function summaryToProject(p: ProjectSummary): Project {
     folder: '',
     stems: [],
     stemCount: p.stem_count,
-    driveFolderId: p.drive_folder_id,
+    folderId: p.folder_id,
     referenceStemId: p.reference_stem_id ?? null,
   };
 }
@@ -40,7 +40,7 @@ function detailToProject(detail: ProjectDetail, stems: StemSummary[]): Project {
     folder: '',
     stems: stems.map((s) => ({ id: s.id, name: s.name, peaks: s.peaks })),
     stemCount: stems.length,
-    driveFolderId: detail.drive_folder_id,
+    folderId: detail.folder_id,
     referenceStemId: refId,
   };
 }

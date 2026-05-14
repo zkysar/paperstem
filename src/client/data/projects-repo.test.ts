@@ -57,7 +57,7 @@ describe('HttpProjectsRepo.list', () => {
     expect(url).toBe('/api/projects?band_id=band%2Fwith%20spaces');
   });
 
-  it('parses drive_folder_id into driveFolderId', async () => {
+  it('parses folder_id into folderId', async () => {
     fetchSpy.mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -66,7 +66,7 @@ describe('HttpProjectsRepo.list', () => {
               id: 'p1',
               name: 'Project One',
               recorded_on: '2026-05-01',
-              drive_folder_id: 'drive-xyz',
+              folder_id: 'folder-xyz',
               created_at: 0,
               updated_at: 0,
             },
@@ -77,7 +77,7 @@ describe('HttpProjectsRepo.list', () => {
     );
     const repo = new HttpProjectsRepo('band-abc');
     const list = await repo.list();
-    expect(list[0]).toMatchObject({ id: 'p1', driveFolderId: 'drive-xyz' });
+    expect(list[0]).toMatchObject({ id: 'p1', folderId: 'folder-xyz' });
   });
 });
 
@@ -91,7 +91,7 @@ describe('HttpProjectsRepo.getById', () => {
             band_id: 'b1',
             name: 'Project One',
             recorded_on: '2026-05-01',
-            drive_folder_id: 'drv',
+            folder_id: 'drv',
             notes: null,
             created_at: 0,
             created_by: 'u1',
@@ -114,6 +114,6 @@ describe('HttpProjectsRepo.getById', () => {
       { id: 's1', name: 'drums' },
       { id: 's2', name: 'bass' },
     ]);
-    expect(p.driveFolderId).toBe('drv');
+    expect(p.folderId).toBe('drv');
   });
 });
