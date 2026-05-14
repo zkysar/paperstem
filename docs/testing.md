@@ -520,6 +520,8 @@ This category covers the `src/server/import/` modules and the `bin/import-from-d
 - **Parsing: `src/server/import/wav-cue.test.ts`** — the purest example. A single `buildWav()` helper constructs a RIFF/WAVE buffer from parameters, `writeTempWav()` drops it into a `mkdtempSync` dir, and `readCuePoints()` is called against the resulting path. No setup beyond the buffer construction; assertions are direct equality checks on the returned sample-offset array.
 - **Orchestration: `bin/import-from-device.test.ts`** — the sole end-to-end test. It builds a fake SD card tree in a `mkdtempSync` dir, injects a `vi.fn()` fetch mock and an `encodeFn` stub, calls `runImporter()`, then asserts `result.status` and the marker file written to the card.
 
+**No direct tests for `src/server/import/index.ts`:** its three exports (`importers`, `resolveImporter`, `availableImporterIds`) are one-liners over a plain object; the happy path of `resolveImporter` is transitively covered by the orchestration test, and the remaining surface (`Object.keys`, undefined lookup) tests language semantics rather than application logic.
+
 #### Where fixtures live
 
 There is no `__fixtures__/` directory. All WAV input data is generated programmatically using a `buildWav()` (or `buildSilentWav()`) helper function defined at the top of each parsing test file. The helper assembles RIFF, `fmt `, `cue `, and `data` chunks from Buffer writes and returns a complete in-memory `Buffer`. That buffer is written to a `mkdtempSync` temporary directory before the function under test is called.
