@@ -179,49 +179,53 @@ export function AppToolbar(props: Props) {
 
       <span className="atb-divider" />
 
-      <div className="toolbar-group">
-        <button
-          type="button"
-          className="atb-btn"
-          onClick={() => {
-            const stage = document.querySelector('.stage') as HTMLDivElement | null;
-            const sw = stage?.getBoundingClientRect().width ?? 800;
-            viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
-          }}
-          aria-label="Zoom out"
-          title="Zoom out (⌘−)"
-        >
-          <ZoomOut size={14} aria-hidden="true" />
-        </button>
-        <span
-          className="toolbar-readout"
-          title={`Horizontal ${Math.round(viewport.state.hZoom * 100)}%, track ${viewport.state.trackHeight}px`}
-        >
-          {Math.round(viewport.state.hZoom * 100)}%
-        </span>
-        <button
-          type="button"
-          className="atb-btn"
-          onClick={() => {
-            const stage = document.querySelector('.stage') as HTMLDivElement | null;
-            const sw = stage?.getBoundingClientRect().width ?? 800;
-            viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
-          }}
-          aria-label="Zoom in"
-          title="Zoom in (⌘=)"
-        >
-          <ZoomIn size={14} aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="atb-btn"
-          onClick={() => viewport.fitToWindow()}
-          aria-label="Fit to window"
-          title="Fit to window (⌘0)"
-        >
-          <Maximize2 size={14} aria-hidden="true" />
-        </button>
-      </div>
+      {isWide ? (
+        <div className="toolbar-group">
+          <button
+            type="button"
+            className="atb-btn"
+            onClick={() => {
+              const stage = document.querySelector('.stage') as HTMLDivElement | null;
+              const sw = stage?.getBoundingClientRect().width ?? 800;
+              viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+            }}
+            aria-label="Zoom out"
+            title="Zoom out (⌘−)"
+          >
+            <ZoomOut size={14} aria-hidden="true" />
+          </button>
+          <span
+            className="toolbar-readout"
+            title={`Horizontal ${Math.round(viewport.state.hZoom * 100)}%, track ${viewport.state.trackHeight}px`}
+          >
+            {Math.round(viewport.state.hZoom * 100)}%
+          </span>
+          <button
+            type="button"
+            className="atb-btn"
+            onClick={() => {
+              const stage = document.querySelector('.stage') as HTMLDivElement | null;
+              const sw = stage?.getBoundingClientRect().width ?? 800;
+              viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+            }}
+            aria-label="Zoom in"
+            title="Zoom in (⌘=)"
+          >
+            <ZoomIn size={14} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="atb-btn"
+            onClick={() => viewport.fitToWindow()}
+            aria-label="Fit to window"
+            title="Fit to window (⌘0)"
+          >
+            <Maximize2 size={14} aria-hidden="true" />
+          </button>
+        </div>
+      ) : (
+        <MobileZoomPopover viewport={viewport} />
+      )}
 
       <span className="atb-divider" />
 
@@ -305,6 +309,74 @@ function MasterVolumePopover({
             />
             <span className="atb-master-pop-num">{masterVolume}</span>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileZoomPopover({ viewport }: { viewport: ViewportControls }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  function getStageWidth() {
+    const stage = document.querySelector('.stage') as HTMLDivElement | null;
+    return stage?.getBoundingClientRect().width ?? 800;
+  }
+
+  return (
+    <div className="atb-zoom-pop-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className="atb-btn"
+        aria-label="Zoom"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <ZoomIn size={16} strokeWidth={2} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="atb-zoom-pop" role="menu">
+          <button
+            type="button"
+            className="atb-btn"
+            aria-label="Zoom out"
+            onClick={() => {
+              const sw = getStageWidth();
+              viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+            }}
+          >
+            <ZoomOut size={16} aria-hidden="true" />
+          </button>
+          <span className="atb-zoom-pop-pct">{Math.round(viewport.state.hZoom * 100)}%</span>
+          <button
+            type="button"
+            className="atb-btn"
+            aria-label="Zoom in"
+            onClick={() => {
+              const sw = getStageWidth();
+              viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+            }}
+          >
+            <ZoomIn size={16} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="atb-btn"
+            aria-label="Fit to window"
+            onClick={() => viewport.fitToWindow()}
+          >
+            <Maximize2 size={16} aria-hidden="true" />
+          </button>
         </div>
       )}
     </div>

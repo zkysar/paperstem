@@ -194,6 +194,30 @@ describe('AppToolbar', () => {
     expect(screen.getByText(/1:24 \/ 4:32/)).not.toBeNull();
   });
 
+  it('on mobile, zoom collapses to a single popover trigger', async () => {
+    const user = userEvent.setup();
+    render(<AppToolbar {...baseProps} isWide={false} />);
+    // Inline zoom trio absent
+    expect(screen.queryByLabelText('Zoom out')).toBeNull();
+    expect(screen.queryByLabelText('Zoom in')).toBeNull();
+    // One zoom trigger button exists
+    const trigger = screen.getByLabelText('Zoom');
+    expect(trigger).not.toBeNull();
+    await user.click(trigger);
+    // Popover reveals the trio
+    expect(screen.getByLabelText('Zoom out')).not.toBeNull();
+    expect(screen.getByLabelText('Zoom in')).not.toBeNull();
+    expect(screen.getByLabelText('Fit to window')).not.toBeNull();
+  });
+
+  it('on desktop, the inline zoom trio is visible without a popover', () => {
+    render(<AppToolbar {...baseProps} isWide={true} />);
+    expect(screen.getByLabelText('Zoom out')).not.toBeNull();
+    expect(screen.getByLabelText('Zoom in')).not.toBeNull();
+    expect(screen.getByLabelText('Fit to window')).not.toBeNull();
+    expect(screen.queryByLabelText('Zoom')).toBeNull();
+  });
+
   it('treats AbortError from navigator.share() as a silent user cancel', async () => {
     const user = userEvent.setup();
     const err = Object.assign(new Error('cancelled'), { name: 'AbortError' });

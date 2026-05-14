@@ -2932,3 +2932,31 @@ body.env-non-prod[data-env="local"]::before {
   0%, 100% { box-shadow: 0 0 0 0 rgba(193, 116, 70, 0); }
   50%      { box-shadow: 0 0 0 4px rgba(193, 116, 70, 0.55); }
 }
+
+.atb-zoom-pop-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.atb-zoom-pop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 60;
+}
+
+.atb-zoom-pop-pct {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  min-width: 40px;
+  text-align: center;
+  color: var(--ink-2);
+}
