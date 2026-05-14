@@ -56,6 +56,7 @@ export function ToolbarOverflowMenu(props: Props) {
         type="button"
         className="atb-btn"
         aria-label="More options"
+        title="More options (waveform, markers, shortcuts)"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}

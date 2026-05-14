@@ -123,6 +123,7 @@ export function AppHeader({
             className="ah-title-caret"
             onClick={onOpenPicker}
             aria-label="Switch project"
+            title="Switch to a different project"
           >
             <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
           </button>
@@ -152,7 +153,7 @@ export function AppHeader({
           className={'ah-iconbtn ah-hide-on-mobile' + (annotationsOpen ? ' active' : '')}
           onClick={onToggleAnnotations}
           aria-pressed={annotationsOpen}
-          title="Comments"
+          title={annotationsOpen ? 'Close the comments panel' : 'Open the comments panel — notes left on the timeline by you and your bandmates'}
           aria-label="Toggle comments"
         >
           <MessageSquare size={16} strokeWidth={2} aria-hidden="true" />
@@ -166,6 +167,7 @@ export function AppHeader({
           aria-haspopup="menu"
           aria-expanded={avatarOpen}
           aria-label="Account"
+          title={`Account (${userEmail})`}
         >
           {userInitials}
         </button>

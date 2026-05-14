@@ -1,6 +1,20 @@
 import { useMemo, type Dispatch, type SetStateAction } from 'react';
 import type { Annotation } from '../../shared/types';
 import { SELF_ANNOTATION_COLOR } from '../lib/colors';
+import { fmt } from '../lib/format';
+
+function authorLabel(a: Annotation): string {
+  return a.user_display_name ?? a.user_email;
+}
+
+function markerTitle(a: Annotation): string {
+  const who = authorLabel(a);
+  const when = a.end_ms === null
+    ? fmt(a.start_ms / 1000)
+    : `${fmt(a.start_ms / 1000)} – ${fmt(a.end_ms / 1000)}`;
+  const body = a.body.length > 120 ? a.body.slice(0, 117) + '…' : a.body;
+  return `Comment by ${who} at ${when}\n${body}\n\nClick to open.`;
+}
 
 type Props = {
   annotations: Annotation[];
@@ -64,6 +78,8 @@ export function AnnotationMarkers({
             data-annotation-id={m.ann.id}
             className={className}
             style={style}
+            title={markerTitle(m.ann)}
+            aria-label={`Comment by ${authorLabel(m.ann)}`}
             onPointerEnter={() => { if (!createMode) onHover(m.ann.id); }}
             onPointerLeave={() => { onHover((cur) => (cur === m.ann.id ? null : cur)); }}
             onPointerDown={(e) => {
