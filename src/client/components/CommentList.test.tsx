@@ -123,4 +123,15 @@ describe('CommentList', () => {
     expect(miraCard.querySelector('[aria-label="Edit"]')).toBeNull();
     expect(miraCard.querySelector('[aria-label="Delete"]')).toBeNull();
   });
+
+  it('copy-link click calls onCopyLink with the row\'s annotation (and not onSelect)', async () => {
+    const user = userEvent.setup();
+    const onCopyLink = vi.fn();
+    const onSelect = vi.fn();
+    render(<CommentList {...baseProps} onCopyLink={onCopyLink} onSelect={onSelect} />);
+    const card = screen.getByTestId('list-card-1');
+    await user.click(card.querySelector('[aria-label="Copy link to this comment"]')!);
+    expect(onCopyLink).toHaveBeenCalledWith(annotations[0]);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });

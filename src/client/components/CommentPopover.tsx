@@ -24,6 +24,10 @@ type Props = {
   onToggleStar(): void;
   onSaveEdit(body: string): void;
   onDelete(): void;
+  /**
+   * "Copy link to this comment" — opens the share dialog pre-populated
+   * with this comment as the link target.
+   */
   onCopyLink(): void;
   onClose(): void;
 };
@@ -154,7 +158,7 @@ export function CommentPopover({
           type="button"
           className="cp-iconbtn"
           aria-label="Copy link to this comment"
-          title="Copy link to this comment"
+          title="Open share dialog for this comment"
           onClick={(e) => { e.stopPropagation(); onCopyLink(); }}
         >
           <Link2 size={14} strokeWidth={2} aria-hidden="true" />

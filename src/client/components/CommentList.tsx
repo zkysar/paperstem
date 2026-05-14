@@ -28,8 +28,9 @@ type Props = {
   onSaveEdit(annotation: Annotation, body: string): void;
   onDelete(annotation: Annotation): void;
   /**
-   * "Copy link to this comment" — captures project + comment + its timestamp
-   * and writes a share URL to the clipboard.
+   * "Copy link to this comment" — opens the share dialog pre-populated
+   * with this comment as the link target. The user picks what state to
+   * bundle and copies from there.
    */
   onCopyLink(annotation: Annotation): void;
 };
@@ -175,7 +176,7 @@ export function CommentList({
                     type="button"
                     className="cl-iconbtn cl-copy-link"
                     aria-label="Copy link to this comment"
-                    title="Copy link to this comment"
+                    title="Open share dialog for this comment"
                     onClick={(e) => { e.stopPropagation(); onCopyLink(a); }}
                   ><Link2 size={14} strokeWidth={2} aria-hidden="true" /></button>
                 </div>

@@ -2935,75 +2935,145 @@ body.env-non-prod[data-env="local"]::before {
 }
 .share-arrival-dismiss:hover { color: var(--ink); }
 
-/* Share button + transient "Copied — includes X" label + clipboard
- * fallback popover. Lives in the AppToolbar after the download button. */
+/* Wrapper around the toolbar Share button. The dialog is rendered at
+ * App-root level, so this wrapper is just a layout/hit-area anchor that
+ * the mobile-touch rule above also targets. */
 .atb-share-wrap {
-  position: relative;
   display: inline-flex;
   align-items: center;
 }
 
-.atb-share-label {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--ink);
-  color: #fff;
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: var(--fs-xs);
-  white-space: nowrap;
-  z-index: 50;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  pointer-events: none;
-}
-
-.atb-share-label::before {
-  content: "";
-  position: absolute;
-  top: -4px;
-  left: 50%;
-  transform: translateX(-50%) rotate(45deg);
-  width: 8px;
-  height: 8px;
-  background: var(--ink);
-}
-.atb-share-fallback {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 20;
+/* Share dialog — opened by the toolbar Share button and the comment
+ * copy-link button. YouTube-style: shows what's bundled into the link
+ * with per-category toggles, plus a live URL preview and Copy button.
+ * Modelled on .shortcuts-modal for visual consistency. */
+.share-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  min-width: 320px;
+  justify-content: center;
+  z-index: 1000;
 }
-.atb-share-fallback input {
+.share-dialog {
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  max-width: 560px;
+  width: calc(100% - 32px);
+  max-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+}
+.share-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rule-2);
+}
+.share-dialog-header h2 { margin: 0; font-size: 1.05rem; }
+.share-dialog-close {
+  background: transparent;
+  border: 0;
+  font-size: 1.25rem;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.share-dialog-body {
+  padding: 14px 16px 16px;
+  overflow-y: auto;
+}
+.share-dialog-target {
+  margin: 0 0 12px;
+  font-size: var(--fs-md);
+  color: var(--ink-2);
+}
+.share-dialog-section-title {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.share-dialog-toggles {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.share-dialog-toggle-row label {
+  display: grid;
+  grid-template-columns: auto 130px 1fr;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.share-dialog-toggle-row label:hover { background: var(--rule-2); }
+.share-dialog-toggle-row input[type="checkbox"] {
+  margin: 0;
+  cursor: pointer;
+}
+.share-dialog-toggle-label {
+  font-size: var(--fs-md);
+  color: var(--ink);
+}
+.share-dialog-toggle-detail {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.share-dialog-empty {
+  margin: 0 0 14px;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  font-style: italic;
+}
+.share-dialog-url-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.share-dialog-url {
   flex: 1;
   font-family: var(--font-mono);
   font-size: var(--fs-xs);
   border: 1px solid var(--rule);
   background: var(--bg);
   color: var(--ink);
-  padding: 4px 6px;
-  border-radius: 3px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  min-width: 0;
 }
-.atb-share-fallback-close {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  font-size: var(--fs-lg);
-  line-height: 1;
-  padding: 0 4px;
+.share-dialog-copy {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--paper);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semi);
+  padding: 6px 14px;
+  border-radius: 4px;
   cursor: pointer;
+  white-space: nowrap;
 }
-.atb-share-fallback-close:hover { color: var(--ink); }
+.share-dialog-copy:hover { filter: brightness(0.95); }
+.share-dialog-copy.copied {
+  background: var(--bg);
+  color: var(--accent);
+}
+.share-dialog-error {
+  margin: 8px 0 0;
+  font-size: var(--fs-sm);
+  color: var(--danger, #b00020);
+}
 
 /* Sustained-emphasis pulse for a comment that arrived via a share link's
  * `fc=` param. Distinct from normal selection so the recipient registers
