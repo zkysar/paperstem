@@ -830,11 +830,13 @@ function PaperstemApp({
         canRename={player.state.stems.length > 0}
         appVersion={appInfo?.version ?? null}
         appEnv={appInfo?.env ?? null}
+        downloading={downloading}
         onOpenPicker={openPicker}
         onToggleAnnotations={toggleDrawer}
         onSignOut={onLogout}
         onReportBug={() => openBugReport()}
         onOpenTokens={() => setTokensOpen(true)}
+        onDownloadAll={onDownloadAll}
         onRenameProject={(name) => {
           // In draft mode there's no server project yet — just update the
           // player title. The new title becomes the default upload name on
@@ -851,7 +853,6 @@ function PaperstemApp({
         isPlaying={player.state.isPlaying}
         hasLoop={!!player.state.loop}
         loopEnabled={!!player.state.loop?.enabled}
-        downloading={downloading}
         waveformNormalization={player.state.waveformNormalization}
         masterVolume={player.state.masterVolume}
         currentTime={player.currentTime}
@@ -865,7 +866,6 @@ function PaperstemApp({
         onSeek={player.seek}
         onTogglePlay={() => void player.togglePlay()}
         onToggleLoopEnabled={player.toggleLoopEnabled}
-        onDownloadAll={onDownloadAll}
         onToggleWaveformNormalization={player.toggleWaveformNormalization}
         onToggleAnnotationCreate={handleAddButton}
         onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, ChevronDown, KeyRound, LogOut, MessageSquare } from 'lucide-react';
+import { Bug, ChevronDown, Download, KeyRound, Loader2, LogOut, MessageSquare } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
 
@@ -14,19 +14,21 @@ type Props = {
   canRename: boolean;
   appVersion: string | null;
   appEnv: string | null;
+  downloading: boolean;
   onOpenPicker(): void;
   onToggleAnnotations(): void;
   onSignOut(): void;
   onReportBug(): void;
   onRenameProject(name: string): void;
   onOpenTokens(): void;
+  onDownloadAll(): void;
 };
 
 export function AppHeader({
   userEmail, userInitials, projectTitle, stemCount, duration,
-  annotationsOpen, hasProject, canRename, appVersion, appEnv,
+  annotationsOpen, hasProject, canRename, appVersion, appEnv, downloading,
   onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenameProject,
-  onOpenTokens,
+  onOpenTokens, onDownloadAll,
 }: Props) {
   const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -123,6 +125,18 @@ export function AppHeader({
           {stemCount} stems · {fmt(duration)}
         </span>
       )}
+      <button
+        type="button"
+        className="ah-iconbtn"
+        aria-label="Download all stems"
+        disabled={!hasProject || downloading}
+        onClick={onDownloadAll}
+        title="Download all stems"
+      >
+        {downloading
+          ? <Loader2 size={16} strokeWidth={2} className="atb-spin" aria-hidden="true" />
+          : <Download size={16} strokeWidth={2} aria-hidden="true" />}
+      </button>
       {hasProject && (
         <button
           type="button"

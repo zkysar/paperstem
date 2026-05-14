@@ -14,12 +14,14 @@ const baseProps = {
   canRename: true,
   appVersion: 'test-1.0.0',
   appEnv: null,
+  downloading: false,
   onOpenPicker: vi.fn(),
   onToggleAnnotations: vi.fn(),
   onSignOut: vi.fn(),
   onReportBug: vi.fn(),
   onRenameProject: vi.fn(),
   onOpenTokens: vi.fn(),
+  onDownloadAll: vi.fn(),
 };
 
 describe('AppHeader', () => {
@@ -98,6 +100,31 @@ describe('AppHeader', () => {
     rerender(<AppHeader {...baseProps} appVersion="dev" />);
     const fallback = screen.getByRole('link', { name: 'dev' }) as HTMLAnchorElement;
     expect(fallback.href).toBe('https://github.com/zkysar/paperstem');
+  });
+
+  it('renders a Download button', () => {
+    render(<AppHeader {...baseProps} />);
+    expect(screen.getByLabelText('Download all stems')).not.toBeNull();
+  });
+
+  it('Download button calls onDownloadAll when clicked', async () => {
+    const onDownload = vi.fn();
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} onDownloadAll={onDownload} />);
+    await user.click(screen.getByLabelText('Download all stems'));
+    expect(onDownload).toHaveBeenCalledOnce();
+  });
+
+  it('Download button is disabled when no project loaded', () => {
+    render(<AppHeader {...baseProps} hasProject={false} />);
+    expect((screen.getByLabelText('Download all stems') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('Download button shows a spinner while downloading', () => {
+    render(<AppHeader {...baseProps} downloading={true} />);
+    const btn = screen.getByLabelText('Download all stems') as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    expect(btn.querySelector('.atb-spin')).not.toBeNull();
   });
 
   it('clicking outside the avatar menu closes it', async () => {

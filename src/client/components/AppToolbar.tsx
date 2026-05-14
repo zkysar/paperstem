@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   AudioWaveform,
-  Download,
   Eye,
   EyeOff,
   HelpCircle,
-  Loader2,
   Maximize2,
   MessageSquarePlus,
   PanelRightClose,
@@ -29,7 +27,6 @@ type Props = {
   isPlaying: boolean;
   hasLoop: boolean;
   loopEnabled: boolean;
-  downloading: boolean;
   waveformNormalization: 'per-track' | 'global';
   masterVolume: number;
   currentTime: number;
@@ -43,7 +40,6 @@ type Props = {
   onSeek(t: number): void;
   onTogglePlay(): void;
   onToggleLoopEnabled(): void;
-  onDownloadAll(): void;
   onToggleWaveformNormalization(): void;
   onToggleAnnotationCreate(): void;
   onToggleMarkersVisible(): void;
@@ -61,11 +57,11 @@ type Props = {
 
 export function AppToolbar(props: Props) {
   const {
-    hasProject, isPlaying, hasLoop, loopEnabled, downloading,
+    hasProject, isPlaying, hasLoop, loopEnabled,
     waveformNormalization, masterVolume, currentTime, duration,
     annotationCreateMode, canCreateAnnotations, markersVisible,
     railCollapsed, showRailToggle, isWide,
-    onSeek, onTogglePlay, onToggleLoopEnabled, onDownloadAll,
+    onSeek, onTogglePlay, onToggleLoopEnabled,
     onToggleWaveformNormalization, onToggleAnnotationCreate,
     onToggleMarkersVisible, onSetMasterVolume, onToggleRailCollapsed,
     viewport, onOpenShortcuts,
@@ -130,14 +126,6 @@ export function AppToolbar(props: Props) {
 
       <span className="atb-divider" />
 
-      <button type="button" className="atb-btn"
-        aria-label="Download all stems"
-        disabled={!hasProject || downloading}
-        onClick={onDownloadAll}>
-        {downloading
-          ? <Loader2 size={16} strokeWidth={2} className="atb-spin" aria-hidden="true" />
-          : <Download size={16} strokeWidth={2} aria-hidden="true" />}
-      </button>
       <div className="atb-share-wrap">
         <button type="button" className="atb-btn"
           aria-label="Copy share link"

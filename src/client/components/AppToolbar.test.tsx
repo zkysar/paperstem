@@ -14,7 +14,6 @@ const baseProps = {
   isPlaying: false,
   hasLoop: true,
   loopEnabled: false,
-  downloading: false,
   waveformNormalization: 'per-track' as const,
   masterVolume: 50,
   currentTime: 0,
@@ -28,7 +27,6 @@ const baseProps = {
   onSeek: vi.fn(),
   onTogglePlay: vi.fn(),
   onToggleLoopEnabled: vi.fn(),
-  onDownloadAll: vi.fn(),
   onToggleWaveformNormalization: vi.fn(),
   onToggleAnnotationCreate: vi.fn(),
   onToggleMarkersVisible: vi.fn(),
@@ -45,14 +43,17 @@ describe('AppToolbar', () => {
     expect(screen.getByLabelText('Restart')).not.toBeNull();
     expect(screen.getByLabelText('Play')).not.toBeNull();
     expect(screen.getByLabelText('Toggle loop')).not.toBeNull();
-    expect(screen.getByLabelText('Download all stems')).not.toBeNull();
   });
 
   it('disables transport when no project loaded', () => {
     render(<AppToolbar {...baseProps} hasProject={false} />);
     expect((screen.getByLabelText('Restart') as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByLabelText('Play') as HTMLButtonElement).disabled).toBe(true);
-    expect((screen.getByLabelText('Download all stems') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('no longer renders the Download button (moved to header)', () => {
+    render(<AppToolbar {...baseProps} />);
+    expect(screen.queryByLabelText('Download all stems')).toBeNull();
   });
 
   it('keeps ▥ ◉ enabled even without project (user prefs)', () => {
