@@ -339,11 +339,6 @@ kbd {
   display: none;
 }
 .track:last-child { border-bottom: none; }
-.track.focused .track-rail {
-  background-color: var(--bg);
-  background-image: linear-gradient(var(--accent-tint), var(--accent-tint));
-  border-radius: 4px;
-}
 
 .track-rail {
   background: var(--bg);

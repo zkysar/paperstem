@@ -12,7 +12,6 @@ export type ShareState = {
   time?: number; // seconds, 2-decimal precision in URL
   loop?: { start: number; end: number; enabled: boolean };
   masterVolume?: number; // integer 0..200, undefined = at default
-  focusedStemId?: string;
   focusedCommentId?: string;
   mix?: ShareMixEntry[];
 };
@@ -29,9 +28,6 @@ export function encodeShareUrl(state: ShareState): string {
   }
   if (state.masterVolume != null && state.masterVolume !== 100) {
     params.push(`mv=${state.masterVolume}`);
-  }
-  if (state.focusedStemId) {
-    params.push(`fs=${encodeURIComponent(state.focusedStemId)}`);
   }
   if (state.focusedCommentId) {
     params.push(`fc=${encodeURIComponent(state.focusedCommentId)}`);
@@ -77,8 +73,6 @@ export function decodeShareUrl(fragment: string): ShareState | null {
     const n = Number(mv);
     if (Number.isFinite(n) && n >= 0 && n <= 200) state.masterVolume = Math.round(n);
   }
-  const fs = sp.get('fs');
-  if (fs) state.focusedStemId = fs;
   const fc = sp.get('fc');
   if (fc) state.focusedCommentId = fc;
   const mix = sp.get('mix');
@@ -137,10 +131,6 @@ export function snapshotShareState(
     };
   }
   if (player.masterVolume !== 100) state.masterVolume = player.masterVolume;
-  if (player.focusedIdx >= 0) {
-    const focused = player.stems[player.focusedIdx];
-    if (focused?.serverId) state.focusedStemId = focused.serverId;
-  }
   const fc = overrides?.focusedCommentId ?? activeCommentId;
   if (fc) state.focusedCommentId = fc;
 
@@ -167,11 +157,10 @@ export function buildShareUrl(state: ShareState, baseUrl: string): string {
 /** Human-readable list of what's in the share state beyond project + time. */
 export function describeShareCategories(
   state: ShareState,
-): Array<'loop' | 'mix' | 'stem' | 'comment'> {
-  const cats: Array<'loop' | 'mix' | 'stem' | 'comment'> = [];
+): Array<'loop' | 'mix' | 'comment'> {
+  const cats: Array<'loop' | 'mix' | 'comment'> = [];
   if (state.loop) cats.push('loop');
   if (state.mix && state.mix.length) cats.push('mix');
-  if (state.focusedStemId) cats.push('stem');
   if (state.focusedCommentId) cats.push('comment');
   return cats;
 }

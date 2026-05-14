@@ -2,7 +2,7 @@ import type { PlayerControls } from '../hooks/usePlayer';
 import type { ShareState } from './share-url';
 
 export type ApplyResult = {
-  appliedCategories: Array<'loop' | 'mix' | 'stem' | 'comment'>;
+  appliedCategories: Array<'loop' | 'mix' | 'comment'>;
   time: number | null;
 };
 
@@ -17,13 +17,13 @@ export type ApplyContext = {
  * arrival banner. Pure with respect to its inputs — all side effects happen
  * via the supplied controls/callbacks.
  *
- * Order matters: loop → mix → master volume → focused stem → focused comment
- * → seek. Seek lands last so the player has a fully-realized state when the
- * playhead moves; the recipient is responsible for starting playback.
+ * Order matters: loop → mix → master volume → focused comment → seek. Seek
+ * lands last so the player has a fully-realized state when the playhead moves;
+ * the recipient is responsible for starting playback.
  */
 export function applyShareState(state: ShareState, ctx: ApplyContext): ApplyResult {
   const { player } = ctx;
-  const cats: Array<'loop' | 'mix' | 'stem' | 'comment'> = [];
+  const cats: Array<'loop' | 'mix' | 'comment'> = [];
 
   if (state.loop) {
     player.setLoop(state.loop.start, state.loop.end);
@@ -49,14 +49,6 @@ export function applyShareState(state: ShareState, ctx: ApplyContext): ApplyResu
 
   if (state.masterVolume != null) {
     player.setMasterVolume(state.masterVolume);
-  }
-
-  if (state.focusedStemId) {
-    const idx = player.state.stems.findIndex((s) => s.serverId === state.focusedStemId);
-    if (idx >= 0) {
-      player.focusStem(idx);
-      cats.push('stem');
-    }
   }
 
   if (state.focusedCommentId) {

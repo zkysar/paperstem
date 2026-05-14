@@ -85,7 +85,6 @@ export function Player({
     stems,
     duration,
     loop,
-    focusedIdx,
     status,
     loading,
     waveformNormalization,
@@ -605,14 +604,12 @@ export function Player({
                   key={stem.serverId ?? `${stem.projectId ?? 'local'}-${stem.name}`}
                   stem={stem}
                   idx={i}
-                  focused={i === focusedIdx}
                   effectiveMuted={anySolo ? !stem.soloed : stem.userMuted}
                   durationRef={duration}
                   waveformNormalization={waveformNormalization}
                   canMutate={canMutate}
                   trackHeight={viewport.state.trackHeight}
                   hZoom={viewport.state.hZoom}
-                  onFocus={player.focusStem}
                   onToggleMute={player.toggleMute}
                   onToggleSolo={player.toggleSolo}
                   onSetVolume={player.setVolume}

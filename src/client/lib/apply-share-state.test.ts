@@ -28,7 +28,6 @@ function makePlayer(stems: LoadedStem[], duration = 60): PlayerState {
     duration,
     referenceIdx: 0,
     isPlaying: false,
-    focusedIdx: -1,
     loop: null,
     status: '',
     loading: null,
@@ -38,7 +37,7 @@ function makePlayer(stems: LoadedStem[], duration = 60): PlayerState {
 }
 
 describe('applyShareState', () => {
-  it('applies time, loop, mix, master, focus, comment in order', () => {
+  it('applies time, loop, mix, master, comment in order', () => {
     const calls: string[] = [];
     const stems = [makeStem({ serverId: 'a' }), makeStem({ serverId: 'b' })];
     const player = {
@@ -49,7 +48,6 @@ describe('applyShareState', () => {
       toggleMute: vi.fn((i) => calls.push(`mute(${i})`)),
       toggleSolo: vi.fn((i) => calls.push(`solo(${i})`)),
       setMasterVolume: vi.fn((v) => calls.push(`master(${v})`)),
-      focusStem: vi.fn((i) => calls.push(`focus(${i})`)),
       seek: vi.fn((t) => calls.push(`seek(${t})`)),
     };
     const onFocusComment = vi.fn();
@@ -60,7 +58,6 @@ describe('applyShareState', () => {
       time: 10,
       loop: { start: 1, end: 5, enabled: false },
       masterVolume: 80,
-      focusedStemId: 'b',
       focusedCommentId: 'cmt1',
       mix: [
         { stemId: 'a', muted: true },
@@ -81,12 +78,11 @@ describe('applyShareState', () => {
       'mute(0)',
       'vol(1,50)',
       'master(80)',
-      'focus(1)',
       'seek(10)',
     ]);
     expect(onFocusComment).toHaveBeenCalledWith('cmt1');
     expect(onOpenDrawer).toHaveBeenCalledOnce();
-    expect(result.appliedCategories).toEqual(['loop', 'mix', 'stem', 'comment']);
+    expect(result.appliedCategories).toEqual(['loop', 'mix', 'comment']);
     expect(result.time).toBe(10);
   });
 
@@ -99,7 +95,6 @@ describe('applyShareState', () => {
       toggleMute: vi.fn(),
       toggleSolo: vi.fn(),
       setMasterVolume: vi.fn(),
-      focusStem: vi.fn(),
       seek: vi.fn(),
     };
     applyShareState(
@@ -124,7 +119,6 @@ describe('applyShareState', () => {
       toggleMute: vi.fn(),
       toggleSolo: vi.fn(),
       setMasterVolume: vi.fn(),
-      focusStem: vi.fn(),
       seek: vi.fn(),
     };
     applyShareState(
@@ -148,7 +142,6 @@ describe('applyShareState', () => {
       toggleMute: vi.fn(),
       toggleSolo: vi.fn(),
       setMasterVolume: vi.fn(),
-      focusStem: vi.fn(),
       seek: vi.fn(),
     };
     const onOpenDrawer = vi.fn();
