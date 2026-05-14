@@ -1474,7 +1474,6 @@ body.env-non-prod[data-env="local"]::before {
   min-width: 22px; text-align: right;
 }
 .atb-time {
-  margin-left: auto;
   font-family: var(--font-mono);
   font-size: var(--fs-sm); color: var(--ink-2);
 }

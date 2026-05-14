@@ -124,6 +124,10 @@ export function AppToolbar(props: Props) {
         disabled={!hasLoop}
         onClick={onToggleLoopEnabled}><Repeat size={16} strokeWidth={2} aria-hidden="true" /></button>
 
+      <span className="atb-time">
+        {fmt(currentTime)} / {fmt(duration)}
+      </span>
+
       <span className="atb-divider" />
 
       <div className="atb-share-wrap">
@@ -272,10 +276,6 @@ export function AppToolbar(props: Props) {
           onSetMasterVolume={onSetMasterVolume}
         />
       )}
-
-      <span className="atb-time">
-        {fmt(currentTime)} / {fmt(duration)}
-      </span>
     </div>
   );
 }

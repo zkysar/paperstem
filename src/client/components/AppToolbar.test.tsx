@@ -118,6 +118,18 @@ describe('AppToolbar', () => {
     expect((screen.getByLabelText('Copy share link') as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('time display sits between the transport group and the share button', () => {
+    render(<AppToolbar {...baseProps} currentTime={84} duration={272.5} />);
+    const time = screen.getByText(/1:24 \/ 4:32/).closest('span');
+    const loop = screen.getByLabelText('Toggle loop');
+    const share = screen.getByLabelText('Copy share link');
+    expect(time).not.toBeNull();
+    if (!time) return;
+    // time appears after loop and before share in DOM order
+    expect(loop.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(time.compareDocumentPosition(share) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('Share button writes to clipboard and shows a Copied label', async () => {
     const user = userEvent.setup();
     const writeText = vi.fn().mockResolvedValue(undefined);
