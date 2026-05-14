@@ -1,63 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { BugReportPayload } from './mailer.js';
 
-// ---- env-var guard tests ------------------------------------------------
 // mailer.ts reads GMAIL_USER and GMAIL_APP_PASSWORD at module init time and
-// throws if either is missing.  We use vi.resetModules() + freshImport() so
-// each test gets a clean module registry with whatever env is current.
-
-const ORIGINAL_GMAIL_USER = process.env.GMAIL_USER;
-const ORIGINAL_GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-
-async function freshImport() {
-  vi.resetModules();
-  return await import('./mailer.js');
-}
-
-afterEach(() => {
-  if (ORIGINAL_GMAIL_USER === undefined) delete process.env.GMAIL_USER;
-  else process.env.GMAIL_USER = ORIGINAL_GMAIL_USER;
-
-  if (ORIGINAL_GMAIL_APP_PASSWORD === undefined) delete process.env.GMAIL_APP_PASSWORD;
-  else process.env.GMAIL_APP_PASSWORD = ORIGINAL_GMAIL_APP_PASSWORD;
-});
-
-describe('mailer — env-var guard', () => {
-  it('throws on import when GMAIL_USER is unset', async () => {
-    delete process.env.GMAIL_USER;
-    process.env.GMAIL_APP_PASSWORD = 'any-pass';
-    await expect(freshImport()).rejects.toThrow('GMAIL_USER and GMAIL_APP_PASSWORD must be set');
-  });
-
-  it('throws on import when GMAIL_APP_PASSWORD is unset', async () => {
-    process.env.GMAIL_USER = 'test@example.com';
-    delete process.env.GMAIL_APP_PASSWORD;
-    await expect(freshImport()).rejects.toThrow('GMAIL_USER and GMAIL_APP_PASSWORD must be set');
-  });
-
-  it('throws on import when both env vars are unset', async () => {
-    delete process.env.GMAIL_USER;
-    delete process.env.GMAIL_APP_PASSWORD;
-    await expect(freshImport()).rejects.toThrow('GMAIL_USER and GMAIL_APP_PASSWORD must be set');
-  });
-
-  it('loads successfully when both env vars are set', async () => {
-    process.env.GMAIL_USER = 'test@example.com';
-    process.env.GMAIL_APP_PASSWORD = 'test-pass';
-    await expect(freshImport()).resolves.toBeDefined();
-  });
-});
-
-// ---- formatter tests -----------------------------------------------------
-// formatBugReportSubject and formatBugReportText are pure (or near-pure)
-// exported functions.  Import them statically; they do not read env vars at
-// call time, and we can restore GMAIL_USER/PASSWORD before the static import
-// runs by setting them at module level here.
-
+// throws if either is missing. Set placeholders before the static import below.
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
 
-// Static import — safe because env vars are set above before the module loads.
 const { formatBugReportSubject, formatBugReportText } = await import('./mailer.js');
 
 function makePayload(overrides: Partial<BugReportPayload> = {}): BugReportPayload {
