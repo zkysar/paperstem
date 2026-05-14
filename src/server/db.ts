@@ -553,29 +553,29 @@ export const stmts = {
 
   // --- reactions: comments ---
   findReactionsForProject: db.prepare<
-    [string, string],
+    { project_id: string; user_id: string },
     AnnotationReactionAggRow
   >(
     `SELECT ar.annotation_id, ar.emoji,
             COUNT(*) AS count,
             json_group_array(ar.user_id) AS user_ids_json,
-            MAX(CASE WHEN ar.user_id = ?2 THEN 1 ELSE 0 END) AS reacted_by_self
+            MAX(CASE WHEN ar.user_id = @user_id THEN 1 ELSE 0 END) AS reacted_by_self
        FROM annotation_reactions ar
        JOIN annotations a ON a.id = ar.annotation_id
-      WHERE a.project_id = ?1
+      WHERE a.project_id = @project_id
       GROUP BY ar.annotation_id, ar.emoji
       ORDER BY ar.annotation_id, ar.emoji`,
   ),
   findReactionsForAnnotation: db.prepare<
-    [string, string],
+    { annotation_id: string; user_id: string },
     AnnotationReactionAggRow
   >(
     `SELECT annotation_id, emoji,
             COUNT(*) AS count,
             json_group_array(user_id) AS user_ids_json,
-            MAX(CASE WHEN user_id = ?2 THEN 1 ELSE 0 END) AS reacted_by_self
+            MAX(CASE WHEN user_id = @user_id THEN 1 ELSE 0 END) AS reacted_by_self
        FROM annotation_reactions
-      WHERE annotation_id = ?1
+      WHERE annotation_id = @annotation_id
       GROUP BY emoji
       ORDER BY emoji`,
   ),
@@ -591,16 +591,16 @@ export const stmts = {
 
   // --- reactions: replies ---
   findReactionsForReplies: db.prepare<
-    [string, string],
+    { annotation_id: string; user_id: string },
     ReplyReactionAggRow
   >(
     `SELECT rr.reply_id, rr.emoji,
             COUNT(*) AS count,
             json_group_array(rr.user_id) AS user_ids_json,
-            MAX(CASE WHEN rr.user_id = ?2 THEN 1 ELSE 0 END) AS reacted_by_self
+            MAX(CASE WHEN rr.user_id = @user_id THEN 1 ELSE 0 END) AS reacted_by_self
        FROM annotation_reply_reactions rr
        JOIN annotation_replies r ON r.id = rr.reply_id
-      WHERE r.annotation_id = ?1
+      WHERE r.annotation_id = @annotation_id
       GROUP BY rr.reply_id, rr.emoji
       ORDER BY rr.reply_id, rr.emoji`,
   ),
