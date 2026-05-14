@@ -67,6 +67,10 @@ Audio lives on the local filesystem under `$PAPERSTEM_AUDIO_ROOT`. In production
 
 A pre-push hook in [scripts/git-hooks/pre-push](scripts/git-hooks/pre-push) runs `npm run build` and `vitest` before any push and blocks if either fails (matches CI). It also refuses direct pushes to `main` — open a PR instead (see below). New checkouts must opt in once: `git config core.hooksPath scripts/git-hooks`. Bypass with `git push --no-verify`.
 
+## Tests
+
+Before writing a new test file, open [docs/testing.md](docs/testing.md), find the matching category (server route handler, server lib, client component, client hook, etc.), and copy from the canonical example named in that section. Don't invent a new harness shape — the env-var prelude, dynamic-import ordering, helper factories, and `reset()` pattern are load-bearing and already documented.
+
 ## Shipping changes — PRs only
 
 **Do not merge work into `main` locally and push.** Every change lands through a GitHub PR, even tiny ones. `main` has branch protection requiring a PR; the local pre-push hook also refuses direct `main` pushes. This keeps history reviewable and CI honest.
