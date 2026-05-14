@@ -131,9 +131,11 @@ export function AppToolbar(props: Props) {
         disabled={!hasLoop}
         onClick={onToggleLoopEnabled}><Repeat size={16} strokeWidth={2} aria-hidden="true" /></button>
 
-      <span className="atb-time">
-        {fmt(currentTime)} / {fmt(duration)}
-      </span>
+      {isWide && (
+        <span className="atb-time">
+          {fmt(currentTime)} / {fmt(duration)}
+        </span>
+      )}
 
       <span className="atb-divider" />
 

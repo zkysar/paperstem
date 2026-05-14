@@ -184,6 +184,16 @@ describe('AppToolbar', () => {
     expect(writeText).toHaveBeenCalledWith('http://x.test/p/abc');
   });
 
+  it('hides the toolbar time display on mobile (isWide=false)', () => {
+    render(<AppToolbar {...baseProps} isWide={false} currentTime={84} duration={272.5} />);
+    expect(screen.queryByText(/1:24 \/ 4:32/)).toBeNull();
+  });
+
+  it('shows the toolbar time display on desktop (isWide=true)', () => {
+    render(<AppToolbar {...baseProps} isWide={true} currentTime={84} duration={272.5} />);
+    expect(screen.getByText(/1:24 \/ 4:32/)).not.toBeNull();
+  });
+
   it('treats AbortError from navigator.share() as a silent user cancel', async () => {
     const user = userEvent.setup();
     const err = Object.assign(new Error('cancelled'), { name: 'AbortError' });
