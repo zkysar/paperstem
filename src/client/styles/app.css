@@ -1172,10 +1172,6 @@ button.track-name:disabled { cursor: default; }
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 3px 10px;
-  background: rgba(255,255,255,0.14);
-  border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 999px;
   font-weight: var(--fw-medium);
   white-space: nowrap;
 }
@@ -1220,6 +1216,13 @@ button.track-name:disabled { cursor: default; }
 @keyframes annotation-mode-pulse {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); }
   50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+@media (max-width: 720px) {
+  .annotation-mode-cancel { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .annotation-mode-banner,
+  .annotation-mode-dot { animation: none; }
 }
 
 .annotations-markers-toggle {

@@ -598,7 +598,7 @@ export function Player({
                   startAnnotationDrag(e.clientX, e.pointerId);
                   e.preventDefault();
                 }}
-                aria-label="Click for point annotation, drag for region"
+                aria-label="Click for a point comment, drag for a region comment"
               />
             )}
             <div className="tracks" ref={tracksRef}>
@@ -731,16 +731,16 @@ export function Player({
         <div className="annotation-mode-banner" role="status">
           <span className="annotation-mode-dot" aria-hidden="true" />
           <strong className="annotation-mode-title">Comment mode</strong>
-          <span className="annotation-mode-chip" aria-label="Click for a point comment">
+          <span className="annotation-mode-chip">
             <span className="annotation-mode-glyph annotation-mode-glyph-point" aria-hidden="true" />
             <span><strong>Click</strong> for a point</span>
           </span>
-          <span className="annotation-mode-chip" aria-label="Drag for a region comment">
+          <span className="annotation-mode-chip">
             <span className="annotation-mode-glyph annotation-mode-glyph-region" aria-hidden="true" />
             <span><strong>Drag</strong> for a region</span>
           </span>
           <span className="annotation-mode-esc">
-            <kbd>Esc</kbd> to cancel
+            <kbd>Esc</kbd> or <kbd>+</kbd> to cancel
           </span>
           <button
             type="button"
