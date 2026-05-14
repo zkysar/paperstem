@@ -21,7 +21,7 @@ import type { ViewportControls } from '../hooks/useViewport';
 const DRAG_THRESHOLD_PX = 4;
 const MIN_LOOP_SEC = 0.05;
 
-type DragMode = 'create' | 'move' | 'resize-left' | 'resize-right';
+type DragMode = 'scrub' | 'create' | 'move' | 'resize-left' | 'resize-right';
 
 type Drag = {
   mode: DragMode;
@@ -295,7 +295,10 @@ export function Player({
       const t = xToTime(e.clientX);
 
       let ns: number, ne: number;
-      if (cur.mode === 'create') {
+      if (cur.mode === 'scrub') {
+        player.seek(Math.max(0, Math.min(duration, t)));
+        return;
+      } else if (cur.mode === 'create') {
         if (!cur.didMove) return;
         ns = Math.min(cur.originTime, t);
         ne = Math.max(cur.originTime, t);
@@ -358,9 +361,13 @@ export function Player({
     if (e.button !== 0) return;
     if (annotationCreateMode) return;
     const t = xToTime(e.clientX);
+    // When looping is off (no region defined, or region is disabled), a drag
+    // on the ruler just scrubs the playhead. Loop creation is reserved for
+    // when looping is actively on — explicit gesture, no accidental loops.
+    const mode: DragMode = loop?.enabled ? 'create' : 'scrub';
     startDrag(
       {
-        mode: 'create',
+        mode,
         originX: e.clientX,
         originTime: t,
         originStart: 0,
