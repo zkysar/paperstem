@@ -56,8 +56,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.unstubAllGlobals();
+  // Real timers first in case a test enabled fake ones — the dangling 60s
+  // revoke setTimeout inside download.ts is harmless once timers are real
+  // (the test process exits long before 60s) but switching restores any
+  // global state and clears pending fake-timer queues.
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 // ---------------------------------------------------------------------------
@@ -120,6 +124,28 @@ describe('downloadStemsAsZip', () => {
 
     expect(capturedHref).toContain(FAKE_OBJECT_URL);
     expect(capturedDownload).toBe('band-session.zip');
+
+    clickSpy.mockRestore();
+  });
+
+  it('revokes the object URL ~60s after the download to free the blob', async () => {
+    // Fake ONLY setTimeout so JSZip's promise-based async (which Vitest's
+    // full fake-timer mode would deadlock) still runs naturally.
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+
+    const stem = makeStem({ name: 'cleanup.mp3', src: '/audio/cleanup.mp3' });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    await downloadStemsAsZip([stem], 'cleanup.zip');
+
+    // Immediately after the call, the URL must still be valid (the browser
+    // may still be following the blob: URL to start the download).
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+
+    // Advance past the scheduled revoke (60s in download.ts).
+    vi.advanceTimersByTime(60_000);
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(FAKE_OBJECT_URL);
 
     clickSpy.mockRestore();
   });

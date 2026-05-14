@@ -47,6 +47,16 @@ function encodeId(rel: string): string {
 }
 
 beforeAll(async () => {
+  // Hard guard: dev-login refuses to mint sessions when NODE_ENV === 'production'.
+  // If a runner injects production after the top-of-file env prelude (or in CI),
+  // the dev-login route would 404 and the test would fail with a confusing
+  // "expected 302 got 404". Surface the real reason here instead.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'e2e-critical-path.test.ts requires NODE_ENV !== "production" so dev-login is enabled',
+    );
+  }
+
   dbMod = await import('./db.js');
   devLoginMod = await import('./auth/dev-login.js');
   const audioMod: AudioModule = await import('./audio.js');

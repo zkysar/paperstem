@@ -382,14 +382,14 @@ describe('usePlayer Phase A — rAF / time-driven behaviors', () => {
   // ---------------------------------------------------------------------------
   // rAF queue
   // ---------------------------------------------------------------------------
-  let rafQueue: Array<FrameRequestCallback> = [];
+  let rafQueue: Array<{ id: number; cb: FrameRequestCallback }> = [];
   let rafIdCounter = 0;
 
   function flushRaf(): void {
     // Drain the current queue in one pass; callbacks that re-schedule are
     // collected into rafQueue for the next flushRaf() call.
     const batch = rafQueue.splice(0);
-    for (const cb of batch) cb(0);
+    for (const entry of batch) entry.cb(0);
   }
 
   beforeEach(() => {
@@ -398,12 +398,13 @@ describe('usePlayer Phase A — rAF / time-driven behaviors', () => {
     CapturingAudioContext.last = null;
 
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
-      rafQueue.push(cb);
-      return ++rafIdCounter;
+      const id = ++rafIdCounter;
+      rafQueue.push({ id, cb });
+      return id;
     });
     vi.stubGlobal('cancelAnimationFrame', (id: number) => {
-      // Remove by id is not tracked — for these tests we stop flushing instead.
-      void id;
+      const idx = rafQueue.findIndex((entry) => entry.id === id);
+      if (idx >= 0) rafQueue.splice(idx, 1);
     });
     vi.stubGlobal('AudioContext', CapturingAudioContext);
     vi.stubGlobal('webkitAudioContext', CapturingAudioContext);
@@ -493,6 +494,10 @@ describe('usePlayer Phase A — rAF / time-driven behaviors', () => {
 
     const ctx = CapturingAudioContext.last!;
 
+    // Reset the start-call counter after the initial togglePlay so we can
+    // assert that the loop wrap actually rescheduled the audio sources.
+    ctx.startCallCount = 0;
+
     // Advance so computeCurrentTime crosses 29.995 in a single tick.
     // playStartCtxTimeRef = 0.05 (set by startSourcesAt at ctx.currentTime=0),
     // playStartOffsetRef = 0.
@@ -508,6 +513,9 @@ describe('usePlayer Phase A — rAF / time-driven behaviors', () => {
     expect(result.current.currentTime).toBe(10);
     // Player must still be playing.
     expect(result.current.state.isPlaying).toBe(true);
+    // Sources must have been rescheduled at the new offset — without this,
+    // audio would silently fall out of sync with the visual playhead.
+    expect(ctx.startCallCount).toBeGreaterThan(0);
   });
 
   it('rAF tick does not wrap when loop is disabled', async () => {

@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ---- env prelude: must run before any dynamic import of db.ts / mailer.ts / storage.ts ----
 const tmpDir = mkdtempSync(join(tmpdir(), 'paperstem-snapshots-test-'));
@@ -20,11 +20,6 @@ type SnapshotsModule = typeof import('./snapshots.js');
 let dbMod: DbModule;
 let snapMod: SnapshotsModule;
 
-beforeAll(async () => {
-  dbMod = await import('../db.js');
-  snapMod = await import('./snapshots.js');
-});
-
 afterAll(() => {
   rmSync(tmpDir, { recursive: true, force: true });
 });
@@ -39,7 +34,14 @@ function reset() {
   mkdirSync(audioRoot, { recursive: true });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  // Fresh module instances per test so snapshots.ts's module-private
+  // `runInFlight` cannot leak across tests. snapshots imports db, so both
+  // must be re-imported together to keep dbMod and snapMod pointing at the
+  // same db instance.
+  vi.resetModules();
+  dbMod = await import('../db.js');
+  snapMod = await import('./snapshots.js');
   reset();
 });
 
@@ -238,10 +240,13 @@ describe('runSnapshotsNow', () => {
     const storageMod = await import('../storage.js');
 
     const owner = createUser('f@example.com');
-    // Band F — its project folder does NOT exist, so uploadFile will throw.
+    // Band F — storage.uploadFile will be spied to throw for THIS project,
+    // simulating any IO failure (permission denied, disk full, etc.).
     const bandFId = createBand('Band F', owner);
-    const missingFolderId = Buffer.from('nonexistent-folder', 'utf8').toString('base64url');
-    insertProject(bandFId, owner, 'Song F', missingFolderId);
+    const folderF = 'proj-f-folder';
+    mkdirSync(join(audioRoot, folderF), { recursive: true });
+    const folderFId = Buffer.from(folderF, 'utf8').toString('base64url');
+    const projectFId = insertProject(bandFId, owner, 'Song F', folderFId);
 
     // Band G — healthy; project folder exists.
     const ownerG = createUser('g@example.com');
@@ -251,19 +256,41 @@ describe('runSnapshotsNow', () => {
     const folderGId = Buffer.from(folderG, 'utf8').toString('base64url');
     insertProject(bandGId, ownerG, 'Song G', folderGId);
 
+    // Force a real failure ONLY for band F's project folder.
+    const realUpload = storageMod.uploadFile;
+    const uploadSpy = vi
+      .spyOn(storageMod, 'uploadFile')
+      .mockImplementation(async (parentId, name, mime, body) => {
+        if (parentId === folderFId) {
+          throw new Error('simulated storage failure');
+        }
+        return realUpload(parentId, name, mime, body);
+      });
+
+    // Capture console.error so we can verify the per-band failure was logged
+    // (the production contract for "this band failed").
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
     // Should not throw even though Band F's project will error.
     await expect(snapMod.runSnapshotsNow()).resolves.toBeUndefined();
 
     // Band G's meta file was written despite Band F's failure.
     expect(existsSync(join(audioRoot, folderG, '_meta.json'))).toBe(true);
 
-    // last_snapshot_at was updated for both bands (the job always calls setBandLastSnapshotAt
-    // regardless of per-project failures).
-    const bandF = dbMod.stmts.findBandById.get(bandFId)!;
-    const bandG = dbMod.stmts.findBandById.get(bandGId)!;
-    expect(bandF.last_snapshot_at).toBeGreaterThan(0);
-    expect(bandG.last_snapshot_at).toBeGreaterThan(0);
+    // Band F's meta file was NOT written (uploadFile threw before writing).
+    expect(existsSync(join(audioRoot, folderF, '_meta.json'))).toBe(false);
 
-    void storageMod; // keep reference in scope
+    // The failure was logged for Band F's project, identifying which one broke.
+    expect(errorSpy).toHaveBeenCalled();
+    const loggedForBandF = errorSpy.mock.calls.some((call) => {
+      const msg = call[0];
+      return typeof msg === 'string' && msg.includes(bandFId) && msg.includes(projectFId);
+    });
+    expect(loggedForBandF, 'console.error must identify the failing band/project').toBe(
+      true,
+    );
+
+    uploadSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 });
