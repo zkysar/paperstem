@@ -164,6 +164,43 @@ describe('attachPinchZoom (TouchEvent fallback)', () => {
     document.body.removeChild(el);
   });
 
+  test('third finger landing resets state — no spurious jump on 3→2 transition', () => {
+    delete (window as unknown as { GestureEvent?: unknown }).GestureEvent;
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    const frames: PinchFrame[] = [];
+    const detach = attachPinchZoom(el, (f) => frames.push(f));
+
+    // Start a normal 2-touch pinch.
+    fireTouch(el, 'touchstart', [makeTouch(0, 0, 1), makeTouch(100, 0, 2)]);
+    fireTouch(el, 'touchmove', [makeTouch(0, 0, 1), makeTouch(200, 0, 2)]);
+    expect(frames).toHaveLength(1);
+
+    // Third finger lands — pinch should end.
+    fireTouch(el, 'touchstart', [
+      makeTouch(0, 0, 1),
+      makeTouch(200, 0, 2),
+      makeTouch(50, 50, 3),
+    ]);
+    // While 3 fingers are down, moves are ignored.
+    fireTouch(el, 'touchmove', [
+      makeTouch(0, 0, 1),
+      makeTouch(200, 0, 2),
+      makeTouch(50, 50, 3),
+    ]);
+    expect(frames).toHaveLength(1);
+
+    // Third finger lifts back to 2 — a stale-distance frame would have
+    // emitted a giant scaleDelta here. After the fix, the pinch stays
+    // ended until a fresh touchstart re-arms it.
+    fireTouch(el, 'touchend', [makeTouch(0, 0, 1), makeTouch(200, 0, 2)]);
+    fireTouch(el, 'touchmove', [makeTouch(0, 0, 1), makeTouch(400, 0, 2)]);
+    expect(frames).toHaveLength(1);
+
+    detach();
+    document.body.removeChild(el);
+  });
+
   test('resets state when fingers lift', () => {
     delete (window as unknown as { GestureEvent?: unknown }).GestureEvent;
     const el = document.createElement('div');

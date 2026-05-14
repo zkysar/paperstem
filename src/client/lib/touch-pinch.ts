@@ -95,7 +95,15 @@ function attachTouch(
   let active = false;
 
   function onStart(e: TouchEvent) {
-    if (e.touches.length !== 2) return;
+    // Any transition that doesn't leave us with exactly two contacts
+    // invalidates the pinch — including a third finger landing. Without
+    // this, the 3→2 finger transition reuses a stale lastDistance and
+    // emits a huge spurious scaleDelta on the next touchmove.
+    if (e.touches.length !== 2) {
+      active = false;
+      lastDistance = 0;
+      return;
+    }
     const [a, b] = [e.touches[0], e.touches[1]];
     lastDistance = touchDistance(a, b);
     active = lastDistance > 0;
@@ -112,7 +120,9 @@ function attachTouch(
     onFrame({ scaleDelta, clientX: touchMidX(a, b) });
   }
   function onEnd(e: TouchEvent) {
-    if (e.touches.length < 2) {
+    // Any contact-count change other than "still exactly two" ends the
+    // pinch. Going 3→2 must reset rather than resume mid-stride.
+    if (e.touches.length !== 2) {
       active = false;
       lastDistance = 0;
     }
@@ -120,8 +130,8 @@ function attachTouch(
 
   el.addEventListener('touchstart', onStart, { passive: false });
   el.addEventListener('touchmove', onMove, { passive: false });
-  el.addEventListener('touchend', onEnd, { passive: false });
-  el.addEventListener('touchcancel', onEnd, { passive: false });
+  el.addEventListener('touchend', onEnd);
+  el.addEventListener('touchcancel', onEnd);
   return () => {
     el.removeEventListener('touchstart', onStart);
     el.removeEventListener('touchmove', onMove);

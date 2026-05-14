@@ -16,10 +16,11 @@ function playheadAnchorX(
 ): number {
   const duration = player.state.duration;
   const hZoom = viewport.state.hZoom;
-  if (!duration || stageWidth <= 0) return stageWidth / 2;
+  if (!duration || stageWidth <= 0 || hZoom <= 0) return stageWidth / 2;
   const innerWidth = stageWidth * hZoom;
   const playheadInnerX = (player.currentTime / duration) * innerWidth;
   const playheadStageX = playheadInnerX - viewport.state.scrollLeft;
+  if (!Number.isFinite(playheadStageX)) return stageWidth / 2;
   if (playheadStageX < 0 || playheadStageX > stageWidth) {
     return stageWidth / 2;
   }
