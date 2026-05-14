@@ -140,7 +140,7 @@ export function AppHeader({
       {hasProject && (
         <button
           type="button"
-          className={'ah-iconbtn' + (annotationsOpen ? ' active' : '')}
+          className={'ah-iconbtn ah-hide-on-mobile' + (annotationsOpen ? ' active' : '')}
           onClick={onToggleAnnotations}
           aria-pressed={annotationsOpen}
           title="Comments"

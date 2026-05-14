@@ -845,6 +845,10 @@ button.track-name:disabled { cursor: default; }
     padding: 8px;
   }
   /* The icon glyphs themselves stay 16-18px; only hit areas grow. */
+
+  .ah-hide-on-mobile {
+    display: none !important;
+  }
 }
 
 /* ===== Login screen ===== */

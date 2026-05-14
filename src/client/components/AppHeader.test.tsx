@@ -127,6 +127,12 @@ describe('AppHeader', () => {
     expect(btn.querySelector('.atb-spin')).not.toBeNull();
   });
 
+  it('header comments button has a class that hides it on mobile', () => {
+    render(<AppHeader {...baseProps} />);
+    const btn = screen.getByLabelText('Toggle comments');
+    expect(btn.className).toContain('ah-hide-on-mobile');
+  });
+
   it('clicking outside the avatar menu closes it', async () => {
     const user = userEvent.setup();
     render(
