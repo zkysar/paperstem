@@ -24,6 +24,13 @@ import { fmt, longestStemIdx } from '../lib/format';
 const LOOP_TAIL = 0.005;
 const END_TAIL = 0.02;
 
+// Short silent MP3 used to activate the iOS audio session inside a tap
+// handler. HTMLAudioElement.play() unlocks the device-level session more
+// reliably than scheduling a Web Audio BufferSource alone; we run both for
+// belt-and-suspenders coverage.
+const SILENT_AUDIO_DATA_URL =
+  'data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxOQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=';
+
 type Action =
   | { type: 'TEARDOWN' }
   | {
@@ -233,6 +240,10 @@ export function usePlayer(): PlayerControls {
   // Per-track GainNodes live on each LoadedStem.
   const audioCtxRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
+
+  // iOS audio-session unlocker: a silent HTMLAudio whose .play() runs inside
+  // the first togglePlay gesture to activate the device audio session.
+  const unlockAudioRef = useRef<HTMLAudioElement | null>(null);
 
   function ensureAudioGraph(): { ctx: AudioContext; master: GainNode } | null {
     if (audioCtxRef.current && masterGainRef.current) {
@@ -524,12 +535,25 @@ export function usePlayer(): PlayerControls {
       pause();
       return;
     }
-    // iOS Safari only unlocks the audio session when the gesture handler
-    // schedules audio synchronously. Awaiting ctx.resume() consumes the
-    // user-activation token before we get to startSourcesAt, leaving the
-    // context "running" but the speaker silent until some other tap on the
-    // device unlocks it. So: fire resume without awaiting, and play a
-    // one-sample silent buffer in the same gesture to force the unlock.
+    // iOS Safari only unlocks the device audio session when a gesture
+    // handler synchronously triggers actual playback. Web Audio
+    // BufferSource.start() alone is not enough on current iOS — the device
+    // session stays locked, so the context plays inaudibly until something
+    // else on the device (e.g. tapping a YouTube video) flips the session
+    // on. Playing a silent HTMLAudioElement inside the same gesture is the
+    // pathway iOS reliably accepts. We also schedule a silent Web Audio
+    // buffer and fire resume() (no await — awaiting would consume the
+    // gesture token) as belt-and-suspenders.
+    if (!unlockAudioRef.current) {
+      const a = new Audio(SILENT_AUDIO_DATA_URL);
+      a.preload = 'auto';
+      unlockAudioRef.current = a;
+    }
+    void unlockAudioRef.current.play().catch(() => {
+      // Autoplay block is fine — what matters is that .play() was
+      // *attempted* inside the gesture; iOS treats the attempt itself as
+      // session-activating.
+    });
     const ctx = audioCtxRef.current;
     if (ctx) {
       if (ctx.state === 'suspended') {
