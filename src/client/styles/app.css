@@ -856,7 +856,9 @@ button.track-name:disabled { cursor: default; }
   .loop-handle.left { left: -8px; }
   .loop-handle.right { right: -8px; }
 
-  .keys-hint { display: none; }
+  .keys-hint,
+  .zoom-hint,
+  .annotation-mode-esc { display: none; }
 
   .atb-btn,
   .ah-iconbtn,
