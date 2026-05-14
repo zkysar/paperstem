@@ -24,10 +24,6 @@ import { fmt, longestStemIdx } from '../lib/format';
 const LOOP_TAIL = 0.005;
 const END_TAIL = 0.02;
 
-// Short silent MP3 used to activate the iOS audio session inside a tap
-// handler. HTMLAudioElement.play() unlocks the device-level session more
-// reliably than scheduling a Web Audio BufferSource alone; we run both for
-// belt-and-suspenders coverage.
 // Schedule a near-silent buffer with a single tiny non-zero sample as part
 // of an iOS audio-session unlock. Pure-silent buffers may be optimized away
 // by iOS; an actual sample forces the engine to treat this as real audio.
@@ -44,6 +40,10 @@ function playUnlockBuffer(ctx: AudioContext): void {
   }
 }
 
+// Short silent MP3 used to activate the iOS audio session inside a tap
+// handler. HTMLAudioElement.play() unlocks the device-level session more
+// reliably than scheduling a Web Audio BufferSource alone; we run both for
+// belt-and-suspenders coverage.
 const SILENT_AUDIO_DATA_URL =
   'data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAA8AAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV//NCxOQAAANIAAAAAFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU=';
 
@@ -207,6 +207,7 @@ function updateStem(state: PlayerState, idx: number, fn: (s: LoadedStem) => Load
 export type PlayerControls = {
   state: PlayerState;
   currentTime: number;
+  debugInfo: string;
   load(input: {
     projectId: string | null;
     title: string;
@@ -235,6 +236,10 @@ export type PlayerControls = {
 export function usePlayer(): PlayerControls {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [currentTime, setCurrentTime] = useState(0);
+  // iOS audio diagnostics — surfaced in the UI so the user can read the
+  // actual context state from their phone. Updated at page-unlock fire and
+  // each togglePlay. Format: "key1:val1 key2:val2 …"
+  const [debugInfo, setDebugInfo] = useState('');
 
   // Refs that the rAF / interval callbacks read live, so they don't capture
   // stale state.
@@ -438,12 +443,18 @@ export function usePlayer(): PlayerControls {
   useEffect(() => {
     const unlock = (): void => {
       const graph = ensureAudioGraph();
+      let preState = '-';
+      let postState = '-';
+      let sampleRate = 0;
       if (graph) {
+        preState = graph.ctx.state;
         if (graph.ctx.state !== 'running') {
           graph.ctx.resume().catch(() => {
             // ignore
           });
         }
+        postState = graph.ctx.state;
+        sampleRate = graph.ctx.sampleRate;
         playUnlockBuffer(graph.ctx);
       }
       if (!unlockAudioRef.current) {
@@ -451,9 +462,24 @@ export function usePlayer(): PlayerControls {
         a.preload = 'auto';
         unlockAudioRef.current = a;
       }
-      void unlockAudioRef.current.play().catch(() => {
-        // ignore — what matters is that .play() was attempted in a gesture
-      });
+      let htmlPlay = 'pending';
+      void unlockAudioRef.current
+        .play()
+        .then(() => {
+          htmlPlay = 'ok';
+          setDebugInfo(
+            `pg-unlock fired · ctx:${preState}→${postState} · sr:${sampleRate} · htmlAudio:${htmlPlay}`,
+          );
+        })
+        .catch((err) => {
+          htmlPlay = `rej(${(err as Error)?.name ?? 'err'})`;
+          setDebugInfo(
+            `pg-unlock fired · ctx:${preState}→${postState} · sr:${sampleRate} · htmlAudio:${htmlPlay}`,
+          );
+        });
+      setDebugInfo(
+        `pg-unlock fired · ctx:${preState}→${postState} · sr:${sampleRate} · htmlAudio:${htmlPlay}`,
+      );
       document.removeEventListener('pointerdown', unlock);
       document.removeEventListener('touchend', unlock);
     };
@@ -610,21 +636,18 @@ export function usePlayer(): PlayerControls {
       a.preload = 'auto';
       unlockAudioRef.current = a;
     }
-    void unlockAudioRef.current.play().catch(() => {
-      // Autoplay block is fine — what matters is that .play() was
-      // *attempted* inside the gesture; iOS treats the attempt itself as
-      // session-activating.
-    });
+    let htmlPlay = 'pending';
+    void unlockAudioRef.current
+      .play()
+      .then(() => {
+        htmlPlay = 'ok';
+      })
+      .catch((err) => {
+        htmlPlay = `rej(${(err as Error)?.name ?? 'err'})`;
+      });
     const ctx = audioCtxRef.current;
+    const preState = ctx?.state ?? 'no-ctx';
     if (ctx) {
-      // iOS Safari has a non-standard 'interrupted' state in addition to
-      // 'suspended' (entered when the tab loses focus, the screen locks,
-      // headphones unplug, or a call comes in). resume() recovers from
-      // both, but only if we actually call it — checking only for
-      // 'suspended' leaves an 'interrupted' context stuck until some
-      // other tap on the device incidentally reactivates the audio
-      // session. Resume on anything that isn't already 'running'.
-      // ('closed' resume rejects harmlessly; caught below.)
       if (ctx.state !== 'running') {
         ctx.resume().catch(() => {
           // ignore — startSourcesAt will surface failure
@@ -632,11 +655,18 @@ export function usePlayer(): PlayerControls {
       }
       playUnlockBuffer(ctx);
     }
+    const postState = ctx?.state ?? 'no-ctx';
     dispatch({ type: 'SET_PLAYING', isPlaying: true });
     stateRef.current = { ...stateRef.current, isPlaying: true };
     isPlayingInternalRef.current = true;
     const offset = pausedOffsetRef.current;
     const ok = startSourcesAt(offset);
+    const stems = stateRef.current.stems;
+    const decodedCount = stems.filter((stem) => stem.audioBuffer != null).length;
+    const srcCount = sourcesRef.current?.length ?? 0;
+    setDebugInfo(
+      `play · ctx:${preState}→${postState} · bufs:${decodedCount}/${stems.length} · srcs:${srcCount} · ok:${ok ? 'y' : 'n'} · htmlAudio:${htmlPlay}`,
+    );
     if (!ok) {
       dispatch({ type: 'SET_PLAYING', isPlaying: false });
       stateRef.current = { ...stateRef.current, isPlaying: false };
@@ -785,6 +815,7 @@ export function usePlayer(): PlayerControls {
   return {
     state,
     currentTime,
+    debugInfo,
     load,
     togglePlay,
     pause,
