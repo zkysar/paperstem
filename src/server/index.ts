@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
+import { logger } from 'hono/logger';
 import { handleAuthRequest } from './auth/request.js';
 import { handleAuthVerify } from './auth/verify.js';
 import { handleAuthLogout } from './auth/logout.js';
@@ -53,6 +54,9 @@ const callbackHtmlTemplate = readFileSync(
 
 const app = new Hono<{ Variables: AuthVariables }>();
 
+if (process.env.PAPERSTEM_REQUEST_LOG !== '0') {
+  app.use('*', logger());
+}
 app.use('*', sessionMiddleware);
 
 app.post('/api/auth/request', handleAuthRequest);
