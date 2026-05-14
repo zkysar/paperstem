@@ -244,6 +244,11 @@ function PaperstemApp({
       setPendingDraft(null);
     },
     onToggleShortcuts: () => setShortcutsOpen((v) => !v),
+    onAddCommentAtPlayhead: () => {
+      if (!activeProjectId) return;
+      const startMs = Math.round(player.currentTime * 1000);
+      handleAnnotationCreated(startMs, null);
+    },
   });
 
   const userColorMap = useMemo(

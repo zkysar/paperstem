@@ -61,6 +61,7 @@ function defaultOpts() {
     onClosePopover: vi.fn(),
     onCancelCreate: vi.fn(),
     onToggleShortcuts: vi.fn(),
+    onAddCommentAtPlayhead: vi.fn(),
   };
 }
 
@@ -372,6 +373,28 @@ describe('useKeyboard WASD navigation', () => {
       document.body.removeChild(viewportEl);
       document.body.removeChild(stageEl);
     }
+  });
+
+  it('C calls onAddCommentAtPlayhead', () => {
+    const onAddCommentAtPlayhead = vi.fn();
+    renderHook(() =>
+      useKeyboard({ ...defaultOpts(), onAddCommentAtPlayhead }),
+    );
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'c' }));
+    expect(onAddCommentAtPlayhead).toHaveBeenCalledOnce();
+  });
+
+  it('C does not fire in text inputs', () => {
+    const onAddCommentAtPlayhead = vi.fn();
+    renderHook(() =>
+      useKeyboard({ ...defaultOpts(), onAddCommentAtPlayhead }),
+    );
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', bubbles: true }));
+    expect(onAddCommentAtPlayhead).not.toHaveBeenCalled();
+    document.body.removeChild(input);
   });
 
   it('WASD does not fire in text inputs', () => {
