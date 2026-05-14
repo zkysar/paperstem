@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, FolderOpen, Pencil, Trash2, X } from 'lucide-react';
-import type { Practice, TrashList } from '../data/types';
+import type { Project, TrashList } from '../data/types';
 import { AUDIO_EXT } from '../lib/audio';
 import { WaveformThumb } from './WaveformThumb';
 
@@ -10,27 +10,27 @@ type Props = {
   open: boolean;
   loading: boolean;
   loadError: string | null;
-  practices: Practice[];
-  activePracticeId: string | null;
+  projects: Project[];
+  activeProjectId: string | null;
   showUpload: boolean;
   onClose(): void;
   onSelect(id: string): void;
   onLoadFolder(files: File[], folderName: string): void;
   onRetry(): void;
-  onRenamePractice(id: string, name: string): void;
-  onDeletePractice(id: string): void;
+  onRenameProject(id: string, name: string): void;
+  onDeleteProject(id: string): void;
   trash: TrashList | null;
   trashError: string | null;
   onLoadTrash(): void;
-  onRestorePractice(id: string): void;
+  onRestoreProject(id: string): void;
   onRestoreStem(id: string): void;
 };
 
 export function FilePicker({
-  open, loading, loadError, practices, activePracticeId, showUpload,
+  open, loading, loadError, projects, activeProjectId, showUpload,
   onClose, onSelect, onLoadFolder, onRetry,
-  onRenamePractice, onDeletePractice,
-  trash, trashError, onLoadTrash, onRestorePractice, onRestoreStem,
+  onRenameProject, onDeleteProject,
+  trash, trashError, onLoadTrash, onRestoreProject, onRestoreStem,
 }: Props) {
   const [tab, setTab] = useState<Tab>('recent');
   const [search, setSearch] = useState('');
@@ -78,13 +78,13 @@ export function FilePicker({
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="filepicker" role="dialog" aria-modal="true" aria-label="Practices">
+      <div className="filepicker" role="dialog" aria-modal="true" aria-label="Projects">
         <div className="fp-header">
-          <h2 className="fp-title">Practices</h2>
+          <h2 className="fp-title">Projects</h2>
           <input
             type="search"
             className="fp-search"
-            placeholder="Search practices"
+            placeholder="Search projects"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -95,7 +95,7 @@ export function FilePicker({
               onClick={() => folderInputRef.current?.click()}
             >
               <FolderOpen size={14} strokeWidth={2} aria-hidden="true" />
-              New practice
+              New project
             </button>
           )}
           <button
@@ -145,19 +145,19 @@ export function FilePicker({
             trash={trash}
             trashError={trashError}
             onRetry={onLoadTrash}
-            onRestorePractice={onRestorePractice}
+            onRestoreProject={onRestoreProject}
             onRestoreStem={onRestoreStem}
           />
         ) : (
           <FilePickerBody
             tab={tab} search={search}
             loading={loading} loadError={loadError}
-            practices={practices} activePracticeId={activePracticeId}
+            projects={projects} activeProjectId={activeProjectId}
             showUpload={showUpload}
             onSelect={onSelect}
-            onNewPracticeClick={() => folderInputRef.current?.click()}
+            onNewProjectClick={() => folderInputRef.current?.click()}
             onRetry={onRetry}
-            onRenamePractice={onRenamePractice}
+            onRenameProject={onRenameProject}
             onRequestDelete={(id, name) => setConfirm({ id, name })}
           />
         )}
@@ -168,7 +168,7 @@ export function FilePicker({
               onClick={() => folderInputRef.current?.click()}
             >
               <FolderOpen size={14} strokeWidth={2} aria-hidden="true" />
-              New practice
+              New project
             </button>
           </div>
         )}
@@ -199,7 +199,7 @@ export function FilePicker({
                   type="button"
                   className="danger"
                   onClick={() => {
-                    onDeletePractice(confirm.id);
+                    onDeleteProject(confirm.id);
                     setConfirm(null);
                   }}
                 >
@@ -215,20 +215,20 @@ export function FilePicker({
 }
 
 function FilePickerBody({
-  search, practices, activePracticeId, loading, loadError, showUpload,
-  onSelect, onNewPracticeClick, onRetry, onRenamePractice, onRequestDelete,
+  search, projects, activeProjectId, loading, loadError, showUpload,
+  onSelect, onNewProjectClick, onRetry, onRenameProject, onRequestDelete,
 }: {
   tab: Tab;
   search: string;
   loading: boolean;
   loadError: string | null;
-  practices: Practice[];
-  activePracticeId: string | null;
+  projects: Project[];
+  activeProjectId: string | null;
   showUpload: boolean;
   onSelect(id: string): void;
-  onNewPracticeClick(): void;
+  onNewProjectClick(): void;
   onRetry(): void;
-  onRenamePractice(id: string, name: string): void;
+  onRenameProject(id: string, name: string): void;
   onRequestDelete(id: string, name: string): void;
 }) {
   const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
@@ -237,14 +237,14 @@ function FilePickerBody({
     if (!editing || editing.id !== id) return;
     const next = editing.draft.trim();
     setEditing(null);
-    const original = practices.find((p) => p.id === id);
+    const original = projects.find((p) => p.id === id);
     if (!next || next === original?.title) return;
-    onRenamePractice(id, next);
+    onRenameProject(id, next);
   }
   if (loadError) {
     return (
       <div className="fp-body fp-state">
-        <p className="fp-state-msg">Couldn't load practices ({loadError}).</p>
+        <p className="fp-state-msg">Couldn't load projects ({loadError}).</p>
         <button type="button" className="fp-state-action" onClick={onRetry}>
           Retry
         </button>
@@ -266,14 +266,14 @@ function FilePickerBody({
       </div>
     );
   }
-  if (practices.length === 0) {
+  if (projects.length === 0) {
     return (
       <div className="fp-body fp-state">
-        <p className="fp-state-msg">No practices yet.</p>
+        <p className="fp-state-msg">No projects yet.</p>
         {showUpload && (
-          <button type="button" className="fp-state-action" onClick={onNewPracticeClick}>
+          <button type="button" className="fp-state-action" onClick={onNewProjectClick}>
             <FolderOpen size={14} strokeWidth={2} aria-hidden="true" />
-            New practice
+            New project
           </button>
         )}
         <p className="fp-state-secondary">
@@ -284,7 +284,7 @@ function FilePickerBody({
     );
   }
 
-  const filtered = practices.filter((p) => {
+  const filtered = projects.filter((p) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
     return (
@@ -310,13 +310,13 @@ function FilePickerBody({
           <div
             key={p.id}
             data-testid={`fp-row-${p.id}`}
-            className={'fp-row fp-row-data' + (p.id === activePracticeId ? ' active' : '')}
+            className={'fp-row fp-row-data' + (p.id === activeProjectId ? ' active' : '')}
           >
             {isEditing ? (
               <div className="fp-row-main fp-row-main-editing">
                 <input
                   className="fp-name-input"
-                  aria-label="Rename practice"
+                  aria-label="Rename project"
                   autoFocus
                   value={editing!.draft}
                   onChange={(e) => setEditing({ id: p.id, draft: e.target.value })}
@@ -399,12 +399,12 @@ function FilePickerBody({
 }
 
 function TrashBody({
-  trash, trashError, onRetry, onRestorePractice, onRestoreStem,
+  trash, trashError, onRetry, onRestoreProject, onRestoreStem,
 }: {
   trash: TrashList | null;
   trashError: string | null;
   onRetry(): void;
-  onRestorePractice(id: string): void;
+  onRestoreProject(id: string): void;
   onRestoreStem(id: string): void;
 }) {
   if (trashError) {
@@ -424,7 +424,7 @@ function TrashBody({
       </div>
     );
   }
-  if (!trash.practices.length && !trash.stems.length) {
+  if (!trash.projects.length && !trash.stems.length) {
     return (
       <div className="fp-body fp-state">
         <p className="fp-state-msg">Trash is empty.</p>
@@ -440,10 +440,10 @@ function TrashBody({
         <span>Status</span>
         <span></span>
       </div>
-      {trash.practices.map((p) => (
+      {trash.projects.map((p) => (
         <div key={`p-${p.id}`} className="fp-row fp-row-data">
           <span className="fp-name">{p.name}</span>
-          <span className="fp-meta">Practice</span>
+          <span className="fp-meta">Project</span>
           <span className="fp-meta">{p.deleted_by_email ?? '—'}</span>
           <span className="fp-meta">
             {p.deleted_reason === 'drive_missing' ? 'Drive file missing' : ''}
@@ -452,7 +452,7 @@ function TrashBody({
             type="button"
             aria-label={`Restore ${p.name}`}
             disabled={p.deleted_reason === 'drive_missing'}
-            onClick={() => onRestorePractice(p.id)}
+            onClick={() => onRestoreProject(p.id)}
           >
             Restore
           </button>
@@ -461,7 +461,7 @@ function TrashBody({
       {trash.stems.map((s) => (
         <div key={`s-${s.id}`} className="fp-row fp-row-data">
           <span className="fp-name">{s.name}</span>
-          <span className="fp-meta">Stem · {s.practice_name}</span>
+          <span className="fp-meta">Stem · {s.project_name}</span>
           <span className="fp-meta">{s.deleted_by_email ?? '—'}</span>
           <span className="fp-meta">
             {s.deleted_reason === 'drive_missing' ? 'Drive file missing' : ''}

@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS memberships (
 
 CREATE INDEX IF NOT EXISTS idx_memberships_user ON memberships(user_id);
 
-CREATE TABLE IF NOT EXISTS practices (
+CREATE TABLE IF NOT EXISTS projects (
   id              TEXT PRIMARY KEY,
   band_id         TEXT NOT NULL REFERENCES bands(id) ON DELETE CASCADE,
   name            TEXT NOT NULL,
@@ -62,13 +62,13 @@ CREATE TABLE IF NOT EXISTS practices (
   deleted_by      TEXT REFERENCES users(id),
   deleted_reason  TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_practices_band_recorded ON practices(band_id, recorded_on DESC);
-CREATE INDEX IF NOT EXISTS idx_practices_band_recorded_live
-  ON practices(band_id, recorded_on DESC) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_projects_band_recorded ON projects(band_id, recorded_on DESC);
+CREATE INDEX IF NOT EXISTS idx_projects_band_recorded_live
+  ON projects(band_id, recorded_on DESC) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS stems (
   id             TEXT PRIMARY KEY,
-  practice_id    TEXT NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
+  project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   name           TEXT NOT NULL,
   position       INTEGER NOT NULL,
   drive_file_id  TEXT NOT NULL,
@@ -79,13 +79,13 @@ CREATE TABLE IF NOT EXISTS stems (
   deleted_by     TEXT REFERENCES users(id),
   deleted_reason TEXT
 );
-CREATE INDEX IF NOT EXISTS idx_stems_practice ON stems(practice_id, position);
-CREATE INDEX IF NOT EXISTS idx_stems_practice_live
-  ON stems(practice_id, position) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_stems_project ON stems(project_id, position);
+CREATE INDEX IF NOT EXISTS idx_stems_project_live
+  ON stems(project_id, position) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS annotations (
   id           TEXT PRIMARY KEY,
-  practice_id  TEXT NOT NULL REFERENCES practices(id) ON DELETE CASCADE,
+  project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   start_ms     INTEGER NOT NULL,
   end_ms       INTEGER,
@@ -94,5 +94,5 @@ CREATE TABLE IF NOT EXISTS annotations (
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_annotations_practice_user ON annotations(practice_id, user_id);
-CREATE INDEX IF NOT EXISTS idx_annotations_practice_start ON annotations(practice_id, start_ms);
+CREATE INDEX IF NOT EXISTS idx_annotations_project_user ON annotations(project_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_annotations_project_start ON annotations(project_id, start_ms);

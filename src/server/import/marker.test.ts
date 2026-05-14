@@ -26,7 +26,7 @@ const sampleMarker: Marker = {
       start_sample: 0,
       end_sample: 1000,
       name: '2026-05-12 take 1',
-      practice_id: 'pr_abc',
+      project_id: 'pr_abc',
       uploaded_at: '2026-05-12T22:00:00Z',
     },
     {
@@ -35,7 +35,7 @@ const sampleMarker: Marker = {
       start_sample: 1000,
       end_sample: 2000,
       name: '2026-05-12 take 2',
-      practice_id: null,
+      project_id: null,
       uploaded_at: null,
     },
   ],
@@ -60,8 +60,8 @@ describe('marker', () => {
     writeMarker(dir, sampleMarker);
     const got = readMarker(dir);
     expect(got?.song_folder).toBe('040109_0001');
-    expect(got?.segments[0]?.practice_id).toBe('pr_abc');
-    expect(got?.segments[1]?.practice_id).toBeNull();
+    expect(got?.segments[0]?.project_id).toBe('pr_abc');
+    expect(got?.segments[1]?.project_id).toBeNull();
   });
 
   it('promoteToImported renames once all segments uploaded', () => {
@@ -70,7 +70,7 @@ describe('marker', () => {
       ...sampleMarker,
       segments: sampleMarker.segments.map((s) => ({
         ...s,
-        practice_id: 'pr_xyz',
+        project_id: 'pr_xyz',
         uploaded_at: '2026-05-12T22:01:00Z',
       })),
     };

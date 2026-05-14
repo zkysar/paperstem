@@ -27,7 +27,7 @@ type Props = {
   prefilledFiles?: File[];
   prefilledName?: string | null;
   onClose(): void;
-  onUploaded(practiceId: string): void;
+  onUploaded(projectId: string): void;
 };
 
 function todayIso(): string {
@@ -38,8 +38,8 @@ function todayIso(): string {
   return `${y}-${m}-${dd}`;
 }
 
-function defaultPracticeName(): string {
-  return `practice-${todayIso()}`;
+function defaultProjectName(): string {
+  return `project-${todayIso()}`;
 }
 
 async function computeStemPeaks(file: File): Promise<string | null> {
@@ -65,7 +65,7 @@ async function computeStemPeaks(file: File): Promise<string | null> {
 }
 
 function uploadStem(
-  practiceId: string,
+  projectId: string,
   file: File,
   position: number,
   peaks: string | null,
@@ -77,7 +77,7 @@ function uploadStem(
     if (peaks) fd.append('peaks', peaks);
     fd.append('file', file, file.name);
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', `/api/practices/${encodeURIComponent(practiceId)}/stems`);
+    xhr.open('POST', `/api/projects/${encodeURIComponent(projectId)}/stems`);
     xhr.withCredentials = true;
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress(e.loaded / e.total);
@@ -112,7 +112,7 @@ export function UploadDrawer({
   onUploaded,
 }: Props) {
   const folderInputRef = useRef<HTMLInputElement>(null);
-  const [name, setName] = useState(prefilledName?.trim() || defaultPracticeName());
+  const [name, setName] = useState(prefilledName?.trim() || defaultProjectName());
   const [recordedOn, setRecordedOn] = useState(todayIso());
   const [files, setFiles] = useState<FileEntry[]>(() =>
     (prefilledFiles ?? []).map((file) => ({
@@ -132,7 +132,7 @@ export function UploadDrawer({
   // prefill values takes effect.
   useEffect(() => {
     if (!open) {
-      setName(defaultPracticeName());
+      setName(defaultProjectName());
       setRecordedOn(todayIso());
       setFiles([]);
       setSubmitting(false);
@@ -158,7 +158,7 @@ export function UploadDrawer({
   const dateValid = recordedOn === '' || ISO_DATE_RE.test(recordedOn);
 
   const validation = useMemo(() => {
-    if (!nameValid) return 'Practice name is required (≤ 200 chars).';
+    if (!nameValid) return 'Project name is required (≤ 200 chars).';
     if (!dateValid) return 'Date must be YYYY-MM-DD.';
     if (files.length === 0) return 'Pick a folder of audio files.';
     return null;
@@ -192,19 +192,19 @@ export function UploadDrawer({
     setSubmitting(true);
     setTopError(null);
 
-    const practiceBody: Record<string, unknown> = {
+    const projectBody: Record<string, unknown> = {
       band_id: bandId,
       name: trimmedName,
     };
-    if (recordedOn) practiceBody.recorded_on = recordedOn;
+    if (recordedOn) projectBody.recorded_on = recordedOn;
 
-    let practiceId: string;
+    let projectId: string;
     try {
-      const res = await fetch('/api/practices', {
+      const res = await fetch('/api/projects', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(practiceBody),
+        body: JSON.stringify(projectBody),
       });
       if (!res.ok) {
         const text = await res.text();
@@ -217,11 +217,11 @@ export function UploadDrawer({
         }
         throw new Error(msg);
       }
-      const data = (await res.json()) as { practice: { id: string } };
-      practiceId = data.practice.id;
+      const data = (await res.json()) as { project: { id: string } };
+      projectId = data.project.id;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      setTopError(`Could not create practice: ${msg}`);
+      setTopError(`Could not create project: ${msg}`);
       setSubmitting(false);
       return;
     }
@@ -261,7 +261,7 @@ export function UploadDrawer({
 
       updateFile(i, { status: 'uploading', progress: 0, error: null });
       try {
-        await uploadStem(practiceId, toUpload, i + 1, peaks, (frac) => {
+        await uploadStem(projectId, toUpload, i + 1, peaks, (frac) => {
           updateFile(i, { progress: frac });
         });
         updateFile(i, { status: 'done', progress: 1, error: null });
@@ -276,7 +276,7 @@ export function UploadDrawer({
       (f, i) => f.status !== 'done' && i < files.length,
     );
     if (!stillPending) {
-      onUploaded(practiceId);
+      onUploaded(projectId);
     }
   }
 
@@ -298,7 +298,7 @@ export function UploadDrawer({
       <div className="upload-modal" onClick={(e) => e.stopPropagation()}>
         <div className="upload-modal-header">
           <h2 id="upload-modal-title">
-            {hasPrefilledFiles ? 'Save to your band' : 'Upload practice'}
+            {hasPrefilledFiles ? 'Save to your band' : 'Upload project'}
           </h2>
           <button
             type="button"
@@ -314,7 +314,7 @@ export function UploadDrawer({
           {topError && <div className="upload-error">{topError}</div>}
 
           <label className="upload-field">
-            <span>Practice name</span>
+            <span>Project name</span>
             <input
               type="text"
               value={name}

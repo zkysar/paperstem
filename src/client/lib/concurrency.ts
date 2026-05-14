@@ -1,5 +1,5 @@
 // FIFO semaphore shared across the module. Used by WaveformThumb so that
-// opening the picker on a band with many practices doesn't kick off N
+// opening the picker on a band with many projects doesn't kick off N
 // simultaneous fetches and decodes — at ~5MB per reference stem that would
 // saturate the connection and stall the main thread.
 

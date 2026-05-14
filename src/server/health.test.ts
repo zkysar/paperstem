@@ -38,7 +38,7 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM practices; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
 }
 

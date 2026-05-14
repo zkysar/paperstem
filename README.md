@@ -6,7 +6,7 @@ A DAW-style stem player for sharing rough mixes with bandmates.
 
 ## UI
 
-A Google-Docs-style shell: an `AppHeader` (brand · ▦ files · practice title · Drive ↗ · 💬 comments · avatar), a flat `AppToolbar` (transport · download · waveform-scale · annotation-create · marker visibility · master volume · time), and the song timeline below. The practice list lives behind `⌘K` / the ▦ button as a `FilePicker` overlay rather than a persistent sidebar; comments open in a right-side push column. See `~/projects/plans/2026-05-07-paperstem-ui-redesign.md` for the full design.
+A Google-Docs-style shell: an `AppHeader` (brand · ▦ files · project title · Drive ↗ · 💬 comments · avatar), a flat `AppToolbar` (transport · download · waveform-scale · annotation-create · marker visibility · master volume · time), and the song timeline below. The project list lives behind `⌘K` / the ▦ button as a `FilePicker` overlay rather than a persistent sidebar; comments open in a right-side push column. See `~/projects/plans/2026-05-07-paperstem-ui-redesign.md` for the full design.
 
 ## Architecture
 
@@ -14,7 +14,7 @@ A Google-Docs-style shell: an `AppHeader` (brand · ▦ files · practice title 
 - **Backend**: Hono on Node, SQLite-on-volume (`src/server/`)
 - **Audio**: stems live in Google Drive (OAuth-as-me); the server streams them via a Range-supported `/api/audio/:id` proxy
 - **Auth**: magic link via Gmail SMTP, `__Host-` session cookie, 30-day expiry
-- **Backups**: daily per-practice annotation snapshot to Drive, weekly per-band SQLite dump (8-week retention)
+- **Backups**: daily per-project annotation snapshot to Drive, weekly per-band SQLite dump (8-week retention)
 - **Hosting**: a single always-on Fly.io machine in `sjc`, ~$3/mo
 
 See `~/projects/plans/2026-05-04-paperstem-deployment-design.md` for the full design.
@@ -46,20 +46,20 @@ flyctl ssh console --app paperstem --command 'node /app/dist/server/bin/run-job.
 
 ## Importing from a multitrack recorder
 
-Paperstem ships a CLI importer that pulls recordings off an SD card and turns them into practices automatically. Currently supports the Tascam Model 12; other multitrack recorders can be added as plugins under [src/server/import/](src/server/import/).
+Paperstem ships a CLI importer that pulls recordings off an SD card and turns them into projects automatically. Currently supports the Tascam Model 12; other multitrack recorders can be added as plugins under [src/server/import/](src/server/import/).
 
 ### Workflow
 
 On the device:
 
-1. Once per practice, create a new song on the Model 12 and start recording.
-2. (Optional) Tap **MARK** at the start of each new idea you want as a separate practice in Paperstem.
+1. Once per project, create a new song on the Model 12 and start recording.
+2. (Optional) Tap **MARK** at the start of each new idea you want as a separate project in Paperstem.
 3. Press **STOP** when done.
 
 On your laptop:
 
 1. Insert the SD card (or connect the Model 12 over USB-C in mass-storage mode).
-2. The launchd agent (set up once, below) notices it and uploads everything within ~5 minutes. New practices appear in Paperstem with the song name for un-marked songs, or `take 1` / `take 2` / … for marked ones.
+2. The launchd agent (set up once, below) notices it and uploads everything within ~5 minutes. New projects appear in Paperstem with the song name for un-marked songs, or `take 1` / `take 2` / … for marked ones.
 
 ### One-time setup
 
@@ -114,7 +114,7 @@ On your laptop:
 
 ### Permissions
 
-The importer creates practices via `POST /api/practices`, which is currently restricted to the **band owner**. Non-owner members can't use the importer against a band they don't own — the API returns 403. If you're not the owner of the `band_id` in your config, ask the owner to mint a token for you and stash it locally, or relax the route to any member (`src/server/practices.ts:239`).
+The importer creates projects via `POST /api/projects`, which is currently restricted to the **band owner**. Non-owner members can't use the importer against a band they don't own — the API returns 403. If you're not the owner of the `band_id` in your config, ask the owner to mint a token for you and stash it locally, or relax the route to any member (`src/server/projects.ts:239`).
 
 ### Reclaiming SD card space
 
@@ -130,4 +130,4 @@ The Fly machine builds the Docker image remotely on linux/amd64. Secrets (`GMAIL
 
 ## History
 
-Originally hosted on GitHub Pages as a static demo with a JSON-backed practice list and gitignored audio. Migrated to Fly.io with the React + Hono + SQLite + Drive architecture above; GH Pages decommissioned in Phase 7.
+Originally hosted on GitHub Pages as a static demo with a JSON-backed project list and gitignored audio. Migrated to Fly.io with the React + Hono + SQLite + Drive architecture above; GH Pages decommissioned in Phase 7.

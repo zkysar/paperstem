@@ -8,7 +8,7 @@ export type ShareMixEntry = {
 };
 
 export type ShareState = {
-  practiceId: string;
+  projectId: string;
   time?: number; // seconds, 2-decimal precision in URL
   loop?: { start: number; end: number; enabled: boolean };
   masterVolume?: number; // integer 0..200, undefined = at default
@@ -19,7 +19,7 @@ export type ShareState = {
 
 export function encodeShareUrl(state: ShareState): string {
   const params: string[] = [];
-  params.push(`p=${encodeURIComponent(state.practiceId)}`);
+  params.push(`p=${encodeURIComponent(state.projectId)}`);
   if (state.time != null && state.time > 0) {
     params.push(`t=${state.time.toFixed(2)}`);
   }
@@ -54,7 +54,7 @@ export function decodeShareUrl(fragment: string): ShareState | null {
   const sp = new URLSearchParams(fragment.startsWith('#') ? fragment.slice(1) : fragment);
   const p = sp.get('p');
   if (!p) return null;
-  const state: ShareState = { practiceId: p };
+  const state: ShareState = { projectId: p };
   const t = sp.get('t');
   if (t != null) {
     const n = Number(t);
@@ -105,7 +105,7 @@ export function decodeShareUrl(fragment: string): ShareState | null {
 }
 
 export type SnapshotInput = {
-  practiceId: string;
+  projectId: string;
   player: PlayerState;
   currentTime: number;
   activeCommentId: string | null;
@@ -125,8 +125,8 @@ export function snapshotShareState(
   input: SnapshotInput,
   overrides?: SnapshotOverrides,
 ): ShareState {
-  const { practiceId, player, currentTime, activeCommentId } = input;
-  const state: ShareState = { practiceId };
+  const { projectId, player, currentTime, activeCommentId } = input;
+  const state: ShareState = { projectId };
   const t = overrides?.time ?? currentTime;
   if (t > 0) state.time = t;
   if (player.loop) {
@@ -164,7 +164,7 @@ export function buildShareUrl(state: ShareState, baseUrl: string): string {
   return `${base}/#${encodeShareUrl(state)}`;
 }
 
-/** Human-readable list of what's in the share state beyond practice + time. */
+/** Human-readable list of what's in the share state beyond project + time. */
 export function describeShareCategories(
   state: ShareState,
 ): Array<'loop' | 'mix' | 'stem' | 'comment'> {

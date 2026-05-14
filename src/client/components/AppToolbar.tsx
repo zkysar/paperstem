@@ -25,7 +25,7 @@ import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
 import type { ViewportControls } from '../hooks/useViewport';
 
 type Props = {
-  hasPractice: boolean;
+  hasProject: boolean;
   isPlaying: boolean;
   hasLoop: boolean;
   loopEnabled: boolean;
@@ -54,14 +54,14 @@ type Props = {
   /**
    * Builds a share-snapshot URL of the current player state and returns it
    * (plus the non-trivial category list for the "Copied — includes X" hint).
-   * Returns `null` when there is no practice to share.
+   * Returns `null` when there is no project to share.
    */
   onShare(): { fullUrl: string; categories: Array<'loop' | 'mix' | 'stem' | 'comment'> } | null;
 };
 
 export function AppToolbar(props: Props) {
   const {
-    hasPractice, isPlaying, hasLoop, loopEnabled, downloading,
+    hasProject, isPlaying, hasLoop, loopEnabled, downloading,
     waveformNormalization, masterVolume, currentTime, duration,
     annotationCreateMode, canCreateAnnotations, markersVisible,
     railCollapsed, showRailToggle, isWide,
@@ -113,11 +113,11 @@ export function AppToolbar(props: Props) {
     <div className="app-toolbar">
       <button type="button" className="atb-btn"
         aria-label="Restart"
-        disabled={!hasPractice}
+        disabled={!hasProject}
         onClick={() => onSeek(0)}><SkipBack size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" /></button>
       <button type="button" className={'atb-btn play' + (isPlaying ? ' on' : '')}
         aria-label="Play"
-        disabled={!hasPractice}
+        disabled={!hasProject}
         onClick={onTogglePlay}>
         {isPlaying
           ? <Pause size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" />
@@ -132,7 +132,7 @@ export function AppToolbar(props: Props) {
 
       <button type="button" className="atb-btn"
         aria-label="Download all stems"
-        disabled={!hasPractice || downloading}
+        disabled={!hasProject || downloading}
         onClick={onDownloadAll}>
         {downloading
           ? <Loader2 size={16} strokeWidth={2} className="atb-spin" aria-hidden="true" />
@@ -141,7 +141,7 @@ export function AppToolbar(props: Props) {
       <div className="atb-share-wrap">
         <button type="button" className="atb-btn"
           aria-label="Copy share link"
-          disabled={!hasPractice}
+          disabled={!hasProject}
           onClick={handleShareClick}>
           <Share2 size={16} strokeWidth={2} aria-hidden="true" />
         </button>

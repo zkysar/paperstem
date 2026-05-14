@@ -1,14 +1,14 @@
-export type Practice = {
+export type Project = {
   id: string;
   title: string;
   folder: string;
-  stems: PracticeStem[];
+  stems: ProjectStem[];
   stemCount: number;
   driveFolderId: string | null;
   referenceStemId: string | null;
 };
 
-export type PracticeStem = {
+export type ProjectStem = {
   id: string;
   name: string;
   // Server-side waveform peaks (comma-separated 0..255 ints). When present,
@@ -16,7 +16,7 @@ export type PracticeStem = {
   peaks: string | null;
 };
 
-export type PracticeSummary = {
+export type ProjectSummary = {
   id: string;
   name: string;
   recorded_on: string | null;
@@ -36,7 +36,7 @@ export type StemSummary = {
   peaks: string | null;
 };
 
-export type PracticeDetail = {
+export type ProjectDetail = {
   id: string;
   band_id: string;
   name: string;
@@ -60,7 +60,7 @@ export type LoadedStem = {
   userMuted: boolean;
   soloed: boolean;
   userVolume: number;
-  practiceId: string | null;
+  projectId: string | null;
   // Stem id from the API. Null for local-folder loads (the user picked a folder
   // from disk; nothing to rename/delete server-side).
   serverId: string | null;
@@ -92,7 +92,7 @@ export type PlayerLoading = {
 };
 
 export type PlayerState = {
-  practiceId: string | null;
+  projectId: string | null;
   title: string;
   driveFolderId: string | null;
   stems: LoadedStem[];
@@ -118,11 +118,11 @@ export type StemSource = {
 };
 
 export type LoadContext = {
-  practiceId: string | null;
+  projectId: string | null;
   title: string;
 };
 
-export type TrashPractice = {
+export type TrashProject = {
   id: string;
   name: string;
   deleted_at: number;
@@ -133,14 +133,14 @@ export type TrashPractice = {
 export type TrashStem = {
   id: string;
   name: string;
-  practice_id: string;
-  practice_name: string;
+  project_id: string;
+  project_name: string;
   deleted_at: number;
   deleted_by_email: string | null;
   deleted_reason: 'user' | 'drive_missing';
 };
 
 export type TrashList = {
-  practices: TrashPractice[];
+  projects: TrashProject[];
   stems: TrashStem[];
 };

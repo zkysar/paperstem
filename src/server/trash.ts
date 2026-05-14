@@ -17,11 +17,11 @@ export function handleListTrash(
   const now = Math.floor(Date.now() / 1000);
   const cutoff = now - PURGE_AFTER_SECONDS;
 
-  // Order matters: practices first so cascade ON DELETE can sweep stems.
-  stmts.purgePracticesForBand.run(bandId, cutoff);
+  // Order matters: projects first so cascade ON DELETE can sweep stems.
+  stmts.purgeProjectsForBand.run(bandId, cutoff);
   stmts.purgeStemsForBand.run(bandId, cutoff);
 
-  const practices = stmts.findTrashedPracticesForBand.all(bandId).map((p) => ({
+  const projects = stmts.findTrashedProjectsForBand.all(bandId).map((p) => ({
     id: p.id,
     name: p.name,
     deleted_at: p.deleted_at,
@@ -32,12 +32,12 @@ export function handleListTrash(
   const stems = stmts.findTrashedStemsForBand.all(bandId).map((s) => ({
     id: s.id,
     name: s.name,
-    practice_id: s.practice_id,
-    practice_name: s.practice_name,
+    project_id: s.project_id,
+    project_name: s.project_name,
     deleted_at: s.deleted_at,
     deleted_by_email: s.deleted_by_email,
     deleted_reason: s.deleted_reason,
   }));
 
-  return c.json({ practices, stems });
+  return c.json({ projects, stems });
 }

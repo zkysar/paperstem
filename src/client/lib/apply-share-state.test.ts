@@ -12,7 +12,7 @@ function makeStem(over: Partial<LoadedStem>): LoadedStem {
     userMuted: false,
     soloed: false,
     userVolume: 100,
-    practiceId: 'p',
+    projectId: 'p',
     serverId: 'a',
     gain: null,
     peaks: null,
@@ -21,7 +21,7 @@ function makeStem(over: Partial<LoadedStem>): LoadedStem {
 }
 function makePlayer(stems: LoadedStem[], duration = 60): PlayerState {
   return {
-    practiceId: 'p',
+    projectId: 'p',
     title: 't',
     driveFolderId: null,
     stems,
@@ -56,7 +56,7 @@ describe('applyShareState', () => {
     const onOpenDrawer = vi.fn();
 
     const state: ShareState = {
-      practiceId: 'p',
+      projectId: 'p',
       time: 10,
       loop: { start: 1, end: 5, enabled: false },
       masterVolume: 80,
@@ -103,7 +103,7 @@ describe('applyShareState', () => {
       seek: vi.fn(),
     };
     applyShareState(
-      { practiceId: 'p', time: 999 },
+      { projectId: 'p', time: 999 },
       {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         player: player as any,
@@ -128,7 +128,7 @@ describe('applyShareState', () => {
       seek: vi.fn(),
     };
     applyShareState(
-      { practiceId: 'p', mix: [{ stemId: 'ghost', muted: true }] },
+      { projectId: 'p', mix: [{ stemId: 'ghost', muted: true }] },
       {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         player: player as any,
@@ -153,7 +153,7 @@ describe('applyShareState', () => {
     };
     const onOpenDrawer = vi.fn();
     applyShareState(
-      { practiceId: 'p', time: 5 },
+      { projectId: 'p', time: 5 },
       {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         player: player as any,

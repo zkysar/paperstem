@@ -48,7 +48,7 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM practices; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
   sendBugReportMock.mockClear();
   bugMod.bugReportLimiter.reset();
@@ -78,10 +78,10 @@ function authHeader(sid: string): Record<string, string> {
 function basePayload() {
   return {
     description: 'the player crashed when I clicked play',
-    url: 'http://localhost:5173/practice/abc',
+    url: 'http://localhost:5173/project/abc',
     viewport: { w: 1280, h: 800 },
     userAgent: 'Mozilla/5.0 (test)',
-    pageContext: { page: 'player', practiceId: 'abc', stems: 4 },
+    pageContext: { page: 'player', projectId: 'abc', stems: 4 },
     recentErrors: [
       { ts: '2026-05-11T22:53:51.000Z', message: 'TypeError: foo', stack: 'at A\n  at B' },
     ],

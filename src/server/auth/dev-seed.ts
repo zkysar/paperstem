@@ -6,7 +6,7 @@ import { createFolder, findFolderByName, uploadFile } from '../drive.js';
 import { isDevLoginEnabled } from './dev-login.js';
 
 const DEFAULT_BAND_NAME = 'Dev Band';
-const SEED_PRACTICE_NAME = 'Sample practice';
+const SEED_PROJECT_NAME = 'Sample project';
 const SEED_STEMS: { name: string; file: string }[] = [
   { name: 'drums', file: 'drums.mp3' },
   { name: 'bass', file: 'bass.mp3' },
@@ -47,10 +47,10 @@ export async function seedDevBandIfNeeded(): Promise<void> {
     `[dev-seed] created band '${bandName}' (${bandId}) for ${email}, drive=${bandFolder.id}`,
   );
 
-  await seedSamplePractice(bandId, bandFolder.id, user.id, nowSec);
+  await seedSampleProject(bandId, bandFolder.id, user.id, nowSec);
 }
 
-async function seedSamplePractice(
+async function seedSampleProject(
   bandId: string,
   bandFolderId: string,
   userId: string,
@@ -59,21 +59,21 @@ async function seedSamplePractice(
   const assetsDir = seedAssetsDir();
   const presentStems = SEED_STEMS.filter((s) => existsSync(assetsDir + s.file));
   if (presentStems.length === 0) {
-    console.log('[dev-seed] no sample MP3s found in assets/dev-seed/, skipping practice');
+    console.log('[dev-seed] no sample MP3s found in assets/dev-seed/, skipping project');
     return;
   }
 
-  const practiceFolder =
-    (await findFolderByName(SEED_PRACTICE_NAME, bandFolderId)) ??
-    (await createFolder(SEED_PRACTICE_NAME, bandFolderId));
+  const projectFolder =
+    (await findFolderByName(SEED_PROJECT_NAME, bandFolderId)) ??
+    (await createFolder(SEED_PROJECT_NAME, bandFolderId));
 
-  const practiceId = randomUUID();
-  stmts.insertPractice.run(
-    practiceId,
+  const projectId = randomUUID();
+  stmts.insertProject.run(
+    projectId,
     bandId,
-    SEED_PRACTICE_NAME,
+    SEED_PROJECT_NAME,
     null,
-    practiceFolder.id,
+    projectFolder.id,
     null,
     nowSec,
     userId,
@@ -84,14 +84,14 @@ async function seedSamplePractice(
     const stem = presentStems[i];
     const body = readFileSync(assetsDir + stem.file);
     const uploaded = await uploadFile(
-      practiceFolder.id,
+      projectFolder.id,
       stem.file,
       'audio/mpeg',
       body,
     );
     stmts.insertStem.run(
       randomUUID(),
-      practiceId,
+      projectId,
       stem.name,
       i,
       uploaded.id,
@@ -102,6 +102,6 @@ async function seedSamplePractice(
   }
 
   console.log(
-    `[dev-seed] seeded practice '${SEED_PRACTICE_NAME}' (${practiceId}) with ${presentStems.length} stems`,
+    `[dev-seed] seeded project '${SEED_PROJECT_NAME}' (${projectId}) with ${presentStems.length} stems`,
   );
 }

@@ -36,8 +36,8 @@ import {
   patchAnnotation,
   deleteAnnotation,
 } from './data/annotations-repo';
-import { HttpPracticesRepo, type PracticesRepo } from './data/practices-repo';
-import type { Practice, StemSource, TrashList } from './data/types';
+import { HttpProjectsRepo, type ProjectsRepo } from './data/projects-repo';
+import type { Project, StemSource, TrashList } from './data/types';
 import { decodePeaks } from './lib/peaks';
 import { useAppVersion } from './hooks/useAppVersion';
 import { useKeyboard } from './hooks/useKeyboard';
@@ -126,22 +126,22 @@ function PaperstemApp({
   const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
   const activeBand = bands[0] ?? null;
   const activeBandId = activeBand?.id ?? null;
-  const repo = useMemo<PracticesRepo | null>(
-    () => (activeBandId ? new HttpPracticesRepo(activeBandId) : null),
+  const repo = useMemo<ProjectsRepo | null>(
+    () => (activeBandId ? new HttpProjectsRepo(activeBandId) : null),
     [activeBandId],
   );
 
-  const [practices, setPractices] = useState<Practice[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [trash, setTrash] = useState<TrashList | null>(null);
   const [trashError, setTrashError] = useState<string | null>(null);
-  const [practicesLoading, setPracticesLoading] = useState(true);
+  const [projectsLoading, setProjectsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activePracticeId, setActivePracticeId] = useState<string | null>(
-    shareLink.initial?.practiceId ?? null,
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(
+    shareLink.initial?.projectId ?? null,
   );
   const [downloading, setDownloading] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
-  // Draft mode: when the user picks a folder via "+ New practice", the audio
+  // Draft mode: when the user picks a folder via "+ New project", the audio
   // plays from local File objects (object URLs). We keep the underlying Files
   // around so "Save to band" can hand them to UploadDrawer for promotion.
   const [draftFiles, setDraftFiles] = useState<File[]>([]);
@@ -203,30 +203,30 @@ function PaperstemApp({
     else openDrawer();
   }, [drawerOpen, openDrawer, closeDrawer]);
 
-  // Auto-open the picker once on mount when no practice is active.
+  // Auto-open the picker once on mount when no project is active.
   useEffect(() => {
-    if (activePracticeId === null) setPickerOpen(true);
+    if (activeProjectId === null) setPickerOpen(true);
     // intentionally fires once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Live-sync the address bar to `#p=<id>` whenever the active practice
-  // changes. The hook's syncPracticeId is stable.
+  // Live-sync the address bar to `#p=<id>` whenever the active project
+  // changes. The hook's syncProjectId is stable.
   useEffect(() => {
-    shareLink.syncPracticeId(activePracticeId);
-  }, [activePracticeId, shareLink]);
+    shareLink.syncProjectId(activeProjectId);
+  }, [activeProjectId, shareLink]);
 
-  // When activePracticeId transitions to null (e.g. the active practice was
+  // When activeProjectId transitions to null (e.g. the active project was
   // deleted), reset the player so the header and waveform don't point at a
   // tombstone. Guarded with a ref so the initial null on mount doesn't fire
   // clear() before anything has been loaded.
-  const prevActivePracticeIdRef = useRef<string | null>(activePracticeId);
+  const prevActiveProjectIdRef = useRef<string | null>(activeProjectId);
   useEffect(() => {
-    if (prevActivePracticeIdRef.current !== null && activePracticeId === null) {
+    if (prevActiveProjectIdRef.current !== null && activeProjectId === null) {
       player.clear();
     }
-    prevActivePracticeIdRef.current = activePracticeId;
-  }, [activePracticeId, player]);
+    prevActiveProjectIdRef.current = activeProjectId;
+  }, [activeProjectId, player]);
 
   useKeyboard({
     player,
@@ -305,23 +305,23 @@ function PaperstemApp({
 
   useEffect(() => {
     if (!repo) {
-      setPractices([]);
-      setPracticesLoading(false);
+      setProjects([]);
+      setProjectsLoading(false);
       return;
     }
     let cancelled = false;
-    setPracticesLoading(true);
+    setProjectsLoading(true);
     repo.list().then(
       (list) => {
         if (cancelled) return;
-        setPractices(list);
+        setProjects(list);
         setLoadError(null);
-        setPracticesLoading(false);
+        setProjectsLoading(false);
       },
       (err: Error) => {
         if (cancelled) return;
         setLoadError(err.message);
-        setPracticesLoading(false);
+        setProjectsLoading(false);
       },
     );
     return () => {
@@ -329,60 +329,60 @@ function PaperstemApp({
     };
   }, [repo]);
 
-  async function refreshPractices(): Promise<Practice[]> {
+  async function refreshProjects(): Promise<Project[]> {
     if (!repo) return [];
     try {
       const list = await repo.list();
-      setPractices(list);
+      setProjects(list);
       setLoadError(null);
-      setPracticesLoading(false);
+      setProjectsLoading(false);
       return list;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setLoadError(msg);
-      setPracticesLoading(false);
+      setProjectsLoading(false);
       throw err;
     }
   }
 
-  async function handleUploaded(practiceId: string) {
+  async function handleUploaded(projectId: string) {
     setUploadOpen(false);
     setDraftFiles([]);
     try {
-      await refreshPractices();
-      await selectPractice(practiceId);
+      await refreshProjects();
+      await selectProject(projectId);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setLoadError(msg);
     }
   }
 
-  const deletePractice = useCallback(
+  const deleteProject = useCallback(
     async (id: string) => {
       if (!repo) return;
-      let prev: Practice[] = [];
-      setPractices((arr) => {
+      let prev: Project[] = [];
+      setProjects((arr) => {
         prev = arr;
         return arr.filter((p) => p.id !== id);
       });
-      if (activePracticeId === id) {
-        setActivePracticeId(null);
+      if (activeProjectId === id) {
+        setActiveProjectId(null);
         // Reset the player explicitly so the header and waveform clear before
-        // the activePracticeId effect fires on the next render — keeps the UI
-        // from briefly displaying the deleted practice's metadata.
+        // the activeProjectId effect fires on the next render — keeps the UI
+        // from briefly displaying the deleted project's metadata.
         player.clear();
         setActiveCommentId(null);
         setPopoverAnchor(null);
         setAnnotations([]);
       }
       try {
-        await repo.deletePractice(id);
+        await repo.deleteProject(id);
       } catch (err) {
         console.error('delete failed', err);
-        setPractices(prev);
+        setProjects(prev);
       }
     },
-    [repo, activePracticeId, player],
+    [repo, activeProjectId, player],
   );
 
   const loadTrash = useCallback(async () => {
@@ -400,29 +400,29 @@ function PaperstemApp({
     }
   }, [repo]);
 
-  const restorePractice = useCallback(
+  const restoreProject = useCallback(
     async (id: string) => {
       if (!repo) return;
       try {
-        await repo.restorePractice(id);
+        await repo.restoreProject(id);
       } catch (err) {
         console.error('restore failed', err);
         return;
       }
       try {
         const fresh = await repo.list();
-        setPractices(fresh);
+        setProjects(fresh);
       } catch (_err) { /* ignore */ }
       await loadTrash();
     },
     [repo, loadTrash],
   );
 
-  // Core: fetch a practice by id and populate player + annotations. Shared by
-  // selectPractice (user-driven switch) and reloadActive (refresh the current
-  // practice in place — used after stem restore / failed stem delete to bring
+  // Core: fetch a project by id and populate player + annotations. Shared by
+  // selectProject (user-driven switch) and reloadActive (refresh the current
+  // project in place — used after stem restore / failed stem delete to bring
   // server truth back into the player without resetting create-mode etc).
-  const loadPractice = useCallback(
+  const loadProject = useCallback(
     async (id: string, opts: { resetUiState: boolean }) => {
       if (!repo) return;
       if (opts.resetUiState) {
@@ -434,7 +434,7 @@ function PaperstemApp({
       }
       try {
         const detail = await repo.getById(id);
-        setPractices((prev) => prev.map((p) => (p.id === detail.id ? detail : p)));
+        setProjects((prev) => prev.map((p) => (p.id === detail.id ? detail : p)));
         const sources: StemSource[] = detail.stems.map((s) => ({
           name: s.name,
           src: `/api/audio/${encodeURIComponent(s.id)}`,
@@ -442,7 +442,7 @@ function PaperstemApp({
           peaks: s.peaks ? decodePeaks(s.peaks) : null,
         }));
         void player.load({
-          practiceId: detail.id,
+          projectId: detail.id,
           title: detail.title,
           driveFolderId: detail.driveFolderId,
           sources,
@@ -462,13 +462,13 @@ function PaperstemApp({
   );
 
   const reloadActive = useCallback(async () => {
-    if (!activePracticeId) return;
-    await loadPractice(activePracticeId, { resetUiState: false });
-  }, [activePracticeId, loadPractice]);
+    if (!activeProjectId) return;
+    await loadProject(activeProjectId, { resetUiState: false });
+  }, [activeProjectId, loadProject]);
 
-  // On mount, if a share link supplied a practice ID, load it. The picker's
-  // auto-open effect already skipped because activePracticeId was non-null
-  // from the share link. We just need to fetch the practice.
+  // On mount, if a share link supplied a project ID, load it. The picker's
+  // auto-open effect already skipped because activeProjectId was non-null
+  // from the share link. We just need to fetch the project.
   const didInitialShareLoadRef = useRef(false);
   useEffect(() => {
     if (didInitialShareLoadRef.current) return;
@@ -478,16 +478,16 @@ function PaperstemApp({
     // Don't reset UI state — we want the share link's focused comment etc. to
     // survive once Task 4 wires the drain. resetUiState: true is safe here
     // because the share state hasn't been applied yet.
-    void loadPractice(initial.practiceId, { resetUiState: true });
-  }, [repo, loadPractice]);
+    void loadProject(initial.projectId, { resetUiState: true });
+  }, [repo, loadProject]);
 
-  // Drain pendingShareStateRef once the active practice is fully loaded
+  // Drain pendingShareStateRef once the active project is fully loaded
   // (stems decoded). Player stays paused; recipient drives playback.
   // Sets arrival banner state when anything beyond `p` was applied.
   useEffect(() => {
     const pending = pendingShareStateRef.current;
     if (!pending) return;
-    if (player.state.practiceId !== pending.practiceId) return;
+    if (player.state.projectId !== pending.projectId) return;
     if (player.state.stems.length === 0) return;
 
     const result = applyShareState(pending, {
@@ -554,7 +554,7 @@ function PaperstemApp({
         await repo.deleteStem(serverId);
       } catch (err) {
         console.error('delete stem failed', err);
-        // Best-effort recovery: re-load the active practice from the server so
+        // Best-effort recovery: re-load the active project from the server so
         // the optimistic removal is reverted with authoritative data.
         await reloadActive();
       }
@@ -562,23 +562,23 @@ function PaperstemApp({
     [repo, player, reloadActive],
   );
 
-  const renamePractice = useCallback(
+  const renameProject = useCallback(
     async (id: string, name: string) => {
       if (!repo) return;
       const trimmed = name.trim();
       if (!trimmed) return;
-      let prev: Practice[] = [];
-      setPractices((arr) => {
+      let prev: Project[] = [];
+      setProjects((arr) => {
         prev = arr;
         return arr.map((p) => (p.id === id ? { ...p, title: trimmed } : p));
       });
       // Reflect the rename in the player title too (header reads player.state.title).
       player.setTitle(trimmed);
       try {
-        await repo.renamePractice(id, trimmed);
+        await repo.renameProject(id, trimmed);
       } catch (err) {
         console.error('rename failed', err);
-        setPractices(prev);
+        setProjects(prev);
         const reverted = prev.find((p) => p.id === id);
         if (reverted) player.setTitle(reverted.title);
       }
@@ -586,14 +586,14 @@ function PaperstemApp({
     [repo, player],
   );
 
-  const selectPractice = useCallback(
+  const selectProject = useCallback(
     async (id: string) => {
       if (!repo) return;
-      setActivePracticeId(id);
+      setActiveProjectId(id);
       setDraftFiles([]);
-      await loadPractice(id, { resetUiState: true });
+      await loadProject(id, { resetUiState: true });
     },
-    [repo, loadPractice],
+    [repo, loadProject],
   );
 
   const handleAnnotationCreated = useCallback(
@@ -649,26 +649,26 @@ function PaperstemApp({
   // AppToolbar Share button (which then writes the URL to the clipboard).
   // Returns null when nothing is loaded — the toolbar treats that as a no-op.
   const handleShareSnapshot = useCallback(() => {
-    if (!activePracticeId) return null;
+    if (!activeProjectId) return null;
     const state = snapshotShareState({
-      practiceId: activePracticeId,
+      projectId: activeProjectId,
       player: player.state,
       currentTime: player.currentTime,
       activeCommentId,
     });
     const url = buildShareUrl(state, window.location.href);
     return { fullUrl: url, categories: describeShareCategories(state) };
-  }, [activePracticeId, player.state, player.currentTime, activeCommentId]);
+  }, [activeProjectId, player.state, player.currentTime, activeCommentId]);
 
   // "Copy link to this comment" — overrides the time and focused comment to
   // pin the URL to the annotation rather than the live playhead. The
   // clipboard write may reject in insecure contexts; v1 just logs and the
   // user can re-try via the toolbar's fallback popover if needed.
   const handleCopyCommentLink = useCallback(async (a: Annotation) => {
-    if (!activePracticeId) return;
+    if (!activeProjectId) return;
     const state = snapshotShareState(
       {
-        practiceId: activePracticeId,
+        projectId: activeProjectId,
         player: player.state,
         currentTime: player.currentTime,
         activeCommentId,
@@ -681,7 +681,7 @@ function PaperstemApp({
     } catch (err) {
       console.warn('Failed to copy comment link', err);
     }
-  }, [activePracticeId, player.state, player.currentTime, activeCommentId]);
+  }, [activeProjectId, player.state, player.currentTime, activeCommentId]);
 
   async function handleToggleStar(a: Annotation): Promise<void> {
     const prev = annotations;
@@ -712,8 +712,8 @@ function PaperstemApp({
   }
 
   async function handleCreateFromDraft(body: string): Promise<void> {
-    if (!activePracticeId || !pendingDraft) return;
-    const created = await createAnnotation(activePracticeId, {
+    if (!activeProjectId || !pendingDraft) return;
+    const created = await createAnnotation(activeProjectId, {
       start_ms: pendingDraft.start_ms,
       end_ms: pendingDraft.end_ms,
       body,
@@ -730,7 +730,7 @@ function PaperstemApp({
     if (!files.length) {
       setDraftFiles([]);
       void player.load({
-        practiceId: null,
+        projectId: null,
         title: folderName || 'Local folder',
         driveFolderId: null,
         sources: [],
@@ -741,10 +741,10 @@ function PaperstemApp({
       const url = URL.createObjectURL(f);
       return { name: f.name, src: url, revoke: () => URL.revokeObjectURL(url) };
     });
-    setActivePracticeId(null);
+    setActiveProjectId(null);
     setDraftFiles(files);
     void player.load({
-      practiceId: `local:${folderName}`,
+      projectId: `local:${folderName}`,
       title: folderName,
       driveFolderId: null,
       sources,
@@ -755,7 +755,7 @@ function PaperstemApp({
     if (!player.state.stems.length) return;
     setDownloading(true);
     try {
-      const filename = `${activePracticeId || 'paperstem'}-stems.zip`;
+      const filename = `${activeProjectId || 'paperstem'}-stems.zip`;
       await downloadStemsAsZip(player.state.stems, filename);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -803,12 +803,12 @@ function PaperstemApp({
       <AppHeader
         userEmail={user.email}
         userInitials={initialsFromEmail(user.email)}
-        practiceTitle={player.state.title || null}
+        projectTitle={player.state.title || null}
         stemCount={player.state.stems.length}
         duration={player.state.duration}
         driveFolderId={player.state.driveFolderId ?? null}
         annotationsOpen={drawerOpen}
-        hasPractice={player.state.stems.length > 0}
+        hasProject={player.state.stems.length > 0}
         canRename={player.state.stems.length > 0}
         appVersion={appInfo?.version ?? null}
         appEnv={appInfo?.env ?? null}
@@ -817,19 +817,19 @@ function PaperstemApp({
         onSignOut={onLogout}
         onReportBug={() => openBugReport()}
         onOpenTokens={() => setTokensOpen(true)}
-        onRenamePractice={(name) => {
-          // In draft mode there's no server practice yet — just update the
+        onRenameProject={(name) => {
+          // In draft mode there's no server project yet — just update the
           // player title. The new title becomes the default upload name on
           // promote.
-          if (activePracticeId) {
-            void renamePractice(activePracticeId, name);
+          if (activeProjectId) {
+            void renameProject(activeProjectId, name);
           } else {
             player.setTitle(name.trim());
           }
         }}
       />
       <AppToolbar
-        hasPractice={player.state.stems.length > 0}
+        hasProject={player.state.stems.length > 0}
         isPlaying={player.state.isPlaying}
         hasLoop={!!player.state.loop}
         loopEnabled={!!player.state.loop?.enabled}
@@ -839,7 +839,7 @@ function PaperstemApp({
         currentTime={player.currentTime}
         duration={player.state.duration}
         annotationCreateMode={annotationCreateMode}
-        canCreateAnnotations={activePracticeId !== null}
+        canCreateAnnotations={activeProjectId !== null}
         markersVisible={markersVisible}
         railCollapsed={railCollapsed}
         showRailToggle={true}
@@ -857,7 +857,7 @@ function PaperstemApp({
         onOpenShortcuts={() => setShortcutsOpen(true)}
         onShare={handleShareSnapshot}
       />
-      {activePracticeId === null && draftFiles.length > 0 && (
+      {activeProjectId === null && draftFiles.length > 0 && (
         <div className="draft-banner" role="status">
           <span className="draft-banner-label">
             Local draft — only on this device.
@@ -917,11 +917,11 @@ function PaperstemApp({
           return (
             <>
               <CommentsDrawer
-                key={activePracticeId ?? 'none'}
+                key={activeProjectId ?? 'none'}
                 open={drawerOpen}
                 isNarrow={isNarrow}
                 selfUserId={user.id}
-                canEdit={activePracticeId !== null}
+                canEdit={activeProjectId !== null}
                 annotations={annotations}
                 userColorMap={userColorMap}
                 activeId={activeCommentId}
@@ -950,7 +950,7 @@ function PaperstemApp({
                     color={color}
                     anchorLeftPx={popoverAnchor.left}
                     anchorTopPx={popoverAnchor.top}
-                    canEdit={activePracticeId !== null}
+                    canEdit={activeProjectId !== null}
                     isOwn={active.user_id === user.id}
                     drawerOpen={drawerOpen}
                     emphasize={emphasizedCommentId === active.id}
@@ -975,7 +975,7 @@ function PaperstemApp({
                       <CommentBottomSheet
                         annotation={active}
                         color={color}
-                        canEdit={activePracticeId !== null}
+                        canEdit={activeProjectId !== null}
                         isOwn={active.user_id === user.id}
                         index={idx}
                         total={annotations.length}
@@ -997,14 +997,14 @@ function PaperstemApp({
       </div>
       <FilePicker
         open={pickerOpen}
-        loading={practicesLoading}
+        loading={projectsLoading}
         loadError={loadError}
-        practices={practices}
-        activePracticeId={activePracticeId}
+        projects={projects}
+        activeProjectId={activeProjectId}
         showUpload={showUploadButton}
         onClose={closePicker}
         onSelect={(id) => {
-          void selectPractice(id);
+          void selectProject(id);
           closePicker();
         }}
         onLoadFolder={(files, folderName) => {
@@ -1012,22 +1012,22 @@ function PaperstemApp({
           closePicker();
         }}
         onRetry={() => {
-          setPracticesLoading(true);
-          void refreshPractices().catch(() => {});
+          setProjectsLoading(true);
+          void refreshProjects().catch(() => {});
         }}
-        onRenamePractice={(id, name) => {
-          void renamePractice(id, name);
+        onRenameProject={(id, name) => {
+          void renameProject(id, name);
         }}
-        onDeletePractice={(id) => {
-          void deletePractice(id);
+        onDeleteProject={(id) => {
+          void deleteProject(id);
         }}
         trash={trash}
         trashError={trashError}
         onLoadTrash={() => {
           void loadTrash();
         }}
-        onRestorePractice={(id) => {
-          void restorePractice(id);
+        onRestoreProject={(id) => {
+          void restoreProject(id);
         }}
         onRestoreStem={(id) => {
           void restoreStem(id);
@@ -1053,8 +1053,8 @@ function PaperstemApp({
         prefill={bugReportPrefill}
         pageContext={{
           activeBandId,
-          activePracticeId,
-          practiceTitle: player.state.title ?? null,
+          activeProjectId,
+          projectTitle: player.state.title ?? null,
           stemCount: player.state.stems.length,
           isPlaying: player.state.isPlaying,
           currentTime: player.currentTime,

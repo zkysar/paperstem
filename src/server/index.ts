@@ -17,15 +17,15 @@ import {
 import { sessionMiddleware, type AuthVariables } from './auth/middleware.js';
 import { handleListBands, handleGetBand } from './bands.js';
 import {
-  handleCreatePractice,
+  handleCreateProject,
   handleCreateStem,
-  handleDeletePractice,
-  handleGetPractice,
-  handleListPractices,
-  handleRenamePractice,
-  handleRestorePractice,
+  handleDeleteProject,
+  handleGetProject,
+  handleListProjects,
+  handleRenameProject,
+  handleRestoreProject,
   handleUpdateStemPeaks,
-} from './practices.js';
+} from './projects.js';
 import {
   handleDeleteStem,
   handleRenameStem,
@@ -67,21 +67,21 @@ app.post('/api/me/tokens', handleCreateToken);
 app.delete('/api/me/tokens/:id', handleRevokeToken);
 app.get('/api/bands', handleListBands);
 app.get('/api/bands/:id', handleGetBand);
-app.get('/api/practices', handleListPractices);
-app.get('/api/practices/:id', handleGetPractice);
-app.post('/api/practices', handleCreatePractice);
-app.patch('/api/practices/:id', handleRenamePractice);
-app.delete('/api/practices/:id', handleDeletePractice);
-app.post('/api/practices/:id/restore', handleRestorePractice);
-app.post('/api/practices/:id/stems', handleCreateStem);
+app.get('/api/projects', handleListProjects);
+app.get('/api/projects/:id', handleGetProject);
+app.post('/api/projects', handleCreateProject);
+app.patch('/api/projects/:id', handleRenameProject);
+app.delete('/api/projects/:id', handleDeleteProject);
+app.post('/api/projects/:id/restore', handleRestoreProject);
+app.post('/api/projects/:id/stems', handleCreateStem);
 app.patch('/api/stems/:id', handleRenameStem);
 app.delete('/api/stems/:id', handleDeleteStem);
 app.post('/api/stems/:id/restore', handleRestoreStem);
 app.put('/api/stems/:id/peaks', handleUpdateStemPeaks);
 app.get('/api/bands/:id/trash', handleListTrash);
 app.get('/api/audio/:stem_id', handleGetAudio);
-app.get('/api/practices/:id/annotations', handleListAnnotations);
-app.post('/api/practices/:id/annotations', handleCreateAnnotation);
+app.get('/api/projects/:id/annotations', handleListAnnotations);
+app.post('/api/projects/:id/annotations', handleCreateAnnotation);
 app.patch('/api/annotations/:id', handlePatchAnnotation);
 app.delete('/api/annotations/:id', handleDeleteAnnotation);
 app.get('/api/health/snapshots', handleSnapshotsHealth);

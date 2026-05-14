@@ -132,7 +132,7 @@ export function Track({
   }
 
   // Attach WaveSurfer to the clip element. Re-creates when the audio element
-  // changes (i.e. a new practice loads).
+  // changes (i.e. a new project loads).
   useEffect(() => {
     if (!clipRef.current) return;
     let ws: WaveSurfer | null = null;

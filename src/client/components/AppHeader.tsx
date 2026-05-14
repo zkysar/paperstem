@@ -6,12 +6,12 @@ import { githubUrlForVersion } from '../../shared/version';
 type Props = {
   userEmail: string;
   userInitials: string;
-  practiceTitle: string | null;
+  projectTitle: string | null;
   stemCount: number;
   duration: number;
   driveFolderId: string | null;
   annotationsOpen: boolean;
-  hasPractice: boolean;
+  hasProject: boolean;
   canRename: boolean;
   appVersion: string | null;
   appEnv: string | null;
@@ -19,14 +19,14 @@ type Props = {
   onToggleAnnotations(): void;
   onSignOut(): void;
   onReportBug(): void;
-  onRenamePractice(name: string): void;
+  onRenameProject(name: string): void;
   onOpenTokens(): void;
 };
 
 export function AppHeader({
-  userEmail, userInitials, practiceTitle, stemCount, duration,
-  driveFolderId, annotationsOpen, hasPractice, canRename, appVersion, appEnv,
-  onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenamePractice,
+  userEmail, userInitials, projectTitle, stemCount, duration,
+  driveFolderId, annotationsOpen, hasProject, canRename, appVersion, appEnv,
+  onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenameProject,
   onOpenTokens,
 }: Props) {
   const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
@@ -34,11 +34,11 @@ export function AppHeader({
   const avatarRef = useRef<HTMLDivElement>(null);
 
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(practiceTitle ?? '');
+  const [draft, setDraft] = useState(projectTitle ?? '');
 
   useEffect(() => {
-    setDraft(practiceTitle ?? '');
-  }, [practiceTitle]);
+    setDraft(projectTitle ?? '');
+  }, [projectTitle]);
 
   useEffect(() => {
     if (!avatarOpen) return;
@@ -52,16 +52,16 @@ export function AppHeader({
   function commit() {
     setEditing(false);
     const next = draft.trim();
-    if (!next || next === practiceTitle) return;
-    onRenamePractice(next);
+    if (!next || next === projectTitle) return;
+    onRenameProject(next);
   }
 
   function cancel() {
     setEditing(false);
-    setDraft(practiceTitle ?? '');
+    setDraft(projectTitle ?? '');
   }
 
-  const titleEditable = hasPractice && canRename;
+  const titleEditable = hasProject && canRename;
 
   return (
     <header className="app-header">
@@ -69,8 +69,8 @@ export function AppHeader({
         type="button"
         className="ah-files"
         onClick={onOpenPicker}
-        title="Open practices (⌘K)"
-        aria-label="Open practices"
+        title="Open projects (⌘K)"
+        aria-label="Open projects"
       >
         <Library size={16} strokeWidth={2} aria-hidden="true" />
       </button>
@@ -86,12 +86,12 @@ export function AppHeader({
       )}
       <span className="ah-divider" />
       <div className="ah-title-block">
-        <span className="ah-title-label">Practice</span>
+        <span className="ah-title-label">Project</span>
         <span className="ah-title-row">
           {editing && titleEditable ? (
             <input
               className="ah-title-input"
-              aria-label="Rename practice"
+              aria-label="Rename project"
               value={draft}
               autoFocus
               onChange={(e) => setDraft(e.target.value)}
@@ -114,21 +114,21 @@ export function AppHeader({
               disabled={!titleEditable}
               title={titleEditable ? 'Click to rename' : undefined}
             >
-              {practiceTitle ?? 'No practice'}
+              {projectTitle ?? 'No project'}
             </button>
           )}
           <button
             type="button"
             className="ah-title-caret"
             onClick={onOpenPicker}
-            aria-label="Switch practice"
+            aria-label="Switch project"
           >
             <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
           </button>
         </span>
       </div>
       <span className="ah-spacer" />
-      {hasPractice && (
+      {hasProject && (
         <span className="ah-meta">
           {stemCount} stems · {fmt(duration)}
         </span>
@@ -145,7 +145,7 @@ export function AppHeader({
           <ExternalLink size={16} strokeWidth={2} aria-hidden="true" />
         </a>
       )}
-      {hasPractice && (
+      {hasProject && (
         <button
           type="button"
           className={'ah-iconbtn' + (annotationsOpen ? ' active' : '')}

@@ -162,8 +162,8 @@ function ensureMarker(
           of: 1,
           start_sample: 0,
           end_sample: task.totalSamples,
-          name: task.defaultPracticeName,
-          practice_id: null,
+          name: task.defaultProjectName,
+          project_id: null,
           uploaded_at: null,
         },
       ],
@@ -179,7 +179,7 @@ function ensureMarker(
       start_sample: 0,
       end_sample: 0,
       name: '',
-      practice_id: null,
+      project_id: null,
       uploaded_at: null,
     })),
   };
@@ -196,11 +196,11 @@ function syncMarkerSegment(marker: Marker, task: ImportTask): MarkerSegment {
     slot.start_sample = 0;
     slot.end_sample = task.totalSamples;
   }
-  if (!slot.name) slot.name = task.defaultPracticeName;
+  if (!slot.name) slot.name = task.defaultProjectName;
   return slot;
 }
 
-async function createPractice(args: {
+async function createProject(args: {
   baseUrl: string;
   bandId: string;
   name: string;
@@ -208,7 +208,7 @@ async function createPractice(args: {
   token: string;
   fetchImpl: typeof fetch;
 }): Promise<string> {
-  const url = `${args.baseUrl}/api/practices`;
+  const url = `${args.baseUrl}/api/projects`;
   const body: Record<string, unknown> = {
     band_id: args.bandId,
     name: args.name,
@@ -223,15 +223,15 @@ async function createPractice(args: {
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    throw new Error(`create practice failed: HTTP ${res.status}`);
+    throw new Error(`create project failed: HTTP ${res.status}`);
   }
-  const parsed = (await res.json()) as { practice: { id: string } };
-  return parsed.practice.id;
+  const parsed = (await res.json()) as { project: { id: string } };
+  return parsed.project.id;
 }
 
 async function uploadStem(args: {
   baseUrl: string;
-  practiceId: string;
+  projectId: string;
   filePath: string;
   stemName: string;
   position: number;
@@ -247,7 +247,7 @@ async function uploadStem(args: {
     new Blob([new Uint8Array(fileBytes)]),
     `${args.stemName}.mp3`,
   );
-  const url = `${args.baseUrl}/api/practices/${encodeURIComponent(args.practiceId)}/stems`;
+  const url = `${args.baseUrl}/api/projects/${encodeURIComponent(args.projectId)}/stems`;
   const res = await args.fetchImpl(url, {
     method: 'POST',
     headers: { Cookie: `${cookieNameFor(args.baseUrl)}=${args.token}` },
@@ -260,11 +260,11 @@ async function uploadStem(args: {
 
 async function getExistingStemPositions(args: {
   baseUrl: string;
-  practiceId: string;
+  projectId: string;
   token: string;
   fetchImpl: typeof fetch;
 }): Promise<Set<number>> {
-  const url = `${args.baseUrl}/api/practices/${encodeURIComponent(args.practiceId)}`;
+  const url = `${args.baseUrl}/api/projects/${encodeURIComponent(args.projectId)}`;
   const res = await args.fetchImpl(url, {
     headers: { Cookie: `${cookieNameFor(args.baseUrl)}=${args.token}` },
   });
@@ -352,17 +352,17 @@ async function runImporterInner(args: {
 
       const segIdx = task.segment?.index ?? 1;
       const slot = marker.segments.find((s) => s.index === segIdx)!;
-      let practiceId = slot.practice_id;
-      if (!practiceId) {
-        practiceId = await createPractice({
+      let projectId = slot.project_id;
+      if (!projectId) {
+        projectId = await createProject({
           baseUrl: cfg.paperstem_url,
           bandId: cfg.band_id,
-          name: task.defaultPracticeName,
+          name: task.defaultProjectName,
           recordedOn: task.recordedOn,
           token,
           fetchImpl,
         });
-        slot.practice_id = practiceId;
+        slot.project_id = projectId;
         writeMarker(folderPath, marker);
       }
 
@@ -370,7 +370,7 @@ async function runImporterInner(args: {
         task.status.kind === 'in-progress'
           ? await getExistingStemPositions({
               baseUrl: cfg.paperstem_url,
-              practiceId,
+              projectId,
               token,
               fetchImpl,
             })
@@ -403,7 +403,7 @@ async function runImporterInner(args: {
           await encode({ inputPath, outputPath, slice });
           await uploadStem({
             baseUrl: cfg.paperstem_url,
-            practiceId,
+            projectId,
             filePath: outputPath,
             stemName,
             position,
@@ -465,11 +465,11 @@ async function reclaimPass(args: {
 
     let allExist = true;
     for (const s of marker.segments) {
-      if (!s.practice_id) {
+      if (!s.project_id) {
         allExist = false;
         break;
       }
-      const url = `${args.paperstemUrl}/api/practices/${encodeURIComponent(s.practice_id)}`;
+      const url = `${args.paperstemUrl}/api/projects/${encodeURIComponent(s.project_id)}`;
       const res = await args.fetchImpl(url, {
         headers: {
           Cookie: `${cookieNameFor(args.paperstemUrl)}=${args.token}`,
@@ -482,7 +482,7 @@ async function reclaimPass(args: {
     }
     if (!allExist) {
       // eslint-disable-next-line no-console
-      console.warn(`[reclaim] practice missing for ${folder}; skipping`);
+      console.warn(`[reclaim] project missing for ${folder}; skipping`);
       continue;
     }
 

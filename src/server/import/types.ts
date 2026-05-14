@@ -1,8 +1,8 @@
 export type ImportTaskStatus =
   | { kind: 'new' }
   | { kind: 'still-recording'; lastModified: Date }
-  | { kind: 'in-progress'; practiceId: string }
-  | { kind: 'done'; practiceId: string };
+  | { kind: 'in-progress'; projectId: string }
+  | { kind: 'done'; projectId: string };
 
 export type Segment = {
   /** 1-indexed within the source folder */
@@ -29,7 +29,7 @@ export type ImportTask = {
   /** Total samples in the source files (same for all track files in the folder). */
   totalSamples: number;
   lastModified: Date;
-  defaultPracticeName: string;
+  defaultProjectName: string;
   /** YYYY-MM-DD or null if undetermined */
   recordedOn: string | null;
   status: ImportTaskStatus;

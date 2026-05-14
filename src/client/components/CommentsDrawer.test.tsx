@@ -5,7 +5,7 @@ import { CommentsDrawer } from './CommentsDrawer';
 import type { Annotation } from '../../shared/types';
 
 const ann: Annotation = {
-  id: 'a1', practice_id: 'p1', user_id: 'u1',
+  id: 'a1', project_id: 'p1', user_id: 'u1',
   user_email: 'sam@example.com', user_display_name: 'Sam',
   start_ms: 1000, end_ms: null, body: 'one', starred: false,
   created_at: 0, updated_at: 0,

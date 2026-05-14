@@ -6,12 +6,12 @@ import { AppHeader } from './AppHeader';
 const baseProps = {
   userEmail: 'zach@example.com',
   userInitials: 'ZK',
-  practiceTitle: 'Practice 2026-04-28',
+  projectTitle: 'Project 2026-04-28',
   stemCount: 9,
   duration: 272.5,
   driveFolderId: 'drive-1',
   annotationsOpen: false,
-  hasPractice: true,
+  hasProject: true,
   canRename: true,
   appVersion: 'test-1.0.0',
   appEnv: null,
@@ -19,15 +19,15 @@ const baseProps = {
   onToggleAnnotations: vi.fn(),
   onSignOut: vi.fn(),
   onReportBug: vi.fn(),
-  onRenamePractice: vi.fn(),
+  onRenameProject: vi.fn(),
   onOpenTokens: vi.fn(),
 };
 
 describe('AppHeader', () => {
-  it('renders brand and practice title', () => {
+  it('renders brand and project title', () => {
     render(<AppHeader {...baseProps} />);
     expect(screen.getByText('Paperstem')).not.toBeNull();
-    expect(screen.getByText('Practice 2026-04-28')).not.toBeNull();
+    expect(screen.getByText('Project 2026-04-28')).not.toBeNull();
     expect(screen.getByText(/9 stems/)).not.toBeNull();
   });
 
@@ -35,7 +35,7 @@ describe('AppHeader', () => {
     const onOpen = vi.fn();
     const user = userEvent.setup();
     render(<AppHeader {...baseProps} onOpenPicker={onOpen} />);
-    await user.click(screen.getByLabelText('Open practices'));
+    await user.click(screen.getByLabelText('Open projects'));
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
@@ -43,7 +43,7 @@ describe('AppHeader', () => {
     const onOpen = vi.fn();
     const user = userEvent.setup();
     render(<AppHeader {...baseProps} onOpenPicker={onOpen} />);
-    await user.click(screen.getByLabelText('Switch practice'));
+    await user.click(screen.getByLabelText('Switch project'));
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
@@ -51,12 +51,12 @@ describe('AppHeader', () => {
     const onOpen = vi.fn();
     const user = userEvent.setup();
     render(<AppHeader {...baseProps} onOpenPicker={onOpen} />);
-    await user.click(screen.getByText('Practice 2026-04-28'));
+    await user.click(screen.getByText('Project 2026-04-28'));
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it('hides 💬 and metadata when no practice loaded', () => {
-    render(<AppHeader {...baseProps} hasPractice={false} practiceTitle={null} stemCount={0} duration={0} driveFolderId={null} />);
+  it('hides 💬 and metadata when no project loaded', () => {
+    render(<AppHeader {...baseProps} hasProject={false} projectTitle={null} stemCount={0} duration={0} driveFolderId={null} />);
     expect(screen.queryByTitle('Comments')).toBeNull();
     expect(screen.queryByText(/stems/)).toBeNull();
   });
@@ -115,26 +115,26 @@ describe('AppHeader', () => {
 });
 
 describe('AppHeader inline rename', () => {
-  it('clicking the practice title opens an editable input that submits on Enter', async () => {
+  it('clicking the project title opens an editable input that submits on Enter', async () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
-    render(<AppHeader {...baseProps} onRenamePractice={onRename} />);
+    render(<AppHeader {...baseProps} onRenameProject={onRename} />);
 
-    await user.click(screen.getByText('Practice 2026-04-28'));
-    const input = screen.getByRole('textbox', { name: /rename practice/i });
+    await user.click(screen.getByText('Project 2026-04-28'));
+    const input = screen.getByRole('textbox', { name: /rename project/i });
     await user.clear(input);
     await user.type(input, 'New name{Enter}');
 
     await waitFor(() => expect(onRename).toHaveBeenCalledWith('New name'));
   });
 
-  it('Escape cancels without firing onRenamePractice', async () => {
+  it('Escape cancels without firing onRenameProject', async () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
-    render(<AppHeader {...baseProps} onRenamePractice={onRename} />);
+    render(<AppHeader {...baseProps} onRenameProject={onRename} />);
 
-    await user.click(screen.getByText('Practice 2026-04-28'));
-    const input = screen.getByRole('textbox', { name: /rename practice/i });
+    await user.click(screen.getByText('Project 2026-04-28'));
+    const input = screen.getByRole('textbox', { name: /rename project/i });
     await user.type(input, 'changed{Escape}');
     expect(onRename).not.toHaveBeenCalled();
   });
@@ -142,10 +142,10 @@ describe('AppHeader inline rename', () => {
   it('does not enter edit mode when canRename is false', async () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
-    render(<AppHeader {...baseProps} canRename={false} onRenamePractice={onRename} />);
+    render(<AppHeader {...baseProps} canRename={false} onRenameProject={onRename} />);
 
-    await user.click(screen.getByText('Practice 2026-04-28'));
-    expect(screen.queryByRole('textbox', { name: /rename practice/i })).toBeNull();
+    await user.click(screen.getByText('Project 2026-04-28'));
+    expect(screen.queryByRole('textbox', { name: /rename project/i })).toBeNull();
   });
 
   it('blur commits the rename', async () => {
@@ -153,37 +153,37 @@ describe('AppHeader inline rename', () => {
     const onRename = vi.fn();
     render(
       <div>
-        <AppHeader {...baseProps} onRenamePractice={onRename} />
+        <AppHeader {...baseProps} onRenameProject={onRename} />
         <button type="button" data-testid="elsewhere">elsewhere</button>
       </div>,
     );
 
-    await user.click(screen.getByText('Practice 2026-04-28'));
-    const input = screen.getByRole('textbox', { name: /rename practice/i });
+    await user.click(screen.getByText('Project 2026-04-28'));
+    const input = screen.getByRole('textbox', { name: /rename project/i });
     await user.clear(input);
     await user.type(input, 'Blurred name');
     await user.click(screen.getByTestId('elsewhere'));
     await waitFor(() => expect(onRename).toHaveBeenCalledWith('Blurred name'));
   });
 
-  it('does not fire onRenamePractice when name is unchanged', async () => {
+  it('does not fire onRenameProject when name is unchanged', async () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
-    render(<AppHeader {...baseProps} onRenamePractice={onRename} />);
+    render(<AppHeader {...baseProps} onRenameProject={onRename} />);
 
-    await user.click(screen.getByText('Practice 2026-04-28'));
-    const input = screen.getByRole('textbox', { name: /rename practice/i });
+    await user.click(screen.getByText('Project 2026-04-28'));
+    const input = screen.getByRole('textbox', { name: /rename project/i });
     await user.type(input, '{Enter}');
     expect(onRename).not.toHaveBeenCalled();
   });
 
-  it('does not fire onRenamePractice when name is empty after trim', async () => {
+  it('does not fire onRenameProject when name is empty after trim', async () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
-    render(<AppHeader {...baseProps} onRenamePractice={onRename} />);
+    render(<AppHeader {...baseProps} onRenameProject={onRename} />);
 
-    await user.click(screen.getByText('Practice 2026-04-28'));
-    const input = screen.getByRole('textbox', { name: /rename practice/i });
+    await user.click(screen.getByText('Project 2026-04-28'));
+    const input = screen.getByRole('textbox', { name: /rename project/i });
     await user.clear(input);
     await user.type(input, '   {Enter}');
     expect(onRename).not.toHaveBeenCalled();
@@ -192,13 +192,13 @@ describe('AppHeader inline rename', () => {
   it('rename trigger is a real button reachable via the keyboard', async () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
-    render(<AppHeader {...baseProps} onRenamePractice={onRename} />);
+    render(<AppHeader {...baseProps} onRenameProject={onRename} />);
 
-    const trigger = screen.getByRole('button', { name: 'Practice 2026-04-28' });
+    const trigger = screen.getByRole('button', { name: 'Project 2026-04-28' });
     expect((trigger as HTMLButtonElement).disabled).toBe(false);
     trigger.focus();
     await user.keyboard('{Enter}');
-    const input = screen.getByRole('textbox', { name: /rename practice/i });
+    const input = screen.getByRole('textbox', { name: /rename project/i });
     await user.clear(input);
     await user.type(input, 'Keyboard name{Enter}');
     await waitFor(() => expect(onRename).toHaveBeenCalledWith('Keyboard name'));
@@ -206,7 +206,7 @@ describe('AppHeader inline rename', () => {
 
   it('rename trigger is disabled when canRename is false', () => {
     render(<AppHeader {...baseProps} canRename={false} />);
-    const trigger = screen.getByRole('button', { name: 'Practice 2026-04-28' });
+    const trigger = screen.getByRole('button', { name: 'Project 2026-04-28' });
     expect((trigger as HTMLButtonElement).disabled).toBe(true);
   });
 });

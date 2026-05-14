@@ -9,7 +9,7 @@ const MAX_BODY_LENGTH = 32768;
 function toApiAnnotation(row: AnnotationJoinedRow): Annotation {
   return {
     id: row.id,
-    practice_id: row.practice_id,
+    project_id: row.project_id,
     user_id: row.user_id,
     user_email: row.user_email,
     user_display_name: row.user_display_name,
@@ -51,16 +51,16 @@ export function handleListAnnotations(
   c: Context<{ Variables: AuthVariables }>,
 ): Response {
   const user = requireUser(c);
-  const practiceId = c.req.param('id') ?? '';
-  if (!practiceId) return c.json({ error: 'not_found' }, 404);
+  const projectId = c.req.param('id') ?? '';
+  if (!projectId) return c.json({ error: 'not_found' }, 404);
 
-  const practice = stmts.findPracticeById.get(practiceId);
-  if (!practice) return c.json({ error: 'not_found' }, 404);
-  if (!stmts.findMembership.get(practice.band_id, user.id)) {
+  const project = stmts.findProjectById.get(projectId);
+  if (!project) return c.json({ error: 'not_found' }, 404);
+  if (!stmts.findMembership.get(project.band_id, user.id)) {
     return c.json({ error: 'not_found' }, 404);
   }
 
-  const rows = stmts.findAnnotationsForPractice.all(practiceId);
+  const rows = stmts.findAnnotationsForProject.all(projectId);
   return c.json({ annotations: rows.map(toApiAnnotation) });
 }
 
@@ -75,12 +75,12 @@ export async function handleCreateAnnotation(
   c: Context<{ Variables: AuthVariables }>,
 ): Promise<Response> {
   const user = requireUser(c);
-  const practiceId = c.req.param('id') ?? '';
-  if (!practiceId) return c.json({ error: 'not_found' }, 404);
+  const projectId = c.req.param('id') ?? '';
+  if (!projectId) return c.json({ error: 'not_found' }, 404);
 
-  const practice = stmts.findPracticeById.get(practiceId);
-  if (!practice) return c.json({ error: 'not_found' }, 404);
-  if (!stmts.findMembership.get(practice.band_id, user.id)) {
+  const project = stmts.findProjectById.get(projectId);
+  if (!project) return c.json({ error: 'not_found' }, 404);
+  if (!stmts.findMembership.get(project.band_id, user.id)) {
     return c.json({ error: 'not_found' }, 404);
   }
 
@@ -103,7 +103,7 @@ export async function handleCreateAnnotation(
   const now = Math.floor(Date.now() / 1000);
   stmts.insertAnnotation.run(
     id,
-    practiceId,
+    projectId,
     user.id,
     range.start,
     range.end,
@@ -135,9 +135,9 @@ export async function handlePatchAnnotation(
   const existing = stmts.findAnnotationById.get(id);
   if (!existing) return c.json({ error: 'not_found' }, 404);
 
-  const practice = stmts.findPracticeById.get(existing.practice_id);
-  if (!practice) return c.json({ error: 'not_found' }, 404);
-  if (!stmts.findMembership.get(practice.band_id, user.id)) {
+  const project = stmts.findProjectById.get(existing.project_id);
+  if (!project) return c.json({ error: 'not_found' }, 404);
+  if (!stmts.findMembership.get(project.band_id, user.id)) {
     return c.json({ error: 'not_found' }, 404);
   }
   if (existing.user_id !== user.id) {
@@ -202,9 +202,9 @@ export function handleDeleteAnnotation(
   const existing = stmts.findAnnotationById.get(id);
   if (!existing) return c.json({ error: 'not_found' }, 404);
 
-  const practice = stmts.findPracticeById.get(existing.practice_id);
-  if (!practice) return c.json({ error: 'not_found' }, 404);
-  if (!stmts.findMembership.get(practice.band_id, user.id)) {
+  const project = stmts.findProjectById.get(existing.project_id);
+  if (!project) return c.json({ error: 'not_found' }, 404);
+  if (!stmts.findMembership.get(project.band_id, user.id)) {
     return c.json({ error: 'not_found' }, 404);
   }
   if (existing.user_id !== user.id) {

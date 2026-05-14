@@ -16,7 +16,7 @@ export type MarkerSegment = {
   start_sample: number;
   end_sample: number;
   name: string;
-  practice_id: string | null;
+  project_id: string | null;
   uploaded_at: string | null;
 };
 

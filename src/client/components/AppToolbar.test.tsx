@@ -10,7 +10,7 @@ function vp() {
 }
 
 const baseProps = {
-  hasPractice: true,
+  hasProject: true,
   isPlaying: false,
   hasLoop: true,
   loopEnabled: false,
@@ -48,15 +48,15 @@ describe('AppToolbar', () => {
     expect(screen.getByLabelText('Download all stems')).not.toBeNull();
   });
 
-  it('disables transport when no practice loaded', () => {
-    render(<AppToolbar {...baseProps} hasPractice={false} />);
+  it('disables transport when no project loaded', () => {
+    render(<AppToolbar {...baseProps} hasProject={false} />);
     expect((screen.getByLabelText('Restart') as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByLabelText('Play') as HTMLButtonElement).disabled).toBe(true);
     expect((screen.getByLabelText('Download all stems') as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('keeps ▥ ◉ enabled even without practice (user prefs)', () => {
-    render(<AppToolbar {...baseProps} hasPractice={false} canCreateAnnotations={false} />);
+  it('keeps ▥ ◉ enabled even without project (user prefs)', () => {
+    render(<AppToolbar {...baseProps} hasProject={false} canCreateAnnotations={false} />);
     expect((screen.getByLabelText('Toggle waveform scale') as HTMLButtonElement).disabled).toBe(false);
     expect((screen.getByLabelText('Toggle marker visibility') as HTMLButtonElement).disabled).toBe(false);
   });
@@ -87,7 +87,7 @@ describe('AppToolbar', () => {
   });
 
   it('renders 0:00 / 0:00 when duration is 0', () => {
-    render(<AppToolbar {...baseProps} hasPractice={false} duration={0} currentTime={0} />);
+    render(<AppToolbar {...baseProps} hasProject={false} duration={0} currentTime={0} />);
     expect(screen.getByText(/0:00 \/ 0:00/)).not.toBeNull();
   });
 
@@ -112,8 +112,8 @@ describe('AppToolbar', () => {
     expect(screen.getByLabelText('Master volume slider')).not.toBeNull();
   });
 
-  it('Share button is disabled when no practice loaded', () => {
-    render(<AppToolbar {...baseProps} hasPractice={false} />);
+  it('Share button is disabled when no project loaded', () => {
+    render(<AppToolbar {...baseProps} hasProject={false} />);
     expect((screen.getByLabelText('Copy share link') as HTMLButtonElement).disabled).toBe(true);
   });
 
