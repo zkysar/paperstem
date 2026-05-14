@@ -15,6 +15,7 @@ export type KeyboardOpts = {
   onClosePopover(): void;
   onCancelCreate(): void;
   onToggleShortcuts(): void;
+  onAddCommentAtPlayhead(): void;
 };
 
 /**
@@ -36,6 +37,7 @@ export function useKeyboard(opts: KeyboardOpts): void {
     onCloseDrawer,
     onClosePopover,
     onCancelCreate,
+    onAddCommentAtPlayhead,
   } = opts;
 
   useEffect(() => {
@@ -133,6 +135,9 @@ export function useKeyboard(opts: KeyboardOpts): void {
           e.preventDefault();
           player.toggleLoopEnabled();
         }
+      } else if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        onAddCommentAtPlayhead();
       } else if (
         e.key === 'w' || e.key === 'W' ||
         e.key === 'a' || e.key === 'A' ||
@@ -197,5 +202,6 @@ export function useKeyboard(opts: KeyboardOpts): void {
     onCloseDrawer,
     onClosePopover,
     onCancelCreate,
+    onAddCommentAtPlayhead,
   ]);
 }
