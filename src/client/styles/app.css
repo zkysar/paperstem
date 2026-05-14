@@ -834,6 +834,17 @@ button.track-name:disabled { cursor: default; }
   .loop-handle.right { right: -8px; }
 
   .keys-hint { display: none; }
+
+  .atb-btn,
+  .ah-iconbtn,
+  .ah-avatar,
+  .atb-overflow-wrap > button,
+  .atb-share-wrap > button {
+    min-width: 40px;
+    min-height: 40px;
+    padding: 8px;
+  }
+  /* The icon glyphs themselves stay 16-18px; only hit areas grow. */
 }
 
 /* ===== Login screen ===== */
