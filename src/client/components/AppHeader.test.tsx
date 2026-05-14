@@ -9,7 +9,6 @@ const baseProps = {
   projectTitle: 'Project 2026-04-28',
   stemCount: 9,
   duration: 272.5,
-  driveFolderId: 'drive-1',
   annotationsOpen: false,
   hasProject: true,
   canRename: true,
@@ -36,6 +35,11 @@ describe('AppHeader', () => {
     expect(screen.queryByLabelText('Open projects')).toBeNull();
   });
 
+  it('does not render a Drive folder link', () => {
+    render(<AppHeader {...baseProps} />);
+    expect(screen.queryByLabelText('Open in Drive')).toBeNull();
+  });
+
   it('clicking ▾ caret calls onOpenPicker', async () => {
     const onOpen = vi.fn();
     const user = userEvent.setup();
@@ -53,7 +57,7 @@ describe('AppHeader', () => {
   });
 
   it('hides 💬 and metadata when no project loaded', () => {
-    render(<AppHeader {...baseProps} hasProject={false} projectTitle={null} stemCount={0} duration={0} driveFolderId={null} />);
+    render(<AppHeader {...baseProps} hasProject={false} projectTitle={null} stemCount={0} duration={0} />);
     expect(screen.queryByTitle('Comments')).toBeNull();
     expect(screen.queryByText(/stems/)).toBeNull();
   });

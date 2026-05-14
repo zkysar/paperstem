@@ -825,7 +825,6 @@ function PaperstemApp({
         projectTitle={player.state.title || null}
         stemCount={player.state.stems.length}
         duration={player.state.duration}
-        driveFolderId={player.state.driveFolderId ?? null}
         annotationsOpen={drawerOpen}
         hasProject={player.state.stems.length > 0}
         canRename={player.state.stems.length > 0}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, ChevronDown, ExternalLink, KeyRound, LogOut, MessageSquare } from 'lucide-react';
+import { Bug, ChevronDown, KeyRound, LogOut, MessageSquare } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
 
@@ -9,7 +9,6 @@ type Props = {
   projectTitle: string | null;
   stemCount: number;
   duration: number;
-  driveFolderId: string | null;
   annotationsOpen: boolean;
   hasProject: boolean;
   canRename: boolean;
@@ -25,7 +24,7 @@ type Props = {
 
 export function AppHeader({
   userEmail, userInitials, projectTitle, stemCount, duration,
-  driveFolderId, annotationsOpen, hasProject, canRename, appVersion, appEnv,
+  annotationsOpen, hasProject, canRename, appVersion, appEnv,
   onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenameProject,
   onOpenTokens,
 }: Props) {
@@ -123,18 +122,6 @@ export function AppHeader({
         <span className="ah-meta">
           {stemCount} stems · {fmt(duration)}
         </span>
-      )}
-      {driveFolderId && (
-        <a
-          className="ah-iconbtn"
-          href={`https://drive.google.com/drive/folders/${encodeURIComponent(driveFolderId)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          title="Open in Drive"
-          aria-label="Open in Drive"
-        >
-          <ExternalLink size={16} strokeWidth={2} aria-hidden="true" />
-        </a>
       )}
       {hasProject && (
         <button
