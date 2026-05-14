@@ -96,3 +96,34 @@ CREATE TABLE IF NOT EXISTS annotations (
 );
 CREATE INDEX IF NOT EXISTS idx_annotations_project_user ON annotations(project_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_annotations_project_start ON annotations(project_id, start_ms);
+
+CREATE TABLE IF NOT EXISTS annotation_replies (
+  id            TEXT PRIMARY KEY,
+  annotation_id TEXT NOT NULL REFERENCES annotations(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body          TEXT NOT NULL,
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_annotation_replies_annotation
+  ON annotation_replies(annotation_id, created_at);
+
+CREATE TABLE IF NOT EXISTS annotation_reactions (
+  annotation_id TEXT NOT NULL REFERENCES annotations(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  emoji         TEXT NOT NULL,
+  created_at    INTEGER NOT NULL,
+  PRIMARY KEY (annotation_id, user_id, emoji)
+);
+CREATE INDEX IF NOT EXISTS idx_annotation_reactions_annotation
+  ON annotation_reactions(annotation_id);
+
+CREATE TABLE IF NOT EXISTS annotation_reply_reactions (
+  reply_id      TEXT NOT NULL REFERENCES annotation_replies(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  emoji         TEXT NOT NULL,
+  created_at    INTEGER NOT NULL,
+  PRIMARY KEY (reply_id, user_id, emoji)
+);
+CREATE INDEX IF NOT EXISTS idx_annotation_reply_reactions_reply
+  ON annotation_reply_reactions(reply_id);
