@@ -9,6 +9,7 @@ import {
 import type { Annotation } from '../../shared/types';
 import type { PlayerControls } from '../hooks/usePlayer';
 import { pixelToTime } from '../lib/format';
+import { attachPinchZoom } from '../lib/touch-pinch';
 import { AnnotationMarkers } from './AnnotationMarkers';
 import { FollowPill } from './FollowPill';
 import { LoopRegion } from './LoopRegion';
@@ -169,6 +170,22 @@ export function Player({
         });
         // Manual zoom suspends auto-follow.
         if (viewport.state.followActive) viewport.setFollowActive(false);
+      } else if (e.ctrlKey) {
+        // Trackpad two-finger pinch. Chromium/Firefox synthesize wheel
+        // events with ctrlKey=true during a pinch gesture, even when no
+        // ctrl key is physically held. Without this branch the browser
+        // does its native full-page zoom on pinch.
+        e.preventDefault();
+        const stage = stageRef.current;
+        if (!stage) return;
+        const stageRect = stage.getBoundingClientRect();
+        const anchorX = e.clientX - stageRect.left;
+        const factor = Math.exp(-e.deltaY * 0.0025);
+        viewport.zoomHBy(factor, {
+          stageWidth: stageRect.width,
+          anchorX,
+        });
+        if (viewport.state.followActive) viewport.setFollowActive(false);
       } else if (e.shiftKey && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
         // Shift converts vertical wheel to horizontal pan.
         e.preventDefault();
@@ -182,6 +199,22 @@ export function Player({
     }
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
+  }, [viewport]);
+
+  // Touchscreen pinch-zoom (iOS / iPad gesture events, with TouchEvent
+  // fallback for Android). Without this, Safari does its native page
+  // zoom on a two-finger pinch over the timeline.
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    return attachPinchZoom(el, ({ scaleDelta, clientX }) => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const stageRect = stage.getBoundingClientRect();
+      const anchorX = clientX - stageRect.left;
+      viewport.zoomHBy(scaleDelta, { stageWidth: stageRect.width, anchorX });
+      if (viewport.state.followActive) viewport.setFollowActive(false);
+    });
   }, [viewport]);
 
   // When playback transitions from paused → playing, re-engage follow. The
