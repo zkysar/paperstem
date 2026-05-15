@@ -4301,3 +4301,15 @@ body.env-non-prod[data-env="local"]::before {
     font-size: 16px;
   }
 }
+
+/* ---- Drag guideline ------------------------------------------------- */
+.drag-guideline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ink, #333);
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 9;
+}
