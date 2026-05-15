@@ -114,11 +114,13 @@ describe('CommentList', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it('edit button replaces card body with textarea; Save calls onSaveEdit', async () => {
+  it('edit menu item replaces card body with textarea; Save calls onSaveEdit', async () => {
     const onSaveEdit = vi.fn();
     const user = userEvent.setup();
     render(<CommentList {...baseProps} canEdit onSaveEdit={onSaveEdit} />);
-    await user.click(screen.getAllByLabelText('Edit')[0]);
+    const card = screen.getByTestId('list-card-1');
+    await user.click(card.querySelector('[aria-label="More actions"]')!);
+    await user.click(screen.getByRole('menuitem', { name: 'Edit' }));
     const ta = screen.getByRole('textbox');
     await user.clear(ta);
     await user.type(ta, 'updated');
@@ -126,28 +128,35 @@ describe('CommentList', () => {
     expect(onSaveEdit).toHaveBeenCalledWith(annotations[0], 'updated');
   });
 
-  it('delete button (confirmed) calls onDelete', async () => {
+  it('delete menu item (confirmed) calls onDelete', async () => {
     const onDelete = vi.fn();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = userEvent.setup();
     render(<CommentList {...baseProps} canEdit onDelete={onDelete} />);
-    await userEvent.click(screen.getAllByLabelText('Delete')[0]);
+    const card = screen.getByTestId('list-card-1');
+    await user.click(card.querySelector('[aria-label="More actions"]')!);
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
     expect(onDelete).toHaveBeenCalledWith(annotations[0]);
   });
 
-  it('non-owner does not see edit/delete', () => {
+  it('non-owner overflow menu omits edit/delete', async () => {
+    const user = userEvent.setup();
     render(<CommentList {...baseProps} canEdit />);
     const miraCard = screen.getByTestId('list-card-3');
-    expect(miraCard.querySelector('[aria-label="Edit"]')).toBeNull();
-    expect(miraCard.querySelector('[aria-label="Delete"]')).toBeNull();
+    await user.click(miraCard.querySelector('[aria-label="More actions"]')!);
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Delete' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /copy link/i })).not.toBeNull();
   });
 
-  it('copy-link click calls onCopyLink with the row\'s annotation (and not onSelect)', async () => {
+  it('copy-link menu item calls onCopyLink with the row\'s annotation (and not onSelect)', async () => {
     const user = userEvent.setup();
     const onCopyLink = vi.fn();
     const onSelect = vi.fn();
     render(<CommentList {...baseProps} onCopyLink={onCopyLink} onSelect={onSelect} />);
     const card = screen.getByTestId('list-card-1');
-    await user.click(card.querySelector('[aria-label="Copy link to this comment"]')!);
+    await user.click(card.querySelector('[aria-label="More actions"]')!);
+    await user.click(screen.getByRole('menuitem', { name: /copy link/i }));
     expect(onCopyLink).toHaveBeenCalledWith(annotations[0]);
     expect(onSelect).not.toHaveBeenCalled();
   });
