@@ -4385,15 +4385,33 @@ body.env-non-prod[data-env="local"]::before {
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
+  height: 8px;
   background: currentColor;
   opacity: 0.7;
   cursor: pointer;
   z-index: 7;
 }
 .annotation-marker.point .annotation-tab {
-  height: 6px;
+  height: 10px;
 }
 .annotation-tab:hover {
   opacity: 1;
+}
+
+/* ---- Drag-zone cursors --------------------------------------------- */
+/* The middle of section pills and annotation markers is the translate
+   zone. ew-resize on the edge grips overrides this on the 6px hot zones. */
+.section-pill {
+  cursor: grab;
+}
+.section-pill:active {
+  cursor: grabbing;
+}
+.annotation-marker.region,
+.annotation-marker.point {
+  cursor: grab;
+}
+.annotation-marker.region:active,
+.annotation-marker.point:active {
+  cursor: grabbing;
 }
