@@ -172,14 +172,10 @@ export function Player({
     const ro = new ResizeObserver(() => {
       forceRender((n) => n + 1);
       const s = stageRef.current;
-      // Round to integer so subpixel browser layout noise doesn't keep
-      // mutating state and re-triggering this RO via render-time width
-      // recomputation. Without rounding, a single W press feeds back on
-      // itself indefinitely.
-      if (s) viewport.setStageWidth(Math.round(s.getBoundingClientRect().width));
+      if (s) viewport.setStageWidth(s.getBoundingClientRect().width);
     });
     ro.observe(stage);
-    viewport.setStageWidth(Math.round(stage.getBoundingClientRect().width));
+    viewport.setStageWidth(stage.getBoundingClientRect().width);
     // Also watch the ruler: when the tracks area gets a scrollbar (or loses
     // one), .stage's outer width is unchanged but the wave column inside it
     // shrinks, so overlay positions need to re-measure off the ruler's rect.
@@ -351,15 +347,12 @@ export function Player({
     return () => cancelAnimationFrame(raf);
   }, [viewport.state.followActive, viewport.state.followMode, viewport.state.hZoom, duration, player, railCollapsed]);
 
-  // Use the stored stageWidth from viewport state instead of a live
-  // getBoundingClientRect() read during render. The live read returns
-  // subpixel-noisy floats whose tiny variations propagate into .viewport-inner
-  // / .ruler width, which retriggers the RO below (line ~163), which calls
-  // forceRender, which re-runs this render with another slightly different
-  // measurement — a self-feeding loop that freezes the tab on a single W
-  // press once any subpixel jitter shows up. The stored value is rounded by
-  // the RO callback and is the single source of truth between real resizes.
-  const stageWidth = viewport.state.stageWidth;
+  function getStageInnerWidth(): number {
+    const stage = stageRef.current;
+    if (!stage) return 0;
+    return stage.getBoundingClientRect().width;
+  }
+  const stageWidth = getStageInnerWidth();
   const innerWidth = stageWidth * viewport.state.hZoom;
 
   function getWaveRect(): { left: number; width: number } {
