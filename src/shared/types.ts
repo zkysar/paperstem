@@ -99,3 +99,55 @@ export type Section = {
   created_at: number;
   updated_at: number;
 };
+
+// Auto-classification (Stage 1 + Stage 2) types. See
+// ~/projects/plans/2026-05-15-paperstem-auto-section-classification-design.md.
+
+export type SegmentType =
+  | 'music'
+  | 'chatter'
+  | 'tuning'
+  | 'silence'
+  | 'count_in'
+  | 'unknown';
+
+// Top-K AudioSet predictions stored alongside an auto section so the
+// rule-based namer can be re-evaluated without re-running YAMNet.
+export type TopClass = { name: string; score: number };
+
+// Stage 1 output per segment. The client (web or CLI) uploads an array of
+// these to POST /api/projects/:id/classify.
+export type ClassifiedSegment = {
+  start_ms: number;
+  end_ms: number;
+  segment_type: SegmentType;
+  top_classes: TopClass[];
+  // Beat-rate chroma vectors, present only when segment_type === 'music'.
+  // Length = number of frames (typically a few hundred), each 12 floats.
+  chroma?: number[][];
+};
+
+export type ClassificationRunStatus = 'pending' | 'running' | 'done' | 'failed';
+export type ClassificationSourceSurface = 'web' | 'cli';
+
+export type ClassificationRun = {
+  id: string;
+  project_id: string;
+  status: ClassificationRunStatus;
+  source_surface: ClassificationSourceSurface;
+  audio_hash: string;
+  classifier_version: string;
+  fingerprint_version: number;
+  error: string | null;
+  created_at: number;
+  completed_at: number | null;
+};
+
+// Extension fields stored on `sections` rows produced by auto-classification.
+// NULL on rows with source='manual'.
+export type AutoSectionFields = {
+  confidence: number | null;
+  run_id: string | null;
+  segment_type: SegmentType | null;
+  top_classes: TopClass[] | null;
+};
