@@ -359,6 +359,40 @@
     100% { background-position: -200% 0; }
   }
 
+  /* Draft banner — the "Local draft" stripe above the DAW */
+  .draft-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: var(--accent-tint);
+    border-bottom: 1px solid var(--accent-tint-2);
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .draft-banner-label { flex: 1; }
+  .draft-banner-label strong { color: var(--accent); }
+  .draft-banner-save {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 14px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .draft-banner-save:hover { background: #ab6539; }
+  .draft-banner-discard {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+    text-decoration: underline;
+  }
+
   /* Detection banner */
   .detect-banner {
     background: var(--accent-tint-3);
@@ -527,80 +561,62 @@
 <body>
 <div class="page">
 
-  <h1>Auto-section classification — UX mockup v3</h1>
+  <h1>Auto-section classification — UX mockup v4</h1>
   <p class="lede">
-    Sections appear on the real DAW timeline as they're detected. No separate
-    review UI — you land on the project after Save and the sections render
-    in the same place you'd add them manually. The upload drawer stays
-    minimal.
+    Sections appear on the DAW timeline while the project is still a
+    <strong>local draft</strong> — before the user clicks Save. The audio is
+    already loaded locally; classification runs on that audio. The user
+    reviews, renames, deletes, and only then commits to the server.
   </p>
 
   <div class="pitch">
-    <strong>The flow:</strong> pick a directory → drawer (unchanged from today) → Save → land on the
-    DAW. Audio loads, peaks render, sections appear. You edit any section the
-    same way regardless of whether you made it or the system did.
+    <strong>The flow:</strong> "+ New project" → pick folder → audio loads locally → DAW renders →
+    classification runs on the local audio → sections appear in the lane →
+    user reviews → click Save on the draft banner → upload + commit. Sections
+    are persisted along with the project create, so the saved state matches
+    what the user saw in draft.
   </div>
 
   <!-- ============================================ -->
   <div class="flow">
     <div class="flow-head">
       <span class="flow-num">Flow A</span>
-      <h2 class="flow-title">The upload drawer — unchanged</h2>
+      <h2 class="flow-title">Picking a folder → draft mode</h2>
     </div>
     <p class="flow-desc">
-      Same drawer as today. No "auto-section" checkbox, no inline preview, no
-      detection happening here. All the smarts moved downstream to the DAW
-      itself.
+      The user clicks "+ New project" and picks a folder of stems. Paperstem
+      enters <strong>draft mode</strong>: <code>activeProjectId</code> is
+      null, the audio is loaded from local blob URLs (no upload yet), the
+      DAW renders the audio for review, and a thin orange banner indicates
+      the project hasn't been committed. The Save button lives on this banner.
     </p>
-
-    <div class="drawer">
-      <div class="drawer-header">
-        <span class="drawer-title">Upload to Paper Straw</span>
-        <button class="drawer-close">×</button>
-      </div>
-      <div class="field">
-        <label>Project name</label>
-        <input type="text" value="practice-2026-05-15">
-      </div>
-      <div class="field">
-        <label>Recorded on</label>
-        <input type="date" value="2026-05-15">
-      </div>
-      <div class="field">
-        <label>Files (3)</label>
-        <div class="file-list">
-          <div class="file-row"><span>A Guitar.wav</span><span class="file-status">33.1 MB</span></div>
-          <div class="file-row"><span>Bass.wav</span><span class="file-status">32.9 MB</span></div>
-          <div class="file-row"><span>Drums.wav</span><span class="file-status">32.9 MB</span></div>
-        </div>
-      </div>
-      <button class="primary">Save to Paper Straw</button>
-    </div>
+    <p class="flow-desc">
+      <strong>Auto-classification runs here.</strong> The audio is already
+      decoded in the browser; we feed it to YAMNet + chroma the moment the
+      DAW finishes loading. By the time the user has reviewed a few seconds
+      of audio, sections start appearing in the section lane.
+    </p>
   </div>
 
   <!-- ============================================ -->
   <div class="flow">
     <div class="flow-head">
       <span class="flow-num">Flow B</span>
-      <h2 class="flow-title">DAW view, right after Save — detection in progress</h2>
+      <h2 class="flow-title">Draft DAW — detection in progress</h2>
     </div>
     <p class="flow-desc">
-      Save dismisses the drawer and navigates to the project. The DAW renders
-      with skeleton waveforms while stems load, and a slim banner reports that
-      sections are being detected. Detection runs in the browser on the
-      already-decoded audio; finishes in 10–15 s on a typical practice.
+      Right after the user picks a folder. The DAW shows the local audio
+      (no upload yet). Draft banner reminds them the project isn't saved.
+      Detection banner reports progress; sections will appear in the lane as
+      they're identified. The user can play, mute, navigate around while
+      this runs.
     </p>
 
     <div class="daw">
-      <div class="daw-header">
-        <span class="project-name">practice-2026-05-15</span>
-        <span class="daw-meta">
-          <span>Paper Straw</span>
-          <span>·</span>
-          <span>3 stems</span>
-          <span>·</span>
-          <span>recorded 2026-05-15</span>
-        </span>
+      <div class="draft-banner">
+        <span class="draft-banner-label"><strong>Local draft</strong> — only on this device. Nothing is uploaded until you save.</span>
+        <button class="draft-banner-discard">Discard</button>
+        <button class="draft-banner-save" disabled style="opacity: 0.55; cursor: wait;">Save to Paper Straw</button>
       </div>
       <div class="transport">
         <button class="transport-btn">⏵</button>
@@ -642,9 +658,11 @@
     <div class="notes">
       <strong>Decisions:</strong>
       <ul>
-        <li>Banner is non-blocking — the user can already play, mute, add manual sections, etc. while detection runs.</li>
-        <li>If detection fails, the banner becomes "Detection failed (try again)" with a retry link. No regression — user keeps working without sections.</li>
-        <li>If the user creates a manual section in this window, the auto-detector respects it: any auto section that would overlap gets dropped before being written (server-side conflict rule from the design doc).</li>
+        <li>Save button on the draft banner is disabled (greyed) while detection is running. Tooltip: "Detecting sections…" Or we could enable Save anytime and have sections POST after upload — see Flow C decisions.</li>
+        <li>Detection banner is non-blocking — the user can already play, mute, add manual sections, etc. while it runs.</li>
+        <li>If detection fails, the detection banner becomes "Detection failed (try again)" with a retry link. Save still works without sections.</li>
+        <li>If the user creates a manual section in this window, the auto-detector respects it: any auto section that would overlap gets dropped before being written.</li>
+        <li>"Discard" on the draft banner is the existing Paperstem behavior — abandons the local draft, no upload happens.</li>
       </ul>
     </div>
   </div>
@@ -653,18 +671,28 @@
   <div class="flow">
     <div class="flow-head">
       <span class="flow-num">Flow C</span>
-      <h2 class="flow-title">DAW view — sections detected and rendered</h2>
+      <h2 class="flow-title">Draft DAW — sections detected, Save now enabled</h2>
     </div>
     <p class="flow-desc">
-      Detection completes, sections fade onto the timeline. Two variants below
-      — pick the one that feels right. The functional behavior is identical;
-      only the visual treatment differs.
+      Detection completes, sections fade into the lane, Save button on the
+      draft banner enables. The user can rename, delete, or just hit Save.
+      Whatever the user accepts (by not deleting) gets committed when they
+      Save — the saved state matches what they see now.
+    </p>
+    <p class="flow-desc">
+      Two visual variants below. Functional behavior identical; only the
+      treatment differs.
     </p>
 
     <div class="variant-grid">
       <div class="variant">
         <div class="variant-label">Variant 1 — no distinction (sections are sections)</div>
         <div class="daw" style="border: 0;">
+          <div class="draft-banner">
+            <span class="draft-banner-label"><strong>Local draft</strong> — Save when you're ready.</span>
+            <button class="draft-banner-discard">Discard</button>
+            <button class="draft-banner-save">Save to Paper Straw</button>
+          </div>
           <div class="transport">
             <button class="transport-btn">⏵</button>
             <span class="transport-time">0:00.000 / 4:21</span>
@@ -711,6 +739,11 @@
       <div class="variant">
         <div class="variant-label">Variant 2 — fresh-from-detection treatment</div>
         <div class="daw" style="border: 0;">
+          <div class="draft-banner">
+            <span class="draft-banner-label"><strong>Local draft</strong> — Save when you're ready.</span>
+            <button class="draft-banner-discard">Discard</button>
+            <button class="draft-banner-save">Save to Paper Straw</button>
+          </div>
           <div class="transport">
             <button class="transport-btn">⏵</button>
             <span class="transport-time">0:00.000 / 4:21</span>
@@ -768,13 +801,72 @@
   <!-- ============================================ -->
   <div class="flow">
     <div class="flow-head">
+      <span class="flow-num">Flow C-post</span>
+      <h2 class="flow-title">After Save — same DAW, draft banner gone</h2>
+    </div>
+    <p class="flow-desc">
+      User clicks "Save to Paper Straw" on the draft banner. The drawer
+      (existing UploadDrawer with project name / date fields) opens for
+      confirmation, then the upload happens. Sections POST alongside the
+      project create. When everything's done, the DAW transitions to
+      "saved": the draft banner disappears; sections remain (still with the
+      Variant 2 "fresh" treatment until the user touches each one).
+    </p>
+
+    <div class="daw">
+      <div class="daw-header">
+        <span class="project-name">practice-2026-05-15</span>
+        <span class="daw-meta">
+          <span>Paper Straw</span>
+          <span>·</span>
+          <span>3 stems</span>
+          <span>·</span>
+          <span>saved just now</span>
+        </span>
+      </div>
+      <div class="transport">
+        <button class="transport-btn">⏵</button>
+        <span class="transport-time">0:00.000 / 4:21</span>
+        <span class="transport-spacer"></span>
+        <button class="transport-btn">M</button>
+        <button class="transport-btn">+ Section</button>
+      </div>
+      <div class="timeline-area">
+        <div class="lane-label-cell" style="grid-column: 1;">Sections</div>
+        <div class="ruler"><span>0:00</span><span>1:00</span><span>2:00</span><span>3:00</span><span>4:00</span></div>
+        <div></div>
+        <div class="section-lane">
+          <div class="section fresh" style="left: 0.5%; width: 12%;"><span class="ai-dot"></span>Chatter</div>
+          <div class="section fresh" style="left: 13%; width: 26%;"><span class="ai-dot"></span>Wagon Wheel <span class="chip">92%</span></div>
+          <div class="section fresh" style="left: 40%; width: 18%;"><span class="ai-dot"></span>Tuning</div>
+          <div class="section fresh tentative" style="left: 59%; width: 22%;"><span class="ai-dot"></span>Tennessee Stud? <span class="chip">low</span></div>
+          <div class="section fresh" style="left: 82%; width: 17%;"><span class="ai-dot"></span>Music</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <strong>Notes:</strong>
+      <ul>
+        <li>What persists across the Save boundary: the sections (with their current names + any user edits), the fact that they came from auto-detection, the confidence scores.</li>
+        <li>What disappears: the draft banner, "draft" status text.</li>
+        <li>If the user reloads later, the same sections still have the "fresh" dot until they're touched (since the schema stores <code>source='auto'</code>). Once touched, they convert to <code>source='manual'</code> and look like any other section.</li>
+        <li>Open question: does the user need a way to "accept all" sections at once (bulk-clear the fresh treatment)? Probably not — the treatment is subtle enough that it shouldn't bug them; ignoring it is fine. If we ever add a "review unreviewed" gesture, it can come later.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <div class="flow">
+    <div class="flow-head">
       <span class="flow-num">Flow D</span>
       <h2 class="flow-title">First-time toast — "Hey, we did this"</h2>
     </div>
     <p class="flow-desc">
-      The first time a user sees auto-detected sections in their DAW, a small
-      toast explains what happened. Auto-dismisses on interaction. After
-      they've seen it once, no more toast.
+      The first time a user sees auto-detected sections, a small toast
+      explains what happened. Appears <strong>in draft mode</strong>, before
+      the user has hit Save. Auto-dismisses on interaction. After they've
+      seen it once on any project, no more toast.
     </p>
 
     <div class="toast-stage">
@@ -848,7 +940,7 @@
   </div>
 
   <p style="color: var(--muted); margin-top: 32px; font-size: 12px;">
-    Mockup at <code>scripts/poc/ui-mockup.html</code>. Previous versions in git history (commits <code>9f46b12</code> and <code>03bc3e4</code>).
+    Mockup at <code>scripts/poc/ui-mockup.html</code>. Previous versions in git history (commits <code>9f46b12</code>, <code>03bc3e4</code>, <code>e8c85c9</code>).
   </p>
 </div>
 </body>
