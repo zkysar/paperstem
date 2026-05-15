@@ -143,3 +143,84 @@ it('does not render grips when annotation is not authored by self', () => {
   expect(document.querySelector('.annotation-grip-left')).toBeNull();
   expect(document.querySelector('.annotation-grip-right')).toBeNull();
 });
+
+it('middle drag of a region shifts both start_ms and end_ms by same delta', () => {
+  const onPatchAnnotation = vi.fn(async () => {});
+  render(
+    <AnnotationMarkers
+      {...baseProps}
+      annotations={[region]}
+      hoveredId="r1"
+      selfUserId="u1"
+      onPatchAnnotation={onPatchAnnotation}
+    />,
+  );
+  const marker = screen.getByTestId('annotation-marker-r1');
+  (marker as any).setPointerCapture = vi.fn();
+  (marker as any).releasePointerCapture = vi.fn();
+
+  fireEvent.pointerDown(marker, { clientX: 200, pointerId: 1 });
+  fireEvent.pointerMove(window, { clientX: 240, pointerId: 1 });
+  fireEvent.pointerUp(window, { clientX: 240, pointerId: 1 });
+
+  // baseProps: waveWidthPx=1000, duration=10 -> 10ms/px.
+  // 40px * 10ms/px = 400ms. region: start=1000 end=3000.
+  expect(onPatchAnnotation).toHaveBeenCalledWith('r1', {
+    start_ms: 1400,
+    end_ms: 3400,
+  });
+});
+
+it('middle drag of a point marker shifts only start_ms (end_ms stays null)', () => {
+  const onPatchAnnotation = vi.fn(async () => {});
+  render(
+    <AnnotationMarkers
+      {...baseProps}
+      hoveredId="a1"
+      selfUserId="u1"
+      onPatchAnnotation={onPatchAnnotation}
+    />,
+  );
+  const marker = screen.getByTestId('annotation-marker-a1');
+  (marker as any).setPointerCapture = vi.fn();
+  (marker as any).releasePointerCapture = vi.fn();
+
+  fireEvent.pointerDown(marker, { clientX: 100, pointerId: 1 });
+  fireEvent.pointerMove(window, { clientX: 120, pointerId: 1 });
+  fireEvent.pointerUp(window, { clientX: 120, pointerId: 1 });
+
+  // 20px * 10ms/px = 200ms. fixture start=1000.
+  expect(onPatchAnnotation).toHaveBeenCalledWith('a1', {
+    start_ms: 1200,
+    end_ms: null,
+  });
+});
+
+it('cannot shrink region below 100ms via left-edge drag', () => {
+  const onPatchAnnotation = vi.fn(async () => {});
+  const tightRegion: Annotation = { ...region, start_ms: 1000, end_ms: 1200 };
+  render(
+    <AnnotationMarkers
+      {...baseProps}
+      annotations={[tightRegion]}
+      hoveredId="r1"
+      selfUserId="u1"
+      onPatchAnnotation={onPatchAnnotation}
+    />,
+  );
+  const grip = document.querySelector(
+    `[data-testid="annotation-marker-r1"] .annotation-grip-left`,
+  )!;
+  (grip as any).setPointerCapture = vi.fn();
+  (grip as any).releasePointerCapture = vi.fn();
+
+  fireEvent.pointerDown(grip, { clientX: 100, pointerId: 1 });
+  fireEvent.pointerMove(window, { clientX: 200, pointerId: 1 });
+  fireEvent.pointerUp(window, { clientX: 200, pointerId: 1 });
+
+  // 100px * 10ms/px = 1000ms unsnapped — clamped to maxStart = end_ms - 100 = 1100.
+  expect(onPatchAnnotation).toHaveBeenCalledWith('r1', {
+    start_ms: 1100,
+    end_ms: 1200,
+  });
+});
