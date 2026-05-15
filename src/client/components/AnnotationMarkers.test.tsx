@@ -119,6 +119,29 @@ describe('AnnotationMarkers', () => {
     expect(container.querySelector('.reaction-pill')).toBeNull();
     expect(container.querySelector('.reply-thread')).toBeNull();
   });
+
+  it('Escape during annotation drag cancels the patch', () => {
+    const onPatchAnnotation = vi.fn(async () => {});
+    render(
+      <AnnotationMarkers
+        {...baseProps}
+        annotations={[region]}
+        hoveredId="r1"
+        selfUserId="u1"
+        onPatchAnnotation={onPatchAnnotation}
+      />,
+    );
+    const marker = screen.getByTestId('annotation-marker-r1');
+    (marker as any).setPointerCapture = vi.fn();
+    (marker as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(marker, { clientX: 200, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 240, pointerId: 1 });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.pointerUp(window, { clientX: 240, pointerId: 1 });
+
+    expect(onPatchAnnotation).not.toHaveBeenCalled();
+  });
 });
 
 it('left edge drag on a region calls onPatchAnnotation with new start_ms', () => {

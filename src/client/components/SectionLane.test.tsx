@@ -383,4 +383,32 @@ describe('SectionLane', () => {
 
     expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 1010 });
   });
+
+  it('Escape during section drag cancels the patch', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const grip = document.querySelector(
+      '[data-testid="section-s2"] .section-grip-left',
+    )!;
+    (grip as any).setPointerCapture = vi.fn();
+    (grip as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(grip, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 530, pointerId: 1 });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.pointerUp(window, { clientX: 530, pointerId: 1 });
+
+    expect(onPatchSection).not.toHaveBeenCalled();
+  });
 });
