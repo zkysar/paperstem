@@ -1,6 +1,10 @@
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { ChevronLeft, X } from 'lucide-react';
-import type { Annotation } from '../../shared/types';
+import type {
+  Annotation,
+  AnnotationReply,
+  ReactionTarget,
+} from '../../shared/types';
 import { CommentList } from './CommentList';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
@@ -25,6 +29,12 @@ type Props = {
   onSaveEdit(annotation: Annotation, body: string): void;
   onDelete(annotation: Annotation): void;
   onCopyLink(annotation: Annotation): void;
+  replies: Map<string, AnnotationReply[]>;
+  onLoadReplies(annotationId: string): Promise<void> | void;
+  onCreateReply(annotationId: string, body: string): Promise<void> | void;
+  onEditReply(replyId: string, body: string): Promise<void> | void;
+  onDeleteReply(annotationId: string, replyId: string): Promise<void> | void;
+  onToggleReaction(target: ReactionTarget, emoji: string): void;
 };
 
 const SUBMIT_HINT = isMac() ? '⌘↵' : 'Ctrl+↵';
@@ -39,6 +49,8 @@ export function CommentsDrawer({
   annotations, userColorMap, activeId, emphasizedId, pendingDraft,
   onClose, onSelect, onCreate, onDraftCancel,
   onToggleStar, onSaveEdit, onDelete, onCopyLink,
+  replies, onLoadReplies, onCreateReply, onEditReply, onDeleteReply,
+  onToggleReaction,
 }: Props) {
   const [draftBody, setDraftBody] = useState('');
 
@@ -139,11 +151,18 @@ export function CommentsDrawer({
           emphasizedId={emphasizedId ?? null}
           userColorMap={userColorMap}
           canEdit={canEdit}
+          isNarrow={isNarrow}
           onSelect={onSelect}
           onToggleStar={onToggleStar}
           onSaveEdit={onSaveEdit}
           onDelete={onDelete}
           onCopyLink={onCopyLink}
+          replies={replies}
+          onLoadReplies={onLoadReplies}
+          onCreateReply={onCreateReply}
+          onEditReply={onEditReply}
+          onDeleteReply={onDeleteReply}
+          onToggleReaction={onToggleReaction}
         />
 
         {!isNarrow && !pendingDraft && (

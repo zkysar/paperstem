@@ -1,9 +1,15 @@
 import { useMemo, useState, type KeyboardEvent } from 'react';
 import { Link2, Pencil, Star, Trash2 } from 'lucide-react';
-import type { Annotation } from '../../shared/types';
+import type {
+  Annotation,
+  AnnotationReply,
+  ReactionTarget,
+} from '../../shared/types';
 import { SELF_ANNOTATION_COLOR } from '../lib/colors';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
+import { Reactions } from './Reactions';
+import { ReplyThread } from './ReplyThread';
 
 type Filter =
   | { kind: 'all' }
@@ -23,6 +29,7 @@ type Props = {
   emphasizedId?: string | null;
   userColorMap: Map<string, string>;
   canEdit: boolean;
+  isNarrow: boolean;
   onSelect(annotation: Annotation): void;
   onToggleStar(annotation: Annotation): void;
   onSaveEdit(annotation: Annotation, body: string): void;
@@ -32,6 +39,12 @@ type Props = {
    * and writes a share URL to the clipboard.
    */
   onCopyLink(annotation: Annotation): void;
+  replies: Map<string, AnnotationReply[]>;
+  onLoadReplies(annotationId: string): Promise<void> | void;
+  onCreateReply(annotationId: string, body: string): Promise<void> | void;
+  onEditReply(replyId: string, body: string): Promise<void> | void;
+  onDeleteReply(annotationId: string, replyId: string): Promise<void> | void;
+  onToggleReaction(target: ReactionTarget, emoji: string): void;
 };
 
 function authorLabel(a: Annotation): string {
@@ -56,11 +69,18 @@ export function CommentList({
   emphasizedId,
   userColorMap,
   canEdit,
+  isNarrow,
   onSelect,
   onToggleStar,
   onSaveEdit,
   onDelete,
   onCopyLink,
+  replies,
+  onLoadReplies,
+  onCreateReply,
+  onEditReply,
+  onDeleteReply,
+  onToggleReaction,
 }: Props) {
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -242,6 +262,28 @@ export function CommentList({
                         ><Trash2 size={14} strokeWidth={2} aria-hidden="true" /></button>
                       </div>
                     )}
+                    <Reactions
+                      reactions={a.reactions}
+                      isNarrow={isNarrow}
+                      onToggle={(emoji) =>
+                        onToggleReaction({ kind: 'annotation', id: a.id }, emoji)
+                      }
+                    />
+                    <ReplyThread
+                      annotationId={a.id}
+                      replyCount={a.reply_count}
+                      replies={replies.get(a.id)}
+                      selfUserId={selfUserId}
+                      canEdit={canEdit}
+                      isNarrow={isNarrow}
+                      onLoadReplies={onLoadReplies}
+                      onCreateReply={onCreateReply}
+                      onEditReply={onEditReply}
+                      onDeleteReply={onDeleteReply}
+                      onToggleReaction={(replyId, emoji) =>
+                        onToggleReaction({ kind: 'reply', id: replyId }, emoji)
+                      }
+                    />
                   </>
                 )}
               </li>
