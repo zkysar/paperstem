@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 const Picker = lazy(async () => {
   const [reactMod, dataMod] = await Promise.all([
@@ -60,7 +61,7 @@ export function EmojiPicker({ isNarrow, anchorRect, onSelect, onClose }: Props) 
         }
       : {};
 
-  return (
+  return createPortal(
     <div
       ref={ref}
       className={'emoji-picker-' + (isNarrow ? 'sheet' : 'popover')}
@@ -81,6 +82,7 @@ export function EmojiPicker({ isNarrow, anchorRect, onSelect, onClose }: Props) 
           dynamicWidth={true}
         />
       </Suspense>
-    </div>
+    </div>,
+    document.body,
   );
 }
