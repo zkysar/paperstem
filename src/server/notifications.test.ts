@@ -114,3 +114,70 @@ describe('resolveMentions', () => {
     expect(notifMod.resolveMentions([], 'unused')).toEqual([]);
   });
 });
+
+describe('recipientsForComment', () => {
+  it('returns all band members except author', () => {
+    const author = createUser('a@e.test');
+    const m1 = createUser('m1@e.test');
+    const m2 = createUser('m2@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, m1);
+    addMembership(bandId, m2);
+    const pid = insertProject(bandId, author);
+
+    const got = notifMod.recipientsForComment(pid, author);
+    expect(got.sort()).toEqual([m1, m2].sort());
+  });
+});
+
+describe('recipientsForReply', () => {
+  it('returns annotation author plus prior repliers minus current author', () => {
+    const author = createUser('a@e.test');
+    const r1 = createUser('r1@e.test');
+    const r2 = createUser('r2@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, r1);
+    addMembership(bandId, r2);
+    const pid = insertProject(bandId, author);
+    const annId = insertAnnotation(pid, author, 'parent');
+    insertReply(annId, r1, 'first');
+
+    const got = notifMod.recipientsForReply(annId, r2);
+    expect(got.sort()).toEqual([author, r1].sort());
+  });
+  it('returns empty when annotation not found', () => {
+    expect(notifMod.recipientsForReply('missing', 'who')).toEqual([]);
+  });
+});
+
+describe('recipientsForReaction', () => {
+  it('returns target author when reactor differs', () => {
+    const author = createUser('a@e.test');
+    const reactor = createUser('r@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, reactor);
+    const pid = insertProject(bandId, author);
+    const annId = insertAnnotation(pid, author, 'hi');
+
+    expect(notifMod.recipientsForReaction('annotation', annId, reactor)).toEqual([author]);
+  });
+  it('returns empty when reactor is target author', () => {
+    const author = createUser('a@e.test');
+    const bandId = createBand(author);
+    const pid = insertProject(bandId, author);
+    const annId = insertAnnotation(pid, author, 'hi');
+    expect(notifMod.recipientsForReaction('annotation', annId, author)).toEqual([]);
+  });
+  it('handles reply source type', () => {
+    const author = createUser('a@e.test');
+    const replier = createUser('r@e.test');
+    const reactor = createUser('rx@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, replier);
+    addMembership(bandId, reactor);
+    const pid = insertProject(bandId, author);
+    const annId = insertAnnotation(pid, author, 'parent');
+    const replyId = insertReply(annId, replier, 'r1');
+    expect(notifMod.recipientsForReaction('reply', replyId, reactor)).toEqual([replier]);
+  });
+});

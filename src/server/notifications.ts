@@ -23,3 +23,33 @@ export function resolveMentions(uids: string[], projectId: string): string[] {
 export function generateReplyToken(): string {
   return randomBytes(18).toString('base64url'); // 24 chars
 }
+
+export function recipientsForComment(projectId: string, authorId: string): string[] {
+  const rows = stmts.findBandMemberIdsForProject.all(projectId) as Array<{ user_id: string }>;
+  return rows.map((r) => r.user_id).filter((u) => u !== authorId);
+}
+
+export function recipientsForReply(annotationId: string, currentAuthorId: string): string[] {
+  const ann = stmts.findAnnotationById.get(annotationId) as { user_id: string } | undefined;
+  if (!ann) return [];
+  const replies = stmts.findReplyParticipantsForAnnotation.all(annotationId) as Array<{ user_id: string }>;
+  const set = new Set<string>([ann.user_id, ...replies.map((r) => r.user_id)]);
+  set.delete(currentAuthorId);
+  return Array.from(set);
+}
+
+export function recipientsForReaction(
+  sourceType: 'annotation' | 'reply',
+  sourceId: string,
+  reactorId: string,
+): string[] {
+  if (sourceType === 'annotation') {
+    const ann = stmts.findAnnotationById.get(sourceId) as { user_id: string } | undefined;
+    if (!ann || ann.user_id === reactorId) return [];
+    return [ann.user_id];
+  } else {
+    const rep = stmts.findReplyById.get(sourceId) as { user_id: string } | undefined;
+    if (!rep || rep.user_id === reactorId) return [];
+    return [rep.user_id];
+  }
+}
