@@ -149,6 +149,13 @@ export function Player({
   }, [laneTappedOpen]);
 
   useEffect(() => {
+    if (sections.length === 0) {
+      setLaneHovered(false);
+      setLaneTappedOpen(false);
+    }
+  }, [sections.length]);
+
+  useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
     const ro = new ResizeObserver(() => {
@@ -663,13 +670,19 @@ export function Player({
               />
             )}
             <div className="tracks" ref={tracksRef}>
-              <ActiveSectionChip
-                sections={sections}
-                songUseCounts={songUseCounts}
-                currentTimeSeconds={currentTime}
-                onSeek={player.seek}
+              <Ruler
+                duration={duration}
+                onPointerDown={onRulerPointerDown}
+                rulerRef={rulerRef}
+                railSpacerSlot={
+                  <ActiveSectionChip
+                    sections={sections}
+                    songUseCounts={songUseCounts}
+                    currentTimeSeconds={currentTime}
+                    onSeek={player.seek}
+                  />
+                }
               />
-              <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
               <SectionLane
                 sections={sections}
                 duration={duration}

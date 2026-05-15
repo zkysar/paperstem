@@ -62,4 +62,29 @@ describe('Ruler', () => {
     );
     expect(labels).toEqual(['0:00', '0:00']);
   });
+
+  it('renders railSpacerSlot content inside the rail-spacer when provided', () => {
+    const ref = createRef<HTMLDivElement>();
+    const { container } = render(
+      <Ruler
+        duration={120}
+        onPointerDown={vi.fn()}
+        rulerRef={ref}
+        railSpacerSlot={<span data-testid="slot-content">slot</span>}
+      />,
+    );
+    const spacer = container.querySelector<HTMLElement>('.ruler-rail-spacer');
+    expect(spacer).not.toBeNull();
+    expect(spacer!.querySelector('[data-testid="slot-content"]')).not.toBeNull();
+    expect(spacer!.getAttribute('aria-hidden')).toBeNull();
+  });
+
+  it('keeps aria-hidden on the rail-spacer when no slot is provided', () => {
+    const ref = createRef<HTMLDivElement>();
+    const { container } = render(
+      <Ruler duration={120} onPointerDown={vi.fn()} rulerRef={ref} />,
+    );
+    const spacer = container.querySelector<HTMLElement>('.ruler-rail-spacer');
+    expect(spacer!.getAttribute('aria-hidden')).toBe('true');
+  });
 });
