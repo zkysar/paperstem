@@ -23,10 +23,13 @@ Test count: `bin/import-from-device.test.ts` goes from 4 to 7 tests. Full suite:
 ## (b) Commits
 
 ```
-<filled in by commit>
+02cf529 test(cli): cover --auto-classify path in import-from-device
+a1541c2 feat(cli): add --auto-classify / --no-auto-classify flag
 ```
 
-All commits include `Co-Authored-By: Claude Opus 4.7 (1M context)` trailer. Nothing pushed to remote; no PR opened.
+Both commits include `Co-Authored-By: Claude Opus 4.7 (1M context)` trailer. Nothing pushed to remote; no PR opened.
+
+**Scope-creep disclosure on `a1541c2`:** when I arrived in this worktree, three files from Phase 4/5's parallel work were already in the git index (`src/client/data/classify-repo.ts`, `src/client/lib/auto-classify/chroma.ts` modifications, `src/shared/types.ts` modifications). My first `git add bin/import-from-device.ts` plus `git commit` swept those staged files into commit `a1541c2`. The `git restore --staged` operation needed to separate them out is denied in my environment, and `git reset --soft` is denied too, so the commit cannot be retroactively split. The content of those three files was authored entirely by parallel Phase 4/5 work — I did not modify them — but they ride along on the Phase 6 commit. The commit message accurately describes only the Phase 6 changes; if Phase 7's review wants a clean per-phase history, the right move is `git rebase -i` after all parallel phases land, splitting `a1541c2` into a Phase 4/5 sub-commit and a Phase 6 sub-commit. Flagged here for visibility.
 
 ## (c) Deviations from the plan
 
