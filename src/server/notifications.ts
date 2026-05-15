@@ -53,3 +53,41 @@ export function recipientsForReaction(
     return [rep.user_id];
   }
 }
+
+export type PendingKind = 'comment' | 'reply' | 'mention' | 'reaction';
+
+export type EffectivePrefs = {
+  user_id: string;
+  email_mentions: number;
+  email_project_activity: 'batched' | 'daily' | 'off';
+  email_thread_activity: 'batched' | 'daily' | 'off';
+  digest_hour_local: number;
+  timezone: string;
+};
+
+const DEFAULT_PREFS: Omit<EffectivePrefs, 'user_id'> = {
+  email_mentions: 1,
+  email_project_activity: 'batched',
+  email_thread_activity: 'batched',
+  digest_hour_local: 8,
+  timezone: 'UTC',
+};
+
+export function getEffectivePrefs(userId: string): EffectivePrefs {
+  const row = stmts.findNotificationPrefs.get(userId) as EffectivePrefs | undefined;
+  return row ?? { user_id: userId, ...DEFAULT_PREFS };
+}
+
+export function applyPrefsFilter(
+  recipients: string[],
+  bandId: string,
+  kind: PendingKind,
+): string[] {
+  return recipients.filter((uid) => {
+    if (stmts.findBandMute.get(uid, bandId)) return false;
+    const prefs = getEffectivePrefs(uid);
+    if (kind === 'mention') return prefs.email_mentions === 1;
+    const pref = kind === 'reply' ? prefs.email_thread_activity : prefs.email_project_activity;
+    return pref !== 'off';
+  });
+}

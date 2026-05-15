@@ -181,3 +181,73 @@ describe('recipientsForReaction', () => {
     expect(notifMod.recipientsForReaction('reply', replyId, reactor)).toEqual([replier]);
   });
 });
+
+function setPref(userId: string, p: Partial<{
+  email_mentions: number;
+  email_project_activity: 'batched' | 'daily' | 'off';
+  email_thread_activity: 'batched' | 'daily' | 'off';
+  digest_hour_local: number;
+  timezone: string;
+}>) {
+  dbMod.stmts.upsertNotificationPrefs.run(
+    userId,
+    p.email_mentions ?? 1,
+    p.email_project_activity ?? 'batched',
+    p.email_thread_activity ?? 'batched',
+    p.digest_hour_local ?? 8,
+    p.timezone ?? 'UTC',
+    Date.now(),
+  );
+}
+
+function muteBand(userId: string, bandId: string) {
+  dbMod.stmts.insertBandMute.run(userId, bandId, Date.now());
+}
+
+describe('applyPrefsFilter', () => {
+  it('drops recipients whose pref is off for the kind', () => {
+    const author = createUser('a@e.test');
+    const m1 = createUser('m1@e.test');
+    const m2 = createUser('m2@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, m1);
+    addMembership(bandId, m2);
+    setPref(m1, { email_project_activity: 'off' });
+    expect(notifMod.applyPrefsFilter([m1, m2], bandId, 'comment').sort()).toEqual([m2].sort());
+  });
+  it('drops muted-band recipients regardless of pref', () => {
+    const author = createUser('a@e.test');
+    const m1 = createUser('m1@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, m1);
+    muteBand(m1, bandId);
+    expect(notifMod.applyPrefsFilter([m1], bandId, 'mention')).toEqual([]);
+  });
+  it('keeps users with no prefs row (defaults apply)', () => {
+    const author = createUser('a@e.test');
+    const m1 = createUser('m1@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, m1);
+    expect(notifMod.applyPrefsFilter([m1], bandId, 'comment')).toEqual([m1]);
+  });
+  it('uses email_thread_activity for kind=reply', () => {
+    const author = createUser('a@e.test');
+    const m1 = createUser('m1@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, m1);
+    setPref(m1, { email_thread_activity: 'off', email_project_activity: 'batched' });
+    expect(notifMod.applyPrefsFilter([m1], bandId, 'reply')).toEqual([]);
+    expect(notifMod.applyPrefsFilter([m1], bandId, 'comment')).toEqual([m1]);
+  });
+});
+
+describe('getEffectivePrefs', () => {
+  it('returns defaults when no row exists', () => {
+    const u = createUser('u@e.test');
+    const prefs = notifMod.getEffectivePrefs(u);
+    expect(prefs).toMatchObject({
+      email_mentions: 1, email_project_activity: 'batched', email_thread_activity: 'batched',
+      digest_hour_local: 8, timezone: 'UTC',
+    });
+  });
+});
