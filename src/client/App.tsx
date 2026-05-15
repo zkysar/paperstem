@@ -267,6 +267,12 @@ function PaperstemApp({
     else openDrawer();
   }, [drawerOpen, openDrawer, closeDrawer]);
 
+  const closePopovers = useCallback(() => {
+    setActiveCommentId(null);
+    setPopoverAnchor(null);
+    setSectionPopover(null);
+  }, []);
+
   // Auto-open the picker once on mount when no project is active.
   useEffect(() => {
     if (activeProjectId === null) setPickerOpen(true);
@@ -303,11 +309,7 @@ function PaperstemApp({
     onTogglePicker: () => (pickerOpen ? closePicker() : openPicker()),
     onClosePicker: closePicker,
     onCloseDrawer: closeDrawer,
-    onClosePopover: () => {
-      setActiveCommentId(null);
-      setPopoverAnchor(null);
-      setSectionPopover(null);
-    },
+    onClosePopover: closePopovers,
     onCancelCreate: () => {
       setAnnotationCreateMode(false);
       setSectionCreateMode(false);
@@ -1533,6 +1535,7 @@ function PaperstemApp({
             onRenameStem={(id, name) => void renameStem(id, name)}
             onDeleteStem={(id) => void deleteStem(id)}
             viewport={viewport}
+            onDismissPopovers={closePopovers}
           />
         </ErrorBoundary>
         {showZoomHint && player.state.stems.length > 0 && (
