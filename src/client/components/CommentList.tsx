@@ -1,5 +1,5 @@
-import { useMemo, useState, type KeyboardEvent } from 'react';
-import { Link2, Pencil, Star, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { Link2, MoreHorizontal, Pencil, Star, Trash2 } from 'lucide-react';
 import type {
   Annotation,
   AnnotationReply,
@@ -86,6 +86,26 @@ export function CommentList({
   const [filter, setFilter] = useState<Filter>({ kind: 'all' });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBody, setEditBody] = useState('');
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (menuOpenId === null) return;
+    function handleDocClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpenId(null);
+      }
+    }
+    function handleKey(e: globalThis.KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpenId(null);
+    }
+    document.addEventListener('mousedown', handleDocClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleDocClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [menuOpenId]);
 
   const authors = useMemo(() => {
     const seen = new Map<string, { userId: string; label: string }>();
@@ -192,13 +212,74 @@ export function CommentList({
                   ) : (
                     a.starred && <span className="cl-star on" aria-hidden="true"><Star size={14} strokeWidth={2} fill="currentColor" aria-hidden="true" /></span>
                   )}
-                  <button
-                    type="button"
-                    className="cl-iconbtn cl-copy-link"
-                    aria-label="Copy link to this comment"
-                    title="Open share dialog for this comment"
-                    onClick={(e) => { e.stopPropagation(); onCopyLink(a); }}
-                  ><Link2 size={14} strokeWidth={2} aria-hidden="true" /></button>
+                  <div
+                    className={'cl-overflow' + (menuOpenId === a.id ? ' open' : '')}
+                    ref={menuOpenId === a.id ? menuRef : undefined}
+                  >
+                    <button
+                      type="button"
+                      className="cl-iconbtn cl-overflow-trigger"
+                      aria-label="More actions"
+                      aria-haspopup="menu"
+                      aria-expanded={menuOpenId === a.id}
+                      title="More actions"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuOpenId((cur) => (cur === a.id ? null : a.id));
+                      }}
+                    ><MoreHorizontal size={14} strokeWidth={2} aria-hidden="true" /></button>
+                    {menuOpenId === a.id && (
+                      <div className="cl-overflow-menu" role="menu" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="cl-overflow-item"
+                          aria-label="Copy link to this comment"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuOpenId(null);
+                            onCopyLink(a);
+                          }}
+                        >
+                          <Link2 size={14} strokeWidth={2} aria-hidden="true" />
+                          <span>Copy link</span>
+                        </button>
+                        {isOwn && canEdit && (
+                          <>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="cl-overflow-item"
+                              aria-label="Edit"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMenuOpenId(null);
+                                setEditBody(a.body);
+                                setEditingId(a.id);
+                              }}
+                            >
+                              <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+                              <span>Edit</span>
+                            </button>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              className="cl-overflow-item cl-overflow-item-danger"
+                              aria-label="Delete"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMenuOpenId(null);
+                                if (window.confirm('Delete this comment?')) onDelete(a);
+                              }}
+                            >
+                              <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+                              <span>Delete</span>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {isEditing ? (
                   <div className="cl-edit" onClick={(e) => e.stopPropagation()}>
@@ -241,53 +322,30 @@ export function CommentList({
                 ) : (
                   <>
                     <div className="cl-body">{a.body}</div>
-                    {isOwn && canEdit && (
-                      <div className="cl-actions">
-                        <button
-                          type="button"
-                          className="cl-iconbtn"
-                          aria-label="Edit"
-                          title="Edit this comment"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditBody(a.body);
-                            setEditingId(a.id);
-                          }}
-                        ><Pencil size={14} strokeWidth={2} aria-hidden="true" /></button>
-                        <button
-                          type="button"
-                          className="cl-iconbtn"
-                          aria-label="Delete"
-                          title="Delete this comment"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm('Delete this comment?')) onDelete(a);
-                          }}
-                        ><Trash2 size={14} strokeWidth={2} aria-hidden="true" /></button>
-                      </div>
-                    )}
-                    <Reactions
-                      reactions={a.reactions}
-                      isNarrow={isNarrow}
-                      onToggle={(emoji) =>
-                        onToggleReaction({ kind: 'annotation', id: a.id }, emoji)
-                      }
-                    />
-                    <ReplyThread
-                      annotationId={a.id}
-                      replyCount={a.reply_count}
-                      replies={replies.get(a.id)}
-                      selfUserId={selfUserId}
-                      canEdit={canEdit}
-                      isNarrow={isNarrow}
-                      onLoadReplies={onLoadReplies}
-                      onCreateReply={onCreateReply}
-                      onEditReply={onEditReply}
-                      onDeleteReply={onDeleteReply}
-                      onToggleReaction={(replyId, emoji) =>
-                        onToggleReaction({ kind: 'reply', id: replyId }, emoji)
-                      }
-                    />
+                    <div className="cl-foot">
+                      <Reactions
+                        reactions={a.reactions}
+                        isNarrow={isNarrow}
+                        onToggle={(emoji) =>
+                          onToggleReaction({ kind: 'annotation', id: a.id }, emoji)
+                        }
+                      />
+                      <ReplyThread
+                        annotationId={a.id}
+                        replyCount={a.reply_count}
+                        replies={replies.get(a.id)}
+                        selfUserId={selfUserId}
+                        canEdit={canEdit}
+                        isNarrow={isNarrow}
+                        onLoadReplies={onLoadReplies}
+                        onCreateReply={onCreateReply}
+                        onEditReply={onEditReply}
+                        onDeleteReply={onDeleteReply}
+                        onToggleReaction={(replyId, emoji) =>
+                          onToggleReaction({ kind: 'reply', id: replyId }, emoji)
+                        }
+                      />
+                    </div>
                   </>
                 )}
               </li>

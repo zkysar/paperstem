@@ -2397,19 +2397,100 @@ body.env-non-prod[data-env="local"]::before {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
   font-size: var(--fs-sm);
 }
 .cl-time { font-weight: var(--fw-semi); font-variant-numeric: tabular-nums; }
-.cl-author { color: var(--ink-2); }
-.cl-star { color: var(--muted); background: transparent; border: none; cursor: pointer; padding: 2px 4px; margin-left: auto; }
+.cl-author { color: var(--ink-2); margin-right: auto; }
+.cl-star { color: var(--muted); background: transparent; border: none; cursor: pointer; padding: 2px 4px; display: inline-flex; align-items: center; }
 .cl-star.on { color: var(--accent); }
-.cl-actions {
-  display: flex;
-  gap: 4px;
-  margin-top: 6px;
-  justify-content: flex-end;
+
+/* Overflow trigger: hidden at rest, revealed on hover/focus/active or
+   while the menu is open. Sits at the right edge of the meta row. */
+.cl-overflow {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
 }
+.cl-overflow-trigger {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.cl-card:hover .cl-overflow-trigger,
+.cl-card:focus-within .cl-overflow-trigger,
+.cl-card.active .cl-overflow-trigger,
+.cl-overflow.open .cl-overflow-trigger,
+.cl-overflow-trigger:focus-visible {
+  opacity: 1;
+}
+/* Touch devices have no hover state — always show the trigger so the
+   menu is discoverable. */
+@media (hover: none) {
+  .cl-overflow-trigger { opacity: 1; }
+}
+.cl-overflow-menu {
+  position: absolute;
+  top: calc(100% + 2px);
+  right: 0;
+  z-index: 20;
+  min-width: 140px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cl-overflow-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-sm);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.cl-overflow-item:hover { background: var(--rule-2); }
+.cl-overflow-item-danger { color: var(--danger, #b94a3b); }
+.cl-overflow-item-danger:hover { background: rgba(185, 74, 59, 0.08); }
+
+/* Combined inline footer: reactions on the left, reply expand + Reply CTA
+   on the right. .reply-thread uses display:contents so its bar and (when
+   expanded) list become direct flex children of .cl-foot. The bar floats
+   right next to reactions; the expanded list takes flex-basis 100% so it
+   breaks to its own row at full card width — keeping the foot single-row
+   when collapsed and never wedging the reply list into a narrow flex column. */
+.cl-foot {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 4px;
+}
+.cl-foot > .reactions-row {
+  margin-top: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.cl-foot > .reply-thread { display: contents; }
+.cl-foot > .reply-thread > .reply-thread-bar {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cl-foot > .reply-thread > .reply-thread-list {
+  flex: 0 0 100%;
+  margin-top: 6px;
+}
+
 .cl-iconbtn {
   background: transparent;
   border: none;
@@ -2418,6 +2499,8 @@ body.env-non-prod[data-env="local"]::before {
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
 }
 .cl-iconbtn:hover { color: var(--ink); background: var(--rule-2); }
 .cl-edit textarea {
