@@ -1737,7 +1737,12 @@ body.env-non-prod[data-env="local"]::before {
    one new `.fp-cell-*` class — no re-numbering of nth-child selectors. */
 .fp-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 110px 110px 70px 56px 80px auto;
+  /* actions is a fixed 64px (rename 28 + 4 gap + trash 28 + 4 gap +
+     empty kebab-wrap on desktop) so the column stays the same width
+     whether the row has the action buttons (data rows) or is empty
+     (header / skeleton rows). With auto, the column collapses to 0 in
+     the header and the fixed columns visibly shift. */
+  grid-template-columns: minmax(0, 1fr) 110px 110px 70px 56px 80px 64px;
   grid-template-areas: "name thumb date duration stems comments actions";
   column-gap: 12px;
   align-items: center;
