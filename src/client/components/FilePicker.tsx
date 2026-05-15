@@ -668,7 +668,7 @@ function TrashBody({
   }
   return (
     <div className="fp-body">
-      <div className="fp-row fp-row-head" role="row">
+      <div className="fp-row fp-row-trash fp-row-head" role="row">
         <span>Name</span>
         <span>Type</span>
         <span>Deleted by</span>
@@ -676,7 +676,7 @@ function TrashBody({
         <span></span>
       </div>
       {trash.projects.map((p) => (
-        <div key={`p-${p.id}`} className="fp-row fp-row-data">
+        <div key={`p-${p.id}`} className="fp-row fp-row-trash fp-row-data">
           <span className="fp-name">{p.name}</span>
           <span className="fp-meta">Project</span>
           <span className="fp-meta">{p.deleted_by_email ?? '—'}</span>
@@ -685,6 +685,7 @@ function TrashBody({
           </span>
           <button
             type="button"
+            className="fp-restore-btn"
             aria-label={`Restore ${p.name}`}
             disabled={p.deleted_reason === 'drive_missing'}
             onClick={() => onRestoreProject(p.id)}
@@ -694,7 +695,7 @@ function TrashBody({
         </div>
       ))}
       {trash.stems.map((s) => (
-        <div key={`s-${s.id}`} className="fp-row fp-row-data">
+        <div key={`s-${s.id}`} className="fp-row fp-row-trash fp-row-data">
           <span className="fp-name">{s.name}</span>
           <span className="fp-meta">Stem · {s.project_name}</span>
           <span className="fp-meta">{s.deleted_by_email ?? '—'}</span>
@@ -703,6 +704,7 @@ function TrashBody({
           </span>
           <button
             type="button"
+            className="fp-restore-btn"
             aria-label={`Restore ${s.name}`}
             disabled={s.deleted_reason === 'drive_missing'}
             onClick={() => onRestoreStem(s.id)}
