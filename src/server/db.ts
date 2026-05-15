@@ -270,6 +270,59 @@ export type StemPurgePreviewRow = {
   deleted_reason: string | null;
 };
 
+export type MentionRow = {
+  id: string;
+  source_type: 'annotation' | 'reply';
+  source_id: string;
+  project_id: string;
+  author_user_id: string;
+  target_user_id: string;
+  created_at: number;
+  read_at: number | null;
+};
+
+export type UnreadMentionJoinedRow = {
+  id: string;
+  project_id: string;
+  source_type: 'annotation' | 'reply';
+  source_id: string;
+  author_user_id: string;
+  created_at: number;
+  project_name: string;
+  author_display_name: string | null;
+  author_email: string;
+  body: string | null;
+};
+
+export type PendingNotificationRow = {
+  id: string;
+  recipient_id: string;
+  kind: 'comment' | 'reply' | 'mention' | 'reaction';
+  project_id: string;
+  source_type: 'annotation' | 'reply';
+  source_id: string;
+  author_user_id: string;
+  preview: string;
+  reply_token: string | null;
+  created_at: number;
+  sent_at: number | null;
+  send_attempts: number;
+};
+
+export type NotificationPrefsRow = {
+  user_id: string;
+  email_mentions: number;
+  email_project_activity: 'batched' | 'daily' | 'off';
+  email_thread_activity: 'batched' | 'daily' | 'off';
+  digest_hour_local: number;
+  timezone: string;
+  updated_at: number;
+};
+
+export type BandWithMuteRow = { id: string; name: string; muted: number };
+
+export type ProjectUnreadRow = { project_id: string; band_id: string };
+
 export const stmts = {
   findUserByEmail: db.prepare<[string], UserRow>(
     'SELECT * FROM users WHERE email = ?',
@@ -822,5 +875,149 @@ export const stmts = {
   ),
   countAuditLog: db.prepare<[], { c: number }>(
     'SELECT COUNT(*) AS c FROM audit_log',
+  ),
+
+  // --- notifications: pending_notifications ---
+  insertPendingNotification: db.prepare<
+    [string, string, string, string, string, string, string, string, string | null, number]
+  >(
+    `INSERT INTO pending_notifications
+       (id, recipient_id, kind, project_id, source_type, source_id, author_user_id, preview, reply_token, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ),
+  selectUnsentForRecipient: db.prepare<[string], PendingNotificationRow>(
+    `SELECT * FROM pending_notifications
+      WHERE recipient_id = ? AND sent_at IS NULL
+      ORDER BY created_at ASC`,
+  ),
+  selectAllUnsent: db.prepare<[], PendingNotificationRow>(
+    `SELECT * FROM pending_notifications
+      WHERE sent_at IS NULL
+      ORDER BY recipient_id, created_at ASC`,
+  ),
+  markPendingSent: db.prepare<[number, string]>(
+    `UPDATE pending_notifications SET sent_at = ? WHERE id = ?`,
+  ),
+  bumpPendingAttempt: db.prepare<[string]>(
+    `UPDATE pending_notifications SET send_attempts = send_attempts + 1 WHERE id = ?`,
+  ),
+  findPendingById: db.prepare<[string], PendingNotificationRow>(
+    `SELECT * FROM pending_notifications WHERE id = ?`,
+  ),
+  findPendingByReplyToken: db.prepare<[string], PendingNotificationRow>(
+    `SELECT * FROM pending_notifications WHERE reply_token = ? ORDER BY created_at DESC LIMIT 1`,
+  ),
+
+  // --- notifications: mentions ---
+  insertMention: db.prepare<[string, string, string, string, string, string, number]>(
+    `INSERT INTO mentions
+       (id, source_type, source_id, project_id, author_user_id, target_user_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ),
+  findUnreadMentionsForUser: db.prepare<[string], UnreadMentionJoinedRow>(
+    `SELECT m.id, m.project_id, m.source_type, m.source_id, m.author_user_id, m.created_at,
+            p.name AS project_name, u.display_name AS author_display_name, u.email AS author_email,
+            COALESCE(a.body, r.body) AS body
+       FROM mentions m
+       JOIN projects p ON p.id = m.project_id
+       JOIN users u ON u.id = m.author_user_id
+       LEFT JOIN annotations a ON m.source_type = 'annotation' AND a.id = m.source_id
+       LEFT JOIN annotation_replies r ON m.source_type = 'reply' AND r.id = m.source_id
+      WHERE m.target_user_id = ? AND m.read_at IS NULL
+      ORDER BY m.created_at DESC
+      LIMIT 50`,
+  ),
+  markMentionRead: db.prepare<[number, string, string]>(
+    `UPDATE mentions SET read_at = ? WHERE id = ? AND target_user_id = ? AND read_at IS NULL`,
+  ),
+  markMentionUnread: db.prepare<[string, string]>(
+    `UPDATE mentions SET read_at = NULL WHERE id = ? AND target_user_id = ?`,
+  ),
+  markAllMentionsReadForUser: db.prepare<[number, string]>(
+    `UPDATE mentions SET read_at = ? WHERE target_user_id = ? AND read_at IS NULL`,
+  ),
+
+  // --- notifications: project_reads ---
+  upsertProjectRead: db.prepare<[string, string, number]>(
+    `INSERT INTO project_reads (user_id, project_id, last_read_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT(user_id, project_id) DO UPDATE SET last_read_at = excluded.last_read_at`,
+  ),
+  findProjectRead: db.prepare<[string, string], { last_read_at: number }>(
+    `SELECT last_read_at FROM project_reads WHERE user_id = ? AND project_id = ?`,
+  ),
+
+  // --- notifications: notification_prefs ---
+  findNotificationPrefs: db.prepare<[string], NotificationPrefsRow>(
+    `SELECT * FROM notification_prefs WHERE user_id = ?`,
+  ),
+  upsertNotificationPrefs: db.prepare<[string, number, string, string, number, string, number]>(
+    `INSERT INTO notification_prefs
+       (user_id, email_mentions, email_project_activity, email_thread_activity, digest_hour_local, timezone, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
+       email_mentions = excluded.email_mentions,
+       email_project_activity = excluded.email_project_activity,
+       email_thread_activity = excluded.email_thread_activity,
+       digest_hour_local = excluded.digest_hour_local,
+       timezone = excluded.timezone,
+       updated_at = excluded.updated_at`,
+  ),
+
+  // --- notifications: band_mutes ---
+  insertBandMute: db.prepare<[string, string, number]>(
+    `INSERT OR IGNORE INTO band_mutes (user_id, band_id, muted_at) VALUES (?, ?, ?)`,
+  ),
+  deleteBandMute: db.prepare<[string, string]>(
+    `DELETE FROM band_mutes WHERE user_id = ? AND band_id = ?`,
+  ),
+  findBandMute: db.prepare<[string, string], { one: number }>(
+    `SELECT 1 AS one FROM band_mutes WHERE user_id = ? AND band_id = ? LIMIT 1`,
+  ),
+  findBandMutesForUser: db.prepare<[string], { band_id: string }>(
+    `SELECT band_id FROM band_mutes WHERE user_id = ?`,
+  ),
+
+  // --- notifications: band roster / thread participant lookups ---
+  findBandMemberIdsForProject: db.prepare<[string], { user_id: string }>(
+    `SELECT m.user_id
+       FROM memberships m
+       JOIN projects p ON p.band_id = m.band_id
+      WHERE p.id = ?`,
+  ),
+  findReplyParticipantsForAnnotation: db.prepare<[string], { user_id: string }>(
+    `SELECT DISTINCT user_id FROM annotation_replies WHERE annotation_id = ?`,
+  ),
+
+  // --- notifications: unread project query ---
+  // Named-param exception: user_id appears 4 times in subquery conditions; positional
+  // would require passing it 4 times. Named params used for this statement only.
+  selectProjectsWithUnreadForUser: db.prepare<
+    { user_id: string },
+    ProjectUnreadRow
+  >(
+    `SELECT DISTINCT p.id AS project_id, p.band_id
+       FROM projects p
+       JOIN memberships m ON m.band_id = p.band_id
+       LEFT JOIN project_reads pr ON pr.user_id = m.user_id AND pr.project_id = p.id
+      WHERE m.user_id = @user_id
+        AND p.deleted_at IS NULL
+        AND (
+          EXISTS (SELECT 1 FROM annotations a WHERE a.project_id = p.id AND a.created_at > COALESCE(pr.last_read_at, 0))
+          OR EXISTS (SELECT 1 FROM annotation_replies r JOIN annotations a ON a.id = r.annotation_id WHERE a.project_id = p.id AND r.created_at > COALESCE(pr.last_read_at, 0))
+          OR EXISTS (SELECT 1 FROM annotation_reactions rx JOIN annotations a ON a.id = rx.annotation_id WHERE a.project_id = p.id AND a.user_id = @user_id AND rx.user_id != @user_id AND rx.created_at > COALESCE(pr.last_read_at, 0))
+          OR EXISTS (SELECT 1 FROM annotation_reply_reactions rrx JOIN annotation_replies r ON r.id = rrx.reply_id JOIN annotations a ON a.id = r.annotation_id WHERE a.project_id = p.id AND r.user_id = @user_id AND rrx.user_id != @user_id AND rrx.created_at > COALESCE(pr.last_read_at, 0))
+        )`,
+  ),
+
+  // --- notifications: bands with mute status (for settings dialog) ---
+  // user_id passed twice: first for the EXISTS subquery, second for the membership filter.
+  findBandsForUserWithMuteStatus: db.prepare<[string, string], BandWithMuteRow>(
+    `SELECT b.id, b.name,
+            EXISTS(SELECT 1 FROM band_mutes bm WHERE bm.user_id = ? AND bm.band_id = b.id) AS muted
+       FROM bands b
+       JOIN memberships m ON m.band_id = b.id
+      WHERE m.user_id = ?
+      ORDER BY b.name`,
   ),
 };
