@@ -4348,3 +4348,33 @@ body.env-non-prod[data-env="local"]::before {
   border-radius: 1px;
   opacity: 0.5;
 }
+
+/* ---- Annotation grips ---------------------------------------------- */
+.annotation-grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: transparent;
+  cursor: ew-resize;
+  z-index: 8;
+  opacity: 0;
+  transition: opacity 80ms ease;
+}
+.annotation-marker.hovered .annotation-grip,
+.annotation-grip:active {
+  opacity: 1;
+}
+.annotation-grip-left { left: -3px; }
+.annotation-grip-right { right: -3px; }
+.annotation-grip::after {
+  content: '';
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 2px;
+  width: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  opacity: 0.8;
+}
