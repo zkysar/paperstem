@@ -71,6 +71,7 @@ type Props = {
   onRenameStem(serverId: string, name: string): void;
   onDeleteStem(serverId: string): void;
   viewport: ViewportControls;
+  onDismissPopovers?: () => void;
 };
 
 export function Player({
@@ -99,6 +100,7 @@ export function Player({
   onRenameStem,
   onDeleteStem,
   viewport,
+  onDismissPopovers,
 }: Props) {
   const { state, currentTime } = player;
   const {
@@ -415,6 +417,7 @@ export function Player({
     if (!duration) return;
     if (e.button !== 0) return;
     if (annotationCreateMode) return;
+    onDismissPopovers?.();
     const t = xToTime(e.clientX);
     // When looping is off (no region, region disabled, and not armed), a
     // drag on the ruler scrubs the playhead. Loop creation needs either an
