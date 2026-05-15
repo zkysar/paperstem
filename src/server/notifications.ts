@@ -1,5 +1,5 @@
-import { randomBytes } from 'node:crypto';
-import { stmts } from './db.js';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { db, stmts } from './db.js';
 
 const MENTION_TOKEN_RE = /@\[([a-z0-9-]+)\]/gi;
 const VALID_UID_RE = /^[a-z0-9-]+$/i;
@@ -90,4 +90,89 @@ export function applyPrefsFilter(
     const pref = kind === 'reply' ? prefs.email_thread_activity : prefs.email_project_activity;
     return pref !== 'off';
   });
+}
+
+export interface RecordActivityArgs {
+  kind: 'comment' | 'reply' | 'reaction';
+  sourceType: 'annotation' | 'reply';
+  sourceId: string;
+  projectId: string;
+  authorId: string;
+  body: string;
+}
+
+function nameLookupForUids(uids: string[]): Map<string, string> {
+  const out = new Map<string, string>();
+  if (uids.length === 0) return out;
+  const placeholders = uids.map(() => '?').join(',');
+  const rows = db
+    .prepare(`SELECT id, COALESCE(display_name, email) AS name FROM users WHERE id IN (${placeholders})`)
+    .all(...uids) as Array<{ id: string; name: string }>;
+  for (const r of rows) out.set(r.id, r.name);
+  return out;
+}
+
+function previewFor(body: string, names: Map<string, string>): string {
+  const resolved = body.replace(/@\[([a-z0-9-]+)\]/gi, (_, uid) => {
+    const name = names.get(uid);
+    return name ? `@${name}` : '@unknown';
+  });
+  return resolved.slice(0, 140);
+}
+
+export function recordActivity(args: RecordActivityArgs): { mentionRowIds: string[] } {
+  const { kind, sourceType, sourceId, projectId, authorId, body } = args;
+  const project = db.prepare('SELECT band_id FROM projects WHERE id = ?').get(projectId) as { band_id: string } | undefined;
+  if (!project) throw new Error('recordActivity: project not found');
+  const bandId = project.band_id;
+  const now = Date.now();
+
+  const tokens = parseMentions(body);
+  const mentionTargets = resolveMentions(tokens, projectId).filter((u) => u !== authorId);
+
+  let baseRecipients: string[] = [];
+  if (kind === 'comment') baseRecipients = recipientsForComment(projectId, authorId);
+  else if (kind === 'reply') {
+    const reply = stmts.findReplyById.get(sourceId) as { annotation_id: string } | undefined;
+    if (reply) baseRecipients = recipientsForReply(reply.annotation_id, authorId);
+  } else baseRecipients = recipientsForReaction(sourceType, sourceId, authorId);
+
+  const filteredBase = applyPrefsFilter(baseRecipients, bandId, kind);
+  const filteredMentions = applyPrefsFilter(mentionTargets, bandId, 'mention');
+
+  const mentionRowIds: string[] = [];
+  for (const target of filteredMentions) {
+    const id = randomUUID();
+    stmts.insertMention.run(id, sourceType, sourceId, projectId, authorId, target, now);
+    mentionRowIds.push(id);
+  }
+
+  const mentionSet = new Set(filteredMentions);
+  type Enqueue = { recipientId: string; kind: PendingKind };
+  const enqueue: Enqueue[] = [];
+  for (const r of filteredMentions) enqueue.push({ recipientId: r, kind: 'mention' });
+  for (const r of filteredBase) {
+    if (mentionSet.has(r)) continue;
+    enqueue.push({ recipientId: r, kind });
+  }
+
+  const names = nameLookupForUids(tokens);
+  const preview = previewFor(body, names);
+
+  for (const e of enqueue) {
+    stmts.insertPendingNotification.run(
+      randomUUID(),
+      e.recipientId,
+      e.kind,
+      projectId,
+      sourceType,
+      sourceId,
+      authorId,
+      preview,
+      generateReplyToken(),
+      now,
+    );
+  }
+
+  return { mentionRowIds };
 }

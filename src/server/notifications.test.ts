@@ -251,3 +251,139 @@ describe('getEffectivePrefs', () => {
     });
   });
 });
+
+describe('recordActivity', () => {
+  it('creates a pending_notifications row per recipient for a top-level comment', () => {
+    const author = createUser('a@e.test');
+    const m1 = createUser('m1@e.test');
+    const m2 = createUser('m2@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, m1);
+    addMembership(bandId, m2);
+    const pid = insertProject(bandId, author);
+    const annId = insertAnnotation(pid, author, 'hi everyone');
+
+    notifMod.recordActivity({
+      kind: 'comment', sourceType: 'annotation', sourceId: annId,
+      projectId: pid, authorId: author, body: 'hi everyone',
+    });
+
+    const rows = dbMod.db.prepare('SELECT recipient_id, kind FROM pending_notifications').all() as Array<{ recipient_id: string; kind: string }>;
+    expect(rows.length).toBe(2);
+    expect(rows.every((r) => r.kind === 'comment')).toBe(true);
+    expect(new Set(rows.map((r) => r.recipient_id))).toEqual(new Set([m1, m2]));
+  });
+
+  it('emits mention rows and dedups to mention-priority for a recipient who is both', () => {
+    const author = createUser('a@e.test');
+    const m1 = createUser('m1@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, m1);
+    const pid = insertProject(bandId, author);
+    const body = `hey @[${m1}] thoughts?`;
+    const annId = insertAnnotation(pid, author, body);
+
+    notifMod.recordActivity({
+      kind: 'comment', sourceType: 'annotation', sourceId: annId,
+      projectId: pid, authorId: author, body,
+    });
+
+    const mentions = dbMod.db.prepare('SELECT target_user_id FROM mentions').all() as Array<{ target_user_id: string }>;
+    expect(mentions.length).toBe(1);
+    expect(mentions[0].target_user_id).toBe(m1);
+
+    const pending = dbMod.db.prepare('SELECT kind, recipient_id FROM pending_notifications').all() as Array<{ kind: string; recipient_id: string }>;
+    expect(pending.length).toBe(1);
+    expect(pending[0]).toMatchObject({ kind: 'mention', recipient_id: m1 });
+  });
+
+  it('does not enqueue when only the author is in the band', () => {
+    const author = createUser('a@e.test');
+    const bandId = createBand(author);
+    const pid = insertProject(bandId, author);
+    const annId = insertAnnotation(pid, author, 'solo');
+    notifMod.recordActivity({
+      kind: 'comment', sourceType: 'annotation', sourceId: annId,
+      projectId: pid, authorId: author, body: 'solo',
+    });
+    const count = dbMod.db.prepare('SELECT COUNT(*) AS c FROM pending_notifications').get() as { c: number };
+    expect(count.c).toBe(0);
+  });
+
+  it('rolls back when the wrapping transaction fails', () => {
+    const author = createUser('a@e.test');
+    const m1 = createUser('m1@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, m1);
+    const pid = insertProject(bandId, author);
+    const annId = insertAnnotation(pid, author, 'x');
+
+    expect(() =>
+      dbMod.db.transaction(() => {
+        notifMod.recordActivity({
+          kind: 'comment', sourceType: 'annotation', sourceId: annId,
+          projectId: pid, authorId: author, body: 'x',
+        });
+        throw new Error('bail');
+      })(),
+    ).toThrow('bail');
+
+    const count = dbMod.db.prepare('SELECT COUNT(*) AS c FROM pending_notifications').get() as { c: number };
+    expect(count.c).toBe(0);
+  });
+
+  it('resolves mention preview using display names (or email if no display_name)', () => {
+    const author = createUser('a@e.test');
+    const m1 = createUser('m1@e.test', 'Sarah Lee');
+    const bandId = createBand(author);
+    addMembership(bandId, m1);
+    const pid = insertProject(bandId, author);
+    const body = `hi @[${m1}] check this`;
+    const annId = insertAnnotation(pid, author, body);
+
+    notifMod.recordActivity({
+      kind: 'comment', sourceType: 'annotation', sourceId: annId,
+      projectId: pid, authorId: author, body,
+    });
+
+    const row = dbMod.db.prepare('SELECT preview FROM pending_notifications').get() as { preview: string };
+    expect(row.preview).toContain('@Sarah Lee');
+  });
+
+  it('records a reply correctly: notifies annotation author + prior repliers, not current author', () => {
+    const a = createUser('a@e.test');
+    const b = createUser('b@e.test');
+    const c = createUser('c@e.test');
+    const bandId = createBand(a);
+    addMembership(bandId, b);
+    addMembership(bandId, c);
+    const pid = insertProject(bandId, a);
+    const annId = insertAnnotation(pid, a, 'parent');
+    insertReply(annId, c, 'prior');
+    const replyId = insertReply(annId, b, 'new');
+
+    notifMod.recordActivity({
+      kind: 'reply', sourceType: 'reply', sourceId: replyId,
+      projectId: pid, authorId: b, body: 'new',
+    });
+
+    const rows = dbMod.db.prepare('SELECT recipient_id FROM pending_notifications').all() as Array<{ recipient_id: string }>;
+    expect(new Set(rows.map((r) => r.recipient_id))).toEqual(new Set([a, c]));
+  });
+
+  it('records a reaction correctly: notifies target author only', () => {
+    const author = createUser('a@e.test');
+    const reactor = createUser('r@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, reactor);
+    const pid = insertProject(bandId, author);
+    const annId = insertAnnotation(pid, author, 'parent');
+
+    notifMod.recordActivity({
+      kind: 'reaction', sourceType: 'annotation', sourceId: annId,
+      projectId: pid, authorId: reactor, body: '',
+    });
+    const rows = dbMod.db.prepare('SELECT recipient_id, kind FROM pending_notifications').all();
+    expect(rows).toEqual([{ recipient_id: author, kind: 'reaction' }]);
+  });
+});
