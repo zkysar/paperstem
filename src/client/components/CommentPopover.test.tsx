@@ -2,7 +2,14 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { CommentPopover } from './CommentPopover';
-import type { Annotation } from '../../shared/types';
+import type { Annotation, AnnotationReply } from '../../shared/types';
+
+vi.mock('./Reactions', () => ({
+  Reactions: () => <div data-testid="mock-reactions" />,
+}));
+vi.mock('./ReplyThread', () => ({
+  ReplyThread: () => <div data-testid="mock-reply-thread" />,
+}));
 
 const region: Annotation = {
   id: 'a1',
@@ -16,6 +23,8 @@ const region: Annotation = {
   starred: false,
   created_at: 0,
   updated_at: 0,
+  reply_count: 0,
+  reactions: [],
 };
 
 const baseProps = {
@@ -31,6 +40,15 @@ const baseProps = {
   onDelete: vi.fn(),
   onCopyLink: vi.fn(),
   onClose: vi.fn(),
+  selfUserId: 'u1',
+  isNarrow: false,
+  replies: undefined as AnnotationReply[] | undefined,
+  replyCount: 0,
+  onLoadReplies: vi.fn(),
+  onCreateReply: vi.fn(),
+  onEditReply: vi.fn(),
+  onDeleteReply: vi.fn(),
+  onToggleReaction: vi.fn(),
 };
 
 describe('CommentPopover', () => {

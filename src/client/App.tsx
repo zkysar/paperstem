@@ -1189,6 +1189,8 @@ function PaperstemApp({
                     onDelete={() => void handleDelete(active)}
                     onCopyLink={() => void handleCopyCommentLink(active)}
                     onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
+                    selfUserId={user.id}
+                    isNarrow={isNarrow}
                     replies={replies.get(active.id)}
                     replyCount={active.reply_count}
                     onLoadReplies={loadReplies}
