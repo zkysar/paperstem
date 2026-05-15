@@ -82,6 +82,121 @@ describe('SectionLane', () => {
     expect(container.querySelector('.section-pill-chain')).toBeNull();
   });
 
+  it('renders auto sections with the fresh treatment + slate dot', () => {
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        sections={[
+          section({
+            id: 'auto-1',
+            start_ms: 0,
+            label: 'Chatter',
+            source: 'auto',
+            segment_type: 'chatter',
+          }),
+        ]}
+      />,
+    );
+    const pill = container.querySelector('.section-pill') as HTMLElement | null;
+    expect(pill).not.toBeNull();
+    expect(pill!.classList.contains('fresh')).toBe(true);
+    expect(pill!.classList.contains('tentative')).toBe(false);
+    expect(container.querySelector('.section-pill-ai-dot')).not.toBeNull();
+    // Fresh sections never set inline backgroundColor — the CSS owns the
+    // slate tint so the dashed border reads.
+    expect(pill!.style.backgroundColor).toBe('');
+  });
+
+  it('renders tentative auto music sections with a "low" chip and tentative class', () => {
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        sections={[
+          section({
+            id: 'auto-1',
+            start_ms: 0,
+            song_id: 'song-1',
+            song_name: 'Wagon Wheel',
+            source: 'auto',
+            segment_type: 'music',
+            tentative: true,
+            confidence: 0.55,
+          }),
+        ]}
+      />,
+    );
+    const pill = container.querySelector('.section-pill') as HTMLElement | null;
+    expect(pill).not.toBeNull();
+    expect(pill!.classList.contains('tentative')).toBe(true);
+    const chip = container.querySelector('.section-pill-chip');
+    expect(chip?.textContent).toBe('low');
+  });
+
+  it('renders confident auto music sections with a percentage chip', () => {
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        sections={[
+          section({
+            id: 'auto-1',
+            start_ms: 0,
+            song_id: 'song-1',
+            song_name: 'Wagon Wheel',
+            source: 'auto',
+            segment_type: 'music',
+            tentative: false,
+            confidence: 0.92,
+          }),
+        ]}
+      />,
+    );
+    const chip = container.querySelector('.section-pill-chip');
+    expect(chip?.textContent).toBe('92%');
+  });
+
+  it('does not render a confidence chip on auto sections without a song match', () => {
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        sections={[
+          section({
+            id: 'auto-1',
+            start_ms: 0,
+            label: 'Music',
+            source: 'auto',
+            segment_type: 'music',
+            confidence: 0.3,
+          }),
+        ]}
+      />,
+    );
+    expect(container.querySelector('.section-pill-chip')).toBeNull();
+  });
+
+  it('manual sections keep the existing solid fill and no fresh class', () => {
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        sections={[
+          section({
+            id: 'm-1',
+            start_ms: 0,
+            song_id: 'song-1',
+            song_name: 'Manual song',
+            source: 'manual',
+          }),
+        ]}
+      />,
+    );
+    const pill = container.querySelector('.section-pill') as HTMLElement | null;
+    expect(pill).not.toBeNull();
+    expect(pill!.classList.contains('fresh')).toBe(false);
+    expect(container.querySelector('.section-pill-ai-dot')).toBeNull();
+    // Manual sections keep the per-song hashed inline color so the lane
+    // stays distinct without relying on the cascade.
+    expect(pill!.style.backgroundColor).not.toBe('');
+  });
+
   it('clicking a pill seeks and selects', async () => {
     const onSelect = vi.fn();
     const onSeek = vi.fn();

@@ -11,6 +11,15 @@
   --accent-tint: rgba(193, 116, 70, 0.08);
   --accent-tint-2: rgba(193, 116, 70, 0.18);
   --accent-tint-3: rgba(193, 116, 70, 0.04);
+  /* Slate tokens for auto-classified "fresh" sections (Variant 2 from
+     scripts/poc/ui-mockup.html). Used by .section-pill.fresh, the section
+     popover's auto dot, and the auto-classify toast border. */
+  --auto-color: #6a7a8e;
+  --auto-tint: rgba(106, 122, 142, 0.10);
+  --auto-tint-2: rgba(106, 122, 142, 0.22);
+  /* Warm yellow for tentative auto matches (low-confidence song ID). */
+  --auto-warn: #c89c3e;
+  --auto-warn-tint: rgba(200, 156, 62, 0.10);
   --rail-w: 260px;
   --rail-gap: 12px;
 
@@ -3912,3 +3921,158 @@ body.env-non-prod[data-env="local"]::before {
     font-size: 16px;
   }
 }
+
+/* ---- Auto-classification ("fresh" sections + detection banner + toast) ---- */
+
+/* Variant 2 from scripts/poc/ui-mockup.html: source='auto' sections render
+   with a dashed slate border, faint slate tint, and a small slate dot at
+   the left edge. The treatment persists until the user touches the
+   section, at which point the server flips source to 'manual' and these
+   styles drop off automatically. */
+.section-pill.fresh {
+  background: var(--auto-tint);
+  box-shadow: none;
+  border: 1px dashed var(--auto-color);
+  color: var(--ink-2, var(--ink));
+}
+.section-pill.fresh:hover,
+.section-pill.fresh:focus-visible {
+  background: var(--auto-tint-2);
+}
+.section-pill.fresh.tentative {
+  border-color: var(--auto-warn);
+  background: var(--auto-warn-tint);
+}
+.section-pill-ai-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--auto-color);
+  flex-shrink: 0;
+}
+.section-pill.fresh.tentative .section-pill-ai-dot {
+  background: var(--auto-warn);
+}
+.section-pill-chip {
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 7px;
+  font-size: var(--fs-2xs);
+  padding: 0 4px;
+  font-family: var(--font-mono);
+  color: var(--ink-2);
+  flex-shrink: 0;
+}
+
+/* Popover slate dot — flags auto-detected origin in the popover title. */
+.sp-auto-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--auto-color);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* Detection banner — Flow B in the mockup. Sits below the draft banner
+   above the player. Non-blocking; user can play/scrub/save while it runs. */
+.detection-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  background: var(--accent-tint-3);
+  border-bottom: 1px solid var(--accent-tint-2);
+  font-size: var(--fs-sm);
+  color: var(--ink-2, var(--ink));
+}
+.detection-banner-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--rule);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: ac-spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes ac-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.detection-banner-label {
+  flex: 0 1 auto;
+}
+.detection-banner-num {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.detection-banner-bar-wrap {
+  flex: 1;
+  height: 3px;
+  background: var(--rule);
+  border-radius: 2px;
+  overflow: hidden;
+  max-width: 240px;
+}
+.detection-banner-bar {
+  height: 100%;
+  background: var(--accent);
+  transition: width 200ms ease;
+}
+
+/* First-time auto-classify toast — Flow D. Bottom-right anchor with the
+   slate left-border treatment that matches the section pill dot. */
+.auto-classify-toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  background: var(--paper);
+  border: 1px solid var(--auto-color);
+  border-left-width: 3px;
+  border-radius: 4px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  max-width: 380px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  z-index: 60;
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
+.ac-toast-icon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--auto-color);
+  margin-top: 5px;
+  flex-shrink: 0;
+}
+.ac-toast-body {
+  flex: 1;
+  line-height: 1.4;
+}
+.ac-toast-body strong {
+  color: var(--ink);
+}
+.ac-toast-sub {
+  display: block;
+  color: var(--muted);
+  font-size: var(--fs-xs);
+  margin-top: 2px;
+}
+.ac-toast-dismiss {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.ac-toast-dismiss:hover {
+  color: var(--ink);
+}
+

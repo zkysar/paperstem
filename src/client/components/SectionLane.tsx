@@ -24,12 +24,34 @@ type ComputedSection = {
   fillColor: string;
   label: string;
   shared: boolean;
+  // True for source='auto' sections that haven't been touched yet — they
+  // render with the Variant 2 "fresh" treatment from ui-mockup.html (dashed
+  // slate border, faint slate tint, slate dot at the left edge).
+  fresh: boolean;
+  // True when the section is a tentative auto match (chroma confidence
+  // between LOW and HIGH thresholds) — borders go warm-yellow.
+  tentative: boolean;
+  // Confidence chip text ("92%" / "low") shown on auto music sections with
+  // a song attached. null when there's nothing to show.
+  confidenceChip: string | null;
 };
 
 function labelFor(section: Section): string {
   if (section.song_name) return section.song_name;
   if (section.label) return section.label;
   return 'Untitled';
+}
+
+function confidenceChipFor(section: Section): string | null {
+  if (section.source !== 'auto') return null;
+  if (section.segment_type !== 'music') return null;
+  // Only show chips on sections that actually got a song match.
+  if (!section.song_id) return null;
+  if (section.tentative) return 'low';
+  if (typeof section.confidence === 'number') {
+    return `${Math.round(section.confidence * 100)}%`;
+  }
+  return null;
 }
 
 export function SectionLane({
@@ -67,6 +89,8 @@ export function SectionLane({
         : FREE_TEXT_SECTION_COLOR;
       const shared = !!section.song_id
         && (songUseCounts.get(section.song_id) ?? 0) > 1;
+      const fresh = section.source === 'auto';
+      const tentative = fresh && section.tentative === true;
       return {
         section,
         leftPx,
@@ -74,6 +98,9 @@ export function SectionLane({
         fillColor,
         label: labelFor(section),
         shared,
+        fresh,
+        tentative,
+        confidenceChip: confidenceChipFor(section),
       };
     });
   }, [sections, duration, waveLeftPx, waveWidthPx, songUseCounts]);
@@ -90,18 +117,27 @@ export function SectionLane({
       <div className="section-rail-mask" aria-hidden="true" />
       {computed.map((c) => {
         const isActive = activeSectionId === c.section.id;
+        const cls =
+          'section-pill' +
+          (isActive ? ' active' : '') +
+          (c.fresh ? ' fresh' : '') +
+          (c.tentative ? ' tentative' : '');
+        // Fresh sections paint over the slate "fresh" treatment via CSS —
+        // suppress the per-song fill so the dashed slate border reads.
+        const inlineStyle: React.CSSProperties = {
+          left: `${c.leftPx}px`,
+          width: `${c.widthPx}px`,
+        };
+        if (!c.fresh) inlineStyle.backgroundColor = c.fillColor;
         return (
           <button
             type="button"
             key={c.section.id}
             data-testid={`section-${c.section.id}`}
             data-section-id={c.section.id}
-            className={'section-pill' + (isActive ? ' active' : '')}
-            style={{
-              left: `${c.leftPx}px`,
-              width: `${c.widthPx}px`,
-              backgroundColor: c.fillColor,
-            }}
+            data-source={c.section.source}
+            className={cls}
+            style={inlineStyle}
             title={
               c.section.song_name
                 ? c.shared
@@ -116,7 +152,13 @@ export function SectionLane({
               onSelect(c.section);
             }}
           >
+            {c.fresh && (
+              <span className="section-pill-ai-dot" aria-hidden="true" />
+            )}
             <span className="section-pill-label">{c.label}</span>
+            {c.confidenceChip && (
+              <span className="section-pill-chip">{c.confidenceChip}</span>
+            )}
             {c.shared && (
               <Link2
                 size={10}

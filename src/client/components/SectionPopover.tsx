@@ -218,6 +218,13 @@ export function SectionPopover({
     >
       <div className="sp-header">
         <span className="sp-title">
+          {section?.source === 'auto' && (
+            <span
+              className="sp-auto-dot"
+              aria-label="Auto-detected section"
+              title="Detected automatically"
+            />
+          )}
           {section ? 'Section' : 'New section'} at {fmt(startMs / 1000)}
         </span>
         <button
