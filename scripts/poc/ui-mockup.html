@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Auto-section classification — UX mockup</title>
+<title>Auto-section classification — UX mockup v2 (inline-in-drawer)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
@@ -22,8 +22,8 @@
     --accent-tint-3: rgba(193, 116, 70, 0.04);
     --auto-color: #6a7a8e;
     --auto-tint: rgba(106, 122, 142, 0.10);
-    --auto-tint-2: rgba(106, 122, 142, 0.22);
     --warn: #c89c3e;
+    --danger: #b54040;
     --font-sans: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --font-display: "Playfair Display", Georgia, serif;
@@ -50,9 +50,19 @@
   }
   .lede {
     color: var(--muted);
-    margin: 0 0 36px;
-    max-width: 700px;
+    margin: 0 0 28px;
+    max-width: 760px;
   }
+  .pitch {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    margin: 0 0 28px;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .pitch strong { color: var(--ink); }
   .flow {
     background: var(--paper);
     border: 1px solid var(--rule);
@@ -83,15 +93,16 @@
     color: var(--ink-2);
     margin: 0 0 20px;
     font-size: 13px;
+    max-width: 760px;
   }
 
   /* ---------- Upload drawer mock ---------- */
-  .upload-drawer-wrap {
+  .drawer {
     background: var(--bg);
     border: 1px solid var(--rule);
     border-radius: 6px;
     padding: 20px;
-    max-width: 480px;
+    max-width: 560px;
   }
   .drawer-header {
     display: flex;
@@ -111,9 +122,7 @@
     font-size: 18px;
     cursor: pointer;
   }
-  .field {
-    margin: 0 0 14px;
-  }
+  .field { margin: 0 0 14px; }
   .field label {
     display: block;
     font-size: 11px;
@@ -149,45 +158,215 @@
   .file-row + .file-row { border-top: 1px solid var(--rule-2); }
   .file-status { color: var(--muted); }
 
-  .auto-classify-row {
-    background: var(--accent-tint-3);
+  /* ---------- Section detection pane ---------- */
+  .sections-pane {
     border: 1px solid var(--rule);
     border-radius: 4px;
-    padding: 10px 12px;
+    background: var(--paper);
+    padding: 12px;
     margin-bottom: 16px;
   }
-  .auto-classify-row label {
+  .sections-pane.detecting {
+    background: linear-gradient(180deg, var(--paper) 0%, var(--accent-tint-3) 100%);
+  }
+  .sections-pane-header {
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    cursor: pointer;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
   }
-  .auto-classify-row input[type="checkbox"] {
-    margin-top: 2px;
-    accent-color: var(--accent);
-  }
-  .auto-classify-row .title {
-    font-weight: 500;
-    font-size: 13px;
-    display: block;
-  }
-  .auto-classify-row .hint {
+  .sections-pane-header label {
     font-size: 11px;
-    color: var(--muted);
-    display: block;
-    margin-top: 2px;
-  }
-  .auto-classify-row .new-badge {
-    display: inline-block;
-    background: var(--accent);
-    color: white;
-    font-size: 9px;
-    font-weight: 600;
-    padding: 1px 6px;
-    border-radius: 8px;
-    margin-left: 6px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    color: var(--muted);
+    margin: 0;
+  }
+  .sections-pane-count {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+
+  /* Mini timeline */
+  .mini-timeline {
+    position: relative;
+    height: 26px;
+    background: var(--bg);
+    border-radius: 3px;
+    border: 1px solid var(--rule-2);
+    margin-bottom: 12px;
+  }
+  .mini-section {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    background: var(--accent-tint-2);
+    border: 1px solid var(--accent);
+    border-radius: 2px;
+    font-size: 9px;
+    color: var(--ink);
+    padding: 0 4px;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .mini-section.type-music { background: var(--accent-tint-2); border-color: var(--accent); }
+  .mini-section.type-chatter { background: var(--auto-tint); border-color: var(--auto-color); color: var(--auto-color); }
+  .mini-section.type-tuning { background: rgba(200, 156, 62, 0.12); border-color: var(--warn); color: #8a6620; }
+  .mini-section.discarded { opacity: 0.25; text-decoration: line-through; }
+  .mini-section.tentative { border-style: dashed; }
+
+  /* Section list */
+  .section-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .section-row {
+    display: grid;
+    grid-template-columns: 64px 96px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+  }
+  .section-row:hover { background: var(--accent-tint-3); }
+  .section-row.discarded {
+    opacity: 0.4;
+  }
+  .section-row.discarded .name-input {
+    text-decoration: line-through;
+    color: var(--muted);
+  }
+  .section-row.editing {
+    background: var(--accent-tint);
+    box-shadow: 0 0 0 1px var(--accent-tint-2) inset;
+  }
+  .section-time {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .section-type-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: 500;
+    background: var(--rule-2);
+    color: var(--ink-2);
+    width: max-content;
+  }
+  .section-type-pill.type-music { background: var(--accent-tint-2); color: var(--accent); }
+  .section-type-pill.type-chatter { background: var(--auto-tint); color: var(--auto-color); }
+  .section-type-pill.type-tuning { background: rgba(200, 156, 62, 0.18); color: #8a6620; }
+  .name-input {
+    background: transparent;
+    border: none;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--ink);
+    padding: 2px 4px;
+    width: 100%;
+    border-radius: 2px;
+  }
+  .name-input:focus {
+    background: var(--paper);
+    outline: 1px solid var(--accent);
+  }
+  .name-input.tentative {
+    color: var(--ink-2);
+    font-style: italic;
+  }
+  .confidence-tag {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--muted);
+    margin-left: 4px;
+    background: var(--rule-2);
+    padding: 1px 4px;
+    border-radius: 6px;
+  }
+  .confidence-tag.low { background: rgba(200, 156, 62, 0.15); color: #8a6620; }
+  .discard-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .discard-btn:hover { background: var(--rule-2); color: var(--danger); }
+  .restore-btn {
+    background: none;
+    border: 1px solid var(--rule);
+    color: var(--muted);
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+  }
+
+  /* Detection progress */
+  .detecting-status {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 4px 0 8px;
+  }
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--rule);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress-bar-wrap {
+    flex: 1;
+    height: 4px;
+    background: var(--rule);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+    transition: width 0.2s;
+  }
+  .progress-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .skeleton-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 4px 0;
+  }
+  .skeleton {
+    height: 26px;
+    background: linear-gradient(90deg, var(--rule-2) 0%, var(--rule) 50%, var(--rule-2) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: 3px;
+  }
+  .skeleton.short { width: 70%; }
+  .skeleton.medium { width: 90%; }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
 
   button.primary {
@@ -203,224 +382,24 @@
     cursor: pointer;
   }
   button.primary:hover { background: #ab6539; }
-
-  /* ---------- Timeline mock ---------- */
-  .toolbar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    background: var(--bg);
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    margin-bottom: 14px;
+  button.primary:disabled {
+    background: var(--muted-2);
+    cursor: wait;
   }
-  .toolbar-spacer { flex: 1; }
-  .btn {
-    background: var(--paper);
-    border: 1px solid var(--rule);
-    border-radius: 4px;
-    padding: 6px 10px;
-    font-family: inherit;
-    font-size: 12px;
-    color: var(--ink);
-    cursor: pointer;
-  }
-  .btn:hover { background: var(--accent-tint-3); border-color: var(--accent-tint-2); }
-  .btn.accent {
-    background: var(--accent);
-    color: white;
-    border-color: var(--accent);
-  }
-  .btn.accent:hover { background: #ab6539; }
-  .btn-group {
-    display: inline-flex;
-  }
-  .btn-group .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-  .btn-group .btn:last-child { border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 6px 8px; }
-
-  .progress-bar-wrap {
-    flex: 1;
-    margin: 0 12px;
-    height: 6px;
-    background: var(--rule);
-    border-radius: 3px;
-    overflow: hidden;
-  }
-  .progress-bar {
-    height: 100%;
-    background: var(--accent);
-    width: 47%;
-    transition: width 0.2s;
-  }
-  .progress-label {
-    font-family: var(--font-mono);
+  .secondary-action {
+    display: block;
+    text-align: center;
+    background: none;
+    border: none;
+    color: var(--muted);
     font-size: 11px;
-    color: var(--muted);
-  }
-
-  .timeline {
-    background: var(--paper);
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    padding: 14px;
-    position: relative;
-  }
-  .timeline-ruler {
-    display: flex;
-    justify-content: space-between;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--muted);
-    margin-bottom: 10px;
-  }
-  .lane {
-    position: relative;
-    height: 56px;
-    background: var(--bg);
-    border-radius: 4px;
-    border: 1px solid var(--rule-2);
-    overflow: hidden;
-  }
-  .lane + .lane { margin-top: 10px; }
-  .lane-label {
-    position: absolute;
-    top: 4px;
-    left: 8px;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-    font-weight: 500;
-  }
-  .section {
-    position: absolute;
-    top: 22px;
-    bottom: 6px;
-    background: var(--accent-tint-2);
-    border: 1px solid var(--accent);
-    border-radius: 3px;
-    padding: 4px 8px;
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--ink);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    overflow: hidden;
-    white-space: nowrap;
+    margin-top: 6px;
     cursor: pointer;
+    width: 100%;
   }
-  .section.auto {
-    border: 1.5px dashed var(--auto-color);
-    background: var(--auto-tint);
-    color: var(--ink-2);
-    font-style: italic;
-  }
-  .section.auto.tentative {
-    background: rgba(200, 156, 62, 0.08);
-    border-color: var(--warn);
-    border-style: dashed;
-  }
-  .section .chip {
-    background: rgba(255,255,255,0.7);
-    border-radius: 8px;
-    font-size: 9px;
-    padding: 1px 5px;
-    font-family: var(--font-mono);
-    font-style: normal;
-    font-weight: 500;
-    color: var(--ink-2);
-    flex-shrink: 0;
-  }
-  .section.auto .chip { background: rgba(255,255,255,0.8); }
-  .section.auto.tentative .chip { color: #8a6620; }
+  .secondary-action:hover { color: var(--ink-2); text-decoration: underline; }
 
-  .section .ai-mark {
-    font-size: 10px;
-    color: var(--auto-color);
-    flex-shrink: 0;
-    line-height: 1;
-  }
-
-  /* ---------- Popover mock ---------- */
-  .popover-stage {
-    position: relative;
-    padding: 30px;
-    background: var(--rule-2);
-    border-radius: 6px;
-    min-height: 240px;
-  }
-  .popover-anchor {
-    position: absolute;
-    top: 56px;
-    left: 40px;
-    background: var(--auto-tint);
-    border: 1.5px dashed var(--auto-color);
-    border-radius: 3px;
-    padding: 6px 10px;
-    font-size: 11px;
-    color: var(--ink-2);
-    font-style: italic;
-    display: flex;
-    gap: 6px;
-    align-items: center;
-  }
-  .popover {
-    position: absolute;
-    top: 100px;
-    left: 40px;
-    background: var(--paper);
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-    padding: 12px;
-    min-width: 260px;
-  }
-  .popover-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--rule-2);
-  }
-  .popover-title {
-    font-weight: 600;
-    font-size: 13px;
-  }
-  .popover-meta {
-    font-size: 10px;
-    color: var(--muted);
-    font-family: var(--font-mono);
-    margin-bottom: 12px;
-  }
-  .popover-meta-row { display: flex; justify-content: space-between; }
-  .popover-actions { display: flex; flex-direction: column; gap: 4px; }
-  .popover-action {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 6px 8px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-  }
-  .popover-action:hover { background: var(--rule-2); }
-  .popover-action.primary {
-    background: var(--accent-tint);
-    color: var(--accent);
-    font-weight: 600;
-  }
-  .popover-action.primary:hover { background: var(--accent-tint-2); }
-  .popover-action .kbd {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--muted);
-  }
-  .popover-action.danger { color: #b54040; }
-
-  /* ---------- Project list row mock ---------- */
+  /* Project list row */
   .project-row {
     display: flex;
     align-items: center;
@@ -430,7 +409,6 @@
     border-radius: 6px;
     margin-bottom: 8px;
   }
-  .project-row + .project-row { margin-top: 0; }
   .project-row.has-pending { border-left: 3px solid var(--auto-color); padding-left: 13px; }
   .project-row .name { font-weight: 500; flex: 1; }
   .project-row .meta { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-right: 12px; }
@@ -445,31 +423,7 @@
     align-items: center;
     gap: 4px;
   }
-  .pending-badge .dot {
-    width: 5px; height: 5px; background: var(--auto-color); border-radius: 50%;
-  }
-
-  /* Legend */
-  .legend {
-    display: flex;
-    gap: 24px;
-    background: var(--bg);
-    border: 1px solid var(--rule);
-    border-radius: 6px;
-    padding: 12px 16px;
-    margin: 0 0 24px;
-    font-size: 12px;
-  }
-  .legend-item { display: flex; align-items: center; gap: 8px; }
-  .swatch {
-    width: 36px;
-    height: 18px;
-    border-radius: 3px;
-    flex-shrink: 0;
-  }
-  .swatch.manual { background: var(--accent-tint-2); border: 1px solid var(--accent); }
-  .swatch.auto-high { background: var(--auto-tint); border: 1.5px dashed var(--auto-color); }
-  .swatch.auto-tentative { background: rgba(200,156,62,0.08); border: 1.5px dashed var(--warn); }
+  .pending-badge .dot { width: 5px; height: 5px; background: var(--auto-color); border-radius: 50%; }
 
   .notes {
     background: rgba(193, 116, 70, 0.04);
@@ -482,204 +436,317 @@
   .notes strong { color: var(--ink); }
   .notes ul { margin: 6px 0 0; padding-left: 20px; }
   .notes li + li { margin-top: 4px; }
+
+  /* Side-by-side drawer states */
+  .drawer-states {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: flex-start;
+  }
+  .drawer-state-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  @media (max-width: 900px) {
+    .drawer-states { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
 <div class="page">
 
-  <h1>Auto-section classification — UX mockup</h1>
+  <h1>Auto-section classification — UX mockup v2</h1>
   <p class="lede">
-    Visual exploration of where the auto-classification feature lives in the UI.
-    Showing each flow inline. Drag your eyes top-to-bottom in order; the flows
-    follow the user's journey from upload → review.
+    <strong>The flow:</strong> classification happens inline in the upload
+    drawer the moment the user picks a directory. The user reviews proposed
+    sections right there — rename or discard — and then commits everything
+    in one Save. No separate "review later" step on the project page.
   </p>
 
-  <div class="legend">
-    <div class="legend-item"><div class="swatch manual"></div><span>Manual section (solid border, full color)</span></div>
-    <div class="legend-item"><div class="swatch auto-high"></div><span>Auto, confident (dashed)</span></div>
-    <div class="legend-item"><div class="swatch auto-tentative"></div><span>Auto, tentative (yellow dashed)</span></div>
+  <div class="pitch">
+    <strong>What collapsed from v1:</strong> the opt-in checkbox is gone (it just always runs);
+    the project-page "auto vs manual" visual distinction is gone (sections are
+    already approved at commit time); the "Accept all confident / Discard all"
+    toolbar is gone (you do that inline in the drawer); the "re-classify"
+    button is gone (re-import to re-classify). The badge on project rows
+    still exists — but only for CLI-imported projects, since the CLI has no
+    interactive review step.
   </div>
 
   <!-- ============================================ -->
   <div class="flow">
     <div class="flow-head">
-      <span class="flow-num">Flow 1 + 2</span>
-      <h2 class="flow-title">During upload — per-import checkbox</h2>
+      <span class="flow-num">Flow A</span>
+      <h2 class="flow-title">Picking the directory — classification starts immediately</h2>
     </div>
     <p class="flow-desc">
-      The toggle lives in the UploadDrawer, not in global settings. Default
-      remembered per user via localStorage. Classification runs concurrently
-      with the upload (browser decodes the file, runs YAMNet + chroma in
-      parallel — done in &lt;15 s for a 90-min file).
+      Right after the user picks files (or drops a folder), the drawer opens
+      and YAMNet + chroma start running on the full mix. While that happens,
+      the user can name the project and set the recorded date. Both happen
+      in parallel — the user's metadata input fills the otherwise-wasted
+      10–15s of classification compute.
     </p>
 
-    <div class="upload-drawer-wrap">
+    <div class="drawer-states">
+      <div>
+        <div class="drawer-state-label">State 1 — detecting</div>
+        <div class="drawer">
+          <div class="drawer-header">
+            <span class="drawer-title">Upload to Paper Straw</span>
+            <button class="drawer-close">×</button>
+          </div>
+          <div class="field">
+            <label>Project name</label>
+            <input type="text" value="practice-2026-05-15">
+          </div>
+          <div class="field">
+            <label>Recorded on</label>
+            <input type="date" value="2026-05-15">
+          </div>
+          <div class="field">
+            <label>Files (3)</label>
+            <div class="file-list">
+              <div class="file-row"><span>A Guitar.wav</span><span class="file-status">33.1 MB</span></div>
+              <div class="file-row"><span>Bass.wav</span><span class="file-status">32.9 MB</span></div>
+              <div class="file-row"><span>Drums.wav</span><span class="file-status">32.9 MB</span></div>
+            </div>
+          </div>
+
+          <div class="sections-pane detecting">
+            <div class="sections-pane-header">
+              <label>Sections</label>
+              <span class="sections-pane-count">detecting…</span>
+            </div>
+            <div class="detecting-status">
+              <div class="spinner"></div>
+              <div class="progress-bar-wrap"><div class="progress-bar" style="width: 47%;"></div></div>
+              <span class="progress-label">47%</span>
+            </div>
+            <div class="skeleton-list">
+              <div class="skeleton medium"></div>
+              <div class="skeleton short"></div>
+              <div class="skeleton medium"></div>
+            </div>
+          </div>
+
+          <button class="primary" disabled>Detecting sections…</button>
+          <button class="secondary-action">Skip detection and save now</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="drawer-state-label">State 2 — sections detected, ready to review</div>
+        <div class="drawer">
+          <div class="drawer-header">
+            <span class="drawer-title">Upload to Paper Straw</span>
+            <button class="drawer-close">×</button>
+          </div>
+          <div class="field">
+            <label>Project name</label>
+            <input type="text" value="practice-2026-05-15">
+          </div>
+          <div class="field">
+            <label>Recorded on</label>
+            <input type="date" value="2026-05-15">
+          </div>
+          <div class="field">
+            <label>Files (3)</label>
+            <div class="file-list">
+              <div class="file-row"><span>A Guitar.wav</span><span class="file-status">33.1 MB</span></div>
+              <div class="file-row"><span>Bass.wav</span><span class="file-status">32.9 MB</span></div>
+              <div class="file-row"><span>Drums.wav</span><span class="file-status">32.9 MB</span></div>
+            </div>
+          </div>
+
+          <div class="sections-pane">
+            <div class="sections-pane-header">
+              <label>Sections (5)</label>
+              <span class="sections-pane-count">click to rename · X to discard</span>
+            </div>
+            <div class="mini-timeline">
+              <div class="mini-section type-chatter" style="left: 0.5%; width: 12%;">Chatter</div>
+              <div class="mini-section type-music" style="left: 13%; width: 26%;">Wagon Wheel</div>
+              <div class="mini-section type-tuning" style="left: 40%; width: 18%;">Tuning</div>
+              <div class="mini-section type-music tentative" style="left: 59%; width: 22%;">Tennessee Stud?</div>
+              <div class="mini-section type-music" style="left: 82%; width: 17%;">Music</div>
+            </div>
+            <div class="section-list">
+              <div class="section-row">
+                <span class="section-time">0:00 – 0:32</span>
+                <span class="section-type-pill type-chatter">● chatter</span>
+                <input class="name-input" value="Chatter">
+                <button class="discard-btn" title="Discard">×</button>
+              </div>
+              <div class="section-row editing">
+                <span class="section-time">0:32 – 4:15</span>
+                <span class="section-type-pill type-music">● music</span>
+                <input class="name-input" value="Wagon Wheel"><span class="confidence-tag">92%</span>
+                <button class="discard-btn" title="Discard">×</button>
+              </div>
+              <div class="section-row">
+                <span class="section-time">4:15 – 5:48</span>
+                <span class="section-type-pill type-tuning">● tuning</span>
+                <input class="name-input" value="Tuning">
+                <button class="discard-btn" title="Discard">×</button>
+              </div>
+              <div class="section-row">
+                <span class="section-time">5:48 – 11:23</span>
+                <span class="section-type-pill type-music">● music</span>
+                <input class="name-input tentative" value="Tennessee Stud?"><span class="confidence-tag low">low</span>
+                <button class="discard-btn" title="Discard">×</button>
+              </div>
+              <div class="section-row">
+                <span class="section-time">11:23 – 14:55</span>
+                <span class="section-type-pill type-music">● music</span>
+                <input class="name-input" value="Music">
+                <button class="discard-btn" title="Discard">×</button>
+              </div>
+            </div>
+          </div>
+
+          <button class="primary">Save to Paper Straw</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <strong>Decisions in this mock:</strong>
+      <ul>
+        <li><strong>No "auto" badging in the drawer.</strong> Every row is just "a section the system found." Once you Save, they're committed as ordinary sections.</li>
+        <li><strong>Type pills</strong> (music / chatter / tuning) replace the auto-vs-manual visual distinction. They convey what kind of segment it is, not where it came from.</li>
+        <li><strong>Tentative matches</strong> (Tennessee Stud?) show the song name with a question mark + italic + small "low" tag. Still committed as a manual section if you Save without editing — but visually flagged so you notice them.</li>
+        <li><strong>"Skip detection and save now"</strong> is the escape hatch — if the user knows detection is wrong / running long, they can bypass and save without sections.</li>
+        <li><strong>Save is disabled until detection finishes</strong> — keeps the model simple. (Alternative: enable Save anytime; detection results POST after upload completes.)</li>
+        <li><strong>Mini timeline at the top</strong> gives proportional visual context. The list below is the workspace for renaming/discarding.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <div class="flow">
+    <div class="flow-head">
+      <span class="flow-num">Flow B</span>
+      <h2 class="flow-title">Interactions — rename, discard, restore</h2>
+    </div>
+    <p class="flow-desc">
+      Three things the user does inside the section list. All are
+      keyboard-fluent so a power user can work through many sections fast.
+    </p>
+
+    <div class="sections-pane" style="max-width: 560px;">
+      <div class="sections-pane-header">
+        <label>Sections (5)</label>
+        <span class="sections-pane-count">1 discarded · 1 renamed</span>
+      </div>
+      <div class="mini-timeline">
+        <div class="mini-section type-chatter" style="left: 0.5%; width: 12%;">Setup</div>
+        <div class="mini-section type-music" style="left: 13%; width: 26%;">Wagon Wheel</div>
+        <div class="mini-section type-tuning discarded" style="left: 40%; width: 18%;">Tuning</div>
+        <div class="mini-section type-music tentative" style="left: 59%; width: 22%;">Tennessee Stud?</div>
+        <div class="mini-section type-music" style="left: 82%; width: 17%;">Music</div>
+      </div>
+      <div class="section-list">
+        <div class="section-row">
+          <span class="section-time">0:00 – 0:32</span>
+          <span class="section-type-pill type-chatter">● chatter</span>
+          <input class="name-input" value="Setup"><span style="font-size: 9px; color: var(--accent); margin-left: 4px; font-style: italic;">edited</span>
+          <button class="discard-btn">×</button>
+        </div>
+        <div class="section-row">
+          <span class="section-time">0:32 – 4:15</span>
+          <span class="section-type-pill type-music">● music</span>
+          <input class="name-input" value="Wagon Wheel"><span class="confidence-tag">92%</span>
+          <button class="discard-btn">×</button>
+        </div>
+        <div class="section-row discarded">
+          <span class="section-time">4:15 – 5:48</span>
+          <span class="section-type-pill type-tuning">● tuning</span>
+          <input class="name-input" value="Tuning" readonly>
+          <button class="restore-btn">restore</button>
+        </div>
+        <div class="section-row">
+          <span class="section-time">5:48 – 11:23</span>
+          <span class="section-type-pill type-music">● music</span>
+          <input class="name-input tentative" value="Tennessee Stud?"><span class="confidence-tag low">low</span>
+          <button class="discard-btn">×</button>
+        </div>
+        <div class="section-row">
+          <span class="section-time">11:23 – 14:55</span>
+          <span class="section-type-pill type-music">● music</span>
+          <input class="name-input" value="Music">
+          <button class="discard-btn">×</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <strong>Interaction details:</strong>
+      <ul>
+        <li><strong>Click anywhere in the name field to rename.</strong> Tab cycles between rows for fast keyboard editing.</li>
+        <li><strong>Discard</strong> doesn't remove the row — it strikes through and offers restore. Easy to undo before commit; goes away on Save.</li>
+        <li><strong>The mini timeline</strong> reflects discarded sections too (greyed-out), so you can see the resulting structure as you edit.</li>
+        <li><strong>Adjusting section *boundaries* in the drawer is intentionally not supported.</strong> Boundary drag is a precision task that belongs in the full project view (zoomed timeline). The drawer is for naming and pruning. If the user wants to fix a boundary, they save first, then adjust in the timeline.</li>
+        <li><strong>What about adding a new section the model missed?</strong> Same answer — defer to the project view. The drawer is the "review what the model found" view, not the "compose from scratch" view.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <div class="flow">
+    <div class="flow-head">
+      <span class="flow-num">Flow C</span>
+      <h2 class="flow-title">Save — uploading + committing in one shot</h2>
+    </div>
+    <p class="flow-desc">
+      The user clicks Save. The drawer disables its inputs and shows the
+      upload progressing. Sections are POSTed alongside the project create
+      request (or right after), so when the drawer closes the project page
+      already has them.
+    </p>
+
+    <div class="drawer">
       <div class="drawer-header">
         <span class="drawer-title">Upload to Paper Straw</span>
-        <button class="drawer-close">×</button>
       </div>
       <div class="field">
         <label>Project name</label>
-        <input type="text" value="practice-2026-05-15">
+        <input type="text" value="practice-2026-05-15" readonly style="opacity: 0.6;">
       </div>
       <div class="field">
-        <label>Recorded on</label>
-        <input type="date" value="2026-05-15">
-      </div>
-      <div class="field">
-        <label>Files (3)</label>
+        <label>Files (3) — uploading</label>
         <div class="file-list">
-          <div class="file-row"><span>A Guitar.wav</span><span class="file-status">33.1 MB</span></div>
-          <div class="file-row"><span>Bass.wav</span><span class="file-status">32.9 MB</span></div>
-          <div class="file-row"><span>Drums.wav</span><span class="file-status">32.9 MB</span></div>
+          <div class="file-row"><span>A Guitar.wav</span><span class="file-status" style="color: var(--accent);">uploading 62%</span></div>
+          <div class="file-row"><span>Bass.wav</span><span class="file-status" style="color: var(--accent);">uploading 38%</span></div>
+          <div class="file-row"><span>Drums.wav</span><span class="file-status" style="color: var(--muted);">queued</span></div>
         </div>
       </div>
-
-      <div class="auto-classify-row">
-        <label>
-          <input type="checkbox" checked>
-          <span>
-            <span class="title">Auto-section this practice <span class="new-badge">New</span></span>
-            <span class="hint">Detect songs, chatter, and tuning automatically. Runs in your browser during upload.</span>
-          </span>
-        </label>
-      </div>
-
-      <button class="primary">Save to Paper Straw</button>
-    </div>
-
-    <div class="notes">
-      <strong>Notes / open Qs:</strong>
-      <ul>
-        <li>Default checked or unchecked? My recommendation: unchecked the first time (experimental); the user's choice is remembered for next upload.</li>
-        <li>If the browser doesn't support wasm, the row hides entirely.</li>
-        <li>If the user unchecks, the upload behaves exactly as today — no extra work.</li>
-      </ul>
-    </div>
-  </div>
-
-  <!-- ============================================ -->
-  <div class="flow">
-    <div class="flow-head">
-      <span class="flow-num">Flow 3</span>
-      <h2 class="flow-title">Project view — reviewing auto-sections</h2>
-    </div>
-    <p class="flow-desc">
-      After upload, the user lands on the project page. The timeline shows
-      detected sections. Auto sections have a dashed border, faded color, and
-      a confidence chip. Two confidence tiers: confident (slate) and tentative
-      (warm yellow).
-    </p>
-
-    <div class="toolbar">
-      <span class="progress-label"><strong>5 auto-section suggestions</strong></span>
-      <span class="toolbar-spacer"></span>
-      <button class="btn">Discard all auto</button>
-      <button class="btn accent">Accept all confident (3)</button>
-      <div class="btn-group">
-        <button class="btn">Re-classify</button>
-        <button class="btn">▾</button>
-      </div>
-    </div>
-
-    <div class="timeline">
-      <div class="timeline-ruler">
-        <span>0:00</span>
-        <span>1:00</span>
-        <span>2:00</span>
-        <span>3:00</span>
-        <span>4:00</span>
-      </div>
-      <div class="lane">
-        <span class="lane-label">Sections</span>
-        <!-- Auto silence / chatter at start -->
-        <div class="section auto" style="left: 0.5%; width: 12%;">
-          <span class="ai-mark">●</span>
-          Chatter
-          <span class="chip">auto</span>
+      <div class="sections-pane">
+        <div class="sections-pane-header">
+          <label>Sections (4)</label>
+          <span class="sections-pane-count" style="color: var(--accent);">✓ ready to commit</span>
         </div>
-        <!-- Auto music with confident song match -->
-        <div class="section auto" style="left: 13%; width: 26%;">
-          <span class="ai-mark">●</span>
-          Wagon Wheel
-          <span class="chip">92%</span>
-        </div>
-        <!-- Manual section -->
-        <div class="section" style="left: 40%; width: 18%;">
-          Tuning break
-        </div>
-        <!-- Auto with tentative match -->
-        <div class="section auto tentative" style="left: 59%; width: 22%;">
-          <span class="ai-mark">●</span>
-          Tennessee Stud?
-          <span class="chip">low</span>
-        </div>
-        <!-- Auto music, no song match yet -->
-        <div class="section auto" style="left: 82%; width: 17%;">
-          <span class="ai-mark">●</span>
-          Music
-          <span class="chip">auto</span>
+        <div class="mini-timeline">
+          <div class="mini-section type-chatter" style="left: 0.5%; width: 12%;">Setup</div>
+          <div class="mini-section type-music" style="left: 13%; width: 26%;">Wagon Wheel</div>
+          <div class="mini-section type-music tentative" style="left: 59%; width: 22%;">Tennessee Stud?</div>
+          <div class="mini-section type-music" style="left: 82%; width: 17%;">Music</div>
         </div>
       </div>
-    </div>
-
-    <div class="notes">
-      <strong>Visual decisions in this mock:</strong>
-      <ul>
-        <li><strong>Dashed border + slate color</strong> for auto, vs solid + accent-orange for manual.</li>
-        <li><strong>Italic label</strong> on auto sections to reinforce "not committed yet."</li>
-        <li><strong>Small ● dot</strong> in slate marks an auto section at a glance (visible even when zoomed out).</li>
-        <li><strong>Chip</strong> shows confidence as a percent when high, "low" or "auto" otherwise.</li>
-        <li><strong>Tentative variant</strong> (yellow dashed) for low-confidence matches. Distinct so the user knows to scrutinize harder.</li>
-        <li>Toolbar shows count and bulk actions only when there are auto sections present.</li>
-      </ul>
-    </div>
-  </div>
-
-  <!-- ============================================ -->
-  <div class="flow">
-    <div class="flow-head">
-      <span class="flow-num">Flow 4</span>
-      <h2 class="flow-title">Clicking an auto-section — accept / rename / discard</h2>
-    </div>
-    <p class="flow-desc">
-      Click an auto section to open the popover. Accept promotes it to a normal
-      manual section. Rename (or moving a boundary) also flips it to manual —
-      any deliberate touch counts as acceptance.
-    </p>
-
-    <div class="popover-stage">
-      <div class="popover-anchor">
-        <span class="ai-mark" style="color: var(--auto-color);">●</span>
-        Wagon Wheel
-        <span class="chip">92%</span>
-      </div>
-      <div class="popover">
-        <div class="popover-header">
-          <span class="popover-title">Wagon Wheel</span>
-          <span style="font-size: 10px; color: var(--auto-color); margin-left: auto;">●&nbsp;auto</span>
-        </div>
-        <div class="popover-meta">
-          <div class="popover-meta-row"><span>start</span><span>0:32.450</span></div>
-          <div class="popover-meta-row"><span>length</span><span>3:41</span></div>
-          <div class="popover-meta-row"><span>match confidence</span><span>92%</span></div>
-          <div class="popover-meta-row"><span>matched against</span><span>3 prior recordings</span></div>
-        </div>
-        <div class="popover-actions">
-          <div class="popover-action primary"><span>✓ Accept</span><span class="kbd">↵</span></div>
-          <div class="popover-action"><span>Rename...</span><span class="kbd">R</span></div>
-          <div class="popover-action"><span>Move boundary...</span><span class="kbd">M</span></div>
-          <div class="popover-action danger"><span>Discard</span><span class="kbd">⌫</span></div>
-        </div>
-      </div>
+      <button class="primary" disabled>Uploading… 51%</button>
     </div>
 
     <div class="notes">
       <strong>Notes:</strong>
       <ul>
-        <li>Hitting <span class="kbd" style="font-family:var(--font-mono);">↵</span> on a focused auto section accepts it — keyboard-fluent flow for users working through many at once.</li>
-        <li>"Matched against 3 prior recordings" — show what the matcher saw, so the user can sanity-check.</li>
-        <li>Popover for tentative auto sections looks identical except the "match confidence" line reads "32% (low)" in warm yellow.</li>
+        <li>Sections render collapsed (mini timeline only, no row list) once committed — the workspace is for editing; once you've hit Save you're just watching.</li>
+        <li>If the upload fails partway, the user can retry; sections are held client-side until the project create succeeds.</li>
+        <li>If sections are large (e.g., many chroma fingerprints for a long practice), POSTing them separately after the project create avoids inflating the upload request.</li>
       </ul>
     </div>
   </div>
@@ -687,48 +754,27 @@
   <!-- ============================================ -->
   <div class="flow">
     <div class="flow-head">
-      <span class="flow-num">Flow 2 (alt)</span>
-      <h2 class="flow-title">Toolbar — during classification</h2>
+      <span class="flow-num">Flow D</span>
+      <h2 class="flow-title">CLI imports — the only "review later" path</h2>
     </div>
     <p class="flow-desc">
-      While YAMNet + chroma run in the browser (parallel to the upload), the
-      toolbar shows a non-blocking progress indicator. The user can keep using
-      the rest of the UI; if they navigate away, classification continues and
-      sections appear on return.
-    </p>
-
-    <div class="toolbar">
-      <span class="progress-label">Detecting sections…</span>
-      <div class="progress-bar-wrap"><div class="progress-bar"></div></div>
-      <span class="progress-label">47%</span>
-      <button class="btn">Cancel</button>
-    </div>
-  </div>
-
-  <!-- ============================================ -->
-  <div class="flow">
-    <div class="flow-head">
-      <span class="flow-num">Flow 7</span>
-      <h2 class="flow-title">Project list — CLI-imported projects with pending auto-sections</h2>
-    </div>
-    <p class="flow-desc">
-      When the Tascam Model 12 importer runs auto-classification (the
-      <span class="kbd" style="font-family:var(--font-mono);">--auto-classify</span>
-      flag), the user wasn't in the web app at that moment. Next time they
-      open the band view, a slate badge tells them which projects have
-      suggestions waiting.
+      For Tascam Model 12 imports via <code>bin/import-from-device.ts
+      --auto-classify</code>, there's no interactive drawer to review in.
+      The CLI runs classification, POSTs the sections, and the user reviews
+      next time they open the web app. A slate badge on the project row
+      tells them which projects have un-reviewed auto sections.
     </p>
 
     <div>
       <div class="project-row has-pending">
         <span class="name">practice-2026-05-15</span>
         <span class="meta">12 stems · 1h 24min</span>
-        <span class="pending-badge"><span class="dot"></span>5 auto-sections to review</span>
+        <span class="pending-badge"><span class="dot"></span>5 sections to review</span>
       </div>
       <div class="project-row has-pending">
         <span class="name">practice-2026-05-13</span>
         <span class="meta">3 stems · 47min</span>
-        <span class="pending-badge"><span class="dot"></span>3 auto-sections to review</span>
+        <span class="pending-badge"><span class="dot"></span>3 sections to review</span>
       </div>
       <div class="project-row">
         <span class="name">practice-2026-05-08</span>
@@ -741,17 +787,17 @@
     </div>
 
     <div class="notes">
-      <strong>Notes:</strong>
+      <strong>How review works for CLI imports:</strong>
       <ul>
-        <li>Slate left-border + pill badge so the row reads as "needs attention" without being aggressive.</li>
-        <li>Once the user reviews (accept or discard) all auto sections on a project, the badge disappears.</li>
-        <li>Same badge appears on web-imported projects with unreviewed auto sections — consistent meaning.</li>
+        <li>The project page shows the sections as <em>provisional</em> — same dashed-border + slate visual treatment from the v1 mockup, since these weren't reviewed at import time.</li>
+        <li>The user accepts or discards individual sections in the project view; once all are accepted (or all discarded), the badge clears.</li>
+        <li>This is the only place in v2 where the "auto vs manual" visual distinction lives. The web import path doesn't need it.</li>
       </ul>
     </div>
   </div>
 
   <p style="color: var(--muted); margin-top: 32px; font-size: 12px;">
-    Mockup at <code>scripts/poc/ui-mockup.html</code>. Open it in a browser to interact.
+    Mockup at <code>scripts/poc/ui-mockup.html</code>. Previous version is in git history.
   </p>
 </div>
 </body>
