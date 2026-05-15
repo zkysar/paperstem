@@ -206,7 +206,25 @@ describe('SectionLane', () => {
     expect(wrap!.classList.contains('disabled')).toBe(true);
   });
 
-  it('fires onHoverChange(true/false) on mouse enter/leave of the wrapper', () => {
+  it('fires onHoverChange(true) on mouse enter of a ribbon segment, and (false) on mouse leave of the wrapper', () => {
+    const onHoverChange = vi.fn();
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        expanded={false}
+        sections={[section({ id: 'a', start_ms: 0 })]}
+        onHoverChange={onHoverChange}
+      />,
+    );
+    const wrap = container.querySelector<HTMLElement>('.section-lane-wrap');
+    const seg = container.querySelector<HTMLElement>('.section-ribbon-seg');
+    fireEvent.mouseEnter(seg!);
+    expect(onHoverChange).toHaveBeenLastCalledWith(true);
+    fireEvent.mouseLeave(wrap!);
+    expect(onHoverChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('does NOT fire onHoverChange(true) when hovering empty space in the wrapper (between/outside sections)', () => {
     const onHoverChange = vi.fn();
     const { container } = render(
       <SectionLane
@@ -218,12 +236,25 @@ describe('SectionLane', () => {
     );
     const wrap = container.querySelector<HTMLElement>('.section-lane-wrap');
     fireEvent.mouseEnter(wrap!);
-    expect(onHoverChange).toHaveBeenLastCalledWith(true);
-    fireEvent.mouseLeave(wrap!);
-    expect(onHoverChange).toHaveBeenLastCalledWith(false);
+    expect(onHoverChange).not.toHaveBeenCalledWith(true);
   });
 
-  it('fires onTapToExpand on pointerdown when collapsed', () => {
+  it('fires onTapToExpand on pointerdown on a ribbon segment when collapsed', () => {
+    const onTapToExpand = vi.fn();
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        expanded={false}
+        sections={[section({ id: 'a', start_ms: 0 })]}
+        onTapToExpand={onTapToExpand}
+      />,
+    );
+    const seg = container.querySelector<HTMLElement>('.section-ribbon-seg');
+    fireEvent.pointerDown(seg!);
+    expect(onTapToExpand).toHaveBeenCalledOnce();
+  });
+
+  it('does NOT fire onTapToExpand on pointerdown on empty wrap space', () => {
     const onTapToExpand = vi.fn();
     const { container } = render(
       <SectionLane
@@ -235,7 +266,7 @@ describe('SectionLane', () => {
     );
     const wrap = container.querySelector<HTMLElement>('.section-lane-wrap');
     fireEvent.pointerDown(wrap!);
-    expect(onTapToExpand).toHaveBeenCalledOnce();
+    expect(onTapToExpand).not.toHaveBeenCalled();
   });
 
   it('does NOT fire onTapToExpand on pointerdown when already expanded', () => {
