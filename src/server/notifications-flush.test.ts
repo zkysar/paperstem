@@ -136,3 +136,48 @@ describe('flushOne', () => {
     expect(row.sent_at).not.toBeNull();
   });
 });
+
+describe('flushPendingNotifications batched', () => {
+  it('sends one digest per recipient grouping events by project', async () => {
+    const author = createUser('a@e.test');
+    const recipient = createUser('r@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, recipient);
+    const p1 = insertProject(bandId, author, 'Mix v3');
+    const p2 = insertProject(bandId, author, 'Demo 1');
+    const a1 = insertAnnotation(p1, author, 'one');
+    const a2 = insertAnnotation(p1, author, 'two');
+    const a3 = insertAnnotation(p2, author, 'three');
+    for (const [sid, pid] of [[a1, p1], [a2, p1], [a3, p2]] as Array<[string, string]>) {
+      dbMod.stmts.insertPendingNotification.run(
+        randomUUID(), recipient, 'comment', pid, 'annotation', sid, author, 'x', 'tok', 1,
+      );
+    }
+    await flushMod.flushPendingNotifications({ mode: 'batched', appBaseUrl: 'https://x', inboundDomain: 'mail.x' });
+    expect(sendMailSpy).toHaveBeenCalledTimes(1);
+    const arg = sendMailSpy.mock.calls[0][0];
+    expect(arg.subject).toBe('Activity in 2 projects');
+    expect(arg.text).toContain('"Mix v3"');
+    expect(arg.text).toContain('"Demo 1"');
+  });
+
+  it('skips daily-only users in batched run', async () => {
+    const author = createUser('a@e.test');
+    const recipient = createUser('r@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, recipient);
+    const pid = insertProject(bandId, author);
+    const annId = insertAnnotation(pid, author, 'hi');
+    setPref(recipient, { email_project_activity: 'daily' });
+    dbMod.stmts.insertPendingNotification.run(
+      randomUUID(), recipient, 'comment', pid, 'annotation', annId, author, 'hi', 'tok', 1,
+    );
+    await flushMod.flushPendingNotifications({ mode: 'batched', appBaseUrl: 'https://x', inboundDomain: 'mail.x' });
+    expect(sendMailSpy).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when no unsent rows exist', async () => {
+    await flushMod.flushPendingNotifications({ mode: 'batched', appBaseUrl: 'https://x', inboundDomain: 'mail.x' });
+    expect(sendMailSpy).not.toHaveBeenCalled();
+  });
+});

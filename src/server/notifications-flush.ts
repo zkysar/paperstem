@@ -94,3 +94,94 @@ export async function flushOne(id: string, ctx: FlushContext): Promise<void> {
   }
 }
 
+function bucketByRecipient(rows: PendingNotificationRow[]): Map<string, PendingNotificationRow[]> {
+  const map = new Map<string, PendingNotificationRow[]>();
+  for (const r of rows) {
+    const list = map.get(r.recipient_id) ?? [];
+    list.push(r);
+    map.set(r.recipient_id, list);
+  }
+  return map;
+}
+
+function groupByProject(rows: PendingNotificationRow[]): Map<string, PendingNotificationRow[]> {
+  const m = new Map<string, PendingNotificationRow[]>();
+  for (const r of rows) {
+    const list = m.get(r.project_id) ?? [];
+    list.push(r);
+    m.set(r.project_id, list);
+  }
+  return m;
+}
+
+function hourMatchesUserLocal(prefs: { digest_hour_local: number; timezone: string }, now: Date): boolean {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: prefs.timezone });
+    const parts = fmt.formatToParts(now);
+    const h = parts.find((p) => p.type === 'hour')?.value;
+    return h !== undefined && Number(h) === prefs.digest_hour_local;
+  } catch {
+    return false;
+  }
+}
+
+export async function flushPendingNotifications(opts: FlushOptions): Promise<void> {
+  const allRows = stmts.selectAllUnsent.all() as PendingNotificationRow[];
+  if (allRows.length === 0) return;
+  const buckets = bucketByRecipient(allRows);
+  const now = new Date();
+  for (const [recipientId, rows] of buckets) {
+    const prefs = getEffectivePrefs(recipientId);
+    const isDailyUser =
+      prefs.email_project_activity === 'daily' || prefs.email_thread_activity === 'daily';
+    if (opts.mode === 'batched' && isDailyUser) continue;
+    if (opts.mode === 'daily' && !isDailyUser) continue;
+    if (opts.mode === 'daily' && !hourMatchesUserLocal(prefs, now)) continue;
+
+    const to = fetchUserEmail(recipientId);
+    if (!to) {
+      for (const r of rows) stmts.markPendingSent.run(nowSec(), r.id);
+      continue;
+    }
+    const byProject = groupByProject(rows);
+    const groups: DigestProjectGroup[] = [];
+    const linksByGroupEventIndex = new Map<string, string>();
+    let groupIndex = 0;
+    for (const [pid, projectRows] of byProject) {
+      const projectName = fetchProjectName(pid);
+      const events: DigestEvent[] = projectRows.map((r) => ({
+        authorName: fetchUserName(r.author_user_id), preview: r.preview,
+      }));
+      groups.push({ projectName, events });
+      projectRows.forEach((r, eventIndex) => {
+        linksByGroupEventIndex.set(`${groupIndex}:${eventIndex}`, commentLink(opts, r));
+      });
+      groupIndex++;
+    }
+    const representativeToken = rows[rows.length - 1].reply_token ?? '';
+
+    const linkBuilder = (_g: DigestProjectGroup, _ev: DigestEvent, idx: number): string => {
+      const gi = groups.indexOf(_g);
+      return linksByGroupEventIndex.get(`${gi}:${idx}`) ?? '';
+    };
+
+    try {
+      await sendDigestEmail({
+        to, daily: opts.mode === 'daily', groups,
+        linkBuilder,
+        settingsLink: settingsLink(opts),
+        representativeReplyToken: representativeToken,
+        inboundDomain: opts.inboundDomain,
+      });
+      for (const r of rows) stmts.markPendingSent.run(nowSec(), r.id);
+    } catch {
+      for (const r of rows) {
+        stmts.bumpPendingAttempt.run(r.id);
+        const after = stmts.findPendingById.get(r.id) as PendingNotificationRow | undefined;
+        if (after && after.send_attempts >= MAX_ATTEMPTS) {
+          stmts.markPendingSent.run(nowSec(), r.id);
+        }
+      }
+    }
+  }
+}
