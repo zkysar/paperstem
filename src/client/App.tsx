@@ -1578,7 +1578,7 @@ function PaperstemApp({
         </div>
       )}
       <div className="app-body">
-        <div style={{ position: 'relative', minHeight: 0 }}>
+        <div style={{ position: 'relative', minHeight: 0, minWidth: 0 }}>
           <ErrorBoundary onReportBug={openBugReport}>
             <Player
               player={player}
