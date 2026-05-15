@@ -166,6 +166,47 @@ CREATE TABLE IF NOT EXISTS sections (
 CREATE INDEX IF NOT EXISTS idx_sections_project_start ON sections(project_id, start_ms);
 CREATE INDEX IF NOT EXISTS idx_sections_song ON sections(song_id);
 
+-- Per-rendition chroma fingerprints for auto-classification song matching.
+-- Populated when a section is manually labeled (or auto-section is accepted)
+-- with a song_id; the matcher (auto-classify routes) queries these to
+-- identify same-song-played-before across practices.
+CREATE TABLE IF NOT EXISTS song_fingerprints (
+  id                   TEXT PRIMARY KEY,
+  band_id              TEXT NOT NULL REFERENCES bands(id) ON DELETE CASCADE,
+  song_id              TEXT NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+  section_id           TEXT NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+  fingerprint_blob     BLOB NOT NULL,
+  fingerprint_version  INTEGER NOT NULL,
+  duration_ms          INTEGER NOT NULL,
+  created_at           INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_fp_band_song ON song_fingerprints(band_id, song_id);
+CREATE INDEX IF NOT EXISTS idx_fp_section ON song_fingerprints(section_id);
+
+-- One row per "Auto-section this practice" invocation. Sections produced
+-- by the run live in the sections table with run_id set; this table is the
+-- history record only.
+CREATE TABLE IF NOT EXISTS classification_runs (
+  id                   TEXT PRIMARY KEY,
+  project_id           TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  status               TEXT NOT NULL CHECK (status IN ('pending','running','done','failed')),
+  source_surface       TEXT NOT NULL CHECK (source_surface IN ('web','cli')),
+  audio_hash           TEXT NOT NULL,
+  classifier_version   TEXT NOT NULL,
+  fingerprint_version  INTEGER NOT NULL,
+  error                TEXT,
+  created_at           INTEGER NOT NULL,
+  completed_at         INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_runs_project ON classification_runs(project_id, created_at);
+
+-- Auto-classification columns on the sections table (confidence, run_id,
+-- segment_type, top_classes_json) are added by migrate-auto-classify.ts —
+-- which runs on every boot, so fresh installs get them too. The index
+-- below is in schema.sql for fresh installs; the migration also creates it
+-- idempotently for older databases.
+CREATE INDEX IF NOT EXISTS idx_sections_project_source ON sections(project_id, source);
+
 -- Append-only audit log for destructive operations on projects, stems, and
 -- annotations. Records soft-deletes via routes plus hard-deletes from the
 -- trash purge (where a CASCADE on projects wipes stem rows with no
