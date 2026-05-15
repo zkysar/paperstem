@@ -40,6 +40,20 @@ import {
   handleListAnnotations,
   handlePatchAnnotation,
 } from './annotations.js';
+import {
+  handleCreateSong,
+  handleDeleteSong,
+  handleListSongs,
+  handleMergeSong,
+  handlePatchSong,
+} from './songs.js';
+import {
+  handleCreateSection,
+  handleDeleteSection,
+  handleListSections,
+  handleListSongUsage,
+  handlePatchSection,
+} from './sections.js';
 import { handleSnapshotsHealth } from './health.js';
 import { handleVersion } from './version.js';
 import { handleBugReport } from './bug-report.js';
@@ -88,6 +102,16 @@ app.get('/api/projects/:id/annotations', handleListAnnotations);
 app.post('/api/projects/:id/annotations', handleCreateAnnotation);
 app.patch('/api/annotations/:id', handlePatchAnnotation);
 app.delete('/api/annotations/:id', handleDeleteAnnotation);
+app.get('/api/bands/:id/songs', handleListSongs);
+app.post('/api/bands/:id/songs', handleCreateSong);
+app.patch('/api/songs/:id', handlePatchSong);
+app.post('/api/songs/:id/merge', handleMergeSong);
+app.delete('/api/songs/:id', handleDeleteSong);
+app.get('/api/bands/:id/songs/usage', handleListSongUsage);
+app.get('/api/projects/:id/sections', handleListSections);
+app.post('/api/projects/:id/sections', handleCreateSection);
+app.patch('/api/sections/:id', handlePatchSection);
+app.delete('/api/sections/:id', handleDeleteSection);
 app.get('/api/health/snapshots', handleSnapshotsHealth);
 app.get('/api/version', handleVersion);
 app.post('/api/bug-report', handleBugReport);

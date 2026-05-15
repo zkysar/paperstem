@@ -169,6 +169,33 @@ export type AnnotationJoinedRow = AnnotationRow & {
   user_display_name: string | null;
 };
 
+export type SongRow = {
+  id: string;
+  band_id: string;
+  name: string;
+  name_norm: string;
+  created_at: number;
+  created_by: string;
+};
+
+export type SongWithUseCountRow = SongRow & { use_count: number };
+
+export type SectionRow = {
+  id: string;
+  project_id: string;
+  start_ms: number;
+  song_id: string | null;
+  label: string | null;
+  source: 'manual' | 'auto';
+  created_at: number;
+  created_by: string;
+  updated_at: number;
+};
+
+export type SectionJoinedRow = SectionRow & {
+  song_name: string | null;
+};
+
 export type AuditLogRow = {
   id: string;
   created_at: number;
@@ -514,6 +541,95 @@ export const stmts = {
       WHERE p.band_id = ?
         AND s.deleted_at IS NOT NULL AND s.deleted_at < ?`,
   ),
+  // --- songs ---
+  findSongById: db.prepare<[string], SongRow>(
+    'SELECT * FROM songs WHERE id = ?',
+  ),
+  findSongByBandAndNameNorm: db.prepare<[string, string], SongRow>(
+    'SELECT * FROM songs WHERE band_id = ? AND name_norm = ?',
+  ),
+  findSongsForBandWithUseCount: db.prepare<[string], SongWithUseCountRow>(
+    `SELECT s.*,
+            (SELECT COUNT(DISTINCT sec.project_id)
+               FROM sections sec
+               JOIN projects p ON p.id = sec.project_id
+              WHERE sec.song_id = s.id AND p.deleted_at IS NULL) AS use_count
+       FROM songs s
+      WHERE s.band_id = ?
+      ORDER BY use_count DESC, s.name COLLATE NOCASE ASC`,
+  ),
+  findSongByIdWithUseCount: db.prepare<[string], SongWithUseCountRow>(
+    `SELECT s.*,
+            (SELECT COUNT(DISTINCT sec.project_id)
+               FROM sections sec
+               JOIN projects p ON p.id = sec.project_id
+              WHERE sec.song_id = s.id AND p.deleted_at IS NULL) AS use_count
+       FROM songs s
+      WHERE s.id = ?`,
+  ),
+  insertSong: db.prepare<[string, string, string, string, number, string]>(
+    `INSERT INTO songs (id, band_id, name, name_norm, created_at, created_by)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ),
+  renameSong: db.prepare<[string, string, string]>(
+    `UPDATE songs SET name = ?, name_norm = ? WHERE id = ?`,
+  ),
+  deleteSong: db.prepare<[string]>('DELETE FROM songs WHERE id = ?'),
+  // Repoint sections from one song to another (merge support). Only sections
+  // tied to live projects are touched implicitly — the FK is unaffected by
+  // project tombstones, and we want trashed projects to follow merges too so
+  // restore-after-merge keeps consistent labels.
+  repointSectionsToSong: db.prepare<[string, string]>(
+    `UPDATE sections SET song_id = ?, updated_at = strftime('%s','now')
+      WHERE song_id = ?`,
+  ),
+
+  // --- sections ---
+  findSectionsForProject: db.prepare<[string], SectionJoinedRow>(
+    `SELECT sec.id, sec.project_id, sec.start_ms, sec.song_id, sec.label,
+            sec.source, sec.created_at, sec.created_by, sec.updated_at,
+            song.name AS song_name
+       FROM sections sec
+       LEFT JOIN songs song ON song.id = sec.song_id
+      WHERE sec.project_id = ?
+      ORDER BY sec.start_ms ASC, sec.created_at ASC`,
+  ),
+  findSectionById: db.prepare<[string], SectionRow>(
+    'SELECT * FROM sections WHERE id = ?',
+  ),
+  findSectionByIdJoined: db.prepare<[string], SectionJoinedRow>(
+    `SELECT sec.id, sec.project_id, sec.start_ms, sec.song_id, sec.label,
+            sec.source, sec.created_at, sec.created_by, sec.updated_at,
+            song.name AS song_name
+       FROM sections sec
+       LEFT JOIN songs song ON song.id = sec.song_id
+      WHERE sec.id = ?`,
+  ),
+  insertSection: db.prepare<
+    [string, string, number, string | null, string | null, string, number, string, number]
+  >(
+    `INSERT INTO sections
+       (id, project_id, start_ms, song_id, label, source, created_at, created_by, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ),
+  updateSection: db.prepare<[number, string | null, string | null, number, string]>(
+    `UPDATE sections
+        SET start_ms = ?, song_id = ?, label = ?, updated_at = ?
+      WHERE id = ?`,
+  ),
+  deleteSection: db.prepare<[string]>('DELETE FROM sections WHERE id = ?'),
+  // Each row: (band_id, project_id, song_id). Backs the FilePicker
+  // chip-rail filter — given a song_id, the list of projects that contain
+  // a section pointing at it. Returned in the same order projects appear
+  // in the picker so we don't have to re-sort client-side.
+  findSongUsageForBand: db.prepare<[string], { project_id: string; song_id: string }>(
+    `SELECT DISTINCT sec.project_id, sec.song_id
+       FROM sections sec
+       JOIN projects p ON p.id = sec.project_id
+       JOIN songs song ON song.id = sec.song_id
+      WHERE p.band_id = ? AND p.deleted_at IS NULL`,
+  ),
+
   insertAuditLog: db.prepare<
     [string, number, string | null, string | null, string, string, string, string | null, string | null]
   >(
