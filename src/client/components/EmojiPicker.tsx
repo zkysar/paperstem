@@ -27,7 +27,12 @@ export function EmojiPicker({ isNarrow, anchorRect, onSelect, onClose }: Props) 
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      // preventDefault marks this Esc as handled so the CommentPopover /
+      // CommentBottomSheet document-level Esc listeners (which check
+      // defaultPrevented) don't also close their containing dialog.
+      e.preventDefault();
+      onClose();
     }
     function onDown(e: PointerEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
