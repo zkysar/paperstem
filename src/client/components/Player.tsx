@@ -91,6 +91,7 @@ export function Player({
   sectionCreateMode,
   onSectionSelected,
   onSectionCreated,
+  onToggleSectionCreate,
   railCollapsed,
   canMutate,
   onToggleAnnotationCreate,

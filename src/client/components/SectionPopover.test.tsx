@@ -215,6 +215,95 @@ describe('SectionPopover', () => {
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'clear' });
   });
 
+  it('"Not a song?" hint switches the popover to Label mode', async () => {
+    const user = userEvent.setup();
+    render(<SectionPopover {...baseProps} />);
+    const input = screen.getByLabelText('Song name');
+    await user.type(input, 'warmup');
+    // The hint appears alongside the Create-song suggestion.
+    const hint = screen.getByText(/not a song\?/i);
+    await user.click(hint);
+    // Now the Label input is rendered.
+    expect(screen.getByLabelText('Label')).not.toBeNull();
+  });
+
+  it('"Not a song?" hint is also offered when editing a song-attached section', async () => {
+    const user = userEvent.setup();
+    render(
+      <SectionPopover
+        {...baseProps}
+        section={{
+          id: 'sec-1',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: 's-1',
+          song_name: 'Heart Sounds',
+          label: null,
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+        bandSongs={[song({ id: 's-1', name: 'Heart Sounds' })]}
+      />,
+    );
+    const input = screen.getByLabelText('Song name');
+    await user.clear(input);
+    await user.type(input, 'tuning break');
+    // The label-hint copy is contextual to whether a song is currently
+    // attached, but the affordance must always be reachable.
+    expect(screen.getByText(/not a song\?/i)).not.toBeNull();
+  });
+
+  it('submit button reads "Add section" in create mode', () => {
+    render(<SectionPopover {...baseProps} />);
+    expect(screen.getByRole('button', { name: /add section/i })).not.toBeNull();
+  });
+
+  it('submit button reads "Save" when editing a section with no rename intent', () => {
+    render(
+      <SectionPopover
+        {...baseProps}
+        section={{
+          id: 'sec-1',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: null,
+          song_name: null,
+          label: 'warmup',
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /^save$/i })).not.toBeNull();
+  });
+
+  it('submit button reads "Rename" (no count) when use_count is 1', async () => {
+    const user = userEvent.setup();
+    render(
+      <SectionPopover
+        {...baseProps}
+        section={{
+          id: 'sec-1',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: 's-1',
+          song_name: 'Heart Sounds',
+          label: null,
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+        bandSongs={[song({ id: 's-1', name: 'Heart Sounds', use_count: 1 })]}
+      />,
+    );
+    const input = screen.getByLabelText('Song name');
+    await user.clear(input);
+    await user.type(input, 'New Name');
+    expect(screen.getByRole('button', { name: /^rename$/i })).not.toBeNull();
+  });
+
   it('renders submit button as "Rename in N practices" when retyping a shared song', async () => {
     const user = userEvent.setup();
     render(

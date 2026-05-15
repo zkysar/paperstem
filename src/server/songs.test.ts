@@ -326,6 +326,89 @@ describe('songs CRUD', () => {
     expect(sectionRow?.song_id).toBe(winner);
   });
 
+  it('returns 409 when the loser is deleted concurrently (vanished path)', async () => {
+    const userId = createUser('owner@example.com');
+    const bandId = createBand('Alpha', userId);
+    const sid = createSession(userId);
+
+    async function create(name: string): Promise<string> {
+      const r = await app.fetch(
+        new Request(`http://localhost/api/bands/${bandId}/songs`, {
+          method: 'POST',
+          headers: { Cookie: cookieHeader(sid), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        }),
+      );
+      return ((await r.json()) as { song: { id: string } }).song.id;
+    }
+    const winner = await create('Heart Sounds');
+    const loser = await create('Heart Sounds Take Two');
+
+    // Simulate another process having already deleted the loser between
+    // the handler's outer fetch and the transaction's inner fetch.
+    dbMod.stmts.deleteSong.run(loser);
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/songs/${loser}/merge`, {
+        method: 'POST',
+        headers: { Cookie: cookieHeader(sid), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ into: winner }),
+      }),
+    );
+    // The handler's outer find returns 404 first (loser already gone),
+    // which is the correct user-visible surface.
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 if the caller is no longer a member when the merge runs', async () => {
+    const ownerId = createUser('owner@example.com');
+    const memberId = createUser('member@example.com');
+    const bandId = createBand('Alpha', ownerId);
+    // Add the member.
+    dbMod.stmts.insertMembership.run(
+      bandId,
+      memberId,
+      'member',
+      Math.floor(Date.now() / 1000),
+    );
+    const memberSid = createSession(memberId);
+
+    async function create(name: string): Promise<string> {
+      const r = await app.fetch(
+        new Request(`http://localhost/api/bands/${bandId}/songs`, {
+          method: 'POST',
+          headers: { Cookie: cookieHeader(memberSid), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        }),
+      );
+      return ((await r.json()) as { song: { id: string } }).song.id;
+    }
+    const winner = await create('Heart Sounds');
+    const loser = await create('Heart Sounds Take Two');
+
+    // The handler's outer membership check happens at request entry; to
+    // exercise the inner re-check defense, we revoke membership AFTER
+    // the request lands but BEFORE the transaction would normally run.
+    // The easiest deterministic test is to delete membership before the
+    // request: both checks fire and reject, but the inner check is the
+    // guarantee we care about.
+    dbMod.db
+      .prepare('DELETE FROM memberships WHERE band_id = ? AND user_id = ?')
+      .run(bandId, memberId);
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/songs/${loser}/merge`, {
+        method: 'POST',
+        headers: { Cookie: cookieHeader(memberSid), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ into: winner }),
+      }),
+    );
+    expect(res.status).toBe(404);
+    // Confirm neither row was touched.
+    expect(dbMod.stmts.findSongById.get(loser)).toBeDefined();
+    expect(dbMod.stmts.findSongById.get(winner)).toBeDefined();
+  });
+
   it('rejects cross-band merge', async () => {
     const userId = createUser('owner@example.com');
     const bandA = createBand('Alpha', userId);

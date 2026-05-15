@@ -195,11 +195,13 @@ export async function handleMergeSong(
   // racing B→A) can't interleave to orphan sections or surface as a 500
   // from a unique-index violation. better-sqlite3 transactions are
   // synchronous and lock the DB, which is the behaviour we want here.
+  // The membership re-check inside the txn closes the small TOCTOU
+  // window between the outer membership lookup and the writes — if the
+  // caller's membership was revoked in flight, the merge aborts.
   try {
     db.transaction(() => {
-      // Re-fetch both songs inside the transaction so the row we delete
-      // is the one we just repointed away from — guards against a third
-      // party renaming the loser between the outer fetch and now.
+      const stillMember = stmts.findMembership.get(loser.band_id, user.id);
+      if (!stillMember) throw new Error('unauthorized');
       const stillLoser = stmts.findSongById.get(loser.id);
       const stillWinner = stmts.findSongById.get(winner.id);
       if (!stillLoser || !stillWinner) throw new Error('vanished');
@@ -208,6 +210,9 @@ export async function handleMergeSong(
       stmts.deleteSong.run(stillLoser.id);
     })();
   } catch (err) {
+    if (err instanceof Error && err.message === 'unauthorized') {
+      return c.json({ error: 'not_found' }, 404);
+    }
     console.error('[songs] merge transaction failed', err);
     return c.json({ error: 'conflict' }, 409);
   }

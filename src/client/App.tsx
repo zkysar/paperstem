@@ -176,11 +176,16 @@ function PaperstemApp({
   // Project filter driven by the FilePicker chip-rail.
   const [filterSongId, setFilterSongId] = useState<string | null>(null);
   // Transient undo toast for destructive song operations (rename across N
-  // practices, merge). Auto-clears after 6 seconds.
+  // practices, merge). Auto-clears after 6 seconds; the timer ref lets a
+  // second rename within the window cancel its predecessor's dismiss so
+  // the newer toast keeps its full 6 seconds and the older one's
+  // `previousName` closure isn't accidentally invoked against
+  // already-updated state.
   const [songToast, setSongToast] = useState<{
     message: string;
     onUndo: () => void;
   } | null>(null);
+  const songToastTimerRef = useRef<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [annotationCreateMode, setAnnotationCreateMode] = useState(false);
   const [markersVisible, setMarkersVisible] = useState(true);
@@ -583,7 +588,13 @@ function PaperstemApp({
         anchorTop = r.top + 40;
       }
       setSectionPopover({ section: null, startMs, anchorLeft, anchorTop });
+      // Clear both create-modes — invoking the popover via the M shortcut
+      // from inside comment-create mode would otherwise leave the
+      // annotation-create overlay live behind the popover, intercepting
+      // clicks meant for the popover's controls.
       setSectionCreateMode(false);
+      setAnnotationCreateMode(false);
+      setPendingDraft(null);
     },
     [],
   );
@@ -626,10 +637,20 @@ function PaperstemApp({
     [],
   );
 
-  // Rename the song the section currently references. Handles the
-  // 409-collision path (offer merge), the >1-practice path (offer undo
-  // toast), and refreshes both the band catalog and the local sections
-  // list since multiple section rows may now display a new song_name.
+  // Rename the song the section currently references. Three paths:
+  //   - 409 collision: a song with this normalized name already exists
+  //     in the catalog → offer a merge prompt; on accept, repoint every
+  //     section pointing at the loser, drop the loser row, and refresh
+  //     local state in-place using the merge response.
+  //   - >1 practice rename: show an undo toast with a single-shot
+  //     dismiss timer (cancelled if a second rename arrives within 6s,
+  //     so the newer toast keeps its full window).
+  //   - plain rename: silent; the popover close is the only signal.
+  //
+  // All paths update `songs` / `songUsage` / `sections` in place from
+  // the server's response — never via `listSections(activeProjectId)`,
+  // which would race a project switch and write old-project data into
+  // the new-project's state.
   const renameSongUnderSection = useCallback(
     async (songId: string, newName: string) => {
       const before = songs.find((s) => s.id === songId);
@@ -641,23 +662,75 @@ function PaperstemApp({
             `A song named "${result.existing_song_name}" already exists. Merge "${before.name}" into it?`,
           );
           if (!ok) return;
-          await mergeSong(songId, result.existing_song_id);
-        } else if (before.use_count > 1) {
-          // Only surface the undo toast when the rename had a real blast
-          // radius. Merge is destructive (the loser row is gone) and so
-          // can't be undone with a simple rename — covered by the merge
-          // confirm above.
+          const winner = await mergeSong(songId, result.existing_song_id);
+          // Loser is gone; the winner row gained the loser's sections in
+          // its use_count. Replace winner in place and drop loser; remap
+          // sections so the chapter lane and the chip-rail re-render
+          // without an extra round-trip.
+          const loserId = songId;
+          setSongs((prev) =>
+            prev
+              .filter((s) => s.id !== loserId)
+              .map((s) => (s.id === winner.id ? winner : s)),
+          );
+          setSongUsage((prev) => {
+            const out: SongUsageRow[] = [];
+            const seen = new Set<string>();
+            for (const row of prev) {
+              const sid = row.song_id === loserId ? winner.id : row.song_id;
+              const key = `${row.project_id}::${sid}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              out.push({ project_id: row.project_id, song_id: sid });
+            }
+            return out;
+          });
+          setSections((prev) =>
+            prev.map((s) =>
+              s.song_id === loserId
+                ? { ...s, song_id: winner.id, song_name: winner.name }
+                : s,
+            ),
+          );
+          return;
+        }
+        // Plain rename: in-place update of songs + every section that
+        // referenced the renamed song. No listSections refetch — that
+        // path used to race a project switch and corrupt state.
+        const renamed = result.song;
+        setSongs((prev) =>
+          prev.map((s) => (s.id === renamed.id ? renamed : s)),
+        );
+        setSections((prev) =>
+          prev.map((s) =>
+            s.song_id === renamed.id ? { ...s, song_name: renamed.name } : s,
+          ),
+        );
+        if (before.use_count > 1) {
           const previousName = before.name;
+          if (songToastTimerRef.current !== null) {
+            window.clearTimeout(songToastTimerRef.current);
+          }
           setSongToast({
             message: `Renamed in ${before.use_count} practices.`,
             onUndo: () => {
               void (async () => {
                 try {
-                  await renameSong(songId, previousName);
-                  await refreshBandSongs();
-                  if (activeProjectId) {
-                    const list = await listSections(activeProjectId);
-                    setSections(list);
+                  const undone = await renameSong(songId, previousName);
+                  if (undone.kind === 'ok') {
+                    const restored = undone.song;
+                    setSongs((prev) =>
+                      prev.map((s) =>
+                        s.id === restored.id ? restored : s,
+                      ),
+                    );
+                    setSections((prev) =>
+                      prev.map((s) =>
+                        s.song_id === restored.id
+                          ? { ...s, song_name: restored.name }
+                          : s,
+                      ),
+                    );
                   }
                   setSongToast(null);
                 } catch {
@@ -666,18 +739,16 @@ function PaperstemApp({
               })();
             },
           });
-          window.setTimeout(() => setSongToast((t) => (t ? null : t)), 6000);
-        }
-        await refreshBandSongs();
-        if (activeProjectId) {
-          const list = await listSections(activeProjectId);
-          setSections(list);
+          songToastTimerRef.current = window.setTimeout(() => {
+            songToastTimerRef.current = null;
+            setSongToast((t) => (t ? null : t));
+          }, 6000);
         }
       } catch (err) {
         console.error('song rename failed', err);
       }
     },
-    [songs, activeProjectId, refreshBandSongs],
+    [songs],
   );
 
   const handleSectionSubmit = useCallback(
@@ -909,6 +980,12 @@ function PaperstemApp({
       const startMs = Math.round(player.currentTime * 1000);
       handleAnnotationCreated(startMs, null);
     } else {
+      // Mutex with section-create mode: only one create-mode banner /
+      // overlay should ever be live at once. Unconditional false is
+      // safe: if annotation mode is being turned off, the section was
+      // already off (assuming the invariant holds elsewhere); if it's
+      // being turned on, we drop any active section-create state.
+      setSectionCreateMode(false);
       setAnnotationCreateMode((v) => !v);
     }
   }, [railCollapsed, player, handleAnnotationCreated]);

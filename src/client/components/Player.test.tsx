@@ -166,4 +166,25 @@ describe('Player', () => {
     const { container } = render(<Player {...defaultProps()} annotationCreateMode={true} />);
     expect(container.querySelector('.player')?.classList.contains('annotating')).toBe(true);
   });
+
+  it('renders the section-mode banner when sectionCreateMode is true', () => {
+    render(<Player {...defaultProps()} sectionCreateMode={true} />);
+    expect(screen.getByText(/section mode/i)).not.toBeNull();
+    // The banner should be the only mode banner — comment mode is off.
+    expect(screen.queryByText(/comment mode/i)).toBeNull();
+  });
+
+  it('Cancel button in section-mode banner fires onToggleSectionCreate', async () => {
+    const user = userEvent.setup();
+    const onToggleSectionCreate = vi.fn();
+    render(
+      <Player
+        {...defaultProps()}
+        sectionCreateMode={true}
+        onToggleSectionCreate={onToggleSectionCreate}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(onToggleSectionCreate).toHaveBeenCalledOnce();
+  });
 });

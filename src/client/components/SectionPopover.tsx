@@ -67,6 +67,19 @@ export function SectionPopover({
     queueMicrotask(() => inputRef.current?.focus());
   }, [open, section]);
 
+  // The clamped position is computed during render from
+  // `window.innerWidth/innerHeight`. Force a re-render on viewport size
+  // changes so a popover that's open during an orientation flip or
+  // window resize repositions correctly instead of remaining stuck at
+  // its original clamp.
+  const [, setViewportTick] = useState(0);
+  useEffect(() => {
+    if (!open || typeof window === 'undefined') return;
+    const onResize = () => setViewportTick((n) => n + 1);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [open]);
+
   // Songs filtered by the current input, sorted by use_count desc. Exact
   // normalized matches float to the top.
   const matches = useMemo(() => {
@@ -277,23 +290,27 @@ export function SectionPopover({
             </button>
           ))}
           {text.trim() && !exactMatch && !section?.song_id && (
-            <>
-              <button
-                type="button"
-                className="sp-suggestion sp-suggestion-create"
-                onClick={submit}
-              >
-                <Plus size={14} strokeWidth={2} aria-hidden="true" />
-                <span>Create song in catalog: "{text.trim()}"</span>
-              </button>
-              <button
-                type="button"
-                className="sp-suggestion sp-suggestion-label-hint"
-                onClick={() => setMode('label')}
-              >
-                <span>Not a song? Use as a label for this practice only.</span>
-              </button>
-            </>
+            <button
+              type="button"
+              className="sp-suggestion sp-suggestion-create"
+              onClick={submit}
+            >
+              <Plus size={14} strokeWidth={2} aria-hidden="true" />
+              <span>Create song in catalog: "{text.trim()}"</span>
+            </button>
+          )}
+          {text.trim() && !exactMatch && (
+            <button
+              type="button"
+              className="sp-suggestion sp-suggestion-label-hint"
+              onClick={() => setMode('label')}
+            >
+              <span>
+                {section?.song_id
+                  ? 'Not a song? Use as a label here (won\'t change the catalog).'
+                  : 'Not a song? Use as a label for this practice only.'}
+              </span>
+            </button>
           )}
         </div>
       )}
