@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -84,6 +85,23 @@ export function CommentPopover({
   const [draft, setDraft] = useState(annotation.body);
 
   const DRAWER_W = 320;
+
+  // Escape closes the popover. The global keyboard hook handles this when
+  // focus is on body, but bails when focus is inside any input/textarea
+  // (e.g. the drawer's draft composer). A popover-scoped listener catches
+  // those cases too. Inner Esc handlers (edit, reply compose) all call
+  // preventDefault, so the defaultPrevented guard lets them cancel their
+  // own state without also dismissing the popover.
+  useEffect(() => {
+    function onKey(e: globalThis.KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      if (e.defaultPrevented) return;
+      e.preventDefault();
+      onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   useLayoutEffect(() => {
     const el = cardRef.current;

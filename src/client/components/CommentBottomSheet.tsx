@@ -49,6 +49,20 @@ export function CommentBottomSheet({
   const [draft, setDraft] = useState(annotation.body);
   const [kbInset, setKbInset] = useState(0);
 
+  // Escape closes the sheet. Mirrors CommentPopover — inner Esc handlers
+  // (edit, reply compose) preventDefault, so the defaultPrevented guard
+  // lets them cancel their own state without also dismissing the sheet.
+  useEffect(() => {
+    function onKey(e: globalThis.KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      if (e.defaultPrevented) return;
+      e.preventDefault();
+      onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;

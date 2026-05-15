@@ -259,6 +259,10 @@ function PaperstemApp({
     queueMicrotask(() => lastDrawerTriggerRef.current?.focus());
   }, []);
   const toggleDrawer = useCallback(() => {
+    // Toggling the comments sidebar dismisses any open comment popover —
+    // the popover is part of the "comment focus" the toggle is acting on.
+    setActiveCommentId(null);
+    setPopoverAnchor(null);
     if (drawerOpen) closeDrawer();
     else openDrawer();
   }, [drawerOpen, openDrawer, closeDrawer]);
@@ -1581,7 +1585,7 @@ function PaperstemApp({
                 <CommentsFab
                   count={annotations.length}
                   starredCount={annotations.filter((a) => a.starred).length}
-                  onClick={openDrawer}
+                  onClick={toggleDrawer}
                 />
               )}
               {active && popoverAnchor && !isNarrow &&
