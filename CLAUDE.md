@@ -71,6 +71,16 @@ A pre-push hook in [scripts/git-hooks/pre-push](scripts/git-hooks/pre-push) runs
 
 Before writing a new test file, open [docs/testing.md](docs/testing.md), find the matching category (server route handler, server lib, client component, client hook, etc.), and copy from the canonical example named in that section. Don't invent a new harness shape — the env-var prelude, dynamic-import ordering, helper factories, and `reset()` pattern are load-bearing and already documented.
 
+## Review delegation by change size
+
+Before finishing a piece of work, measure the diff against `main` (`git diff --stat main...HEAD`) and dispatch independent reviewer subagents based on size. Reviewers must be spawned via the `Agent` tool so they run with fresh context and reach independent conclusions — don't self-review.
+
+- **Over 200 lines changed**: spawn one independent reviewer agent. A single general-purpose reviewer with the diff and the goal of the change is enough.
+- **Over 500 lines changed**: spawn five independent reviewer agents in parallel (single message, multiple `Agent` tool calls), each with a distinct topic so coverage doesn't overlap. Default topic split: (1) correctness and edge cases, (2) test coverage and verification, (3) architecture and abstraction fit, (4) security and data handling, (5) performance and resource use. Swap topics out if one is obviously irrelevant to the diff, but keep five distinct angles.
+- **UI implications** (any change touching `src/client/`, CSS, copy, accessibility, or user-visible behavior — regardless of line count): also spawn a UX reviewer. This is additive — a 600-line UI change gets the five topical reviewers *and* the UX reviewer.
+
+Wait for reviewers to return, address their feedback (or document why you're not), and only then move on to the PR steps below.
+
 ## Shipping changes — PRs only
 
 **Do not merge work into `main` locally and push.** Every change lands through a GitHub PR, even tiny ones. `main` has branch protection requiring a PR; the local pre-push hook also refuses direct `main` pushes. This keeps history reviewable and CI honest.
