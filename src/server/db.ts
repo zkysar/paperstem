@@ -543,6 +543,12 @@ export const stmts = {
     `UPDATE stems SET name = ?
       WHERE id = ? AND deleted_at IS NULL`,
   ),
+  updateStemFileId: db.prepare<[string, string]>(
+    `UPDATE stems SET file_id = ? WHERE id = ?`,
+  ),
+  updateProjectFolderId: db.prepare<[string, number, string]>(
+    `UPDATE projects SET folder_id = ?, updated_at = ? WHERE id = ?`,
+  ),
   softDeleteStem: db.prepare<[number, string, string]>(
     `UPDATE stems
         SET deleted_at = ?, deleted_by = ?, deleted_reason = 'user'

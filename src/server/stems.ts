@@ -33,7 +33,10 @@ export async function handleRenameStem(
   stmts.renameStem.run(name, id);
 
   try {
-    await renameItem(stem.file_id, name);
+    const renamed = await renameItem(stem.file_id, name);
+    if (renamed.id !== stem.file_id) {
+      stmts.updateStemFileId.run(renamed.id, id);
+    }
   } catch (err) {
     console.warn('[stems] storage rename failed; DB updated', { id, err });
   }

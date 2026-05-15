@@ -7,11 +7,14 @@ import { recordAudit } from './audit.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
 import {
   createFolder,
+  decodeId,
+  encodeId,
   renameItem,
   trashItem,
   untrashItem,
   uploadFile,
 } from './storage.js';
+import { db } from './db.js';
 
 const MAX_NAME_LENGTH = 200;
 const MAX_STEM_BYTES = 100 * 1024 * 1024;
@@ -151,7 +154,22 @@ export async function handleRenameProject(
   stmts.renameProject.run(name, now, id);
 
   try {
-    await renameItem(project.folder_id, name);
+    const renamed = await renameItem(project.folder_id, name);
+    if (renamed.id !== project.folder_id) {
+      const oldRel = decodeId(project.folder_id);
+      const newRel = decodeId(renamed.id);
+      const stems = stmts.findStemsForProjectAnyState.all(id);
+      db.transaction(() => {
+        stmts.updateProjectFolderId.run(renamed.id, now, id);
+        for (const s of stems) {
+          const stemRel = decodeId(s.file_id);
+          if (stemRel === oldRel || stemRel.startsWith(oldRel + '/')) {
+            const newStemRel = newRel + stemRel.slice(oldRel.length);
+            stmts.updateStemFileId.run(encodeId(newStemRel), s.id);
+          }
+        }
+      })();
+    }
   } catch (err) {
     console.warn('[projects] storage rename failed; DB updated', { id, err });
   }

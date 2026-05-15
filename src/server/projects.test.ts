@@ -244,9 +244,43 @@ describe('PATCH /api/projects/:id', () => {
     expect(existsSync(join(audioRoot, 'Alpha', 'new name'))).toBe(true);
 
     const row = dbMod.db
-      .prepare('SELECT name FROM projects WHERE id = ?')
-      .get(pid) as { name: string };
+      .prepare('SELECT name, folder_id FROM projects WHERE id = ?')
+      .get(pid) as { name: string; folder_id: string };
     expect(row.name).toBe('new name');
+    expect(row.folder_id).toBe(encodeId('Alpha/new name'));
+  });
+
+  it('cascades folder rename to child stem file_ids', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid } = insertProject(bandId, 'Alpha', owner, 'old', '2026-05-01');
+    // Insert two stems whose file_ids sit under the project folder.
+    const drumsId = randomUUID();
+    const bassId = randomUUID();
+    dbMod.stmts.insertStem.run(
+      drumsId, pid, 'drums', 0, encodeId('Alpha/old/drums.mp3'), null, 1024, null,
+    );
+    dbMod.stmts.insertStem.run(
+      bassId, pid, 'bass', 1, encodeId('Alpha/old/bass.mp3'), null, 1024, null,
+    );
+    const sid = createSession(owner);
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/projects/${pid}`, {
+        method: 'PATCH',
+        headers: {
+          Cookie: cookieHeader(sid),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: 'fresh' }),
+      }),
+    );
+    expect(res.status).toBe(200);
+
+    const drums = dbMod.stmts.findStemById.get(drumsId)!;
+    const bass = dbMod.stmts.findStemById.get(bassId)!;
+    expect(drums.file_id).toBe(encodeId('Alpha/fresh/drums.mp3'));
+    expect(bass.file_id).toBe(encodeId('Alpha/fresh/bass.mp3'));
   });
 
   it('returns 200 even if filesystem rename fails (DB still updates)', async () => {
@@ -269,9 +303,12 @@ describe('PATCH /api/projects/:id', () => {
     expect(res.status).toBe(200);
 
     const row = dbMod.db
-      .prepare('SELECT name FROM projects WHERE id = ?')
-      .get(pid) as { name: string };
+      .prepare('SELECT name, folder_id FROM projects WHERE id = ?')
+      .get(pid) as { name: string; folder_id: string };
     expect(row.name).toBe('renamed');
+    // folder_id must NOT advance when the disk rename fails — leaving it
+    // pointed at the original path keeps any existing stem file_ids consistent.
+    expect(row.folder_id).toBe(encodeId(folderRel));
   });
 
   it('rejects empty or oversized names with 400', async () => {
