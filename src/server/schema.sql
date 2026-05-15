@@ -129,3 +129,63 @@ CREATE TABLE IF NOT EXISTS annotation_reply_reactions (
 );
 -- No secondary index on reply_id: PK prefix lookups suffice.
 DROP INDEX IF EXISTS idx_annotation_reply_reactions_reply;
+
+-- Band-scoped song catalog backing the section chapter-lane and the
+-- FilePicker chip-rail filter. Name is unique within a band on a normalised
+-- (lower(trim(.))) key so the combobox at section-creation transparently
+-- dedups "Heart Sounds" / "heart sounds" / "  Heart Sounds " into a single
+-- row. The original casing the user typed survives in `name`; `name_norm`
+-- is the dedup key only.
+CREATE TABLE IF NOT EXISTS songs (
+  id          TEXT PRIMARY KEY,
+  band_id     TEXT NOT NULL REFERENCES bands(id) ON DELETE CASCADE,
+  name        TEXT NOT NULL,
+  name_norm   TEXT NOT NULL,
+  created_at  INTEGER NOT NULL,
+  created_by  TEXT NOT NULL REFERENCES users(id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_songs_band_name_norm ON songs(band_id, name_norm);
+CREATE INDEX IF NOT EXISTS idx_songs_band ON songs(band_id);
+
+-- A timeline boundary on a project. Implicit end (= next section's
+-- start_ms, or project duration). Exactly one of song_id / label is set
+-- when the section is named; both NULL means an unnamed boundary (used by
+-- the auto-detector — for v1 the manual flow only emits named sections).
+CREATE TABLE IF NOT EXISTS sections (
+  id          TEXT PRIMARY KEY,
+  project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  start_ms    INTEGER NOT NULL,
+  song_id     TEXT REFERENCES songs(id) ON DELETE SET NULL,
+  label       TEXT,
+  source      TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','auto')),
+  created_at  INTEGER NOT NULL,
+  created_by  TEXT NOT NULL REFERENCES users(id),
+  updated_at  INTEGER NOT NULL,
+  CHECK (NOT (song_id IS NOT NULL AND label IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_sections_project_start ON sections(project_id, start_ms);
+CREATE INDEX IF NOT EXISTS idx_sections_song ON sections(song_id);
+
+-- Append-only audit log for destructive operations on projects, stems, and
+-- annotations. Records soft-deletes via routes plus hard-deletes from the
+-- trash purge (where a CASCADE on projects wipes stem rows with no
+-- deleted_by). user_id is intentionally NOT a foreign key — audit rows must
+-- survive user deletion. resource_id is not a FK either, since the row it
+-- describes is usually gone by the time you query the log.
+CREATE TABLE IF NOT EXISTS audit_log (
+  id            TEXT PRIMARY KEY,
+  created_at    INTEGER NOT NULL,
+  user_id       TEXT,
+  user_email    TEXT,
+  action        TEXT NOT NULL,
+  resource_type TEXT NOT NULL,
+  resource_id   TEXT NOT NULL,
+  band_id       TEXT,
+  metadata      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_audit_log_resource
+  ON audit_log(resource_type, resource_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_log_band
+  ON audit_log(band_id, created_at DESC) WHERE band_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_audit_log_action
+  ON audit_log(action, created_at DESC);

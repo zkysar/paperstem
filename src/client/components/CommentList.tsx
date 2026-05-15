@@ -35,8 +35,9 @@ type Props = {
   onSaveEdit(annotation: Annotation, body: string): void;
   onDelete(annotation: Annotation): void;
   /**
-   * "Copy link to this comment" — captures project + comment + its timestamp
-   * and writes a share URL to the clipboard.
+   * "Copy link to this comment" — opens the share dialog pre-populated
+   * with this comment as the link target. The user picks what state to
+   * bundle and copies from there.
    */
   onCopyLink(annotation: Annotation): void;
   replies: Map<string, AnnotationReply[]>;
@@ -185,6 +186,7 @@ export function CommentList({
                       type="button"
                       className={'cl-star' + (a.starred ? ' on' : '')}
                       aria-label={a.starred ? 'Unstar' : 'Star'}
+                      title={a.starred ? 'Unstar this comment' : 'Star this comment to flag it for review'}
                       onClick={(e) => { e.stopPropagation(); onToggleStar(a); }}
                     ><Star size={14} strokeWidth={2} fill={a.starred ? 'currentColor' : 'none'} aria-hidden="true" /></button>
                   ) : (
@@ -194,7 +196,7 @@ export function CommentList({
                     type="button"
                     className="cl-iconbtn cl-copy-link"
                     aria-label="Copy link to this comment"
-                    title="Copy link to this comment"
+                    title="Open share dialog for this comment"
                     onClick={(e) => { e.stopPropagation(); onCopyLink(a); }}
                   ><Link2 size={14} strokeWidth={2} aria-hidden="true" /></button>
                 </div>
@@ -245,6 +247,7 @@ export function CommentList({
                           type="button"
                           className="cl-iconbtn"
                           aria-label="Edit"
+                          title="Edit this comment"
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditBody(a.body);
@@ -255,6 +258,7 @@ export function CommentList({
                           type="button"
                           className="cl-iconbtn"
                           aria-label="Delete"
+                          title="Delete this comment"
                           onClick={(e) => {
                             e.stopPropagation();
                             if (window.confirm('Delete this comment?')) onDelete(a);

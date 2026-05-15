@@ -1,5 +1,6 @@
 import type { Context } from 'hono';
 import { stmts } from './db.js';
+import { recordAudit } from './audit.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
 import { renameItem, trashItem, untrashItem } from './storage.js';
 
@@ -55,6 +56,19 @@ export async function handleDeleteStem(
 
   const now = Math.floor(Date.now() / 1000);
   stmts.softDeleteStem.run(now, user.id, id);
+
+  recordAudit({
+    action: 'stem.soft_delete',
+    resource_type: 'stem',
+    resource_id: id,
+    actor: { id: user.id, email: user.email },
+    band_id: stem.band_id,
+    metadata: {
+      name: stem.name,
+      project_id: stem.project_id,
+      file_id: stem.file_id,
+    },
+  });
 
   try {
     await trashItem(stem.file_id);

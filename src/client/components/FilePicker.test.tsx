@@ -12,6 +12,10 @@ const baseProps = {
   projects,
   activeProjectId: null,
   showUpload: true,
+  bandSongs: [],
+  songUsage: [],
+  filterSongId: null,
+  onSetFilterSongId: vi.fn(),
   onClose: vi.fn(),
   onSelect: vi.fn(),
   onLoadFolder: vi.fn(),
@@ -61,9 +65,9 @@ describe('FilePicker', () => {
   });
 
   const fixtureProjects: Project[] = [
-    { id: 'p1', title: 'Project 2026-04-28', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'c', name: 'c' }], stemCount: 3, folderId: 'd1', referenceStemId: null },
-    { id: 'p2', title: 'Project 2026-04-21', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }], stemCount: 2, folderId: 'd2', referenceStemId: null },
-    { id: 'p3', title: 'Project 2026-03-31', folder: '2026/03', stems: [{ id: 'a', name: 'a' }], stemCount: 1, folderId: null, referenceStemId: null },
+    { id: 'p1', title: 'Project 2026-04-28', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'c', name: 'c' }], stemCount: 3, folderId: 'd1', referenceStemId: null, updatedAt: 1714262400000, totalDurationMs: 272_000, commentCount: 0 },
+    { id: 'p2', title: 'Project 2026-04-21', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }], stemCount: 2, folderId: 'd2', referenceStemId: null, updatedAt: 1713657600000, totalDurationMs: 180_000, commentCount: 5 },
+    { id: 'p3', title: 'Project 2026-03-31', folder: '2026/03', stems: [{ id: 'a', name: 'a' }], stemCount: 1, folderId: null, referenceStemId: null, updatedAt: 1711843200000, totalDurationMs: null, commentCount: 1 },
   ];
 
   it('renders one row per project', () => {
@@ -71,6 +75,63 @@ describe('FilePicker', () => {
     expect(screen.getByText('Project 2026-04-28')).not.toBeNull();
     expect(screen.getByText('Project 2026-04-21')).not.toBeNull();
     expect(screen.getByText('Project 2026-03-31')).not.toBeNull();
+  });
+
+  it('default sort puts the most recently updated project first', () => {
+    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    const titles = screen
+      .getAllByTestId(/^fp-row-/)
+      .map((el) => el.textContent ?? '');
+    // p1 (newest) first; p3 (oldest) last.
+    expect(titles[0]).toMatch(/Project 2026-04-28/);
+    expect(titles[2]).toMatch(/Project 2026-03-31/);
+  });
+
+  it('clicking a sort header reorders rows by that column', async () => {
+    const user = userEvent.setup();
+    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    // Click "Comments" — first click is desc, so p2 (5 comments) leads.
+    await user.click(screen.getByRole('button', { name: /^Comments/ }));
+    let titles = screen
+      .getAllByTestId(/^fp-row-/)
+      .map((el) => el.textContent ?? '');
+    expect(titles[0]).toMatch(/Project 2026-04-21/);
+    // Click again to flip to asc — p1 (0 comments) leads.
+    await user.click(screen.getByRole('button', { name: /^Comments/ }));
+    titles = screen
+      .getAllByTestId(/^fp-row-/)
+      .map((el) => el.textContent ?? '');
+    expect(titles[0]).toMatch(/Project 2026-04-28/);
+  });
+
+  it('renders duration and comment count from project fields', () => {
+    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    // 272_000 ms = 4:32
+    expect(screen.getByText('4:32')).not.toBeNull();
+    // 5 comments on p2 — the row's accessible label exposes the count.
+    expect(screen.getByLabelText('5 comments')).not.toBeNull();
+    expect(screen.getByLabelText('1 comment')).not.toBeNull();
+  });
+
+  it('Trash icon toggles to trash view and back', async () => {
+    const user = userEvent.setup();
+    const onLoadTrash = vi.fn();
+    render(
+      <FilePicker
+        {...baseProps}
+        projects={fixtureProjects}
+        trash={null}
+        onLoadTrash={onLoadTrash}
+      />,
+    );
+    const trashTab = screen.getByRole('tab', { name: /trash/i });
+    await user.click(trashTab);
+    expect(onLoadTrash).toHaveBeenCalledTimes(1);
+    // Clicking the same icon again returns to Recent without re-loading.
+    await user.click(trashTab);
+    expect(onLoadTrash).toHaveBeenCalledTimes(1);
+    // Recent rows are visible again.
+    expect(screen.getByText('Project 2026-04-28')).not.toBeNull();
   });
 
   it('filters by search query (title)', async () => {
@@ -156,7 +217,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onRenameProject={onRename} />,
@@ -172,7 +233,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onRenameProject={onRename} />,
@@ -187,7 +248,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onSelect={onSelect} />,
@@ -200,7 +261,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onDeleteProject={onDelete} />,
@@ -215,7 +276,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onDeleteProject={onDelete} />,
@@ -278,7 +339,7 @@ describe('FilePicker', () => {
     const onClose = vi.fn();
     const onDelete = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
       <FilePicker
@@ -320,5 +381,94 @@ describe('FilePicker', () => {
     expect(screen.queryByText(/trash is empty/i)).toBeNull();
     await user.click(screen.getByRole('button', { name: /retry/i }));
     expect(onLoadTrash).toHaveBeenCalled();
+  });
+
+  it('renders one song chip per band song with use_count > 0', () => {
+    render(
+      <FilePicker
+        {...baseProps}
+        bandSongs={[
+          { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 4 },
+          { id: 's-2', band_id: 'b', name: 'Solo Idea', created_at: 0, use_count: 1 },
+          // use_count = 0 — kept off the chip rail (catalog ghost)
+          { id: 's-3', band_id: 'b', name: 'Abandoned', created_at: 0, use_count: 0 },
+        ]}
+      />,
+    );
+    expect(screen.queryByText('Heart Sounds')).not.toBeNull();
+    expect(screen.queryByText('Solo Idea')).not.toBeNull();
+    expect(screen.queryByText('Abandoned')).toBeNull();
+  });
+
+  it('clicking a chip calls onSetFilterSongId with the song id', async () => {
+    const user = userEvent.setup();
+    const onSetFilterSongId = vi.fn();
+    render(
+      <FilePicker
+        {...baseProps}
+        bandSongs={[
+          { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 4 },
+        ]}
+        onSetFilterSongId={onSetFilterSongId}
+      />,
+    );
+    await user.click(screen.getByTestId('fp-song-chip-s-1'));
+    expect(onSetFilterSongId).toHaveBeenCalledWith('s-1');
+  });
+
+  it('clicking the active chip clears the filter', async () => {
+    const user = userEvent.setup();
+    const onSetFilterSongId = vi.fn();
+    render(
+      <FilePicker
+        {...baseProps}
+        filterSongId="s-1"
+        bandSongs={[
+          { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 4 },
+        ]}
+        onSetFilterSongId={onSetFilterSongId}
+      />,
+    );
+    await user.click(screen.getByTestId('fp-song-chip-s-1'));
+    expect(onSetFilterSongId).toHaveBeenCalledWith(null);
+  });
+
+  it('filters the project list when a chip is active', () => {
+    const rows: Project[] = [
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p2', title: 'Bravo', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p3', title: 'Charlie', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+    ];
+    render(
+      <FilePicker
+        {...baseProps}
+        projects={rows}
+        filterSongId="s-1"
+        bandSongs={[
+          { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 2 },
+        ]}
+        songUsage={[
+          { project_id: 'p1', song_id: 's-1' },
+          { project_id: 'p3', song_id: 's-1' },
+        ]}
+      />,
+    );
+    // Only p1 and p3 contain Heart Sounds; p2 should be filtered out.
+    expect(screen.queryByText('Alpha')).not.toBeNull();
+    expect(screen.queryByText('Bravo')).toBeNull();
+    expect(screen.queryByText('Charlie')).not.toBeNull();
+  });
+
+  it('"Clear filter" link appears when a chip is active', () => {
+    render(
+      <FilePicker
+        {...baseProps}
+        filterSongId="s-1"
+        bandSongs={[
+          { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 2 },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/clear filter/i)).not.toBeNull();
   });
 });

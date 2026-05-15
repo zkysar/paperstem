@@ -6,6 +6,11 @@ export type Project = {
   stemCount: number;
   folderId: string | null;
   referenceStemId: string | null;
+  updatedAt: number;
+  // Project length, in ms — max(stem.duration_ms). null when no stem has yet
+  // been measured (rare during ingest).
+  totalDurationMs: number | null;
+  commentCount: number;
 };
 
 export type ProjectStem = {
@@ -25,6 +30,8 @@ export type ProjectSummary = {
   updated_at: number;
   stem_count: number;
   reference_stem_id: string | null;
+  total_duration_ms: number | null;
+  comment_count: number;
 };
 
 export type StemSummary = {
@@ -46,6 +53,7 @@ export type ProjectDetail = {
   created_at: number;
   created_by: string;
   updated_at: number;
+  comment_count: number;
 };
 
 export type LoadedStem = {
@@ -100,6 +108,10 @@ export type PlayerState = {
   referenceIdx: number;
   isPlaying: boolean;
   loop: LoopRegion | null;
+  // True when the user has turned looping on but no region exists yet.
+  // The next ruler drag will create one; clicking the loop toggle again
+  // (or successfully creating a region) disarms it.
+  loopArmed: boolean;
   status: string;
   loading: PlayerLoading | null;
   waveformNormalization: WaveformNormalization;

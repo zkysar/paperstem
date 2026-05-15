@@ -54,6 +54,7 @@ function defaultOpts() {
     drawerOpen: false,
     popoverOpen: false,
     annotationCreateMode: false,
+    sectionCreateMode: false,
     viewport: defaultViewport(),
     onTogglePicker: vi.fn(),
     onClosePicker: vi.fn(),
@@ -61,6 +62,8 @@ function defaultOpts() {
     onClosePopover: vi.fn(),
     onCancelCreate: vi.fn(),
     onToggleShortcuts: vi.fn(),
+    onAddCommentAtPlayhead: vi.fn(),
+    onAddSectionAtPlayhead: vi.fn(),
   };
 }
 
@@ -225,6 +228,30 @@ describe('useKeyboard zoom chords', () => {
     expect(viewport.zoomV).toHaveBeenCalledWith('out');
   });
 
+  it('cmd-= anchors at the playhead when it is visible', () => {
+    const viewport = defaultViewport();
+    viewport.state.hZoom = 2;
+    const stage = document.createElement('div');
+    stage.className = 'stage';
+    stage.getBoundingClientRect = () => ({
+      left: 0, top: 0, right: 600, bottom: 400, width: 600, height: 400,
+      x: 0, y: 0, toJSON: () => ({}),
+    } as DOMRect);
+    document.body.appendChild(stage);
+    const player = stubPlayer();
+    player.state.duration = 100;
+    player.currentTime = 25; // visible: anchor at 300
+    renderHook(() => useKeyboard({ ...defaultOpts(), player, viewport }));
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '=', metaKey: true }),
+    );
+    expect(viewport.zoomH).toHaveBeenCalledWith('in', expect.objectContaining({
+      stageWidth: 600,
+      anchorX: 300,
+    }));
+    document.body.removeChild(stage);
+  });
+
   it('cmd-0 calls viewport.fitToWindow', () => {
     const viewport = defaultViewport();
     renderHook(() =>
@@ -362,6 +389,41 @@ describe('useKeyboard WASD navigation', () => {
     document.body.removeChild(stageEl);
   });
 
+  it('W anchors zoom at the playhead when it is visible', () => {
+    const viewport = defaultViewport();
+    viewport.state.hZoom = 2; // inner = 1200, scrollLeft 0 → visible 0..600
+    const { viewportEl, stageEl } = withViewport();
+    const player = stubPlayer();
+    player.state.duration = 100;
+    player.currentTime = 25; // 25/100 * 1200 = 300 inner, 300 - 0 scroll = 300 stageX
+    renderHook(() => useKeyboard({ ...defaultOpts(), player, viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
+    expect(viewport.zoomH).toHaveBeenCalledWith('in', expect.objectContaining({
+      stageWidth: 600,
+      anchorX: 300,
+    }));
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
+
+  it('W falls back to center anchor when playhead is offscreen', () => {
+    const viewport = defaultViewport();
+    viewport.state.hZoom = 4; // inner = 2400
+    viewport.state.scrollLeft = 0; // visible 0..600
+    const { viewportEl, stageEl } = withViewport();
+    const player = stubPlayer();
+    player.state.duration = 100;
+    player.currentTime = 50; // 50/100 * 2400 = 1200 inner → stageX 1200 (offscreen)
+    renderHook(() => useKeyboard({ ...defaultOpts(), player, viewport }));
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'w' }));
+    expect(viewport.zoomH).toHaveBeenCalledWith('in', expect.objectContaining({
+      stageWidth: 600,
+      anchorX: 300,
+    }));
+    document.body.removeChild(viewportEl);
+    document.body.removeChild(stageEl);
+  });
+
   it('all four WASD keys suspend auto-follow', () => {
     for (const key of ['w', 'a', 's', 'd']) {
       const viewport = defaultViewport();
@@ -372,6 +434,28 @@ describe('useKeyboard WASD navigation', () => {
       document.body.removeChild(viewportEl);
       document.body.removeChild(stageEl);
     }
+  });
+
+  it('C calls onAddCommentAtPlayhead', () => {
+    const onAddCommentAtPlayhead = vi.fn();
+    renderHook(() =>
+      useKeyboard({ ...defaultOpts(), onAddCommentAtPlayhead }),
+    );
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'c' }));
+    expect(onAddCommentAtPlayhead).toHaveBeenCalledOnce();
+  });
+
+  it('C does not fire in text inputs', () => {
+    const onAddCommentAtPlayhead = vi.fn();
+    renderHook(() =>
+      useKeyboard({ ...defaultOpts(), onAddCommentAtPlayhead }),
+    );
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'c', bubbles: true }));
+    expect(onAddCommentAtPlayhead).not.toHaveBeenCalled();
+    document.body.removeChild(input);
   });
 
   it('WASD does not fire in text inputs', () => {

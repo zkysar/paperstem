@@ -64,6 +64,36 @@ export function buildUserColorMap(
   return out;
 }
 
+// Song chapter palette — distinct hues that read well as tinted band fills
+// on top of the waveform. Eight colors is plenty for the chip-rail and the
+// chapter lane; collisions on a band with 30+ active songs are acceptable
+// (it's a navigation hint, not data).
+export const SONG_PALETTE: readonly string[] = [
+  '#3b6675',
+  '#5e7a4e',
+  '#7d4e6b',
+  '#a87a3f',
+  '#594b76',
+  '#9f4a4a',
+  '#c17446',
+  '#4a7080',
+];
+
+// Deterministic color for a song. Same id always returns the same hue,
+// so "Heart Sounds" looks the same across every practice without needing
+// a stored color column.
+export function colorForSong(songId: string): string {
+  let h = 0;
+  for (let i = 0; i < songId.length; i++) {
+    h = ((h << 5) - h + songId.charCodeAt(i)) | 0;
+  }
+  return SONG_PALETTE[Math.abs(h) % SONG_PALETTE.length];
+}
+
+// Neutral fill for sections that have a free-text label rather than a
+// song reference, and for unnamed boundaries.
+export const FREE_TEXT_SECTION_COLOR = '#6a6a6a';
+
 // Mix two #rrggbb hex colors. t=0 returns a, t=1 returns b.
 export function mix(a: string, b: string, t: number): string {
   const ah = parseInt(a.slice(1), 16);

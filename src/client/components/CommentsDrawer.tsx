@@ -8,6 +8,7 @@ import type {
 import { CommentList } from './CommentList';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 export type DraftSpec = { start_ms: number; end_ms: number | null };
 
@@ -53,6 +54,7 @@ export function CommentsDrawer({
   onToggleReaction,
 }: Props) {
   const [draftBody, setDraftBody] = useState('');
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!pendingDraft) setDraftBody('');
@@ -101,6 +103,7 @@ export function CommentsDrawer({
               type="button"
               className="cd-back"
               aria-label="Back"
+              title="Back"
               onClick={onClose}
             ><ChevronLeft size={16} strokeWidth={2} aria-hidden="true" /></button>
           )}
@@ -111,6 +114,7 @@ export function CommentsDrawer({
               type="button"
               className="cd-close"
               aria-label="Close"
+              title="Close the comments panel"
               onClick={onClose}
             ><X size={16} strokeWidth={2} aria-hidden="true" /></button>
           )}
@@ -130,6 +134,10 @@ export function CommentsDrawer({
                   e.preventDefault();
                   handleSaveDraft();
                 }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  onDraftCancel();
+                }
               }}
             />
             <div className="cd-draft-actions">
@@ -139,7 +147,7 @@ export function CommentsDrawer({
                 className="cd-save"
                 disabled={draftBody.trim().length === 0}
                 onClick={handleSaveDraft}
-              >Save ({SUBMIT_HINT})</button>
+              >{isMobile ? 'Save' : `Save (${SUBMIT_HINT})`}</button>
             </div>
           </div>
         )}

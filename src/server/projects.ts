@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import type { Context } from 'hono';
 import busboy from 'busboy';
 import { stmts } from './db.js';
+import { recordAudit } from './audit.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
 import {
   createFolder,
@@ -76,6 +77,8 @@ export function handleListProjects(
     updated_at: p.updated_at,
     stem_count: p.stem_count,
     reference_stem_id: p.reference_stem_id,
+    total_duration_ms: p.total_duration_ms,
+    comment_count: p.comment_count,
   }));
   return c.json({ projects });
 }
@@ -101,6 +104,7 @@ export function handleGetProject(
     size_bytes: s.size_bytes,
     peaks: s.peaks,
   }));
+  const commentCount = stmts.countAnnotationsForProject.get(id)?.n ?? 0;
 
   return c.json({
     project: {
@@ -113,6 +117,7 @@ export function handleGetProject(
       created_at: project.created_at,
       created_by: project.created_by,
       updated_at: project.updated_at,
+      comment_count: commentCount,
     },
     stems,
   });
@@ -169,6 +174,15 @@ export async function handleDeleteProject(
 
   const now = Math.floor(Date.now() / 1000);
   stmts.softDeleteProject.run(now, user.id, id);
+
+  recordAudit({
+    action: 'project.soft_delete',
+    resource_type: 'project',
+    resource_id: id,
+    actor: { id: user.id, email: user.email },
+    band_id: project.band_id,
+    metadata: { name: project.name, folder_id: project.folder_id },
+  });
 
   try {
     await trashItem(project.folder_id);

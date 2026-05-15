@@ -6,15 +6,18 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import type { Annotation } from '../../shared/types';
+import type { Annotation, Section } from '../../shared/types';
 import type { PlayerControls } from '../hooks/usePlayer';
+import { useIsMobile } from '../hooks/useIsMobile';
 import { pixelToTime } from '../lib/format';
+import { attachPinchZoom } from '../lib/touch-pinch';
 import { AnnotationMarkers } from './AnnotationMarkers';
 import { FollowPill } from './FollowPill';
 import { LoopRegion } from './LoopRegion';
 import { Minimap } from './Minimap';
 import { Playhead } from './Playhead';
 import { Ruler } from './Ruler';
+import { SectionLane } from './SectionLane';
 import { Track } from './Track';
 import type { ViewportControls } from '../hooks/useViewport';
 
@@ -49,6 +52,16 @@ type Props = {
   hoveredAnnotationId: string | null;
   onHoverAnnotation: Dispatch<SetStateAction<string | null>>;
   onLoopAnnotation(annotation: Annotation): void;
+  // Section lane + creation state. The lane shows song boundaries above
+  // the ruler; clicking a pill seeks. Creation mode opens a popover at
+  // the click point on the wave area (driven by App.tsx).
+  sections: Section[];
+  songUseCounts: Map<string, number>;
+  activeSectionId: string | null;
+  sectionCreateMode: boolean;
+  onSectionSelected(section: Section): void;
+  onSectionCreated(start_ms: number, clientX: number, clientY: number): void;
+  onToggleSectionCreate(): void;
   // Controlled rail-collapse state (lifted to App so AppToolbar's rail-toggle
   // button can drive it). The breakpoint listener also lives in App.
   railCollapsed: boolean;
@@ -72,6 +85,13 @@ export function Player({
   hoveredAnnotationId,
   onHoverAnnotation,
   onLoopAnnotation,
+  sections,
+  songUseCounts,
+  activeSectionId,
+  sectionCreateMode,
+  onSectionSelected,
+  onSectionCreated,
+  onToggleSectionCreate,
   railCollapsed,
   canMutate,
   onToggleAnnotationCreate,
@@ -85,10 +105,13 @@ export function Player({
     stems,
     duration,
     loop,
+    loopArmed,
     status,
     loading,
     waveformNormalization,
   } = state;
+
+  const isMobile = useIsMobile();
 
   const stageRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
@@ -168,6 +191,22 @@ export function Player({
         });
         // Manual zoom suspends auto-follow.
         if (viewport.state.followActive) viewport.setFollowActive(false);
+      } else if (e.ctrlKey) {
+        // Trackpad two-finger pinch. Chromium/Firefox synthesize wheel
+        // events with ctrlKey=true during a pinch gesture, even when no
+        // ctrl key is physically held. Without this branch the browser
+        // does its native full-page zoom on pinch.
+        e.preventDefault();
+        const stage = stageRef.current;
+        if (!stage) return;
+        const stageRect = stage.getBoundingClientRect();
+        const anchorX = e.clientX - stageRect.left;
+        const factor = Math.exp(-e.deltaY * 0.0025);
+        viewport.zoomHBy(factor, {
+          stageWidth: stageRect.width,
+          anchorX,
+        });
+        if (viewport.state.followActive) viewport.setFollowActive(false);
       } else if (e.shiftKey && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
         // Shift converts vertical wheel to horizontal pan.
         e.preventDefault();
@@ -181,6 +220,22 @@ export function Player({
     }
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
+  }, [viewport]);
+
+  // Touchscreen pinch-zoom (iOS / iPad gesture events, with TouchEvent
+  // fallback for Android). Without this, Safari does its native page
+  // zoom on a two-finger pinch over the timeline.
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    return attachPinchZoom(el, ({ scaleDelta, clientX }) => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const stageRect = stage.getBoundingClientRect();
+      const anchorX = clientX - stageRect.left;
+      viewport.zoomHBy(scaleDelta, { stageWidth: stageRect.width, anchorX });
+      if (viewport.state.followActive) viewport.setFollowActive(false);
+    });
   }, [viewport]);
 
   // When playback transitions from paused → playing, re-engage follow. The
@@ -361,10 +416,10 @@ export function Player({
     if (e.button !== 0) return;
     if (annotationCreateMode) return;
     const t = xToTime(e.clientX);
-    // When looping is off (no region defined, or region is disabled), a drag
-    // on the ruler just scrubs the playhead. Loop creation is reserved for
-    // when looping is actively on — explicit gesture, no accidental loops.
-    const mode: DragMode = loop?.enabled ? 'create' : 'scrub';
+    // When looping is off (no region, region disabled, and not armed), a
+    // drag on the ruler scrubs the playhead. Loop creation needs either an
+    // active region or the loop button armed — explicit, no accidents.
+    const mode: DragMode = loop?.enabled || loopArmed ? 'create' : 'scrub';
     startDrag(
       {
         mode,
@@ -564,11 +619,38 @@ export function Player({
                   startAnnotationDrag(e.clientX, e.pointerId);
                   e.preventDefault();
                 }}
-                aria-label="Click for point annotation, drag for region"
+                aria-label="Click for a point comment, drag for a region comment"
+              />
+            )}
+            {sectionCreateMode && duration > 0 && (
+              <div
+                className="annotation-create-overlay"
+                style={{ left: `${railWidth}px`, width: `${waveWidth}px` }}
+                onPointerDown={(e) => {
+                  if (e.button !== 0) return;
+                  const t = xToTime(e.clientX);
+                  onSectionCreated(
+                    Math.max(0, Math.round(t * 1000)),
+                    e.clientX,
+                    e.clientY,
+                  );
+                  e.preventDefault();
+                }}
+                aria-label="Click the timeline to drop a section at that time"
               />
             )}
             <div className="tracks" ref={tracksRef}>
               <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
+              <SectionLane
+                sections={sections}
+                duration={duration}
+                waveLeftPx={railWidth}
+                waveWidthPx={waveWidth}
+                songUseCounts={songUseCounts}
+                activeSectionId={activeSectionId}
+                onSelect={onSectionSelected}
+                onSeek={player.seek}
+              />
               {!stems.length && !loading && (
                 <div className="empty-stage">
                   <p>No project loaded.</p>
@@ -577,7 +659,7 @@ export function Player({
                     className="empty-stage-cta"
                     onClick={onOpenPicker}
                   >
-                    Open the file picker (⌘K)
+                    {isMobile ? 'Open the file picker' : 'Open the file picker (⌘K)'}
                   </button>
                 </div>
               )}
@@ -696,12 +778,43 @@ export function Player({
       {annotationCreateMode && (
         <div className="annotation-mode-banner" role="status">
           <span className="annotation-mode-dot" aria-hidden="true" />
-          <strong>Annotation mode</strong> &middot; click the timeline for a
-          point, drag for a region &middot; <kbd>Esc</kbd> or click + to cancel
+          <strong className="annotation-mode-title">Comment mode</strong>
+          <span className="annotation-mode-chip">
+            <span className="annotation-mode-glyph annotation-mode-glyph-point" aria-hidden="true" />
+            <span><strong>Click</strong> for a point</span>
+          </span>
+          <span className="annotation-mode-chip">
+            <span className="annotation-mode-glyph annotation-mode-glyph-region" aria-hidden="true" />
+            <span><strong>Drag</strong> for a region</span>
+          </span>
+          <span className="annotation-mode-esc">
+            <kbd>Esc</kbd> or <kbd>+</kbd> to cancel
+          </span>
           <button
             type="button"
             className="annotation-mode-cancel"
             onClick={onToggleAnnotationCreate}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {sectionCreateMode && (
+        <div className="annotation-mode-banner" role="status">
+          <span className="annotation-mode-dot" aria-hidden="true" />
+          <strong className="annotation-mode-title">Section mode</strong>
+          <span className="annotation-mode-chip">
+            <span className="annotation-mode-glyph annotation-mode-glyph-point" aria-hidden="true" />
+            <span><strong>Click</strong> the timeline where a song starts</span>
+          </span>
+          <span className="annotation-mode-esc">
+            <kbd>Esc</kbd> or <kbd>M</kbd> to cancel
+          </span>
+          <button
+            type="button"
+            className="annotation-mode-cancel"
+            onClick={onToggleSectionCreate}
           >
             Cancel
           </button>

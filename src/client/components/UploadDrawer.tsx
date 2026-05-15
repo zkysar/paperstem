@@ -226,6 +226,15 @@ export function UploadDrawer({
       return;
     }
 
+    // Track success inline rather than via the closure-captured `files` —
+    // updateFile() schedules setFiles() but does NOT update this closure's
+    // `files` reference, so a post-loop `files.some(f => f.status !== 'done')`
+    // would always read stale 'pending' entries and skip onUploaded(). With
+    // onUploaded() never firing the drawer stayed open after a successful
+    // upload, and a re-click of the still-enabled Upload button would POST
+    // /api/projects again, skip every (already-'done') stem in the loop, and
+    // produce a phantom empty project alongside the real one.
+    let allOk = true;
     for (let i = 0; i < files.length; i++) {
       const entry = files[i];
       if (entry.status === 'done') continue;
@@ -241,6 +250,7 @@ export function UploadDrawer({
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           updateFile(i, { status: 'failed', error: `compression_failed: ${msg}` });
+          allOk = false;
           continue;
         }
         if (toUpload.size > MAX_STEM_BYTES) {
@@ -248,6 +258,7 @@ export function UploadDrawer({
             status: 'failed',
             error: 'still_over_100mb_after_compression',
           });
+          allOk = false;
           continue;
         }
       }
@@ -268,14 +279,12 @@ export function UploadDrawer({
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         updateFile(i, { status: 'failed', error: msg });
+        allOk = false;
       }
     }
 
     setSubmitting(false);
-    const stillPending = files.some(
-      (f, i) => f.status !== 'done' && i < files.length,
-    );
-    if (!stillPending) {
+    if (allOk) {
       onUploaded(projectId);
     }
   }
@@ -304,6 +313,7 @@ export function UploadDrawer({
             type="button"
             className="upload-modal-close"
             aria-label="Close upload"
+            title="Close"
             onClick={onClose}
           >
             <X size={16} strokeWidth={2} aria-hidden="true" />
@@ -397,14 +407,21 @@ export function UploadDrawer({
           <button type="button" onClick={onClose} disabled={submitting && !allDone}>
             {allDone ? 'Close' : 'Cancel'}
           </button>
-          <button
-            type="button"
-            className="upload-submit"
-            onClick={() => void handleSubmit()}
-            disabled={!canSubmit}
-          >
-            {submitting ? 'Uploading…' : 'Upload'}
-          </button>
+          {/* Hide the submit button once every stem is uploaded — defense
+              in depth: a stray re-click after a successful run would POST
+              /api/projects again and create an empty duplicate project,
+              because every file would be skipped by the for-loop's
+              `status === 'done'` short-circuit. */}
+          {!allDone && (
+            <button
+              type="button"
+              className="upload-submit"
+              onClick={() => void handleSubmit()}
+              disabled={!canSubmit}
+            >
+              {submitting ? 'Uploading…' : 'Upload'}
+            </button>
+          )}
         </div>
       </div>
     </div>

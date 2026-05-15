@@ -212,6 +212,64 @@ export type AnnotationReplyCountRow = {
   reply_count: number;
 };
 
+export type SongRow = {
+  id: string;
+  band_id: string;
+  name: string;
+  name_norm: string;
+  created_at: number;
+  created_by: string;
+};
+
+export type SongWithUseCountRow = SongRow & { use_count: number };
+
+export type SectionRow = {
+  id: string;
+  project_id: string;
+  start_ms: number;
+  song_id: string | null;
+  label: string | null;
+  source: 'manual' | 'auto';
+  created_at: number;
+  created_by: string;
+  updated_at: number;
+};
+
+export type SectionJoinedRow = SectionRow & {
+  song_name: string | null;
+};
+
+export type AuditLogRow = {
+  id: string;
+  created_at: number;
+  user_id: string | null;
+  user_email: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  band_id: string | null;
+  metadata: string | null;
+};
+
+export type ProjectPurgePreviewRow = {
+  id: string;
+  name: string;
+  folder_id: string;
+  deleted_at: number;
+  deleted_by: string | null;
+  deleted_reason: string | null;
+};
+
+export type StemPurgePreviewRow = {
+  id: string;
+  project_id: string;
+  name: string;
+  file_id: string;
+  deleted_at: number | null;
+  deleted_by: string | null;
+  deleted_reason: string | null;
+};
+
 export const stmts = {
   findUserByEmail: db.prepare<[string], UserRow>(
     'SELECT * FROM users WHERE email = ?',
@@ -338,14 +396,23 @@ export const stmts = {
   ),
   findProjectsForBandWithRefStem: db.prepare<
     [string],
-    ProjectRow & { stem_count: number; reference_stem_id: string | null }
+    ProjectRow & {
+      stem_count: number;
+      reference_stem_id: string | null;
+      total_duration_ms: number | null;
+      comment_count: number;
+    }
   >(
     `SELECT p.*,
             (SELECT COUNT(*) FROM stems s
               WHERE s.project_id = p.id AND s.deleted_at IS NULL) AS stem_count,
             (SELECT s.id FROM stems s
               WHERE s.project_id = p.id AND s.deleted_at IS NULL
-              ORDER BY s.position LIMIT 1) AS reference_stem_id
+              ORDER BY s.position LIMIT 1) AS reference_stem_id,
+            (SELECT MAX(s.duration_ms) FROM stems s
+              WHERE s.project_id = p.id AND s.deleted_at IS NULL) AS total_duration_ms,
+            (SELECT COUNT(*) FROM annotations a
+              WHERE a.project_id = p.id) AS comment_count
        FROM projects p
       WHERE p.band_id = ? AND p.deleted_at IS NULL
       ORDER BY p.recorded_on DESC, p.created_at DESC`,
@@ -395,6 +462,9 @@ export const stmts = {
        JOIN users u ON u.id = a.user_id
       WHERE a.project_id = ?
       ORDER BY a.start_ms ASC, a.created_at ASC`,
+  ),
+  countAnnotationsForProject: db.prepare<[string], { n: number }>(
+    'SELECT COUNT(*) AS n FROM annotations WHERE project_id = ?',
   ),
   findAnnotationById: db.prepare<[string], AnnotationRow>(
     'SELECT * FROM annotations WHERE id = ?',
@@ -509,6 +579,22 @@ export const stmts = {
     `DELETE FROM stems
       WHERE project_id IN (SELECT id FROM projects WHERE band_id = ?)
         AND deleted_at IS NOT NULL AND deleted_at < ?`,
+  ),
+  findProjectsToPurge: db.prepare<[string, number], ProjectPurgePreviewRow>(
+    `SELECT id, name, folder_id, deleted_at, deleted_by, deleted_reason
+       FROM projects
+      WHERE band_id = ? AND deleted_at IS NOT NULL AND deleted_at < ?`,
+  ),
+  findStemsForProjectAnyState: db.prepare<[string], StemPurgePreviewRow>(
+    `SELECT id, project_id, name, file_id, deleted_at, deleted_by, deleted_reason
+       FROM stems WHERE project_id = ?`,
+  ),
+  findStemsToPurgeDirect: db.prepare<[string, number], StemPurgePreviewRow>(
+    `SELECT s.id, s.project_id, s.name, s.file_id, s.deleted_at, s.deleted_by, s.deleted_reason
+       FROM stems s
+       JOIN projects p ON p.id = s.project_id
+      WHERE p.band_id = ?
+        AND s.deleted_at IS NOT NULL AND s.deleted_at < ?`,
   ),
 
   // --- replies ---
@@ -632,5 +718,109 @@ export const stmts = {
   deleteReplyReaction: db.prepare<[string, string, string]>(
     `DELETE FROM annotation_reply_reactions
        WHERE reply_id = ? AND user_id = ? AND emoji = ?`,
+  ),
+
+  // --- songs ---
+  findSongById: db.prepare<[string], SongRow>(
+    'SELECT * FROM songs WHERE id = ?',
+  ),
+  findSongByBandAndNameNorm: db.prepare<[string, string], SongRow>(
+    'SELECT * FROM songs WHERE band_id = ? AND name_norm = ?',
+  ),
+  findSongsForBandWithUseCount: db.prepare<[string], SongWithUseCountRow>(
+    `SELECT s.*,
+            (SELECT COUNT(DISTINCT sec.project_id)
+               FROM sections sec
+               JOIN projects p ON p.id = sec.project_id
+              WHERE sec.song_id = s.id AND p.deleted_at IS NULL) AS use_count
+       FROM songs s
+      WHERE s.band_id = ?
+      ORDER BY use_count DESC, s.name COLLATE NOCASE ASC`,
+  ),
+  findSongByIdWithUseCount: db.prepare<[string], SongWithUseCountRow>(
+    `SELECT s.*,
+            (SELECT COUNT(DISTINCT sec.project_id)
+               FROM sections sec
+               JOIN projects p ON p.id = sec.project_id
+              WHERE sec.song_id = s.id AND p.deleted_at IS NULL) AS use_count
+       FROM songs s
+      WHERE s.id = ?`,
+  ),
+  insertSong: db.prepare<[string, string, string, string, number, string]>(
+    `INSERT INTO songs (id, band_id, name, name_norm, created_at, created_by)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ),
+  renameSong: db.prepare<[string, string, string]>(
+    `UPDATE songs SET name = ?, name_norm = ? WHERE id = ?`,
+  ),
+  deleteSong: db.prepare<[string]>('DELETE FROM songs WHERE id = ?'),
+  repointSectionsToSong: db.prepare<[string, string]>(
+    `UPDATE sections SET song_id = ?, updated_at = strftime('%s','now')
+      WHERE song_id = ?`,
+  ),
+
+  // --- sections ---
+  findSectionsForProject: db.prepare<[string], SectionJoinedRow>(
+    `SELECT sec.id, sec.project_id, sec.start_ms, sec.song_id, sec.label,
+            sec.source, sec.created_at, sec.created_by, sec.updated_at,
+            song.name AS song_name
+       FROM sections sec
+       LEFT JOIN songs song ON song.id = sec.song_id
+      WHERE sec.project_id = ?
+      ORDER BY sec.start_ms ASC, sec.created_at ASC`,
+  ),
+  findSectionById: db.prepare<[string], SectionRow>(
+    'SELECT * FROM sections WHERE id = ?',
+  ),
+  findSectionByIdJoined: db.prepare<[string], SectionJoinedRow>(
+    `SELECT sec.id, sec.project_id, sec.start_ms, sec.song_id, sec.label,
+            sec.source, sec.created_at, sec.created_by, sec.updated_at,
+            song.name AS song_name
+       FROM sections sec
+       LEFT JOIN songs song ON song.id = sec.song_id
+      WHERE sec.id = ?`,
+  ),
+  insertSection: db.prepare<
+    [string, string, number, string | null, string | null, string, number, string, number]
+  >(
+    `INSERT INTO sections
+       (id, project_id, start_ms, song_id, label, source, created_at, created_by, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ),
+  updateSection: db.prepare<[number, string | null, string | null, number, string]>(
+    `UPDATE sections
+        SET start_ms = ?, song_id = ?, label = ?, updated_at = ?
+      WHERE id = ?`,
+  ),
+  deleteSection: db.prepare<[string]>('DELETE FROM sections WHERE id = ?'),
+  findSongUsageForBand: db.prepare<[string], { project_id: string; song_id: string }>(
+    `SELECT DISTINCT sec.project_id, sec.song_id
+       FROM sections sec
+       JOIN projects p ON p.id = sec.project_id
+       JOIN songs song ON song.id = sec.song_id
+      WHERE p.band_id = ? AND p.deleted_at IS NULL`,
+  ),
+
+  // --- audit log ---
+  insertAuditLog: db.prepare<
+    [string, number, string | null, string | null, string, string, string, string | null, string | null]
+  >(
+    `INSERT INTO audit_log
+       (id, created_at, user_id, user_email, action, resource_type, resource_id, band_id, metadata)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ),
+  deleteAuditOlderThan: db.prepare<[number]>(
+    'DELETE FROM audit_log WHERE created_at < ?',
+  ),
+  trimAuditOverflow: db.prepare<[number]>(
+    `DELETE FROM audit_log
+      WHERE id IN (
+        SELECT id FROM audit_log
+        ORDER BY created_at DESC, id DESC
+        LIMIT -1 OFFSET ?
+      )`,
+  ),
+  countAuditLog: db.prepare<[], { c: number }>(
+    'SELECT COUNT(*) AS c FROM audit_log',
   ),
 };

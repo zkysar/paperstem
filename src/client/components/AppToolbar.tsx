@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Bookmark,
   Maximize2,
   MessageSquarePlus,
   Pause,
@@ -20,14 +21,23 @@ import { ToolbarOverflowMenu } from './ToolbarOverflowMenu';
 type Props = {
   hasProject: boolean;
   isPlaying: boolean;
-  hasLoop: boolean;
   loopEnabled: boolean;
+  /**
+   * The loop button has been clicked but no region has been dragged out yet,
+   * so the *next* ruler drag will create a region. Lights the same as
+   * `loopEnabled` (the visual state is "loop is active"), but the tooltip
+   * needs to distinguish so it can say "drag the timeline" rather than
+   * pretending playback is repeating something.
+   */
+  loopArmed?: boolean;
   waveformNormalization: 'per-track' | 'global';
   masterVolume: number;
   currentTime: number;
   duration: number;
   annotationCreateMode: boolean;
   canCreateAnnotations: boolean;
+  sectionCreateMode: boolean;
+  canCreateSections: boolean;
   markersVisible: boolean;
   railCollapsed: boolean;
   showRailToggle: boolean;
@@ -37,89 +47,46 @@ type Props = {
   onToggleLoopEnabled(): void;
   onToggleWaveformNormalization(): void;
   onToggleAnnotationCreate(): void;
+  onToggleSectionCreate(): void;
   onToggleMarkersVisible(): void;
   onSetMasterVolume(v: number): void;
   onToggleRailCollapsed(): void;
   viewport: ViewportControls;
   onOpenShortcuts(): void;
   /**
-   * Builds a share-snapshot URL of the current player state and returns it
-   * (plus the non-trivial category list for the "Copied — includes X" hint).
-   * Returns `null` when there is no project to share.
+   * Opens the share dialog seeded with the current player + UI state. The
+   * dialog itself shows toggles for each piece of bundled state and owns
+   * the clipboard write.
    */
-  onShare(): { fullUrl: string; categories: Array<'loop' | 'mix' | 'comment'>; title?: string } | null;
+  onShare(): void;
 };
 
 export function AppToolbar(props: Props) {
   const {
-    hasProject, isPlaying, hasLoop, loopEnabled,
+    hasProject, isPlaying, loopEnabled, loopArmed = false,
     waveformNormalization, masterVolume, currentTime, duration,
-    annotationCreateMode, canCreateAnnotations, markersVisible,
+    annotationCreateMode, canCreateAnnotations,
+    sectionCreateMode, canCreateSections,
+    markersVisible,
     railCollapsed, showRailToggle, isWide,
     onSeek, onTogglePlay, onToggleLoopEnabled,
     onToggleWaveformNormalization, onToggleAnnotationCreate,
+    onToggleSectionCreate,
     onToggleMarkersVisible, onSetMasterVolume, onToggleRailCollapsed,
     viewport, onOpenShortcuts,
     onShare,
   } = props;
 
-  // Share button state — flips to "Copied — includes X" for ~2s after click.
-  // Fallback popover surfaces the URL for manual selection when clipboard
-  // writes fail (insecure contexts, denied permissions).
-  const [shareLabel, setShareLabel] = useState<string | null>(null);
-  const [shareFallback, setShareFallback] = useState<string | null>(null);
-  const shareLabelTimerRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (shareLabelTimerRef.current != null) {
-        window.clearTimeout(shareLabelTimerRef.current);
-      }
-    };
-  }, []);
-
-  async function handleShareClick() {
-    const snap = onShare();
-    if (!snap) return;
-    const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-    if (canNativeShare) {
-      try {
-        await navigator.share({ title: snap.title ?? 'Paperstem', url: snap.fullUrl });
-        // Native sheet provides its own confirmation UI — no toast needed.
-        return;
-      } catch (e) {
-        const name = (e as { name?: string } | null | undefined)?.name;
-        if (name === 'AbortError') return; // user cancelled
-        // Any other error: fall through to clipboard fallback below.
-      }
-    }
-    try {
-      await navigator.clipboard.writeText(snap.fullUrl);
-      const cats = snap.categories.length
-        ? ` — includes ${snap.categories.join(', ')}`
-        : '';
-      setShareLabel(`Copied${cats}`);
-    } catch {
-      setShareLabel('Copy failed');
-      setShareFallback(snap.fullUrl);
-    }
-    if (shareLabelTimerRef.current != null) {
-      window.clearTimeout(shareLabelTimerRef.current);
-    }
-    shareLabelTimerRef.current = window.setTimeout(() => {
-      setShareLabel(null);
-      shareLabelTimerRef.current = null;
-    }, 2000);
-  }
-
   return (
     <div className="app-toolbar">
       <button type="button" className="atb-btn"
         aria-label="Restart"
+        title="Jump back to the start"
         disabled={!hasProject}
         onClick={() => onSeek(0)}><SkipBack size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" /></button>
       <button type="button" className={'atb-btn play' + (isPlaying ? ' on' : '')}
         aria-label="Play"
+        title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
         disabled={!hasProject}
         onClick={onTogglePlay}>
         {isPlaying
@@ -128,7 +95,12 @@ export function AppToolbar(props: Props) {
       </button>
       <button type="button" className={'atb-btn' + (loopEnabled ? ' loop-on' : '')}
         aria-label="Toggle loop"
-        disabled={!hasLoop}
+        title={loopArmed
+          ? 'Loop armed — drag on the timeline to set the region. Click here again to cancel.'
+          : loopEnabled
+            ? 'Loop is on — playback repeats the selected region. Click to turn off.'
+            : 'Loop — repeat a region of the song. Click here to arm, then drag on the timeline to set the region.'}
+        disabled={!hasProject}
         onClick={onToggleLoopEnabled}><Repeat size={16} strokeWidth={2} aria-hidden="true" /></button>
 
       {isWide && (
@@ -141,41 +113,34 @@ export function AppToolbar(props: Props) {
 
       <div className="atb-share-wrap">
         <button type="button" className="atb-btn"
-          aria-label="Copy share link"
+          aria-label="Share link"
+          title="Share link — pick what to include (time, loop, mix, view, comment) before copying"
           disabled={!hasProject}
-          onClick={handleShareClick}>
+          onClick={onShare}>
           <Share2 size={16} strokeWidth={2} aria-hidden="true" />
         </button>
-        {shareLabel && (
-          <span className="atb-share-label" role="status">{shareLabel}</span>
-        )}
-        {shareFallback && (
-          <div className="atb-share-fallback">
-            <input
-              type="text"
-              readOnly
-              value={shareFallback}
-              onFocus={(e) => e.currentTarget.select()}
-              autoFocus
-              aria-label="Share URL"
-            />
-            <button
-              type="button"
-              className="atb-share-fallback-close"
-              aria-label="Close share URL"
-              onClick={() => setShareFallback(null)}
-            >×</button>
-          </div>
-        )}
       </div>
       <span className="atb-divider" />
 
       <button type="button"
         className={'atb-btn' + (annotationCreateMode ? ' annotate-on' : '')}
-        aria-label="Add annotation"
+        aria-label="Add comment"
         aria-pressed={annotationCreateMode}
         disabled={!canCreateAnnotations}
+        title={annotationCreateMode
+          ? 'Cancel comment mode'
+          : 'Add comment — click the timeline for a point, drag for a region'}
         onClick={onToggleAnnotationCreate}><MessageSquarePlus size={16} strokeWidth={2} aria-hidden="true" /></button>
+
+      <button type="button"
+        className={'atb-btn' + (sectionCreateMode ? ' annotate-on' : '')}
+        aria-label="Add section"
+        aria-pressed={sectionCreateMode}
+        disabled={!canCreateSections}
+        title={sectionCreateMode
+          ? 'Cancel section mode (M)'
+          : 'Add section — click the timeline to mark where a song begins (M)'}
+        onClick={onToggleSectionCreate}><Bookmark size={16} strokeWidth={2} aria-hidden="true" /></button>
 
       <span className="atb-divider" />
 
@@ -287,6 +252,7 @@ function MasterVolumePopover({
         type="button"
         className={'atb-btn' + (masterVolume > VOLUME_UNITY ? ' boosted' : '')}
         aria-label="Master volume"
+        title="Master volume"
         aria-pressed={open}
         onClick={() => setOpen((v) => !v)}
       >
@@ -338,6 +304,7 @@ function MobileZoomPopover({ viewport }: { viewport: ViewportControls }) {
         type="button"
         className="atb-btn"
         aria-label="Zoom"
+        title="Zoom controls"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
@@ -350,6 +317,7 @@ function MobileZoomPopover({ viewport }: { viewport: ViewportControls }) {
             type="button"
             className="atb-btn"
             aria-label="Zoom out"
+            title="Zoom out"
             onClick={() => {
               const sw = getStageWidth();
               viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
@@ -362,6 +330,7 @@ function MobileZoomPopover({ viewport }: { viewport: ViewportControls }) {
             type="button"
             className="atb-btn"
             aria-label="Zoom in"
+            title="Zoom in"
             onClick={() => {
               const sw = getStageWidth();
               viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
@@ -373,6 +342,7 @@ function MobileZoomPopover({ viewport }: { viewport: ViewportControls }) {
             type="button"
             className="atb-btn"
             aria-label="Fit to window"
+            title="Fit the whole song to the window"
             onClick={() => viewport.fitToWindow()}
           >
             <Maximize2 size={16} aria-hidden="true" />

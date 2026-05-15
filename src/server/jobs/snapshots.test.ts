@@ -26,7 +26,8 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; ' +
+    'DELETE FROM sections; DELETE FROM songs; ' +
+      'DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; ' +
       'DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; ' +
       'DELETE FROM magic_links; DELETE FROM users;',
   );
@@ -139,6 +140,43 @@ describe('buildProjectMeta', () => {
 
     expect(meta.stems).toEqual([]);
     expect(meta.annotations).toEqual([]);
+    expect(meta.sections).toEqual([]);
+  });
+
+  it('includes sections with song_name denormalized', () => {
+    const owner = createUser('s@example.com');
+    const bandId = createBand('Band S', owner);
+    const band = dbMod.stmts.findBandById.get(bandId)!;
+    const pid = insertProject(bandId, owner, 'Track S');
+    const project = dbMod.stmts.findProjectById.get(pid)!;
+
+    const songId = randomUUID();
+    const now = Math.floor(Date.now() / 1000);
+    dbMod.stmts.insertSong.run(songId, bandId, 'Heart Sounds', 'heart sounds', now, owner);
+    const sectionId = randomUUID();
+    dbMod.stmts.insertSection.run(
+      sectionId,
+      pid,
+      12_000,
+      songId,
+      null,
+      'manual',
+      now,
+      owner,
+      now,
+    );
+
+    const meta = snapMod.buildProjectMeta(band, project, 0);
+
+    expect(meta.sections).toHaveLength(1);
+    expect(meta.sections[0]).toMatchObject({
+      id: sectionId,
+      start_ms: 12_000,
+      song_id: songId,
+      song_name: 'Heart Sounds',
+      label: null,
+      source: 'manual',
+    });
   });
 });
 
@@ -234,6 +272,52 @@ describe('runSnapshotsNow', () => {
 
     uploadSpy.mockRestore();
     updateSpy.mockRestore();
+  });
+
+  it('a project whose folder is missing on disk is logged and skipped, healthy projects still snapshot', async () => {
+    // Regression for the stale-folder_id case: if a project's folder_id
+    // points to a path that no longer exists on the volume (out-of-band
+    // delete, restore drift, etc.), runSnapshotsNow must NOT silently
+    // re-create the directory and drop an orphan _meta.json into it —
+    // it must log and move on.
+    const owner = createUser('missing@example.com');
+    const bandId = createBand('Band Missing', owner);
+
+    // Project 1: folder_id encodes a path that we never mkdir.
+    const ghostFolder = 'proj-ghost-folder';
+    const ghostFolderId = Buffer.from(ghostFolder, 'utf8').toString('base64url');
+    const ghostProjectId = insertProject(bandId, owner, 'Ghost Song', ghostFolderId);
+
+    // Project 2: folder_id encodes a real on-disk folder.
+    const okFolder = 'proj-ok-folder';
+    mkdirSync(join(audioRoot, okFolder), { recursive: true });
+    const okFolderId = Buffer.from(okFolder, 'utf8').toString('base64url');
+    insertProject(bandId, owner, 'OK Song', okFolderId);
+
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(snapMod.runSnapshotsNow()).resolves.toBeUndefined();
+
+    // The ghost folder must NOT have been auto-created, and no orphan
+    // _meta.json must exist for it.
+    expect(existsSync(join(audioRoot, ghostFolder))).toBe(false);
+
+    // The healthy project still got its snapshot.
+    expect(existsSync(join(audioRoot, okFolder, '_meta.json'))).toBe(true);
+
+    // The failure was logged with band/project identification.
+    const loggedForGhost = errorSpy.mock.calls.some((call) => {
+      const msg = call[0];
+      return (
+        typeof msg === 'string' && msg.includes(bandId) && msg.includes(ghostProjectId)
+      );
+    });
+    expect(
+      loggedForGhost,
+      'console.error must identify the band/project with the missing folder',
+    ).toBe(true);
+
+    errorSpy.mockRestore();
   });
 
   it('a per-band failure does not prevent other bands from being snapshotted', async () => {

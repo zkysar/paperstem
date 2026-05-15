@@ -8,6 +8,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
 } from 'lucide-react';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 type Props = {
   waveformNormalization: 'per-track' | 'global';
@@ -33,6 +34,7 @@ export function ToolbarOverflowMenu(props: Props) {
   } = props;
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!open) return;
@@ -56,6 +58,7 @@ export function ToolbarOverflowMenu(props: Props) {
         type="button"
         className="atb-btn"
         aria-label="More options"
+        title="More options (waveform, markers, shortcuts)"
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
@@ -94,14 +97,16 @@ export function ToolbarOverflowMenu(props: Props) {
               {railCollapsed ? 'Show' : 'Hide'} track controls
             </button>
           )}
-          <button
-            type="button"
-            role="menuitem"
-            onClick={run(onOpenShortcuts)}
-          >
-            <HelpCircle size={14} strokeWidth={2} aria-hidden="true" />
-            Keyboard shortcuts
-          </button>
+          {!isMobile && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={run(onOpenShortcuts)}
+            >
+              <HelpCircle size={14} strokeWidth={2} aria-hidden="true" />
+              Keyboard shortcuts
+            </button>
+          )}
         </div>
       )}
     </div>

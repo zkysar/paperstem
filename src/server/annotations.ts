@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import { stmts, type AnnotationJoinedRow, type AnnotationReactionAggRow } from './db.js';
+import { recordAudit } from './audit.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
 import type { Annotation, Reaction } from '../shared/types.js';
 
@@ -256,6 +257,20 @@ export function handleDeleteAnnotation(
   }
 
   stmts.deleteAnnotation.run(id);
+
+  recordAudit({
+    action: 'annotation.hard_delete',
+    resource_type: 'annotation',
+    resource_id: id,
+    actor: { id: user.id, email: user.email },
+    band_id: project.band_id,
+    metadata: {
+      project_id: existing.project_id,
+      start_ms: existing.start_ms,
+      end_ms: existing.end_ms,
+    },
+  });
+
   return c.body(null, 204);
 }
 

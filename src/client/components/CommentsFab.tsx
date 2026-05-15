@@ -14,6 +14,7 @@ export function CommentsFab({ count, starredCount, onClick }: Props) {
       className="comments-fab"
       onClick={onClick}
       aria-label={`All comments · ${count}`}
+      title="Open the comments panel — see notes left on the timeline by you and your bandmates"
     >
       {starredCount > 0 && (
         <span className="comments-fab-star">

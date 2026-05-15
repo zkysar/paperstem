@@ -106,4 +106,11 @@ describe('CommentPopover', () => {
     expect(screen.queryByLabelText('Edit')).toBeNull();
     expect(screen.queryByLabelText('Delete')).toBeNull();
   });
+
+  it('copy-link click calls onCopyLink', async () => {
+    const onCopyLink = vi.fn();
+    render(<CommentPopover {...baseProps} onCopyLink={onCopyLink} />);
+    await userEvent.click(screen.getByLabelText('Copy link to this comment'));
+    expect(onCopyLink).toHaveBeenCalledOnce();
+  });
 });

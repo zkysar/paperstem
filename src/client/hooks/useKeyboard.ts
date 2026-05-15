@@ -2,12 +2,38 @@ import { useEffect } from 'react';
 import type { PlayerControls } from './usePlayer';
 import type { ViewportControls } from './useViewport';
 
+/**
+ * Anchor for keyboard zoom: the playhead's pixel position inside the stage
+ * when it lies within the visible viewport, otherwise the stage center.
+ * Cursor-driven zoom (Alt+scroll, pinch) anchors at the actual pointer;
+ * keyboard zoom has no pointer, so the playhead — the place the user is
+ * already listening to — is the next-most-specific signal.
+ */
+function playheadAnchorX(
+  stageWidth: number,
+  player: PlayerControls,
+  viewport: ViewportControls,
+): number {
+  const duration = player.state.duration;
+  const hZoom = viewport.state.hZoom;
+  if (!duration || stageWidth <= 0 || hZoom <= 0) return stageWidth / 2;
+  const innerWidth = stageWidth * hZoom;
+  const playheadInnerX = (player.currentTime / duration) * innerWidth;
+  const playheadStageX = playheadInnerX - viewport.state.scrollLeft;
+  if (!Number.isFinite(playheadStageX)) return stageWidth / 2;
+  if (playheadStageX < 0 || playheadStageX > stageWidth) {
+    return stageWidth / 2;
+  }
+  return playheadStageX;
+}
+
 export type KeyboardOpts = {
   player: PlayerControls;
   pickerOpen: boolean;
   drawerOpen: boolean;
   popoverOpen: boolean;
   annotationCreateMode: boolean;
+  sectionCreateMode: boolean;
   viewport: ViewportControls;
   onTogglePicker(): void;
   onClosePicker(): void;
@@ -15,6 +41,8 @@ export type KeyboardOpts = {
   onClosePopover(): void;
   onCancelCreate(): void;
   onToggleShortcuts(): void;
+  onAddCommentAtPlayhead(): void;
+  onAddSectionAtPlayhead(): void;
 };
 
 /**
@@ -31,11 +59,14 @@ export function useKeyboard(opts: KeyboardOpts): void {
     drawerOpen,
     popoverOpen,
     annotationCreateMode,
+    sectionCreateMode,
     onTogglePicker,
     onClosePicker,
     onCloseDrawer,
     onClosePopover,
     onCancelCreate,
+    onAddCommentAtPlayhead,
+    onAddSectionAtPlayhead,
   } = opts;
 
   useEffect(() => {
@@ -61,7 +92,8 @@ export function useKeyboard(opts: KeyboardOpts): void {
         if (e.shiftKey) {
           opts.viewport.zoomV('in');
         } else {
-          opts.viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+          const anchorX = playheadAnchorX(sw, player, opts.viewport);
+          opts.viewport.zoomH('in', { stageWidth: sw, anchorX });
         }
         return;
       }
@@ -73,7 +105,8 @@ export function useKeyboard(opts: KeyboardOpts): void {
         if (e.shiftKey) {
           opts.viewport.zoomV('out');
         } else {
-          opts.viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+          const anchorX = playheadAnchorX(sw, player, opts.viewport);
+          opts.viewport.zoomH('out', { stageWidth: sw, anchorX });
         }
         return;
       }
@@ -110,7 +143,7 @@ export function useKeyboard(opts: KeyboardOpts): void {
           onCloseDrawer();
           return;
         }
-        if (annotationCreateMode) {
+        if (annotationCreateMode || sectionCreateMode) {
           e.preventDefault();
           onCancelCreate();
           return;
@@ -133,6 +166,14 @@ export function useKeyboard(opts: KeyboardOpts): void {
           e.preventDefault();
           player.toggleLoopEnabled();
         }
+      } else if (e.key === 'c' || e.key === 'C') {
+        e.preventDefault();
+        onAddCommentAtPlayhead();
+      } else if (e.key === 'm' || e.key === 'M') {
+        // M drops a section at the playhead, mirroring C for comments.
+        // Chosen because S/W/A/D are taken by stem solo + WASD pan/zoom.
+        e.preventDefault();
+        onAddSectionAtPlayhead();
       } else if (
         e.key === 'w' || e.key === 'W' ||
         e.key === 'a' || e.key === 'A' ||
@@ -155,7 +196,8 @@ export function useKeyboard(opts: KeyboardOpts): void {
             if (e.shiftKey) {
               opts.viewport.zoomV('in');
             } else {
-              opts.viewport.zoomH('in', { stageWidth: sw, anchorX: sw / 2 });
+              const anchorX = playheadAnchorX(sw, player, opts.viewport);
+              opts.viewport.zoomH('in', { stageWidth: sw, anchorX });
               if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
             }
             break;
@@ -163,7 +205,8 @@ export function useKeyboard(opts: KeyboardOpts): void {
             if (e.shiftKey) {
               opts.viewport.zoomV('out');
             } else {
-              opts.viewport.zoomH('out', { stageWidth: sw, anchorX: sw / 2 });
+              const anchorX = playheadAnchorX(sw, player, opts.viewport);
+              opts.viewport.zoomH('out', { stageWidth: sw, anchorX });
               if (opts.viewport.state.followActive) opts.viewport.setFollowActive(false);
             }
             break;
@@ -192,10 +235,13 @@ export function useKeyboard(opts: KeyboardOpts): void {
     drawerOpen,
     popoverOpen,
     annotationCreateMode,
+    sectionCreateMode,
     onTogglePicker,
     onClosePicker,
     onCloseDrawer,
     onClosePopover,
     onCancelCreate,
+    onAddCommentAtPlayhead,
+    onAddSectionAtPlayhead,
   ]);
 }

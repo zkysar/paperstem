@@ -99,6 +99,19 @@ describe('CommentsDrawer', () => {
     expect(onDraftCancel).toHaveBeenCalledOnce();
   });
 
+  it('Escape in draft textarea calls onDraftCancel', () => {
+    const onDraftCancel = vi.fn();
+    render(
+      <CommentsDrawer
+        {...baseProps}
+        pendingDraft={{ start_ms: 0, end_ms: null }}
+        onDraftCancel={onDraftCancel}
+      />,
+    );
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' });
+    expect(onDraftCancel).toHaveBeenCalledOnce();
+  });
+
   it('shows footer hint when no draft and not narrow', () => {
     render(<CommentsDrawer {...baseProps} />);
     expect(screen.getByText(/drag a region/i)).not.toBeNull();

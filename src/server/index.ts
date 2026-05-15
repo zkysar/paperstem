@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
+import { logger } from 'hono/logger';
 import { handleAuthRequest } from './auth/request.js';
 import { handleAuthVerify } from './auth/verify.js';
 import { handleAuthLogout } from './auth/logout.js';
@@ -51,6 +52,20 @@ import {
   handleRemoveAnnotationReaction,
   handleRemoveReplyReaction,
 } from './annotation-reactions.js';
+import {
+  handleCreateSong,
+  handleDeleteSong,
+  handleListSongs,
+  handleMergeSong,
+  handlePatchSong,
+} from './songs.js';
+import {
+  handleCreateSection,
+  handleDeleteSection,
+  handleListSections,
+  handleListSongUsage,
+  handlePatchSection,
+} from './sections.js';
 import { handleSnapshotsHealth } from './health.js';
 import { handleVersion } from './version.js';
 import { handleBugReport } from './bug-report.js';
@@ -65,6 +80,9 @@ const callbackHtmlTemplate = readFileSync(
 
 const app = new Hono<{ Variables: AuthVariables }>();
 
+if (process.env.PAPERSTEM_REQUEST_LOG !== '0') {
+  app.use('*', logger());
+}
 app.use('*', sessionMiddleware);
 
 app.post('/api/auth/request', handleAuthRequest);
@@ -104,6 +122,16 @@ app.post('/api/annotations/:annotationId/reactions', handleAddAnnotationReaction
 app.delete('/api/annotations/:annotationId/reactions', handleRemoveAnnotationReaction);
 app.post('/api/annotation-replies/:replyId/reactions', handleAddReplyReaction);
 app.delete('/api/annotation-replies/:replyId/reactions', handleRemoveReplyReaction);
+app.get('/api/bands/:id/songs', handleListSongs);
+app.post('/api/bands/:id/songs', handleCreateSong);
+app.patch('/api/songs/:id', handlePatchSong);
+app.post('/api/songs/:id/merge', handleMergeSong);
+app.delete('/api/songs/:id', handleDeleteSong);
+app.get('/api/bands/:id/songs/usage', handleListSongUsage);
+app.get('/api/projects/:id/sections', handleListSections);
+app.post('/api/projects/:id/sections', handleCreateSection);
+app.patch('/api/sections/:id', handlePatchSection);
+app.delete('/api/sections/:id', handleDeleteSection);
 app.get('/api/health/snapshots', handleSnapshotsHealth);
 app.get('/api/version', handleVersion);
 app.post('/api/bug-report', handleBugReport);

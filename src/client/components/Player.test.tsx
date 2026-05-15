@@ -96,6 +96,13 @@ function defaultProps() {
     hoveredAnnotationId: null,
     onHoverAnnotation: vi.fn(),
     onLoopAnnotation: vi.fn(),
+    sections: [],
+    songUseCounts: new Map<string, number>(),
+    activeSectionId: null,
+    sectionCreateMode: false,
+    onSectionSelected: vi.fn(),
+    onSectionCreated: vi.fn(),
+    onToggleSectionCreate: vi.fn(),
     railCollapsed: false,
     canMutate: true,
     onToggleAnnotationCreate: vi.fn(),
@@ -158,5 +165,26 @@ describe('Player', () => {
   it('adds annotating class when annotationCreateMode is true', () => {
     const { container } = render(<Player {...defaultProps()} annotationCreateMode={true} />);
     expect(container.querySelector('.player')?.classList.contains('annotating')).toBe(true);
+  });
+
+  it('renders the section-mode banner when sectionCreateMode is true', () => {
+    render(<Player {...defaultProps()} sectionCreateMode={true} />);
+    expect(screen.getByText(/section mode/i)).not.toBeNull();
+    // The banner should be the only mode banner — comment mode is off.
+    expect(screen.queryByText(/comment mode/i)).toBeNull();
+  });
+
+  it('Cancel button in section-mode banner fires onToggleSectionCreate', async () => {
+    const user = userEvent.setup();
+    const onToggleSectionCreate = vi.fn();
+    render(
+      <Player
+        {...defaultProps()}
+        sectionCreateMode={true}
+        onToggleSectionCreate={onToggleSectionCreate}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(onToggleSectionCreate).toHaveBeenCalledOnce();
   });
 });
