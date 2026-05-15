@@ -152,15 +152,21 @@ CREATE INDEX IF NOT EXISTS idx_songs_band ON songs(band_id);
 -- when the section is named; both NULL means an unnamed boundary (used by
 -- the auto-detector — for v1 the manual flow only emits named sections).
 CREATE TABLE IF NOT EXISTS sections (
-  id          TEXT PRIMARY KEY,
-  project_id  TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  start_ms    INTEGER NOT NULL,
-  song_id     TEXT REFERENCES songs(id) ON DELETE SET NULL,
-  label       TEXT,
-  source      TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','auto')),
-  created_at  INTEGER NOT NULL,
-  created_by  TEXT NOT NULL REFERENCES users(id),
-  updated_at  INTEGER NOT NULL,
+  id                TEXT PRIMARY KEY,
+  project_id        TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  start_ms          INTEGER NOT NULL,
+  song_id           TEXT REFERENCES songs(id) ON DELETE SET NULL,
+  label             TEXT,
+  source            TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','auto')),
+  created_at        INTEGER NOT NULL,
+  created_by        TEXT NOT NULL REFERENCES users(id),
+  updated_at        INTEGER NOT NULL,
+  -- Auto-classification fields (NULL for manual sections). migrate-auto-classify.ts
+  -- adds these to pre-existing tables on older databases.
+  confidence        REAL,
+  run_id            TEXT,
+  segment_type      TEXT,
+  top_classes_json  TEXT,
   CHECK (NOT (song_id IS NOT NULL AND label IS NOT NULL))
 );
 CREATE INDEX IF NOT EXISTS idx_sections_project_start ON sections(project_id, start_ms);

@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renamePracticesToProjects } from './migrate-rename.js';
 import { dropDriveColumnPrefixes } from './migrate-drive-columns.js';
+import { migrateAutoClassify } from './migrate-auto-classify.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -31,6 +32,7 @@ function columnExists(table: string, col: string): boolean {
 
 renamePracticesToProjects(db);
 dropDriveColumnPrefixes(db);
+migrateAutoClassify(db);
 
 if (tableExists('projects')) {
   if (columnExists('projects', 'bpm')) {
