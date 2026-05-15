@@ -20,7 +20,7 @@ import {
   volumeToGain,
 } from '../lib/audio';
 import { fmt, longestStemIdx } from '../lib/format';
-import { isIOS } from '../lib/platform';
+import { isAndroid, isIOS } from '../lib/platform';
 
 const LOOP_TAIL = 0.005;
 const END_TAIL = 0.02;
@@ -279,6 +279,14 @@ export function usePlayer(): PlayerControls {
   const togglePlayRef = useRef<() => void>(() => {});
   const pauseRef = useRef<() => void>(() => {});
   const seekRef = useRef<(t: number) => void>(() => {});
+
+  // Silent looping HTMLAudioElement that anchors the Android system Media
+  // Session. Chrome on Android only surfaces notification/lock-screen media
+  // controls when an audible <audio>/<video> element is playing — Web Audio
+  // alone (which drives all real sound here) doesn't qualify. The file is
+  // true silence so the user hears nothing. iOS doesn't need this; iOS
+  // Safari anchors Now Playing to the active AudioContext.
+  const mediaSessionAnchorRef = useRef<HTMLAudioElement | null>(null);
 
   function ensureAudioGraph(): { ctx: AudioContext; master: GainNode } | null {
     if (audioCtxRef.current && masterGainRef.current) {
@@ -540,6 +548,50 @@ export function usePlayer(): PlayerControls {
       // ignore
     }
   }, [state.isPlaying, state.stems.length]);
+
+  // ---- Android Media Session anchor ----
+  // Construct a single looping silent-audio element on mount. Lazily — only
+  // on Android, since iOS doesn't need it and on iOS a parallel HTMLAudio
+  // would compete with Web Audio for the shared audio session.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isAndroid()) return;
+    const audio = new Audio(SILENT_AUDIO_URL);
+    audio.loop = true;
+    audio.preload = 'auto';
+    // File is true silence; volume doesn't affect audibility but Chrome
+    // won't anchor a muted element to the system media session.
+    audio.volume = 1;
+    mediaSessionAnchorRef.current = audio;
+    return () => {
+      try {
+        audio.pause();
+        audio.removeAttribute('src');
+        audio.load();
+      } catch {
+        // ignore
+      }
+      mediaSessionAnchorRef.current = null;
+    };
+  }, []);
+
+  // Drive the anchor's play/pause from state.isPlaying. Sharing the source of
+  // truth with MediaSession.playbackState above means end-of-song (rAF tick
+  // flips isPlaying to false without calling pause()) also stops the anchor.
+  useEffect(() => {
+    const anchor = mediaSessionAnchorRef.current;
+    if (!anchor) return;
+    if (state.isPlaying) {
+      // Best-effort. play() may reject if user activation has lapsed
+      // (e.g. tab restored from bfcache); the next user tap recovers.
+      void anchor.play().catch(() => {});
+    } else {
+      try {
+        anchor.pause();
+      } catch {
+        // ignore
+      }
+    }
+  }, [state.isPlaying]);
 
   // ---- API ----
   const load = useCallback<PlayerControls['load']>(async (input) => {
