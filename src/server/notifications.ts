@@ -65,10 +65,14 @@ export type EffectivePrefs = {
   timezone: string;
 };
 
+// Notifications are OFF for every user until they explicitly opt in via the
+// settings dialog. Without this fallback, anyone who hasn't visited settings
+// would start receiving emails the moment a bandmate posts a comment — which
+// would surprise users who never agreed to receive Paperstem mail.
 const DEFAULT_PREFS: Omit<EffectivePrefs, 'user_id'> = {
-  email_mentions: 1,
-  email_project_activity: 'batched',
-  email_thread_activity: 'batched',
+  email_mentions: 0,
+  email_project_activity: 'off',
+  email_thread_activity: 'off',
   digest_hour_local: 8,
   timezone: 'UTC',
 };

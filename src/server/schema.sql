@@ -211,12 +211,16 @@ CREATE TABLE IF NOT EXISTS project_reads (
   PRIMARY KEY (user_id, project_id)
 );
 
+-- Notifications are OFF for every user until they explicitly opt in via the
+-- settings dialog. The defaults here apply to any future fresh database; the
+-- JS fallback in src/server/notifications.ts (DEFAULT_PREFS) is what governs
+-- existing users with no prefs row.
 CREATE TABLE IF NOT EXISTS notification_prefs (
   user_id                 TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  email_mentions          INTEGER NOT NULL DEFAULT 1,
-  email_project_activity  TEXT NOT NULL DEFAULT 'batched'
+  email_mentions          INTEGER NOT NULL DEFAULT 0,
+  email_project_activity  TEXT NOT NULL DEFAULT 'off'
     CHECK (email_project_activity IN ('batched','daily','off')),
-  email_thread_activity   TEXT NOT NULL DEFAULT 'batched'
+  email_thread_activity   TEXT NOT NULL DEFAULT 'off'
     CHECK (email_thread_activity IN ('batched','daily','off')),
   digest_hour_local       INTEGER NOT NULL DEFAULT 8,
   timezone                TEXT NOT NULL DEFAULT 'UTC',

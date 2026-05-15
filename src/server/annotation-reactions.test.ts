@@ -97,6 +97,10 @@ function cookie(sid: string): string {
   return `${cookieMod.SESSION_COOKIE_NAME}=${sid}`;
 }
 
+function setPref(userId: string) {
+  dbMod.stmts.upsertNotificationPrefs.run(userId, 1, 'batched', 'batched', 8, 'UTC', Date.now());
+}
+
 function insertAnnotation(
   projectId: string,
   userId: string,
@@ -262,6 +266,7 @@ describe('reaction notifications', () => {
     const reactor = createUser('reactor@e.test');
     const bandId = createBand(author);
     addMember(bandId, reactor);
+    setPref(author);
     const pid = insertProject(bandId, author);
     const annId = insertAnnotation(pid, author, 0, null, 'note');
     const sid = createSession(reactor);

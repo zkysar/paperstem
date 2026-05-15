@@ -143,6 +143,7 @@ describe('flushPendingNotifications batched', () => {
     const recipient = createUser('r@e.test');
     const bandId = createBand(author);
     addMembership(bandId, recipient);
+    setPref(recipient);
     const p1 = insertProject(bandId, author, 'Mix v3');
     const p2 = insertProject(bandId, author, 'Demo 1');
     const a1 = insertAnnotation(p1, author, 'one');
@@ -253,6 +254,7 @@ describe('flushPendingNotifications per-row routing', () => {
     const recipient = createUser('r@e.test');
     const bandId = createBand(author);
     addMembership(bandId, recipient);
+    setPref(recipient);
     const pid = insertProject(bandId, author);
     const annId = insertAnnotation(pid, author, 'hi');
     const mentionRowId = randomUUID();
