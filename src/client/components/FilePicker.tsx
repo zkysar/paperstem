@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp, FolderOpen, MessageSquare, MoreVertical, Pencil, Trash2, X } from 'lucide-react';
 import type { Project, TrashList } from '../data/types';
+import type { Song } from '../../shared/types';
 import { AUDIO_EXT } from '../lib/audio';
+import { colorForSong } from '../lib/colors';
 import { formatDurationMs, formatRelativeDate } from '../lib/format';
 import { WaveformThumb } from './WaveformThumb';
 
@@ -17,6 +19,13 @@ type Props = {
   projects: Project[];
   activeProjectId: string | null;
   showUpload: boolean;
+  // Song catalog + per-project usage backs the chip-rail filter above the
+  // project list. Filtering is purely client-side (one usage fetch per band
+  // is cheaper than re-fetching projects per chip).
+  bandSongs: Song[];
+  songUsage: { project_id: string; song_id: string }[];
+  filterSongId: string | null;
+  onSetFilterSongId(id: string | null): void;
   onClose(): void;
   onSelect(id: string): void;
   onLoadFolder(files: File[], folderName: string): void;
@@ -32,6 +41,7 @@ type Props = {
 
 export function FilePicker({
   open, loading, loadError, projects, activeProjectId, showUpload,
+  bandSongs, songUsage, filterSongId, onSetFilterSongId,
   onClose, onSelect, onLoadFolder, onRetry,
   onRenameProject, onDeleteProject,
   trash, trashError, onLoadTrash, onRestoreProject, onRestoreStem,
@@ -40,6 +50,18 @@ export function FilePicker({
   const [search, setSearch] = useState('');
   const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+
+  // Set of project IDs that contain the active song filter. When no
+  // filter is set, the original projects pass through untouched.
+  const filteredProjects = useMemo<Project[]>(() => {
+    if (!filterSongId) return projects;
+    const allowed = new Set(
+      songUsage
+        .filter((u) => u.song_id === filterSongId)
+        .map((u) => u.project_id),
+    );
+    return projects.filter((p) => allowed.has(p.id));
+  }, [projects, songUsage, filterSongId]);
 
   useEffect(() => {
     if (!open) return;
@@ -151,6 +173,47 @@ export function FilePicker({
           {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
           multiple hidden onChange={onFolderPicked}
         />
+        {tab !== 'trash' && bandSongs.length > 0 && (
+          <div className="fp-song-rail" role="toolbar" aria-label="Filter by song">
+            <span className="fp-song-rail-label">Songs</span>
+            {bandSongs
+              .filter((s) => s.use_count > 0)
+              .map((s) => {
+                const isActive = filterSongId === s.id;
+                return (
+                  <button
+                    type="button"
+                    key={s.id}
+                    data-testid={`fp-song-chip-${s.id}`}
+                    className={'fp-song-chip' + (isActive ? ' active' : '')}
+                    aria-pressed={isActive}
+                    onClick={() =>
+                      onSetFilterSongId(isActive ? null : s.id)
+                    }
+                  >
+                    <span
+                      className="fp-song-chip-swatch"
+                      style={{ background: colorForSong(s.id) }}
+                      aria-hidden="true"
+                    />
+                    <span>{s.name}</span>
+                    <span className="fp-song-chip-count">
+                      {s.use_count}
+                    </span>
+                  </button>
+                );
+              })}
+            {filterSongId && (
+              <button
+                type="button"
+                className="fp-song-chip-clear"
+                onClick={() => onSetFilterSongId(null)}
+              >
+                Clear filter
+              </button>
+            )}
+          </div>
+        )}
         {tab === 'trash' ? (
           <TrashBody
             trash={trash}
@@ -163,7 +226,7 @@ export function FilePicker({
           <FilePickerBody
             tab={tab} search={search}
             loading={loading} loadError={loadError}
-            projects={projects} activeProjectId={activeProjectId}
+            projects={filteredProjects} activeProjectId={activeProjectId}
             showUpload={showUpload}
             onSelect={onSelect}
             onNewProjectClick={() => folderInputRef.current?.click()}

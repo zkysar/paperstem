@@ -7,9 +7,12 @@ export type AuditAction =
   | 'stem.soft_delete'
   | 'stem.purge'
   | 'stem.purge_cascade'
-  | 'annotation.hard_delete';
+  | 'annotation.hard_delete'
+  | 'song.rename'
+  | 'song.merge'
+  | 'song.delete';
 
-export type AuditResourceType = 'project' | 'stem' | 'annotation';
+export type AuditResourceType = 'project' | 'stem' | 'annotation' | 'song';
 
 export type AuditActor = {
   id: string;

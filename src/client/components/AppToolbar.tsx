@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
+  Bookmark,
   Maximize2,
   MessageSquarePlus,
   Pause,
@@ -35,6 +36,8 @@ type Props = {
   duration: number;
   annotationCreateMode: boolean;
   canCreateAnnotations: boolean;
+  sectionCreateMode: boolean;
+  canCreateSections: boolean;
   markersVisible: boolean;
   railCollapsed: boolean;
   showRailToggle: boolean;
@@ -44,6 +47,7 @@ type Props = {
   onToggleLoopEnabled(): void;
   onToggleWaveformNormalization(): void;
   onToggleAnnotationCreate(): void;
+  onToggleSectionCreate(): void;
   onToggleMarkersVisible(): void;
   onSetMasterVolume(v: number): void;
   onToggleRailCollapsed(): void;
@@ -61,10 +65,13 @@ export function AppToolbar(props: Props) {
   const {
     hasProject, isPlaying, loopEnabled, loopArmed = false,
     waveformNormalization, masterVolume, currentTime, duration,
-    annotationCreateMode, canCreateAnnotations, markersVisible,
+    annotationCreateMode, canCreateAnnotations,
+    sectionCreateMode, canCreateSections,
+    markersVisible,
     railCollapsed, showRailToggle, isWide,
     onSeek, onTogglePlay, onToggleLoopEnabled,
     onToggleWaveformNormalization, onToggleAnnotationCreate,
+    onToggleSectionCreate,
     onToggleMarkersVisible, onSetMasterVolume, onToggleRailCollapsed,
     viewport, onOpenShortcuts,
     onShare,
@@ -124,6 +131,16 @@ export function AppToolbar(props: Props) {
           ? 'Cancel comment mode'
           : 'Add comment — click the timeline for a point, drag for a region'}
         onClick={onToggleAnnotationCreate}><MessageSquarePlus size={16} strokeWidth={2} aria-hidden="true" /></button>
+
+      <button type="button"
+        className={'atb-btn' + (sectionCreateMode ? ' annotate-on' : '')}
+        aria-label="Add section"
+        aria-pressed={sectionCreateMode}
+        disabled={!canCreateSections}
+        title={sectionCreateMode
+          ? 'Cancel section mode (M)'
+          : 'Add section — click the timeline to mark where a song begins (M)'}
+        onClick={onToggleSectionCreate}><Bookmark size={16} strokeWidth={2} aria-hidden="true" /></button>
 
       <span className="atb-divider" />
 

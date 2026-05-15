@@ -36,6 +36,20 @@ import {
   patchAnnotation,
   deleteAnnotation,
 } from './data/annotations-repo';
+import {
+  listSections,
+  createSection,
+  patchSection,
+  deleteSection,
+} from './data/sections-repo';
+import {
+  listSongs,
+  listSongUsage,
+  renameSong,
+  mergeSong,
+  type SongUsageRow,
+} from './data/songs-repo';
+import { SectionPopover, type SectionSubmit } from './components/SectionPopover';
 import { HttpProjectsRepo, type ProjectsRepo } from './data/projects-repo';
 import type { Project, StemSource, TrashList } from './data/types';
 import { decodePeaks } from './lib/peaks';
@@ -45,7 +59,7 @@ import { usePlayer } from './hooks/usePlayer';
 import { useViewport } from './hooks/useViewport';
 import { buildUserColorMap } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
-import type { Annotation, User } from '../shared/types';
+import type { Annotation, Section, Song, User } from '../shared/types';
 
 const UPLOAD_MIN_VIEWPORT_PX = 720;
 
@@ -146,6 +160,32 @@ function PaperstemApp({
   // around so "Save to band" can hand them to UploadDrawer for promotion.
   const [draftFiles, setDraftFiles] = useState<File[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
+  const [songs, setSongs] = useState<Song[]>([]);
+  const [songUsage, setSongUsage] = useState<SongUsageRow[]>([]);
+  const [sectionCreateMode, setSectionCreateMode] = useState(false);
+  const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  // The popover state covers both "create at clicked position" and
+  // "edit existing section". `section: null` means create.
+  const [sectionPopover, setSectionPopover] = useState<{
+    section: Section | null;
+    startMs: number;
+    anchorLeft: number;
+    anchorTop: number;
+  } | null>(null);
+  // Project filter driven by the FilePicker chip-rail.
+  const [filterSongId, setFilterSongId] = useState<string | null>(null);
+  // Transient undo toast for destructive song operations (rename across N
+  // practices, merge). Auto-clears after 6 seconds; the timer ref lets a
+  // second rename within the window cancel its predecessor's dismiss so
+  // the newer toast keeps its full 6 seconds and the older one's
+  // `previousName` closure isn't accidentally invoked against
+  // already-updated state.
+  const [songToast, setSongToast] = useState<{
+    message: string;
+    onUndo: () => void;
+  } | null>(null);
+  const songToastTimerRef = useRef<number | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [annotationCreateMode, setAnnotationCreateMode] = useState(false);
   const [markersVisible, setMarkersVisible] = useState(true);
@@ -232,15 +272,21 @@ function PaperstemApp({
     player,
     pickerOpen,
     drawerOpen,
-    popoverOpen: activeCommentId !== null,
+    popoverOpen: activeCommentId !== null || sectionPopover !== null,
     annotationCreateMode,
+    sectionCreateMode,
     viewport,
     onTogglePicker: () => (pickerOpen ? closePicker() : openPicker()),
     onClosePicker: closePicker,
     onCloseDrawer: closeDrawer,
-    onClosePopover: () => { setActiveCommentId(null); setPopoverAnchor(null); },
+    onClosePopover: () => {
+      setActiveCommentId(null);
+      setPopoverAnchor(null);
+      setSectionPopover(null);
+    },
     onCancelCreate: () => {
       setAnnotationCreateMode(false);
+      setSectionCreateMode(false);
       setPendingDraft(null);
     },
     onToggleShortcuts: () => setShortcutsOpen((v) => !v),
@@ -248,6 +294,11 @@ function PaperstemApp({
       if (!activeProjectId) return;
       const startMs = Math.round(player.currentTime * 1000);
       handleAnnotationCreated(startMs, null);
+    },
+    onAddSectionAtPlayhead: () => {
+      if (!activeProjectId) return;
+      const startMs = Math.max(0, Math.round(player.currentTime * 1000));
+      openSectionPopoverAtPlayhead(startMs);
     },
   });
 
@@ -432,6 +483,10 @@ function PaperstemApp({
       if (!repo) return;
       if (opts.resetUiState) {
         setAnnotations([]);
+        setSections([]);
+        setActiveSectionId(null);
+        setSectionPopover(null);
+        setSectionCreateMode(false);
         setPendingDraft(null);
         setAnnotationCreateMode(false);
         setActiveCommentId(null);
@@ -465,6 +520,12 @@ function PaperstemApp({
         } catch (err) {
           console.error('Failed to load annotations:', err);
         }
+        try {
+          const list = await listSections(id);
+          setSections(list);
+        } catch (err) {
+          console.error('Failed to load sections:', err);
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setLoadError(msg);
@@ -472,6 +533,298 @@ function PaperstemApp({
     },
     [repo, player, viewport],
   );
+
+  // Load the band's song catalog + usage map once per active band. These
+  // power the FilePicker chip-rail, the section popover's autocomplete,
+  // and the "shared name" chain glyph in the section lane.
+  const refreshBandSongs = useCallback(async () => {
+    if (!activeBandId) {
+      setSongs([]);
+      setSongUsage([]);
+      return;
+    }
+    try {
+      const [songList, usage] = await Promise.all([
+        listSongs(activeBandId),
+        listSongUsage(activeBandId),
+      ]);
+      setSongs(songList);
+      setSongUsage(usage);
+    } catch (err) {
+      console.error('Failed to load band songs:', err);
+    }
+  }, [activeBandId]);
+
+  useEffect(() => {
+    void refreshBandSongs();
+  }, [refreshBandSongs]);
+
+  // Clear the chip-rail filter when the active band changes — a filter
+  // set in Band A doesn't match any song in Band B, so leaving it set
+  // would render an empty project list with no obvious cause.
+  useEffect(() => {
+    setFilterSongId(null);
+  }, [activeBandId]);
+
+  // use_count from the songs endpoint is by project. The section-lane chain
+  // glyph wants the same number, so just project it from `songs`.
+  const songUseCounts = useMemo<Map<string, number>>(() => {
+    const m = new Map<string, number>();
+    for (const s of songs) m.set(s.id, s.use_count);
+    return m;
+  }, [songs]);
+
+  const openSectionPopoverAtPlayhead = useCallback(
+    (startMs: number) => {
+      // Anchor near where the playhead is rendered. Falling back to the
+      // viewport center is fine if we can't measure — the popover is
+      // fixed-positioned with transform centering.
+      let anchorLeft = window.innerWidth / 2;
+      let anchorTop = window.innerHeight / 2;
+      const playhead = document.querySelector('.playhead') as HTMLElement | null;
+      if (playhead) {
+        const r = playhead.getBoundingClientRect();
+        anchorLeft = r.left + r.width / 2;
+        anchorTop = r.top + 40;
+      }
+      setSectionPopover({ section: null, startMs, anchorLeft, anchorTop });
+      // Clear both create-modes — invoking the popover via the M shortcut
+      // from inside comment-create mode would otherwise leave the
+      // annotation-create overlay live behind the popover, intercepting
+      // clicks meant for the popover's controls.
+      setSectionCreateMode(false);
+      setAnnotationCreateMode(false);
+      setPendingDraft(null);
+    },
+    [],
+  );
+
+  const handleSectionSelected = useCallback((section: Section) => {
+    setActiveSectionId(section.id);
+    queueMicrotask(() => {
+      const el = document.querySelector(
+        `[data-section-id="${section.id}"]`,
+      ) as HTMLElement | null;
+      if (!el) {
+        setSectionPopover({
+          section,
+          startMs: section.start_ms,
+          anchorLeft: window.innerWidth / 2,
+          anchorTop: window.innerHeight / 2,
+        });
+        return;
+      }
+      const r = el.getBoundingClientRect();
+      setSectionPopover({
+        section,
+        startMs: section.start_ms,
+        anchorLeft: r.left + r.width / 2,
+        anchorTop: r.bottom,
+      });
+    });
+  }, []);
+
+  const handleSectionCreatedAtClick = useCallback(
+    (startMs: number, clientX: number, clientY: number) => {
+      setSectionPopover({
+        section: null,
+        startMs,
+        anchorLeft: clientX,
+        anchorTop: clientY,
+      });
+      setSectionCreateMode(false);
+    },
+    [],
+  );
+
+  // Rename the song the section currently references. Three paths:
+  //   - 409 collision: a song with this normalized name already exists
+  //     in the catalog → offer a merge prompt; on accept, repoint every
+  //     section pointing at the loser, drop the loser row, and refresh
+  //     local state in-place using the merge response.
+  //   - >1 practice rename: show an undo toast with a single-shot
+  //     dismiss timer (cancelled if a second rename arrives within 6s,
+  //     so the newer toast keeps its full window).
+  //   - plain rename: silent; the popover close is the only signal.
+  //
+  // All paths update `songs` / `songUsage` / `sections` in place from
+  // the server's response — never via `listSections(activeProjectId)`,
+  // which would race a project switch and write old-project data into
+  // the new-project's state.
+  const renameSongUnderSection = useCallback(
+    async (songId: string, newName: string) => {
+      const before = songs.find((s) => s.id === songId);
+      if (!before) return;
+      try {
+        const result = await renameSong(songId, newName);
+        if (result.kind === 'conflict') {
+          const ok = window.confirm(
+            `A song named "${result.existing_song_name}" already exists. Merge "${before.name}" into it?`,
+          );
+          if (!ok) return;
+          const winner = await mergeSong(songId, result.existing_song_id);
+          // Loser is gone; the winner row gained the loser's sections in
+          // its use_count. Replace winner in place and drop loser; remap
+          // sections so the chapter lane and the chip-rail re-render
+          // without an extra round-trip.
+          const loserId = songId;
+          setSongs((prev) =>
+            prev
+              .filter((s) => s.id !== loserId)
+              .map((s) => (s.id === winner.id ? winner : s)),
+          );
+          setSongUsage((prev) => {
+            const out: SongUsageRow[] = [];
+            const seen = new Set<string>();
+            for (const row of prev) {
+              const sid = row.song_id === loserId ? winner.id : row.song_id;
+              const key = `${row.project_id}::${sid}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              out.push({ project_id: row.project_id, song_id: sid });
+            }
+            return out;
+          });
+          setSections((prev) =>
+            prev.map((s) =>
+              s.song_id === loserId
+                ? { ...s, song_id: winner.id, song_name: winner.name }
+                : s,
+            ),
+          );
+          return;
+        }
+        // Plain rename: in-place update of songs + every section that
+        // referenced the renamed song. No listSections refetch — that
+        // path used to race a project switch and corrupt state.
+        const renamed = result.song;
+        setSongs((prev) =>
+          prev.map((s) => (s.id === renamed.id ? renamed : s)),
+        );
+        setSections((prev) =>
+          prev.map((s) =>
+            s.song_id === renamed.id ? { ...s, song_name: renamed.name } : s,
+          ),
+        );
+        if (before.use_count > 1) {
+          const previousName = before.name;
+          if (songToastTimerRef.current !== null) {
+            window.clearTimeout(songToastTimerRef.current);
+          }
+          setSongToast({
+            message: `Renamed in ${before.use_count} practices.`,
+            onUndo: () => {
+              void (async () => {
+                try {
+                  const undone = await renameSong(songId, previousName);
+                  if (undone.kind === 'ok') {
+                    const restored = undone.song;
+                    setSongs((prev) =>
+                      prev.map((s) =>
+                        s.id === restored.id ? restored : s,
+                      ),
+                    );
+                    setSections((prev) =>
+                      prev.map((s) =>
+                        s.song_id === restored.id
+                          ? { ...s, song_name: restored.name }
+                          : s,
+                      ),
+                    );
+                  }
+                  setSongToast(null);
+                } catch {
+                  /* ignore */
+                }
+              })();
+            },
+          });
+          songToastTimerRef.current = window.setTimeout(() => {
+            songToastTimerRef.current = null;
+            setSongToast((t) => (t ? null : t));
+          }, 6000);
+        }
+      } catch (err) {
+        console.error('song rename failed', err);
+      }
+    },
+    [songs],
+  );
+
+  const handleSectionSubmit = useCallback(
+    async (payload: SectionSubmit) => {
+      const popover = sectionPopover;
+      if (!popover || !activeProjectId) return;
+      try {
+        // Rename branch: the section already exists and the user typed a
+        // name that's neither an exact match nor identical to the
+        // current song's name. The whole "rename one renames all"
+        // semantic happens here; the rest of the popover's branches
+        // edit the section's reference only.
+        if (payload.kind === 'song_rename') {
+          await renameSongUnderSection(payload.song_id, payload.new_name);
+          return;
+        }
+        if (popover.section === null) {
+          // Create new section. Map the popover payload to the repo input.
+          const input =
+            payload.kind === 'song_id'
+              ? { start_ms: popover.startMs, song_id: payload.song_id }
+              : payload.kind === 'song_name'
+                ? { start_ms: popover.startMs, song_name: payload.song_name }
+                : payload.kind === 'label'
+                  ? { start_ms: popover.startMs, label: payload.label }
+                  : { start_ms: popover.startMs };
+          const created = await createSection(activeProjectId, input);
+          setSections((cur) => [...cur, created].sort((a, b) => a.start_ms - b.start_ms));
+          setActiveSectionId(created.id);
+        } else {
+          const id = popover.section.id;
+          const input =
+            payload.kind === 'song_id'
+              ? { song_id: payload.song_id }
+              : payload.kind === 'song_name'
+                ? { song_name: payload.song_name }
+                : payload.kind === 'label'
+                  ? { label: payload.label }
+                  : { clear_name: true };
+          const updated = await patchSection(id, input);
+          setSections((cur) => cur.map((s) => (s.id === id ? updated : s)));
+        }
+        await refreshBandSongs();
+      } catch (err) {
+        console.error('section submit failed', err);
+      } finally {
+        setSectionPopover(null);
+      }
+    },
+    [sectionPopover, activeProjectId, refreshBandSongs, renameSongUnderSection],
+  );
+
+  const handleSectionDelete = useCallback(async () => {
+    const popover = sectionPopover;
+    if (!popover?.section) return;
+    const id = popover.section.id;
+    setSectionPopover(null);
+    setSections((cur) => cur.filter((s) => s.id !== id));
+    if (activeSectionId === id) setActiveSectionId(null);
+    try {
+      await deleteSection(id);
+      await refreshBandSongs();
+    } catch (err) {
+      console.error('section delete failed', err);
+      // Best-effort recovery: re-fetch sections for the current project.
+      if (activeProjectId) {
+        try {
+          const list = await listSections(activeProjectId);
+          setSections(list);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }, [sectionPopover, activeSectionId, activeProjectId, refreshBandSongs]);
+
 
   const reloadActive = useCallback(async () => {
     if (!activeProjectId) return;
@@ -627,6 +980,12 @@ function PaperstemApp({
       const startMs = Math.round(player.currentTime * 1000);
       handleAnnotationCreated(startMs, null);
     } else {
+      // Mutex with section-create mode: only one create-mode banner /
+      // overlay should ever be live at once. Unconditional false is
+      // safe: if annotation mode is being turned off, the section was
+      // already off (assuming the invariant holds elsewhere); if it's
+      // being turned on, we drop any active section-create state.
+      setSectionCreateMode(false);
       setAnnotationCreateMode((v) => !v);
     }
   }, [railCollapsed, player, handleAnnotationCreated]);
@@ -878,6 +1237,8 @@ function PaperstemApp({
         duration={player.state.duration}
         annotationCreateMode={annotationCreateMode}
         canCreateAnnotations={activeProjectId !== null}
+        sectionCreateMode={sectionCreateMode}
+        canCreateSections={activeProjectId !== null}
         markersVisible={markersVisible}
         railCollapsed={railCollapsed}
         showRailToggle={true}
@@ -887,6 +1248,12 @@ function PaperstemApp({
         onToggleLoopEnabled={player.toggleLoopEnabled}
         onToggleWaveformNormalization={player.toggleWaveformNormalization}
         onToggleAnnotationCreate={handleAddButton}
+        onToggleSectionCreate={() => {
+          setSectionCreateMode((v) => !v);
+          // Mutually exclusive with comment-create mode so a click on the
+          // wave doesn't fire both handlers.
+          setAnnotationCreateMode(false);
+        }}
         onToggleMarkersVisible={() => setMarkersVisible((v) => !v)}
         onSetMasterVolume={player.setMasterVolume}
         onToggleRailCollapsed={() => setRailCollapsed((v) => !v)}
@@ -925,6 +1292,13 @@ function PaperstemApp({
             pendingDraft={pendingDraft}
             hoveredAnnotationId={hoveredAnnotationId}
             onHoverAnnotation={setHoveredAnnotationId}
+            sections={sections}
+            songUseCounts={songUseCounts}
+            activeSectionId={activeSectionId}
+            sectionCreateMode={sectionCreateMode}
+            onSectionSelected={handleSectionSelected}
+            onSectionCreated={handleSectionCreatedAtClick}
+            onToggleSectionCreate={() => setSectionCreateMode((v) => !v)}
             railCollapsed={railCollapsed}
             canMutate={player.state.stems.length > 0}
             onOpenPicker={openPicker}
@@ -1039,6 +1413,10 @@ function PaperstemApp({
         projects={projects}
         activeProjectId={activeProjectId}
         showUpload={showUploadButton}
+        bandSongs={songs}
+        songUsage={songUsage}
+        filterSongId={filterSongId}
+        onSetFilterSongId={setFilterSongId}
         onClose={closePicker}
         onSelect={(id) => {
           void selectProject(id);
@@ -1113,6 +1491,47 @@ function PaperstemApp({
         onClose={() => setShareDialog(null)}
       />
       <TokensDrawer open={tokensOpen} onClose={() => setTokensOpen(false)} />
+      {sectionPopover &&
+        createPortal(
+          <>
+            <div
+              className="filepicker-scrim"
+              role="presentation"
+              onClick={() => setSectionPopover(null)}
+              aria-hidden="true"
+            />
+            <SectionPopover
+              open={true}
+              section={sectionPopover.section}
+              startMs={sectionPopover.startMs}
+              bandSongs={songs}
+              anchorLeftPx={sectionPopover.anchorLeft}
+              anchorTopPx={sectionPopover.anchorTop}
+              onSubmit={(payload) => void handleSectionSubmit(payload)}
+              onDelete={
+                sectionPopover.section ? () => void handleSectionDelete() : undefined
+              }
+              onClose={() => setSectionPopover(null)}
+            />
+          </>,
+          document.body,
+        )}
+      {songToast &&
+        createPortal(
+          <div className="song-toast" role="status">
+            <span>{songToast.message}</span>
+            <button
+              type="button"
+              className="song-toast-undo"
+              onClick={() => {
+                songToast.onUndo();
+              }}
+            >
+              Undo
+            </button>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

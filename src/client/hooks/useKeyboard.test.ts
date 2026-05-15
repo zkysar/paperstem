@@ -54,6 +54,7 @@ function defaultOpts() {
     drawerOpen: false,
     popoverOpen: false,
     annotationCreateMode: false,
+    sectionCreateMode: false,
     viewport: defaultViewport(),
     onTogglePicker: vi.fn(),
     onClosePicker: vi.fn(),
@@ -62,6 +63,7 @@ function defaultOpts() {
     onCancelCreate: vi.fn(),
     onToggleShortcuts: vi.fn(),
     onAddCommentAtPlayhead: vi.fn(),
+    onAddSectionAtPlayhead: vi.fn(),
   };
 }
 

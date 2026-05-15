@@ -156,6 +156,56 @@ export function buildBandDump(bandId: string): Buffer {
       }
     }
 
+    // Songs (band-scoped catalog) and sections (per-project chapter
+    // boundaries) are the canonical state for the song-filter UX —
+    // omitting them from the dump means a restore loses every chapter
+    // marker and the catalog, with no recovery path beyond the audit log.
+    const songs = db
+      .prepare<
+        [string],
+        {
+          id: string;
+          band_id: string;
+          name: string;
+          name_norm: string;
+          created_at: number;
+          created_by: string;
+        }
+      >(
+        `SELECT id, band_id, name, name_norm, created_at, created_by
+           FROM songs WHERE band_id = ?`,
+      )
+      .all(bandId);
+    const insertSong = dump.prepare(
+      `INSERT INTO songs (id, band_id, name, name_norm, created_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    for (const s of songs) {
+      insertSong.run(s.id, s.band_id, s.name, s.name_norm, s.created_at, s.created_by);
+    }
+
+    const insertSection = dump.prepare(
+      `INSERT INTO sections
+         (id, project_id, start_ms, song_id, label, source, created_at, created_by, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    for (const p of projects) {
+      const sections = stmts.findSectionsForProject.all(p.id);
+      for (const sec of sections) {
+        insertSection.run(
+          sec.id,
+          sec.project_id,
+          sec.start_ms,
+          sec.song_id,
+          sec.label,
+          sec.source,
+          sec.created_at,
+          sec.created_by,
+          sec.updated_at,
+        );
+      }
+    }
+
     return dump.serialize();
   } finally {
     dump.close();

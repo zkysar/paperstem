@@ -26,7 +26,8 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; ' +
+    'DELETE FROM sections; DELETE FROM songs; ' +
+      'DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; ' +
       'DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; ' +
       'DELETE FROM magic_links; DELETE FROM users;',
   );
@@ -139,6 +140,43 @@ describe('buildProjectMeta', () => {
 
     expect(meta.stems).toEqual([]);
     expect(meta.annotations).toEqual([]);
+    expect(meta.sections).toEqual([]);
+  });
+
+  it('includes sections with song_name denormalized', () => {
+    const owner = createUser('s@example.com');
+    const bandId = createBand('Band S', owner);
+    const band = dbMod.stmts.findBandById.get(bandId)!;
+    const pid = insertProject(bandId, owner, 'Track S');
+    const project = dbMod.stmts.findProjectById.get(pid)!;
+
+    const songId = randomUUID();
+    const now = Math.floor(Date.now() / 1000);
+    dbMod.stmts.insertSong.run(songId, bandId, 'Heart Sounds', 'heart sounds', now, owner);
+    const sectionId = randomUUID();
+    dbMod.stmts.insertSection.run(
+      sectionId,
+      pid,
+      12_000,
+      songId,
+      null,
+      'manual',
+      now,
+      owner,
+      now,
+    );
+
+    const meta = snapMod.buildProjectMeta(band, project, 0);
+
+    expect(meta.sections).toHaveLength(1);
+    expect(meta.sections[0]).toMatchObject({
+      id: sectionId,
+      start_ms: 12_000,
+      song_id: songId,
+      song_name: 'Heart Sounds',
+      label: null,
+      source: 'manual',
+    });
   });
 });
 

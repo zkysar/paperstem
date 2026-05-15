@@ -33,6 +33,7 @@ export type KeyboardOpts = {
   drawerOpen: boolean;
   popoverOpen: boolean;
   annotationCreateMode: boolean;
+  sectionCreateMode: boolean;
   viewport: ViewportControls;
   onTogglePicker(): void;
   onClosePicker(): void;
@@ -41,6 +42,7 @@ export type KeyboardOpts = {
   onCancelCreate(): void;
   onToggleShortcuts(): void;
   onAddCommentAtPlayhead(): void;
+  onAddSectionAtPlayhead(): void;
 };
 
 /**
@@ -57,12 +59,14 @@ export function useKeyboard(opts: KeyboardOpts): void {
     drawerOpen,
     popoverOpen,
     annotationCreateMode,
+    sectionCreateMode,
     onTogglePicker,
     onClosePicker,
     onCloseDrawer,
     onClosePopover,
     onCancelCreate,
     onAddCommentAtPlayhead,
+    onAddSectionAtPlayhead,
   } = opts;
 
   useEffect(() => {
@@ -139,7 +143,7 @@ export function useKeyboard(opts: KeyboardOpts): void {
           onCloseDrawer();
           return;
         }
-        if (annotationCreateMode) {
+        if (annotationCreateMode || sectionCreateMode) {
           e.preventDefault();
           onCancelCreate();
           return;
@@ -165,6 +169,11 @@ export function useKeyboard(opts: KeyboardOpts): void {
       } else if (e.key === 'c' || e.key === 'C') {
         e.preventDefault();
         onAddCommentAtPlayhead();
+      } else if (e.key === 'm' || e.key === 'M') {
+        // M drops a section at the playhead, mirroring C for comments.
+        // Chosen because S/W/A/D are taken by stem solo + WASD pan/zoom.
+        e.preventDefault();
+        onAddSectionAtPlayhead();
       } else if (
         e.key === 'w' || e.key === 'W' ||
         e.key === 'a' || e.key === 'A' ||
@@ -226,11 +235,13 @@ export function useKeyboard(opts: KeyboardOpts): void {
     drawerOpen,
     popoverOpen,
     annotationCreateMode,
+    sectionCreateMode,
     onTogglePicker,
     onClosePicker,
     onCloseDrawer,
     onClosePopover,
     onCancelCreate,
     onAddCommentAtPlayhead,
+    onAddSectionAtPlayhead,
   ]);
 }

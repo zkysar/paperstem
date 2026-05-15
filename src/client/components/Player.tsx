@@ -6,7 +6,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import type { Annotation } from '../../shared/types';
+import type { Annotation, Section } from '../../shared/types';
 import type { PlayerControls } from '../hooks/usePlayer';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { pixelToTime } from '../lib/format';
@@ -17,6 +17,7 @@ import { LoopRegion } from './LoopRegion';
 import { Minimap } from './Minimap';
 import { Playhead } from './Playhead';
 import { Ruler } from './Ruler';
+import { SectionLane } from './SectionLane';
 import { Track } from './Track';
 import type { ViewportControls } from '../hooks/useViewport';
 
@@ -51,6 +52,16 @@ type Props = {
   hoveredAnnotationId: string | null;
   onHoverAnnotation: Dispatch<SetStateAction<string | null>>;
   onLoopAnnotation(annotation: Annotation): void;
+  // Section lane + creation state. The lane shows song boundaries above
+  // the ruler; clicking a pill seeks. Creation mode opens a popover at
+  // the click point on the wave area (driven by App.tsx).
+  sections: Section[];
+  songUseCounts: Map<string, number>;
+  activeSectionId: string | null;
+  sectionCreateMode: boolean;
+  onSectionSelected(section: Section): void;
+  onSectionCreated(start_ms: number, clientX: number, clientY: number): void;
+  onToggleSectionCreate(): void;
   // Controlled rail-collapse state (lifted to App so AppToolbar's rail-toggle
   // button can drive it). The breakpoint listener also lives in App.
   railCollapsed: boolean;
@@ -74,6 +85,13 @@ export function Player({
   hoveredAnnotationId,
   onHoverAnnotation,
   onLoopAnnotation,
+  sections,
+  songUseCounts,
+  activeSectionId,
+  sectionCreateMode,
+  onSectionSelected,
+  onSectionCreated,
+  onToggleSectionCreate,
   railCollapsed,
   canMutate,
   onToggleAnnotationCreate,
@@ -604,8 +622,35 @@ export function Player({
                 aria-label="Click for a point comment, drag for a region comment"
               />
             )}
+            {sectionCreateMode && duration > 0 && (
+              <div
+                className="annotation-create-overlay"
+                style={{ left: `${railWidth}px`, width: `${waveWidth}px` }}
+                onPointerDown={(e) => {
+                  if (e.button !== 0) return;
+                  const t = xToTime(e.clientX);
+                  onSectionCreated(
+                    Math.max(0, Math.round(t * 1000)),
+                    e.clientX,
+                    e.clientY,
+                  );
+                  e.preventDefault();
+                }}
+                aria-label="Click the timeline to drop a section at that time"
+              />
+            )}
             <div className="tracks" ref={tracksRef}>
               <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
+              <SectionLane
+                sections={sections}
+                duration={duration}
+                waveLeftPx={railWidth}
+                waveWidthPx={waveWidth}
+                songUseCounts={songUseCounts}
+                activeSectionId={activeSectionId}
+                onSelect={onSectionSelected}
+                onSeek={player.seek}
+              />
               {!stems.length && !loading && (
                 <div className="empty-stage">
                   <p>No project loaded.</p>
@@ -749,6 +794,27 @@ export function Player({
             type="button"
             className="annotation-mode-cancel"
             onClick={onToggleAnnotationCreate}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {sectionCreateMode && (
+        <div className="annotation-mode-banner" role="status">
+          <span className="annotation-mode-dot" aria-hidden="true" />
+          <strong className="annotation-mode-title">Section mode</strong>
+          <span className="annotation-mode-chip">
+            <span className="annotation-mode-glyph annotation-mode-glyph-point" aria-hidden="true" />
+            <span><strong>Click</strong> the timeline where a song starts</span>
+          </span>
+          <span className="annotation-mode-esc">
+            <kbd>Esc</kbd> or <kbd>M</kbd> to cancel
+          </span>
+          <button
+            type="button"
+            className="annotation-mode-cancel"
+            onClick={onToggleSectionCreate}
           >
             Cancel
           </button>
