@@ -41,6 +41,18 @@ import {
   handlePatchAnnotation,
 } from './annotations.js';
 import {
+  handleCreateReply,
+  handleDeleteReply,
+  handleListReplies,
+  handlePatchReply,
+} from './annotation-replies.js';
+import {
+  handleAddAnnotationReaction,
+  handleAddReplyReaction,
+  handleRemoveAnnotationReaction,
+  handleRemoveReplyReaction,
+} from './annotation-reactions.js';
+import {
   handleCreateSong,
   handleDeleteSong,
   handleListSongs,
@@ -102,6 +114,14 @@ app.get('/api/projects/:id/annotations', handleListAnnotations);
 app.post('/api/projects/:id/annotations', handleCreateAnnotation);
 app.patch('/api/annotations/:id', handlePatchAnnotation);
 app.delete('/api/annotations/:id', handleDeleteAnnotation);
+app.get('/api/annotations/:annotationId/replies', handleListReplies);
+app.post('/api/annotations/:annotationId/replies', handleCreateReply);
+app.patch('/api/annotation-replies/:id', handlePatchReply);
+app.delete('/api/annotation-replies/:id', handleDeleteReply);
+app.post('/api/annotations/:annotationId/reactions', handleAddAnnotationReaction);
+app.delete('/api/annotations/:annotationId/reactions', handleRemoveAnnotationReaction);
+app.post('/api/annotation-replies/:replyId/reactions', handleAddReplyReaction);
+app.delete('/api/annotation-replies/:replyId/reactions', handleRemoveReplyReaction);
 app.get('/api/bands/:id/songs', handleListSongs);
 app.post('/api/bands/:id/songs', handleCreateSong);
 app.patch('/api/songs/:id', handlePatchSong);

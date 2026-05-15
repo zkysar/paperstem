@@ -447,7 +447,7 @@ export function Track({
             onClick={(e) => e.stopPropagation()}
           >
             <h3>Move "{stem.displayName}" to trash?</h3>
-            <p>You can restore from this band's trash for 30 days.</p>
+            <p>Items in trash can be restored for 30 days.</p>
             <div className="fp-modal-actions">
               <button
                 type="button"

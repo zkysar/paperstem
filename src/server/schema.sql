@@ -97,6 +97,39 @@ CREATE TABLE IF NOT EXISTS annotations (
 CREATE INDEX IF NOT EXISTS idx_annotations_project_user ON annotations(project_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_annotations_project_start ON annotations(project_id, start_ms);
 
+CREATE TABLE IF NOT EXISTS annotation_replies (
+  id            TEXT PRIMARY KEY,
+  annotation_id TEXT NOT NULL REFERENCES annotations(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body          TEXT NOT NULL,
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_annotation_replies_annotation
+  ON annotation_replies(annotation_id, created_at);
+
+CREATE TABLE IF NOT EXISTS annotation_reactions (
+  annotation_id TEXT NOT NULL REFERENCES annotations(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  emoji         TEXT NOT NULL,
+  created_at    INTEGER NOT NULL,
+  PRIMARY KEY (annotation_id, user_id, emoji)
+);
+-- No secondary index on annotation_id: the PK already covers prefix lookups
+-- by (annotation_id) and (annotation_id, user_id). An earlier revision
+-- created idx_annotation_reactions_annotation; drop it on existing DBs.
+DROP INDEX IF EXISTS idx_annotation_reactions_annotation;
+
+CREATE TABLE IF NOT EXISTS annotation_reply_reactions (
+  reply_id      TEXT NOT NULL REFERENCES annotation_replies(id) ON DELETE CASCADE,
+  user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  emoji         TEXT NOT NULL,
+  created_at    INTEGER NOT NULL,
+  PRIMARY KEY (reply_id, user_id, emoji)
+);
+-- No secondary index on reply_id: PK prefix lookups suffice.
+DROP INDEX IF EXISTS idx_annotation_reply_reactions_reply;
+
 -- Band-scoped song catalog backing the section chapter-lane and the
 -- FilePicker chip-rail filter. Name is unique within a band on a normalised
 -- (lower(trim(.))) key so the combobox at section-creation transparently

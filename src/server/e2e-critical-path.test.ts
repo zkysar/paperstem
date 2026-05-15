@@ -36,6 +36,9 @@ type DevLoginModule = typeof import('./auth/dev-login.js');
 type AudioModule = typeof import('./audio.js');
 type MiddlewareModule = typeof import('./auth/middleware.js');
 type CookieModule = typeof import('./auth/cookie.js');
+type AnnotationsModule = typeof import('./annotations.js');
+type AnnotationRepliesModule = typeof import('./annotation-replies.js');
+type AnnotationReactionsModule = typeof import('./annotation-reactions.js');
 
 let dbMod: DbModule;
 let devLoginMod: DevLoginModule;
@@ -62,6 +65,9 @@ beforeAll(async () => {
   const audioMod: AudioModule = await import('./audio.js');
   const middlewareMod: MiddlewareModule = await import('./auth/middleware.js');
   cookieMod = await import('./auth/cookie.js');
+  const annotationsMod: AnnotationsModule = await import('./annotations.js');
+  const repliesMod: AnnotationRepliesModule = await import('./annotation-replies.js');
+  const reactionsMod: AnnotationReactionsModule = await import('./annotation-reactions.js');
 
   const { Hono } = await import('hono');
   app = new Hono();
@@ -69,6 +75,21 @@ beforeAll(async () => {
   // dev-login route — same guard the real server uses
   app.get('/api/auth/dev-login', devLoginMod.handleDevLogin);
   app.get('/api/audio/:stem_id', audioMod.handleGetAudio);
+  // annotations
+  app.get('/api/projects/:id/annotations', annotationsMod.handleListAnnotations);
+  app.post('/api/projects/:id/annotations', annotationsMod.handleCreateAnnotation);
+  app.patch('/api/annotations/:id', annotationsMod.handlePatchAnnotation);
+  app.delete('/api/annotations/:id', annotationsMod.handleDeleteAnnotation);
+  // replies
+  app.get('/api/annotations/:annotationId/replies', repliesMod.handleListReplies);
+  app.post('/api/annotations/:annotationId/replies', repliesMod.handleCreateReply);
+  app.patch('/api/annotation-replies/:id', repliesMod.handlePatchReply);
+  app.delete('/api/annotation-replies/:id', repliesMod.handleDeleteReply);
+  // reactions
+  app.post('/api/annotations/:annotationId/reactions', reactionsMod.handleAddAnnotationReaction);
+  app.delete('/api/annotations/:annotationId/reactions', reactionsMod.handleRemoveAnnotationReaction);
+  app.post('/api/annotation-replies/:replyId/reactions', reactionsMod.handleAddReplyReaction);
+  app.delete('/api/annotation-replies/:replyId/reactions', reactionsMod.handleRemoveReplyReaction);
 });
 
 afterAll(() => {
@@ -77,10 +98,44 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM annotation_reply_reactions; DELETE FROM annotation_reactions; DELETE FROM annotation_replies; DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
   rmSync(audioRoot, { recursive: true, force: true });
   mkdirSync(audioRoot, { recursive: true });
+}
+
+// ---- helpers for the annotation/reply/reaction e2e test ----
+
+function createUser(email: string, displayName: string | null = null): string {
+  const id = randomUUID();
+  dbMod.stmts.insertUser.run(id, email, displayName, Math.floor(Date.now() / 1000));
+  return id;
+}
+
+function createBand(ownerId: string): string {
+  const id = randomUUID();
+  const now = Math.floor(Date.now() / 1000);
+  dbMod.stmts.insertBand.run(id, 'E2EBand', 'e2e-folder', ownerId, now);
+  dbMod.stmts.insertMembership.run(id, ownerId, 'owner', now);
+  return id;
+}
+
+function insertProject(bandId: string, userId: string): string {
+  const id = randomUUID();
+  const now = Math.floor(Date.now() / 1000);
+  dbMod.stmts.insertProject.run(id, bandId, 'e2e-project', null, 'e2e-project-folder', null, now, userId, now);
+  return id;
+}
+
+function createSession(userId: string): string {
+  const sid = randomUUID();
+  const now = Math.floor(Date.now() / 1000);
+  dbMod.stmts.insertSession.run(sid, userId, now + 3600, now);
+  return sid;
+}
+
+function cookie(sid: string): string {
+  return `${cookieMod.SESSION_COOKIE_NAME}=${sid}`;
 }
 
 beforeEach(() => {
@@ -169,4 +224,77 @@ it('login -> audio-load: session cookie grants audio bytes for a band member ste
     Buffer.from(body).toString(),
     'returned bytes should match what was written',
   ).toBe(stemContent.toString());
+});
+
+it('comment -> reply -> react -> delete parent cascades', async () => {
+  const u = createUser('u@e.test', 'U');
+  const bandId = createBand(u);
+  const pid = insertProject(bandId, u);
+  const sid = createSession(u);
+
+  // 1. Annotation
+  const annRes = await app.request(`/api/projects/${pid}/annotations`, {
+    method: 'POST',
+    headers: { cookie: cookie(sid), 'content-type': 'application/json' },
+    body: JSON.stringify({ start_ms: 0, end_ms: 1000, body: 'parent' }),
+  });
+  expect(annRes.status).toBe(201);
+  const { annotation } = (await annRes.json()) as { annotation: { id: string } };
+
+  // 2. Reply
+  const replyRes = await app.request(
+    `/api/annotations/${annotation.id}/replies`,
+    {
+      method: 'POST',
+      headers: { cookie: cookie(sid), 'content-type': 'application/json' },
+      body: JSON.stringify({ body: 'child' }),
+    },
+  );
+  expect(replyRes.status).toBe(201);
+  const { reply } = (await replyRes.json()) as { reply: { id: string } };
+
+  // 3. Reactions
+  const annReactRes = await app.request(`/api/annotations/${annotation.id}/reactions`, {
+    method: 'POST',
+    headers: { cookie: cookie(sid), 'content-type': 'application/json' },
+    body: JSON.stringify({ emoji: '👍' }),
+  });
+  expect(annReactRes.status).toBe(204);
+
+  const replyReactRes = await app.request(`/api/annotation-replies/${reply.id}/reactions`, {
+    method: 'POST',
+    headers: { cookie: cookie(sid), 'content-type': 'application/json' },
+    body: JSON.stringify({ emoji: '🎵' }),
+  });
+  expect(replyReactRes.status).toBe(204);
+
+  // 4. List shows aggregates
+  const listRes = await app.request(`/api/projects/${pid}/annotations`, {
+    headers: { cookie: cookie(sid) },
+  });
+  expect(listRes.status).toBe(200);
+  const { annotations } = (await listRes.json()) as {
+    annotations: { reply_count: number; reactions: { emoji: string }[] }[];
+  };
+  expect(annotations[0].reply_count).toBe(1);
+  expect(annotations[0].reactions.map((r) => r.emoji)).toEqual(['👍']);
+
+  // 5. Delete parent
+  const del = await app.request(`/api/annotations/${annotation.id}`, {
+    method: 'DELETE',
+    headers: { cookie: cookie(sid) },
+  });
+  expect(del.status).toBe(204);
+
+  // 6. All cascaded
+  for (const table of [
+    'annotation_replies',
+    'annotation_reactions',
+    'annotation_reply_reactions',
+  ]) {
+    const row = dbMod.db
+      .prepare(`SELECT COUNT(*) AS n FROM ${table}`)
+      .get() as { n: number };
+    expect(row.n, `${table} should be empty after cascade delete`).toBe(0);
+  }
 });

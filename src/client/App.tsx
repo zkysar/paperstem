@@ -36,6 +36,12 @@ import {
   createAnnotation,
   patchAnnotation,
   deleteAnnotation,
+  addReaction,
+  createReply as createReplyApi,
+  deleteReply as deleteReplyApi,
+  listReplies,
+  patchReply as patchReplyApi,
+  removeReaction,
 } from './data/annotations-repo';
 import {
   listSections,
@@ -43,6 +49,7 @@ import {
   patchSection,
   deleteSection,
 } from './data/sections-repo';
+import { END_SECTION_LABEL } from './lib/section-end';
 import {
   listSongs,
   listSongUsage,
@@ -61,7 +68,15 @@ import { usePlayer } from './hooks/usePlayer';
 import { useViewport } from './hooks/useViewport';
 import { buildUserColorMap } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
-import type { Annotation, Section, Song, User } from '../shared/types';
+import type {
+  Annotation,
+  AnnotationReply,
+  Reaction,
+  ReactionTarget,
+  Section,
+  Song,
+  User,
+} from '../shared/types';
 
 const UPLOAD_MIN_VIEWPORT_PX = 720;
 
@@ -177,9 +192,13 @@ function PaperstemApp({
   const [uploadOpen, setUploadOpen] = useState(false);
   // Draft mode: when the user picks a folder via "+ New project", the audio
   // plays from local File objects (object URLs). We keep the underlying Files
-  // around so "Save to band" can hand them to UploadDrawer for promotion.
+  // around so the "Save to {bandName}" banner button can hand them to
+  // UploadDrawer for promotion.
   const [draftFiles, setDraftFiles] = useState<File[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [replies, setReplies] = useState<Map<string, AnnotationReply[]>>(
+    () => new Map(),
+  );
   const [sections, setSections] = useState<Section[]>([]);
   const [songs, setSongs] = useState<Song[]>([]);
   const [songUsage, setSongUsage] = useState<SongUsageRow[]>([]);
@@ -239,6 +258,7 @@ function PaperstemApp({
 
   const lastPickerTriggerRef = useRef<HTMLElement | null>(null);
   const lastDrawerTriggerRef = useRef<HTMLElement | null>(null);
+  const pendingReactionsRef = useRef<Set<string>>(new Set());
 
   const openPicker = useCallback(() => {
     lastPickerTriggerRef.current = document.activeElement as HTMLElement | null;
@@ -259,9 +279,19 @@ function PaperstemApp({
     queueMicrotask(() => lastDrawerTriggerRef.current?.focus());
   }, []);
   const toggleDrawer = useCallback(() => {
+    // Toggling the comments sidebar dismisses any open comment popover —
+    // the popover is part of the "comment focus" the toggle is acting on.
+    setActiveCommentId(null);
+    setPopoverAnchor(null);
     if (drawerOpen) closeDrawer();
     else openDrawer();
   }, [drawerOpen, openDrawer, closeDrawer]);
+
+  const closePopovers = useCallback(() => {
+    setActiveCommentId(null);
+    setPopoverAnchor(null);
+    setSectionPopover(null);
+  }, []);
 
   // Auto-open the picker once on mount when no project is active.
   useEffect(() => {
@@ -299,11 +329,7 @@ function PaperstemApp({
     onTogglePicker: () => (pickerOpen ? closePicker() : openPicker()),
     onClosePicker: closePicker,
     onCloseDrawer: closeDrawer,
-    onClosePopover: () => {
-      setActiveCommentId(null);
-      setPopoverAnchor(null);
-      setSectionPopover(null);
-    },
+    onClosePopover: closePopovers,
     onCancelCreate: () => {
       setAnnotationCreateMode(false);
       setSectionCreateMode(false);
@@ -319,6 +345,28 @@ function PaperstemApp({
       if (!activeProjectId) return;
       const startMs = Math.max(0, Math.round(player.currentTime * 1000));
       openSectionPopoverAtPlayhead(startMs);
+    },
+    onAddEndMarkerAtPlayhead: () => {
+      if (!activeProjectId) return;
+      const startMs = Math.max(0, Math.round(player.currentTime * 1000));
+      const projectId = activeProjectId;
+      // Shift+M drops a section labeled "—" at the playhead with no
+      // popover prompt. The previous section's pill auto-truncates at
+      // this point via the existing next-start render rule.
+      void (async () => {
+        try {
+          const created = await createSection(projectId, {
+            start_ms: startMs,
+            label: END_SECTION_LABEL,
+          });
+          setSections((cur) =>
+            [...cur, created].sort((a, b) => a.start_ms - b.start_ms),
+          );
+          setActiveSectionId(created.id);
+        } catch (err) {
+          console.error('end marker create failed', err);
+        }
+      })();
     },
   });
 
@@ -450,6 +498,7 @@ function PaperstemApp({
         setActiveCommentId(null);
         setPopoverAnchor(null);
         setAnnotations([]);
+        setReplies(() => new Map());
       }
       try {
         await repo.deleteProject(id);
@@ -503,6 +552,7 @@ function PaperstemApp({
       if (!repo) return;
       if (opts.resetUiState) {
         setAnnotations([]);
+        setReplies(() => new Map());
         setSections([]);
         setActiveSectionId(null);
         setSectionPopover(null);
@@ -1134,6 +1184,186 @@ function PaperstemApp({
     setPendingDraft(null);
   }
 
+  async function loadReplies(annotationId: string): Promise<void> {
+    if (replies.has(annotationId)) return;
+    // Let the caller observe failure so it can surface an error and offer a
+    // retry. App.tsx itself doesn't need a toast here — ReplyThread owns the
+    // per-thread error UI.
+    const fetched = await listReplies(annotationId);
+    setReplies((m) => {
+      const next = new Map(m);
+      next.set(annotationId, fetched);
+      return next;
+    });
+  }
+
+  async function createReply(
+    annotationId: string,
+    body: string,
+  ): Promise<void> {
+    const reply = await createReplyApi(annotationId, body);
+    setReplies((m) => {
+      const next = new Map(m);
+      next.set(annotationId, [...(next.get(annotationId) ?? []), reply]);
+      return next;
+    });
+    setAnnotations((list) =>
+      list.map((a) =>
+        a.id === annotationId ? { ...a, reply_count: a.reply_count + 1 } : a,
+      ),
+    );
+  }
+
+  async function editReply(replyId: string, body: string): Promise<void> {
+    const updated = await patchReplyApi(replyId, body);
+    setReplies((m) => {
+      const next = new Map(m);
+      const arr = next.get(updated.annotation_id);
+      if (arr) {
+        next.set(
+          updated.annotation_id,
+          arr.map((r) => (r.id === replyId ? updated : r)),
+        );
+      }
+      return next;
+    });
+  }
+
+  async function deleteReply(annotationId: string, replyId: string): Promise<void> {
+    await deleteReplyApi(replyId);
+    setReplies((m) => {
+      const next = new Map(m);
+      const arr = next.get(annotationId);
+      if (arr) next.set(annotationId, arr.filter((r) => r.id !== replyId));
+      return next;
+    });
+    setAnnotations((list) =>
+      list.map((a) =>
+        a.id === annotationId
+          ? { ...a, reply_count: Math.max(0, a.reply_count - 1) }
+          : a,
+      ),
+    );
+  }
+
+  function applyReactionDelta(
+    reactions: Reaction[],
+    emoji: string,
+    selfUserId: string,
+    delta: 1 | -1,
+  ): Reaction[] {
+    const existing = reactions.find((r) => r.emoji === emoji);
+    if (delta === 1) {
+      if (existing && existing.reacted_by_self) return reactions;
+      if (existing) {
+        return reactions.map((r) =>
+          r.emoji === emoji
+            ? {
+                ...r,
+                count: r.count + 1,
+                user_ids: [...r.user_ids, selfUserId],
+                reacted_by_self: true,
+              }
+            : r,
+        );
+      }
+      return [
+        ...reactions,
+        {
+          emoji,
+          count: 1,
+          user_ids: [selfUserId],
+          reacted_by_self: true,
+        },
+      ];
+    }
+    if (!existing || !existing.reacted_by_self) return reactions;
+    if (existing.count === 1) return reactions.filter((r) => r.emoji !== emoji);
+    return reactions.map((r) =>
+      r.emoji === emoji
+        ? {
+            ...r,
+            count: r.count - 1,
+            user_ids: r.user_ids.filter((u) => u !== selfUserId),
+            reacted_by_self: false,
+          }
+        : r,
+    );
+  }
+
+  async function toggleReaction(
+    target: ReactionTarget,
+    emoji: string,
+  ): Promise<void> {
+    const key = `${target.kind}:${target.id}:${emoji}`;
+    if (pendingReactionsRef.current.has(key)) return;
+    pendingReactionsRef.current.add(key);
+
+    const selfId = user.id;
+
+    function applyReactionToState(d: 1 | -1): void {
+      if (target.kind === 'annotation') {
+        setAnnotations((list) =>
+          list.map((a) =>
+            a.id === target.id
+              ? { ...a, reactions: applyReactionDelta(a.reactions, emoji, selfId, d) }
+              : a,
+          ),
+        );
+      } else {
+        setReplies((m) => {
+          const next = new Map(m);
+          for (const [annId, arr] of next.entries()) {
+            if (arr.some((r) => r.id === target.id)) {
+              next.set(
+                annId,
+                arr.map((r) =>
+                  r.id === target.id
+                    ? { ...r, reactions: applyReactionDelta(r.reactions, emoji, selfId, d) }
+                    : r,
+                ),
+              );
+              break;
+            }
+          }
+          return next;
+        });
+      }
+    }
+
+    let isOn = false;
+    if (target.kind === 'annotation') {
+      const a = annotations.find((x) => x.id === target.id);
+      isOn = !!a?.reactions.find(
+        (r) => r.emoji === emoji && r.reacted_by_self,
+      );
+    } else {
+      for (const arr of replies.values()) {
+        const r = arr.find((x) => x.id === target.id);
+        if (r) {
+          isOn = !!r.reactions.find(
+            (x) => x.emoji === emoji && x.reacted_by_self,
+          );
+          break;
+        }
+      }
+    }
+    const delta: 1 | -1 = isOn ? -1 : 1;
+
+    applyReactionToState(delta);
+
+    try {
+      if (delta === 1) await addReaction(target, emoji);
+      else await removeReaction(target, emoji);
+    } catch (err) {
+      const roll: 1 | -1 = delta === 1 ? -1 : 1;
+      applyReactionToState(roll);
+      console.error('toggleReaction failed', err);
+    } finally {
+      pendingReactionsRef.current.delete(key);
+    }
+  }
+
   function loadFolder(files: File[], folderName: string) {
     if (!files.length) {
       setDraftFiles([]);
@@ -1286,13 +1516,13 @@ function PaperstemApp({
           <span className="draft-banner-label">
             Local draft — only on this device.
           </span>
-          {showUploadButton && (
+          {showUploadButton && activeBand && (
             <button
               type="button"
               className="draft-banner-save"
               onClick={() => setUploadOpen(true)}
             >
-              Save to your band
+              Save to <span className="band-name-clip">{activeBand.name}</span>
             </button>
           )}
         </div>
@@ -1326,6 +1556,7 @@ function PaperstemApp({
               onRenameStem={(id, name) => void renameStem(id, name)}
               onDeleteStem={(id) => void deleteStem(id)}
               viewport={viewport}
+              onDismissPopovers={closePopovers}
             />
           </ErrorBoundary>
           <SectionHintChip
@@ -1372,12 +1603,18 @@ function PaperstemApp({
                 onSaveEdit={(a, body) => void handleSaveEdit(a, body)}
                 onDelete={(a) => void handleDelete(a)}
                 onCopyLink={handleCopyCommentLink}
+                replies={replies}
+                onLoadReplies={loadReplies}
+                onCreateReply={createReply}
+                onEditReply={editReply}
+                onDeleteReply={deleteReply}
+                onToggleReaction={toggleReaction}
               />
               {!drawerOpen && (
                 <CommentsFab
                   count={annotations.length}
                   starredCount={annotations.filter((a) => a.starred).length}
-                  onClick={openDrawer}
+                  onClick={toggleDrawer}
                 />
               )}
               {active && popoverAnchor && !isNarrow &&
@@ -1397,6 +1634,15 @@ function PaperstemApp({
                     onDelete={() => void handleDelete(active)}
                     onCopyLink={() => handleCopyCommentLink(active)}
                     onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
+                    selfUserId={user.id}
+                    isNarrow={isNarrow}
+                    replies={replies.get(active.id)}
+                    replyCount={active.reply_count}
+                    onLoadReplies={loadReplies}
+                    onCreateReply={createReply}
+                    onEditReply={editReply}
+                    onDeleteReply={deleteReply}
+                    onToggleReaction={toggleReaction}
                   />,
                   document.body,
                 )}
@@ -1423,6 +1669,14 @@ function PaperstemApp({
                         onSaveEdit={(body) => void handleSaveEdit(active, body)}
                         onDelete={() => void handleDelete(active)}
                         onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
+                        selfUserId={user.id}
+                        replies={replies.get(active.id)}
+                        replyCount={active.reply_count}
+                        onLoadReplies={loadReplies}
+                        onCreateReply={createReply}
+                        onEditReply={editReply}
+                        onDeleteReply={deleteReply}
+                        onToggleReaction={toggleReaction}
                       />
                     );
                   })(),
@@ -1477,6 +1731,7 @@ function PaperstemApp({
       {showUploadButton && activeBandId && (
         <UploadDrawer
           bandId={activeBandId}
+          bandName={activeBand?.name ?? null}
           open={uploadOpen}
           prefilledFiles={draftFiles}
           prefilledName={

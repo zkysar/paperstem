@@ -23,6 +23,8 @@
   },
   "dependencies": {
     "@breezystack/lamejs": "^1.2.7",
+    "@emoji-mart/data": "1.2.1",
+    "@emoji-mart/react": "1.1.1",
     "@hono/node-server": "^1.13.7",
     "better-sqlite3": "^11.6.0",
     "busboy": "^1.6.0",
@@ -34,6 +36,12 @@
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "wavesurfer.js": "^7.10.5"
+  },
+  "overrides": {
+    "@emoji-mart/react": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.0",

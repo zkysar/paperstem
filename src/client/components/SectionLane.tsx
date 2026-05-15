@@ -98,6 +98,13 @@ export function SectionLane({
         if (!expanded) onTapToExpand();
       }}
     >
+      {/* Sticky mask over the rail column — when the viewport is zoomed
+          and scrolled horizontally, segments positioned in the wave
+          column (viewport-inner x >= railWidth) move left in screen space
+          and would otherwise bleed over the track-name / M / S / delete
+          column below. Mirrors .ruler-rail-mask in the ruler band. Lives
+          here so both ribbon and pills modes get the same coverage. */}
+      <div className="section-rail-mask" aria-hidden="true" />
       {expanded ? (
         <div className="section-lane" aria-label="Song sections">
           {computed.map((c) => {

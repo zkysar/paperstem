@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { Annotation } from '../shared/types.js';
 
 const tmpDir = mkdtempSync(join(tmpdir(), 'paperstem-annotations-test-'));
 const dbPath = join(tmpDir, 'test.sqlite');
@@ -41,7 +42,7 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM annotation_reply_reactions; DELETE FROM annotation_reactions; DELETE FROM annotation_replies; DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
 }
 
@@ -193,6 +194,53 @@ describe('GET /api/projects/:id/annotations', () => {
     expect(body.annotations[1].body).toBe('b');
     expect(body.annotations[1].user_display_name).toBe('Owner');
     expect(typeof body.annotations[0].starred).toBe('boolean');
+  });
+
+  it('list response includes reply_count and aggregated reactions', async () => {
+    const u = createUser('u@e.test');
+    const v = createUser('v@e.test');
+    const bandId = createBand(u);
+    addMember(bandId, v);
+    const pid = insertProject(bandId, u);
+    const annId = insertAnnotation(pid, u, 0, null, 'parent');
+
+    dbMod.stmts.insertReply.run('r1', annId, u, 'a', 1, 1);
+    dbMod.stmts.insertReply.run('r2', annId, v, 'b', 2, 2);
+    dbMod.stmts.insertReaction.run(annId, u, '👍', 1);
+    dbMod.stmts.insertReaction.run(annId, v, '👍', 1);
+    dbMod.stmts.insertReaction.run(annId, v, '🎵', 1);
+
+    const sid = createSession(u);
+    const res = await app.request(`/api/projects/${pid}/annotations`, {
+      headers: { cookie: cookie(sid) },
+    });
+    const { annotations } = (await res.json()) as { annotations: Annotation[] };
+    expect(annotations).toHaveLength(1);
+    expect(annotations[0].reply_count).toBe(2);
+
+    const thumbs = annotations[0].reactions.find((r) => r.emoji === '👍');
+    expect(thumbs).toBeDefined();
+    expect(thumbs!.count).toBe(2);
+    expect(thumbs!.user_ids.sort()).toEqual([u, v].sort());
+    expect(thumbs!.reacted_by_self).toBe(true);
+
+    const note = annotations[0].reactions.find((r) => r.emoji === '🎵');
+    expect(note!.reacted_by_self).toBe(false);
+  });
+
+  it('list response includes empty reactions and zero reply_count by default', async () => {
+    const u = createUser('u@e.test');
+    const bandId = createBand(u);
+    const pid = insertProject(bandId, u);
+    insertAnnotation(pid, u, 0, null, 'naked');
+    const sid = createSession(u);
+
+    const res = await app.request(`/api/projects/${pid}/annotations`, {
+      headers: { cookie: cookie(sid) },
+    });
+    const { annotations } = (await res.json()) as { annotations: Annotation[] };
+    expect(annotations[0].reply_count).toBe(0);
+    expect(annotations[0].reactions).toEqual([]);
   });
 });
 

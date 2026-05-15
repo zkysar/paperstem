@@ -1,0 +1,219 @@
+import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import type { AnnotationReply } from '../../shared/types';
+import { ReplyCard } from './ReplyCard';
+import { isMac } from '../lib/platform';
+
+type Props = {
+  annotationId: string;
+  replyCount: number;
+  replies: AnnotationReply[] | undefined;
+  selfUserId: string;
+  canEdit: boolean;
+  isNarrow: boolean;
+  onLoadReplies(annotationId: string): Promise<void> | void;
+  onCreateReply(annotationId: string, body: string): Promise<void> | void;
+  onEditReply(replyId: string, body: string): Promise<void> | void;
+  onDeleteReply(annotationId: string, replyId: string): Promise<void> | void;
+  onToggleReaction(replyId: string, emoji: string): void;
+};
+
+function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
+  if (e.key !== 'Enter') return false;
+  return isMac() ? e.metaKey : e.ctrlKey;
+}
+
+export function ReplyThread({
+  annotationId,
+  replyCount,
+  replies,
+  selfUserId,
+  canEdit,
+  isNarrow,
+  onLoadReplies,
+  onCreateReply,
+  onEditReply,
+  onDeleteReply,
+  onToggleReaction,
+}: Props) {
+  const [expanded, setExpanded] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Track which annotationId we've already fetched for so a reused instance
+  // (CommentPopover / CommentBottomSheet navigating between annotations) doesn't
+  // skip the fetch when the prop changes.
+  const fetchedForRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!expanded) return;
+    if (replies !== undefined) return;
+    if (fetchedForRef.current === annotationId) return;
+    fetchedForRef.current = annotationId;
+    setLoading(true);
+    setLoadError(null);
+    (async () => {
+      try {
+        await onLoadReplies(annotationId);
+      } catch {
+        // Clear the fetch guard so the user can retry by collapsing/re-expanding.
+        fetchedForRef.current = null;
+        setLoadError("Couldn't load replies.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [expanded, replies, annotationId, onLoadReplies]);
+
+  function retryLoad() {
+    fetchedForRef.current = null;
+    setLoadError(null);
+    setLoading(true);
+    (async () => {
+      try {
+        await onLoadReplies(annotationId);
+        fetchedForRef.current = annotationId;
+      } catch {
+        setLoadError("Couldn't load replies.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }
+
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    const text = draft.trim();
+    if (!text) return;
+    setError(null);
+    try {
+      await onCreateReply(annotationId, text);
+      // Only clear the composer on success. On failure the draft stays so the
+      // user can retry without re-typing.
+      setDraft('');
+      setComposing(false);
+      setExpanded(true);
+    } catch {
+      setError("Couldn't send reply — try again.");
+    }
+  }
+
+  return (
+    <div className="reply-thread">
+      <div className="reply-thread-bar">
+        {replyCount > 0 && (
+          <button
+            type="button"
+            className="reply-expand"
+            aria-expanded={expanded}
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded((x) => !x);
+            }}
+          >
+            {expanded ? (
+              <ChevronDown size={12} strokeWidth={2} aria-hidden="true" />
+            ) : (
+              <ChevronRight size={12} strokeWidth={2} aria-hidden="true" />
+            )}
+            {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
+          </button>
+        )}
+        {canEdit && (
+          <button
+            type="button"
+            className="reply-cta"
+            onClick={(e) => {
+              e.stopPropagation();
+              setComposing(true);
+              setExpanded(true);
+            }}
+          >
+            Reply
+          </button>
+        )}
+      </div>
+      {expanded && (
+        <div className="reply-thread-list">
+          {loading && replies === undefined && (
+            <div className="reply-thread-loading">Loading replies…</div>
+          )}
+          {loadError && (
+            <div className="reply-thread-error">
+              {loadError}{' '}
+              <button
+                type="button"
+                className="reply-thread-retry"
+                onClick={retryLoad}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {(replies ?? []).map((r) => (
+            <ReplyCard
+              key={r.id}
+              reply={r}
+              selfUserId={selfUserId}
+              canEdit={canEdit}
+              isNarrow={isNarrow}
+              onEdit={onEditReply}
+              onDelete={(id) => onDeleteReply(annotationId, id)}
+              onToggleReaction={onToggleReaction}
+            />
+          ))}
+          {composing && (
+            <div className="reply-composer">
+              <textarea
+                autoFocus
+                rows={2}
+                aria-label="Reply"
+                value={draft}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  if (error) setError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (isSubmitShortcut(e) && draft.trim().length > 0) {
+                    e.preventDefault();
+                    void submit();
+                  }
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setDraft('');
+                    setComposing(false);
+                    setError(null);
+                  }
+                }}
+              />
+              {error && <div className="reply-composer-error">{error}</div>}
+              <div className="reply-composer-actions">
+                <button
+                  type="button"
+                  className="reply-cancel"
+                  onClick={() => {
+                    setDraft('');
+                    setComposing(false);
+                    setError(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="reply-save"
+                  disabled={draft.trim().length === 0}
+                  onClick={() => void submit()}
+                >
+                  Reply
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

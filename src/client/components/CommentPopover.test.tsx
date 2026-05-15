@@ -1,8 +1,40 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { CommentPopover } from './CommentPopover';
-import type { Annotation } from '../../shared/types';
+import type { Annotation, AnnotationReply } from '../../shared/types';
+
+class MockResizeObserver {
+  static instances: MockResizeObserver[] = [];
+  callback: ResizeObserverCallback;
+  target: Element | null = null;
+  constructor(cb: ResizeObserverCallback) {
+    this.callback = cb;
+    MockResizeObserver.instances.push(this);
+  }
+  observe(el: Element) {
+    this.target = el;
+  }
+  disconnect() {
+    this.target = null;
+  }
+  unobserve() {}
+  fire() {
+    if (this.target) {
+      this.callback(
+        [{ target: this.target } as unknown as ResizeObserverEntry],
+        this as unknown as ResizeObserver,
+      );
+    }
+  }
+}
+
+vi.mock('./Reactions', () => ({
+  Reactions: () => <div data-testid="mock-reactions" />,
+}));
+vi.mock('./ReplyThread', () => ({
+  ReplyThread: () => <div data-testid="mock-reply-thread" />,
+}));
 
 const region: Annotation = {
   id: 'a1',
@@ -16,6 +48,8 @@ const region: Annotation = {
   starred: false,
   created_at: 0,
   updated_at: 0,
+  reply_count: 0,
+  reactions: [],
 };
 
 const baseProps = {
@@ -31,6 +65,15 @@ const baseProps = {
   onDelete: vi.fn(),
   onCopyLink: vi.fn(),
   onClose: vi.fn(),
+  selfUserId: 'u1',
+  isNarrow: false,
+  replies: undefined as AnnotationReply[] | undefined,
+  replyCount: 0,
+  onLoadReplies: vi.fn(),
+  onCreateReply: vi.fn(),
+  onEditReply: vi.fn(),
+  onDeleteReply: vi.fn(),
+  onToggleReaction: vi.fn(),
 };
 
 describe('CommentPopover', () => {
@@ -63,11 +106,12 @@ describe('CommentPopover', () => {
     expect(screen.queryByLabelText(/loop region/i)).toBeNull();
   });
 
-  it('clicking edit switches to textarea, save calls onSaveEdit', async () => {
+  it('overflow Edit menu item switches to textarea, save calls onSaveEdit', async () => {
     const onSaveEdit = vi.fn();
     const user = userEvent.setup();
     render(<CommentPopover {...baseProps} onSaveEdit={onSaveEdit} />);
-    await user.click(screen.getByLabelText('Edit'));
+    await user.click(screen.getByLabelText('More actions'));
+    await user.click(screen.getByRole('menuitem', { name: 'Edit' }));
     const ta = screen.getByRole('textbox');
     await user.clear(ta);
     await user.type(ta, 'updated');
@@ -75,24 +119,94 @@ describe('CommentPopover', () => {
     expect(onSaveEdit).toHaveBeenCalledWith('updated');
   });
 
-  it('clicking delete (confirmed) calls onDelete', async () => {
+  it('overflow Delete menu item (confirmed) calls onDelete', async () => {
     const onDelete = vi.fn();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = userEvent.setup();
     render(<CommentPopover {...baseProps} onDelete={onDelete} />);
-    await userEvent.click(screen.getByLabelText('Delete'));
+    await user.click(screen.getByLabelText('More actions'));
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
     expect(onDelete).toHaveBeenCalledOnce();
   });
 
-  it('non-owner does not see edit/delete', () => {
+  it('non-owner overflow menu omits edit/delete but keeps copy-link', async () => {
+    const user = userEvent.setup();
     render(<CommentPopover {...baseProps} isOwn={false} />);
-    expect(screen.queryByLabelText('Edit')).toBeNull();
-    expect(screen.queryByLabelText('Delete')).toBeNull();
+    await user.click(screen.getByLabelText('More actions'));
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Delete' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /copy link/i })).not.toBeNull();
   });
 
-  it('copy-link click calls onCopyLink', async () => {
+  it('copy-link menu item calls onCopyLink', async () => {
     const onCopyLink = vi.fn();
+    const user = userEvent.setup();
     render(<CommentPopover {...baseProps} onCopyLink={onCopyLink} />);
-    await userEvent.click(screen.getByLabelText('Copy link to this comment'));
+    await user.click(screen.getByLabelText('More actions'));
+    await user.click(screen.getByRole('menuitem', { name: /copy link/i }));
     expect(onCopyLink).toHaveBeenCalledOnce();
+  });
+
+  describe('placement reflow', () => {
+    const origRO = globalThis.ResizeObserver;
+    const origRect = Element.prototype.getBoundingClientRect;
+    const origInnerHeight = window.innerHeight;
+    const origInnerWidth = window.innerWidth;
+
+    function setRect(rect: { top: number; left: number; width: number; height: number }) {
+      Element.prototype.getBoundingClientRect = function () {
+        if ((this as Element).classList?.contains('comment-popover')) {
+          return {
+            top: rect.top,
+            left: rect.left,
+            right: rect.left + rect.width,
+            bottom: rect.top + rect.height,
+            width: rect.width,
+            height: rect.height,
+            x: rect.left,
+            y: rect.top,
+            toJSON() { return this; },
+          } as DOMRect;
+        }
+        return origRect.call(this);
+      };
+    }
+
+    afterEach(() => {
+      Element.prototype.getBoundingClientRect = origRect;
+      globalThis.ResizeObserver = origRO;
+      Object.defineProperty(window, 'innerHeight', { value: origInnerHeight, configurable: true });
+      Object.defineProperty(window, 'innerWidth', { value: origInnerWidth, configurable: true });
+      MockResizeObserver.instances = [];
+    });
+
+    it('flips to below when the popover would overflow above the viewport', () => {
+      globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+      Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+      Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
+      // Popover rendered above with top off-screen
+      setRect({ top: -50, left: 400, width: 320, height: 200 });
+      const { container } = render(<CommentPopover {...baseProps} anchorTopPx={150} />);
+      const card = container.querySelector('.comment-popover')!;
+      expect(card.className).toContain('placement-below');
+    });
+
+    it('re-flips when the popover grows after mount (ResizeObserver fires)', () => {
+      globalThis.ResizeObserver = MockResizeObserver as unknown as typeof ResizeObserver;
+      Object.defineProperty(window, 'innerHeight', { value: 800, configurable: true });
+      Object.defineProperty(window, 'innerWidth', { value: 1280, configurable: true });
+      // Initial: short popover fits above anchor at y=150 (top would be -50+150=... )
+      // Anchor near top: anchorTopPx=180, popover height 100 -> top=180-8-100=72, fits.
+      setRect({ top: 72, left: 400, width: 320, height: 100 });
+      const { container } = render(<CommentPopover {...baseProps} anchorTopPx={180} />);
+      const card = container.querySelector('.comment-popover')!;
+      expect(card.className).toContain('placement-above');
+      // Now simulate content growth pushing top off-screen.
+      setRect({ top: -100, left: 400, width: 320, height: 300 });
+      act(() => {
+        MockResizeObserver.instances.forEach((i) => i.fire());
+      });
+      expect(card.className).toContain('placement-below');
+    });
   });
 });

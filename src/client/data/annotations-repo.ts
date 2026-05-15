@@ -1,4 +1,8 @@
-import type { Annotation } from '../../shared/types';
+import type {
+  Annotation,
+  AnnotationReply,
+  ReactionTarget,
+} from '../../shared/types';
 
 export type CreateAnnotationInput = {
   start_ms: number;
@@ -70,6 +74,98 @@ export async function patchAnnotation(
 
 export async function deleteAnnotation(id: string): Promise<void> {
   const res = await fetch(`/api/annotations/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok && res.status !== 204) throw new Error(await readError(res));
+}
+
+export async function listReplies(
+  annotationId: string,
+): Promise<AnnotationReply[]> {
+  const res = await fetch(
+    `/api/annotations/${encodeURIComponent(annotationId)}/replies`,
+    { credentials: 'include' },
+  );
+  if (!res.ok) throw new Error(await readError(res));
+  const data = (await res.json()) as { replies: AnnotationReply[] };
+  return data.replies;
+}
+
+export async function createReply(
+  annotationId: string,
+  body: string,
+): Promise<AnnotationReply> {
+  const res = await fetch(
+    `/api/annotations/${encodeURIComponent(annotationId)}/replies`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body }),
+    },
+  );
+  if (!res.ok) throw new Error(await readError(res));
+  const data = (await res.json()) as { reply: AnnotationReply };
+  return data.reply;
+}
+
+export async function patchReply(
+  id: string,
+  body: string,
+): Promise<AnnotationReply> {
+  const res = await fetch(
+    `/api/annotation-replies/${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body }),
+    },
+  );
+  if (!res.ok) throw new Error(await readError(res));
+  const data = (await res.json()) as { reply: AnnotationReply };
+  return data.reply;
+}
+
+export async function deleteReply(id: string): Promise<void> {
+  const res = await fetch(
+    `/api/annotation-replies/${encodeURIComponent(id)}`,
+    {
+      method: 'DELETE',
+      credentials: 'include',
+    },
+  );
+  if (!res.ok && res.status !== 204) throw new Error(await readError(res));
+}
+
+function reactionUrl(target: ReactionTarget): string {
+  return target.kind === 'annotation'
+    ? `/api/annotations/${encodeURIComponent(target.id)}/reactions`
+    : `/api/annotation-replies/${encodeURIComponent(target.id)}/reactions`;
+}
+
+export async function addReaction(
+  target: ReactionTarget,
+  emoji: string,
+): Promise<void> {
+  const res = await fetch(reactionUrl(target), {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ emoji }),
+  });
+  if (!res.ok) throw new Error(await readError(res));
+}
+
+export async function removeReaction(
+  target: ReactionTarget,
+  emoji: string,
+): Promise<void> {
+  // emoji as a query param — DELETE-with-body is unreliable through some
+  // proxies (Fly's edge, CDNs, ALBs).
+  const url = `${reactionUrl(target)}?emoji=${encodeURIComponent(emoji)}`;
+  const res = await fetch(url, {
     method: 'DELETE',
     credentials: 'include',
   });

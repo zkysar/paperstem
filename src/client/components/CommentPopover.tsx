@@ -1,14 +1,21 @@
 import {
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
   type KeyboardEvent,
 } from 'react';
-import { Link2, Pencil, Repeat, Star, Trash2, X } from 'lucide-react';
-import type { Annotation } from '../../shared/types';
+import { Link2, MoreHorizontal, Pencil, Repeat, Star, Trash2, X } from 'lucide-react';
+import type {
+  Annotation,
+  AnnotationReply,
+  ReactionTarget,
+} from '../../shared/types';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
+import { Reactions } from './Reactions';
+import { ReplyThread } from './ReplyThread';
 
 type Props = {
   annotation: Annotation;
@@ -30,6 +37,15 @@ type Props = {
    */
   onCopyLink(): void;
   onClose(): void;
+  selfUserId: string;
+  isNarrow: boolean;
+  replies: AnnotationReply[] | undefined;
+  replyCount: number;
+  onLoadReplies(annotationId: string): Promise<void> | void;
+  onCreateReply(annotationId: string, body: string): Promise<void> | void;
+  onEditReply(replyId: string, body: string): Promise<void> | void;
+  onDeleteReply(annotationId: string, replyId: string): Promise<void> | void;
+  onToggleReaction(target: ReactionTarget, emoji: string): void;
 };
 
 function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
@@ -52,28 +68,109 @@ export function CommentPopover({
   onDelete,
   onCopyLink,
   onClose,
+  selfUserId,
+  isNarrow,
+  replies,
+  replyCount,
+  onLoadReplies,
+  onCreateReply,
+  onEditReply,
+  onDeleteReply,
+  onToggleReaction,
 }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<'above' | 'below'>('above');
   const [translateX, setTranslateX] = useState(0);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(annotation.body);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const DRAWER_W = 320;
+
+  // Escape closes the popover. The global keyboard hook handles this when
+  // focus is on body, but bails when focus is inside any input/textarea
+  // (e.g. the drawer's draft composer). A popover-scoped listener catches
+  // those cases too. Inner Esc handlers (edit, reply compose, overflow
+  // menu) all call preventDefault, so the defaultPrevented guard lets them
+  // cancel their own state without also dismissing the popover.
+  useEffect(() => {
+    function onKey(e: globalThis.KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      if (e.defaultPrevented) return;
+      e.preventDefault();
+      onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleDocClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    function handleKey(e: globalThis.KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      // Capture phase + preventDefault — must run before the popover-close
+      // listener so pressing Esc while the menu is open closes only the menu.
+      e.preventDefault();
+      e.stopPropagation();
+      setMenuOpen(false);
+    }
+    document.addEventListener('mousedown', handleDocClick);
+    document.addEventListener('keydown', handleKey, true);
+    return () => {
+      document.removeEventListener('mousedown', handleDocClick);
+      document.removeEventListener('keydown', handleKey, true);
+    };
+  }, [menuOpen]);
 
   useLayoutEffect(() => {
     const el = cardRef.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
-    if (r.top < 8) setPlacement('below');
-    else setPlacement('above');
-    const margin = 8;
-    const rightLimit = window.innerWidth - margin - (drawerOpen ? DRAWER_W : 0);
-    if (r.left < margin) setTranslateX(margin - r.left);
-    else if (r.right > rightLimit)
-      setTranslateX(rightLimit - r.right);
-    else setTranslateX(0);
-  }, [anchorLeftPx, anchorTopPx, drawerOpen, editing]);
+
+    const reflow = () => {
+      const node = cardRef.current;
+      if (!node) return;
+      const r = node.getBoundingClientRect();
+      const margin = 8;
+      const rightLimit = window.innerWidth - margin - (drawerOpen ? DRAWER_W : 0);
+
+      // Recover the anchor's viewport y from the popover's current position so
+      // we can re-decide placement after the popover grows (reply composer
+      // opens, replies expand, body edit, etc.).
+      const anchorY = placement === 'above' ? r.bottom + margin : r.top - margin;
+      const aboveSpace = anchorY - margin;
+      const belowSpace = window.innerHeight - anchorY - margin;
+      const fitsAbove = r.height <= aboveSpace;
+      const fitsBelow = r.height <= belowSpace;
+      let next: 'above' | 'below';
+      if (fitsAbove) next = 'above';
+      else if (fitsBelow) next = 'below';
+      else next = belowSpace > aboveSpace ? 'below' : 'above';
+      setPlacement(next);
+
+      setTranslateX((prev) => {
+        const naturalLeft = r.left - prev;
+        const naturalRight = r.right - prev;
+        if (naturalLeft < margin) return margin - naturalLeft;
+        if (naturalRight > rightLimit) return rightLimit - naturalRight;
+        return 0;
+      });
+    };
+
+    reflow();
+    const ro = new ResizeObserver(reflow);
+    ro.observe(el);
+    window.addEventListener('resize', reflow);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', reflow);
+    };
+  }, [anchorLeftPx, anchorTopPx, drawerOpen, editing, placement]);
 
   const author = annotation.user_display_name ?? annotation.user_email;
   const isRegion = annotation.end_ms !== null;
@@ -154,15 +251,75 @@ export function CommentPopover({
             <Star size={14} strokeWidth={2} fill={annotation.starred ? 'currentColor' : 'none'} aria-hidden="true" />
           </button>
         )}
-        <button
-          type="button"
-          className="cp-iconbtn"
-          aria-label="Copy link to this comment"
-          title="Open share dialog for this comment"
-          onClick={(e) => { e.stopPropagation(); onCopyLink(); }}
+        <div
+          className={'cl-overflow' + (menuOpen ? ' open' : '')}
+          ref={menuOpen ? menuRef : undefined}
         >
-          <Link2 size={14} strokeWidth={2} aria-hidden="true" />
-        </button>
+          <button
+            type="button"
+            className="cp-iconbtn cl-overflow-trigger"
+            aria-label="More actions"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            title="More actions"
+            onClick={(e) => {
+              e.stopPropagation();
+              setMenuOpen((cur) => !cur);
+            }}
+          >
+            <MoreHorizontal size={14} strokeWidth={2} aria-hidden="true" />
+          </button>
+          {menuOpen && (
+            <div className="cl-overflow-menu" role="menu" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                role="menuitem"
+                className="cl-overflow-item"
+                aria-label="Copy link to this comment"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen(false);
+                  onCopyLink();
+                }}
+              >
+                <Link2 size={14} strokeWidth={2} aria-hidden="true" />
+                <span>Copy link</span>
+              </button>
+              {isOwn && canEdit && (
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="cl-overflow-item"
+                    aria-label="Edit"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      startEdit();
+                    }}
+                  >
+                    <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+                    <span>Edit</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="cl-overflow-item cl-overflow-item-danger"
+                    aria-label="Delete"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(false);
+                      handleDelete();
+                    }}
+                  >
+                    <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+                    <span>Delete</span>
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
         <button
           type="button"
           className="cp-iconbtn cp-close"
@@ -206,28 +363,31 @@ export function CommentPopover({
       ) : (
         <>
           <div className="cp-body">{annotation.body}</div>
-          {isOwn && canEdit && (
-            <div className="cp-actions">
-              <button
-                type="button"
-                className="cp-iconbtn"
-                aria-label="Edit"
-                title="Edit this comment"
-                onClick={(e) => { e.stopPropagation(); startEdit(); }}
-              >
-                <Pencil size={14} strokeWidth={2} aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                className="cp-iconbtn"
-                aria-label="Delete"
-                title="Delete this comment"
-                onClick={(e) => { e.stopPropagation(); handleDelete(); }}
-              >
-                <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
-              </button>
-            </div>
-          )}
+          <div className="cl-foot">
+            <Reactions
+              reactions={annotation.reactions}
+              isNarrow={isNarrow}
+              onToggle={(emoji) =>
+                onToggleReaction({ kind: 'annotation', id: annotation.id }, emoji)
+              }
+            />
+            <ReplyThread
+              key={annotation.id}
+              annotationId={annotation.id}
+              replyCount={replyCount}
+              replies={replies}
+              selfUserId={selfUserId}
+              canEdit={canEdit}
+              isNarrow={isNarrow}
+              onLoadReplies={onLoadReplies}
+              onCreateReply={onCreateReply}
+              onEditReply={onEditReply}
+              onDeleteReply={onDeleteReply}
+              onToggleReaction={(replyId, emoji) =>
+                onToggleReaction({ kind: 'reply', id: replyId }, emoji)
+              }
+            />
+          </div>
         </>
       )}
     </div>

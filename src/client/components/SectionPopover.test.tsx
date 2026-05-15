@@ -157,6 +157,34 @@ describe('SectionPopover', () => {
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'song_id', song_id: 's-2' });
   });
 
+  it('"End here" button fires a label submit with the em-dash marker', async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+    render(<SectionPopover {...baseProps} onSubmit={onSubmit} />);
+    await user.click(screen.getByRole('button', { name: /^end here$/i }));
+    expect(onSubmit).toHaveBeenCalledWith({ kind: 'label', label: '—' });
+  });
+
+  it('"End here" button is hidden when editing an existing section', () => {
+    render(
+      <SectionPopover
+        {...baseProps}
+        section={{
+          id: 'sec-1',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: null,
+          song_name: null,
+          label: 'warmup',
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /^end here$/i })).toBeNull();
+  });
+
   it('Cancel button calls onClose', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();

@@ -2,13 +2,21 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { CommentsDrawer } from './CommentsDrawer';
-import type { Annotation } from '../../shared/types';
+import type { Annotation, AnnotationReply } from '../../shared/types';
+
+vi.mock('./Reactions', () => ({
+  Reactions: () => <div data-testid="mock-reactions" />,
+}));
+vi.mock('./ReplyThread', () => ({
+  ReplyThread: () => <div data-testid="mock-reply-thread" />,
+}));
 
 const ann: Annotation = {
   id: 'a1', project_id: 'p1', user_id: 'u1',
   user_email: 'sam@example.com', user_display_name: 'Sam',
   start_ms: 1000, end_ms: null, body: 'one', starred: false,
   created_at: 0, updated_at: 0,
+  reply_count: 0, reactions: [],
 };
 
 const baseProps = {
@@ -28,6 +36,12 @@ const baseProps = {
   onSaveEdit: vi.fn(),
   onDelete: vi.fn(),
   onCopyLink: vi.fn(),
+  replies: new Map<string, AnnotationReply[]>(),
+  onLoadReplies: vi.fn(),
+  onCreateReply: vi.fn(),
+  onEditReply: vi.fn(),
+  onDeleteReply: vi.fn(),
+  onToggleReaction: vi.fn(),
 };
 
 describe('CommentsDrawer', () => {
