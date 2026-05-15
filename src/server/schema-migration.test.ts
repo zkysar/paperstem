@@ -194,4 +194,61 @@ describe('schema migration', () => {
         .get(),
     ).toEqual({ n: 0 });
   });
+
+  it('creates notification tables', async () => {
+    const dbMod = await import('./db.js');
+    const tables = dbMod.db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN (?,?,?,?,?)",
+      )
+      .all('mentions', 'project_reads', 'notification_prefs', 'band_mutes', 'pending_notifications');
+    expect(tables.length).toBe(5);
+  });
+
+  it('cascades pending_notifications when project is deleted', async () => {
+    const dbMod = await import('./db.js');
+
+    function createUser(email: string): string {
+      const id = randomUUID();
+      dbMod.stmts.insertUser.run(id, email, null, Math.floor(Date.now() / 1000));
+      return id;
+    }
+
+    function createBand(ownerId: string): string {
+      const id = randomUUID();
+      const now = Math.floor(Date.now() / 1000);
+      dbMod.stmts.insertBand.run(id, 'Alpha', 'folder-x', ownerId, now);
+      dbMod.stmts.insertMembership.run(id, ownerId, 'owner', now);
+      return id;
+    }
+
+    function insertProject(bandId: string, userId: string): string {
+      const id = randomUUID();
+      const now = Math.floor(Date.now() / 1000);
+      dbMod.stmts.insertProject.run(
+        id,
+        bandId,
+        'p1',
+        null,
+        'project-folder',
+        null,
+        now,
+        userId,
+        now,
+      );
+      return id;
+    }
+
+    const userId = createUser('cascade@e.test');
+    const bandId = createBand(userId);
+    const projectId = insertProject(bandId, userId);
+    dbMod.db.prepare(
+      `INSERT INTO pending_notifications (id, recipient_id, kind, project_id, source_type, source_id, author_user_id, preview, created_at)
+       VALUES (?, ?, 'comment', ?, 'annotation', 'src1', ?, 'hi', 1)`,
+    ).run('pn1', userId, projectId, userId);
+
+    dbMod.db.prepare('DELETE FROM projects WHERE id = ?').run(projectId);
+    const left = dbMod.db.prepare('SELECT COUNT(*) AS c FROM pending_notifications').get() as { c: number };
+    expect(left.c).toBe(0);
+  });
 });
