@@ -181,3 +181,30 @@ describe('flushPendingNotifications batched', () => {
     expect(sendMailSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('flushPendingNotifications daily', () => {
+  it('only flushes users whose local hour matches digest_hour_local', async () => {
+    const author = createUser('a@e.test');
+    const r1 = createUser('r1@e.test');
+    const r2 = createUser('r2@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, r1);
+    addMembership(bandId, r2);
+    const pid = insertProject(bandId, author);
+    setPref(r1, { email_project_activity: 'daily', digest_hour_local: 8, timezone: 'America/Los_Angeles' });
+    setPref(r2, { email_project_activity: 'daily', digest_hour_local: 8, timezone: 'Australia/Sydney' });
+    const annId = insertAnnotation(pid, author, 'hi');
+    for (const u of [r1, r2]) {
+      dbMod.stmts.insertPendingNotification.run(
+        randomUUID(), u, 'comment', pid, 'annotation', annId, author, 'hi', 'tok', 1,
+      );
+    }
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-01T15:00:00Z'));
+    await flushMod.flushPendingNotifications({ mode: 'daily', appBaseUrl: 'https://x', inboundDomain: 'mail.x' });
+    vi.useRealTimers();
+
+    expect(sendMailSpy).toHaveBeenCalledTimes(1);
+    expect(sendMailSpy.mock.calls[0][0].to).toBe('r1@e.test');
+  });
+});
