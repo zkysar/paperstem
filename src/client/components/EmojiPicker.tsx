@@ -33,10 +33,10 @@ export function EmojiPicker({ isNarrow, anchorRect, onSelect, onClose }: Props) 
       if (ref.current && !ref.current.contains(e.target as Node)) onClose();
     }
     document.addEventListener('keydown', onKey);
-    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('pointerdown', onDown, true);
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('pointerdown', onDown, true);
     };
   }, [onClose]);
 

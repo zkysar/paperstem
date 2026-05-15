@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { EmojiPicker } from './EmojiPicker';
 
@@ -30,5 +30,41 @@ describe('EmojiPicker', () => {
     expect(transformed).not.toBeNull();
     expect(transformed!.contains(dialog)).toBe(false);
     expect(document.body.contains(dialog)).toBe(true);
+  });
+
+  // Ancestors of the picker (CommentPopover, CommentBottomSheet,
+  // CommentsDrawer) call e.stopPropagation() on pointerdown. A bubble-phase
+  // document listener would never see those clicks, so outside-click dismissal
+  // has to register in the capture phase to fire before any ancestor
+  // stopPropagation runs.
+  it('closes on outside click even inside an ancestor that stops pointerdown propagation', () => {
+    const onClose = vi.fn();
+    render(
+      <div onPointerDown={(e) => e.stopPropagation()}>
+        <div data-testid="outside">outside</div>
+        <EmojiPicker
+          isNarrow={false}
+          anchorRect={null}
+          onSelect={() => {}}
+          onClose={onClose}
+        />
+      </div>,
+    );
+    fireEvent.pointerDown(screen.getByTestId('outside'));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not close when clicking inside the picker', () => {
+    const onClose = vi.fn();
+    render(
+      <EmojiPicker
+        isNarrow={false}
+        anchorRect={null}
+        onSelect={() => {}}
+        onClose={onClose}
+      />,
+    );
+    fireEvent.pointerDown(screen.getByRole('dialog'));
+    expect(onClose).not.toHaveBeenCalled();
   });
 });
