@@ -79,7 +79,7 @@ Workflow when finishing a piece of work:
 
 1. Push the worktree/feature branch: `git push -u origin <branch>`.
 2. Open a PR against `main` with `gh pr create`.
-3. Merge from the PR (`gh pr merge --squash` or via the UI), then delete the branch.
+3. Immediately enable auto-merge: `gh pr merge --auto --squash --delete-branch`. GitHub merges the PR and deletes the branch as soon as required checks pass, so there's no need to come back and click merge.
 
 Don't `git checkout main && git merge <branch> && git push` — the hook will block it and that's intentional. If you genuinely need to bypass (rare; e.g. recovering a broken remote), use `--no-verify` and say so explicitly.
 
