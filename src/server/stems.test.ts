@@ -140,6 +140,7 @@ describe('PATCH /api/stems/:id', () => {
 
     const row = dbMod.stmts.findStemById.get(stemId)!;
     expect(row.name).toBe('new.wav');
+    expect(row.file_id).toBe(encodeId(`${bandName}/p1/new.wav`));
   });
 
   it('returns 200 even if filesystem rename fails (DB still updates)', async () => {
@@ -165,6 +166,12 @@ describe('PATCH /api/stems/:id', () => {
 
     const row = dbMod.stmts.findStemById.get(stemId)!;
     expect(row.name).toBe('renamed.wav');
+    // file_id must NOT be updated when the disk rename fails: it still points
+    // at the original on-disk location (which is also gone in this test). The
+    // important property is that we never advance the pointer to a path that
+    // does not exist on disk, since that would make the audio handler ghost
+    // the row on next fetch.
+    expect(row.file_id).toBe(encodeId(`${bandName}/p1/old.wav`));
   });
 
   it('rejects empty or oversized names with 400', async () => {

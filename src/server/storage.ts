@@ -26,11 +26,11 @@ function audioRoot(): string {
   return resolve(v);
 }
 
-function encodeId(rel: string): string {
+export function encodeId(rel: string): string {
   return Buffer.from(rel, 'utf8').toString('base64url');
 }
 
-function decodeId(id: string): string {
+export function decodeId(id: string): string {
   return Buffer.from(id, 'base64url').toString('utf8');
 }
 
@@ -127,7 +127,10 @@ async function statOrNotFound(abs: string, fileId: string) {
   }
 }
 
-export async function renameItem(fileId: string, name: string): Promise<void> {
+export async function renameItem(
+  fileId: string,
+  name: string,
+): Promise<{ id: string }> {
   sanitizeSegment(name);
   const root = audioRoot();
   const oldRel = decodeId(fileId);
@@ -135,7 +138,7 @@ export async function renameItem(fileId: string, name: string): Promise<void> {
   const lastSlash = oldRel.lastIndexOf('/');
   const newRel = lastSlash === -1 ? name : `${oldRel.slice(0, lastSlash)}/${name}`;
   const newAbs = pathFromRel(root, newRel);
-  if (oldAbs === newAbs) return;
+  if (oldAbs === newAbs) return { id: fileId };
   try {
     await rename(oldAbs, newAbs);
   } catch (err) {
@@ -144,6 +147,7 @@ export async function renameItem(fileId: string, name: string): Promise<void> {
     }
     throw err;
   }
+  return { id: encodeId(newRel) };
 }
 
 export async function renameAndRetype(
