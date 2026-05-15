@@ -295,14 +295,23 @@ export const stmts = {
   ),
   findProjectsForBandWithRefStem: db.prepare<
     [string],
-    ProjectRow & { stem_count: number; reference_stem_id: string | null }
+    ProjectRow & {
+      stem_count: number;
+      reference_stem_id: string | null;
+      total_duration_ms: number | null;
+      comment_count: number;
+    }
   >(
     `SELECT p.*,
             (SELECT COUNT(*) FROM stems s
               WHERE s.project_id = p.id AND s.deleted_at IS NULL) AS stem_count,
             (SELECT s.id FROM stems s
               WHERE s.project_id = p.id AND s.deleted_at IS NULL
-              ORDER BY s.position LIMIT 1) AS reference_stem_id
+              ORDER BY s.position LIMIT 1) AS reference_stem_id,
+            (SELECT MAX(s.duration_ms) FROM stems s
+              WHERE s.project_id = p.id AND s.deleted_at IS NULL) AS total_duration_ms,
+            (SELECT COUNT(*) FROM annotations a
+              WHERE a.project_id = p.id) AS comment_count
        FROM projects p
       WHERE p.band_id = ? AND p.deleted_at IS NULL
       ORDER BY p.recorded_on DESC, p.created_at DESC`,
@@ -352,6 +361,9 @@ export const stmts = {
        JOIN users u ON u.id = a.user_id
       WHERE a.project_id = ?
       ORDER BY a.start_ms ASC, a.created_at ASC`,
+  ),
+  countAnnotationsForProject: db.prepare<[string], { n: number }>(
+    'SELECT COUNT(*) AS n FROM annotations WHERE project_id = ?',
   ),
   findAnnotationById: db.prepare<[string], AnnotationRow>(
     'SELECT * FROM annotations WHERE id = ?',

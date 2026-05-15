@@ -28,6 +28,8 @@ function summaryToProject(p: ProjectSummary): Project {
     folderId: p.folder_id,
     referenceStemId: p.reference_stem_id ?? null,
     updatedAt: p.updated_at,
+    totalDurationMs: p.total_duration_ms,
+    commentCount: p.comment_count,
   };
 }
 
@@ -35,6 +37,11 @@ function detailToProject(detail: ProjectDetail, stems: StemSummary[]): Project {
   // Picker thumbnail uses the first stem (by position). Mirrors the list
   // endpoint's `reference_stem_id` so detail and list views agree.
   const refId = stems[0]?.id ?? null;
+  // Total project length = longest stem's duration (stems play in parallel).
+  const durations = stems
+    .map((s) => s.duration_ms)
+    .filter((d): d is number => typeof d === 'number');
+  const totalDurationMs = durations.length ? Math.max(...durations) : null;
   return {
     id: detail.id,
     title: detail.name,
@@ -44,6 +51,8 @@ function detailToProject(detail: ProjectDetail, stems: StemSummary[]): Project {
     folderId: detail.folder_id,
     referenceStemId: refId,
     updatedAt: detail.updated_at,
+    totalDurationMs,
+    commentCount: detail.comment_count,
   };
 }
 

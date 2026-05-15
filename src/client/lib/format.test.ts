@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { fmt, clamp, formatRelativeDate, pixelToTime, longestStemIdx } from './format';
+import { fmt, clamp, formatDurationMs, formatRelativeDate, pixelToTime, longestStemIdx } from './format';
 
 describe('fmt', () => {
   test('formats seconds as M:SS', () => {
@@ -36,6 +36,27 @@ describe('pixelToTime', () => {
   test('returns 0 for zero width or duration', () => {
     expect(pixelToTime(50, 0, 60)).toBe(0);
     expect(pixelToTime(50, 100, 0)).toBe(0);
+  });
+});
+
+describe('formatDurationMs', () => {
+  test('formats sub-hour durations as M:SS', () => {
+    expect(formatDurationMs(0)).toBe('0:00');
+    expect(formatDurationMs(45_000)).toBe('0:45');
+    expect(formatDurationMs(90_000)).toBe('1:30');
+    expect(formatDurationMs(272_000)).toBe('4:32');
+  });
+
+  test('formats >= 1h as H:MM:SS', () => {
+    expect(formatDurationMs(3_600_000)).toBe('1:00:00');
+    expect(formatDurationMs(3_690_000)).toBe('1:01:30');
+  });
+
+  test('returns empty string for invalid inputs', () => {
+    expect(formatDurationMs(null)).toBe('');
+    expect(formatDurationMs(NaN)).toBe('');
+    expect(formatDurationMs(-1)).toBe('');
+    expect(formatDurationMs(Infinity)).toBe('');
   });
 });
 

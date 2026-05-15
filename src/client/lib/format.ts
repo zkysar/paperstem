@@ -5,6 +5,19 @@ export function fmt(t: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// Compact duration string from a millisecond count: "4:32" under an hour,
+// "1:02:30" otherwise. Returns '' for null/invalid so callers can blank out
+// the cell when no stem has yet been measured.
+export function formatDurationMs(ms: number | null): string {
+  if (ms == null || !isFinite(ms) || ms < 0) return '';
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
+}
+
 export function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }

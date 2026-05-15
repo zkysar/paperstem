@@ -7,6 +7,10 @@ export type Project = {
   folderId: string | null;
   referenceStemId: string | null;
   updatedAt: number;
+  // Project length, in ms — max(stem.duration_ms). null when no stem has yet
+  // been measured (rare during ingest).
+  totalDurationMs: number | null;
+  commentCount: number;
 };
 
 export type ProjectStem = {
@@ -26,6 +30,8 @@ export type ProjectSummary = {
   updated_at: number;
   stem_count: number;
   reference_stem_id: string | null;
+  total_duration_ms: number | null;
+  comment_count: number;
 };
 
 export type StemSummary = {
@@ -47,6 +53,7 @@ export type ProjectDetail = {
   created_at: number;
   created_by: string;
   updated_at: number;
+  comment_count: number;
 };
 
 export type LoadedStem = {

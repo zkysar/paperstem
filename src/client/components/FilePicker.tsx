@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { FolderOpen, MoreVertical, Pencil, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, FolderOpen, MessageSquare, MoreVertical, Pencil, Trash2, X } from 'lucide-react';
 import type { Project, TrashList } from '../data/types';
 import { AUDIO_EXT } from '../lib/audio';
-import { formatRelativeDate } from '../lib/format';
+import { formatDurationMs, formatRelativeDate } from '../lib/format';
 import { WaveformThumb } from './WaveformThumb';
+
+type SortKey = 'name' | 'updated' | 'duration' | 'stems' | 'comments';
+type SortDir = 'asc' | 'desc';
 
 type Tab = 'recent' | 'all' | 'trash';
 
@@ -123,17 +126,24 @@ export function FilePicker({
             className={'fp-tab' + (tab === 'all' ? ' active' : '')}
             onClick={() => setTab('all')}
           >All</button>
+          {/* Trash demoted from a peer tab to a quiet icon at the right edge —
+              a once-a-month destination shouldn't crowd the primary filters. */}
           <button
             type="button"
             role="tab"
             data-tab="trash"
             aria-selected={tab === 'trash'}
-            className={'fp-tab' + (tab === 'trash' ? ' active' : '')}
+            aria-label="Trash"
+            title="Trash"
+            className={'fp-tab fp-tab-trash' + (tab === 'trash' ? ' active' : '')}
             onClick={() => {
-              setTab('trash');
-              if (trash === null) onLoadTrash();
+              const next: Tab = tab === 'trash' ? 'recent' : 'trash';
+              setTab(next);
+              if (next === 'trash' && trash === null) onLoadTrash();
             }}
-          >Trash</button>
+          >
+            <Trash2 size={16} strokeWidth={2} aria-hidden="true" />
+          </button>
         </div>
         <input
           ref={folderInputRef}
@@ -233,6 +243,21 @@ function FilePickerBody({
   onRequestDelete(id: string, name: string): void;
 }) {
   const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
+  // Default sort matches the server's intent ("recently touched first").
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
+    key: 'updated', dir: 'desc',
+  });
+
+  function toggleSort(key: SortKey) {
+    setSort((prev) => {
+      if (prev.key !== key) {
+        // First click on a new column: default to desc for date/numeric (most
+        // useful), asc for name (alphabetical).
+        return { key, dir: key === 'name' ? 'asc' : 'desc' };
+      }
+      return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+    });
+  }
 
   function commitEdit(id: string) {
     if (!editing || editing.id !== id) return;
@@ -260,7 +285,9 @@ function FilePickerBody({
             <span className="fp-cell-name fp-skel fp-skel-name" />
             <span className="fp-cell-thumb fp-skel fp-skel-thumb" />
             <span className="fp-cell-date fp-skel fp-skel-meta" />
+            <span className="fp-cell-duration fp-skel fp-skel-meta" />
             <span className="fp-cell-stems fp-skel fp-skel-meta" />
+            <span className="fp-cell-comments fp-skel fp-skel-meta" />
             <span className="fp-cell-actions" />
           </div>
         ))}
@@ -288,21 +315,19 @@ function FilePickerBody({
   const filtered = projects.filter((p) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
-    return (
-      p.title.toLowerCase().includes(q) ||
-      (p.folder ?? '').toLowerCase().includes(q)
-    );
+    return p.title.toLowerCase().includes(q);
   });
-  // Default sort: name desc (matches existing date-coded titles)
-  const rows = [...filtered].sort((a, b) => b.title.localeCompare(a.title));
+  const rows = sortProjects(filtered, sort);
 
   return (
     <div className="fp-body">
       <div className="fp-row fp-row-head" role="row">
-        <span className="fp-cell-name">Name</span>
+        <SortHeader className="fp-cell-name" label="Name" sortKey="name" sort={sort} onClick={toggleSort} />
         <span className="fp-cell-thumb">Waveform</span>
-        <span className="fp-cell-date">Updated</span>
-        <span className="fp-cell-stems">Stems</span>
+        <SortHeader className="fp-cell-date" label="Updated" sortKey="updated" sort={sort} onClick={toggleSort} />
+        <SortHeader className="fp-cell-duration" label="Length" sortKey="duration" sort={sort} onClick={toggleSort} />
+        <SortHeader className="fp-cell-stems" label="Stems" sortKey="stems" sort={sort} onClick={toggleSort} />
+        <SortHeader className="fp-cell-comments" label="Comments" sortKey="comments" sort={sort} onClick={toggleSort} />
         <span className="fp-cell-actions" />
       </div>
       {rows.map((p) => (
@@ -323,6 +348,48 @@ function FilePickerBody({
   );
 }
 
+function SortHeader({
+  className, label, sortKey, sort, onClick,
+}: {
+  className: string;
+  label: string;
+  sortKey: SortKey;
+  sort: { key: SortKey; dir: SortDir };
+  onClick(key: SortKey): void;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <button
+      type="button"
+      className={className + ' fp-sort-btn' + (active ? ' active' : '')}
+      aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      onClick={() => onClick(sortKey)}
+    >
+      {label}
+      {active && (sort.dir === 'asc'
+        ? <ChevronUp size={12} strokeWidth={2.5} aria-hidden="true" />
+        : <ChevronDown size={12} strokeWidth={2.5} aria-hidden="true" />)}
+    </button>
+  );
+}
+
+function sortProjects(
+  list: Project[],
+  sort: { key: SortKey; dir: SortDir },
+): Project[] {
+  const sign = sort.dir === 'asc' ? 1 : -1;
+  const cmp = (a: Project, b: Project): number => {
+    switch (sort.key) {
+      case 'name':     return sign * a.title.localeCompare(b.title);
+      case 'updated':  return sign * (a.updatedAt - b.updatedAt);
+      case 'duration': return sign * ((a.totalDurationMs ?? 0) - (b.totalDurationMs ?? 0));
+      case 'stems':    return sign * (a.stemCount - b.stemCount);
+      case 'comments': return sign * (a.commentCount - b.commentCount);
+    }
+  };
+  return [...list].sort(cmp);
+}
+
 function ProjectRow({
   project: p, active, editing,
   onSelect, onStartRename, onChangeDraft, onCommitRename, onCancelRename,
@@ -340,10 +407,16 @@ function ProjectRow({
 }) {
   const isEditing = editing !== null;
   const date = formatRelativeDate(p.updatedAt);
+  const duration = formatDurationMs(p.totalDurationMs);
   const stemsLabel = `${p.stemCount} ${p.stemCount === 1 ? 'stem' : 'stems'}`;
-  // Mobile-only meta string. Date is omitted when missing so we don't leave a
-  // trailing " · " separator.
-  const metaLine = date ? `${stemsLabel} · ${date}` : stemsLabel;
+  const commentsLabel = p.commentCount > 0
+    ? `${p.commentCount} ${p.commentCount === 1 ? 'comment' : 'comments'}`
+    : '';
+  // Mobile-only meta string. Empty fields are filtered so we don't leave
+  // double or trailing " · " separators.
+  const metaLine = [stemsLabel, duration, commentsLabel, date]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <div
@@ -369,7 +442,9 @@ function ProjectRow({
           />
           <span className="fp-cell-thumb"><WaveformThumb stemId={p.referenceStemId} /></span>
           <span className="fp-cell-date fp-meta">{date}</span>
+          <span className="fp-cell-duration fp-meta">{duration}</span>
           <span className="fp-cell-stems fp-meta">{p.stemCount}</span>
+          <span className="fp-cell-comments fp-meta">{p.commentCount > 0 ? p.commentCount : ''}</span>
           <span className="fp-cell-meta fp-meta">{metaLine}</span>
         </div>
       ) : (
@@ -381,7 +456,21 @@ function ProjectRow({
           <span className="fp-cell-name fp-name">{p.title}</span>
           <span className="fp-cell-thumb"><WaveformThumb stemId={p.referenceStemId} /></span>
           <span className="fp-cell-date fp-meta">{date}</span>
+          <span className="fp-cell-duration fp-meta">{duration}</span>
           <span className="fp-cell-stems fp-meta">{p.stemCount}</span>
+          <span
+            className="fp-cell-comments fp-meta"
+            // Only announce when there are comments — "0 comments" on every
+            // empty project would be noise.
+            aria-label={p.commentCount > 0 ? commentsLabel : undefined}
+          >
+            {p.commentCount > 0 && (
+              <>
+                <MessageSquare size={12} strokeWidth={2} aria-hidden="true" />
+                {p.commentCount}
+              </>
+            )}
+          </span>
           <span className="fp-cell-meta fp-meta">{metaLine}</span>
         </button>
       )}

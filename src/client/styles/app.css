@@ -1628,7 +1628,9 @@ body.env-non-prod[data-env="local"]::before {
   position: fixed;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  width: min(720px, calc(100vw - 32px));
+  /* 880px gives the seven-column table room to breathe; the name column is
+     still ~280px after fixed widths + gaps. Adjust if more columns land. */
+  width: min(880px, calc(100vw - 32px));
   max-height: calc(100vh - 64px);
   background: var(--paper);
   border: 1px solid var(--rule);
@@ -1686,6 +1688,28 @@ body.env-non-prod[data-env="local"]::before {
   cursor: pointer;
 }
 .fp-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+.fp-tab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 3px;
+}
+/* Trash is no longer a peer of Recent/All — push it to the right edge and
+   render it as an icon so it reads as a secondary destination. */
+.fp-tab-trash {
+  margin-left: auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px;
+  padding: 0;
+  border-radius: 5px;
+  align-self: center;
+  border-bottom: none;
+}
+.fp-tab-trash:hover { background: var(--rule-2); color: var(--ink); }
+.fp-tab-trash.active {
+  background: var(--accent-tint-2);
+  color: var(--ink);
+  border-bottom: none;
+}
 .fp-body {
   flex: 1;
   overflow-y: auto;
@@ -1696,8 +1720,8 @@ body.env-non-prod[data-env="local"]::before {
    one new `.fp-cell-*` class — no re-numbering of nth-child selectors. */
 .fp-row {
   display: grid;
-  grid-template-columns: 1fr 110px 110px 60px auto;
-  grid-template-areas: "name thumb date stems actions";
+  grid-template-columns: minmax(0, 1fr) 110px 110px 70px 56px 80px auto;
+  grid-template-areas: "name thumb date duration stems comments actions";
   column-gap: 12px;
   align-items: center;
   padding: 9px 16px;
@@ -1705,13 +1729,23 @@ body.env-non-prod[data-env="local"]::before {
   text-align: left;
   font: inherit; font-size: var(--fs-md);
 }
-.fp-cell-name    { grid-area: name; min-width: 0; }
-.fp-cell-thumb   { grid-area: thumb; min-width: 0; }
-.fp-cell-date    { grid-area: date; }
-.fp-cell-stems   { grid-area: stems; text-align: right; }
-.fp-cell-actions { grid-area: actions; }
-/* The compact one-line meta string is the mobile-only fallback for date+stems. */
-.fp-cell-meta    { display: none; }
+.fp-cell-name     { grid-area: name; min-width: 0; }
+.fp-cell-thumb    { grid-area: thumb; min-width: 0; }
+.fp-cell-date     { grid-area: date; }
+.fp-cell-duration { grid-area: duration; text-align: right; }
+.fp-cell-stems    { grid-area: stems; text-align: right; }
+.fp-cell-comments {
+  grid-area: comments;
+  text-align: right;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.fp-cell-actions  { grid-area: actions; }
+/* The compact one-line meta string is the mobile-only fallback for the
+   numeric/date columns. */
+.fp-cell-meta     { display: none; }
 .fp-row.fp-row-head {
   font-size: var(--fs-2xs);
   letter-spacing: 0.12em;
@@ -1731,9 +1765,46 @@ body.env-non-prod[data-env="local"]::before {
   color: inherit;
 }
 .fp-row-data:has(.fp-row-main:hover) { background: var(--accent-tint); }
-.fp-row-data.active { background: var(--accent-tint-2); }
-.fp-name { font-weight: var(--fw-semi); }
+/* Active row uses both a tint and a left rule so colorblind / high-contrast
+   users get a non-color cue too. */
+.fp-row-data.active {
+  background: var(--accent-tint-2);
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
+.fp-row-main:focus-visible,
+.fp-sort-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: 3px;
+}
+.fp-name {
+  font-weight: var(--fw-semi);
+  /* Cap project names at two lines so row heights stay uniform; long names
+     ellipsize. The mobile media block tightens this further. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
 .fp-meta { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--muted); }
+/* Sortable column header: looks like a label, behaves like a button. */
+.fp-sort-btn {
+  background: transparent; border: none; padding: 0;
+  font: inherit; color: inherit;
+  letter-spacing: inherit; text-transform: inherit;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 4px;
+  text-align: inherit;
+}
+.fp-sort-btn:hover { color: var(--ink); }
+.fp-sort-btn.active { color: var(--ink); }
+/* Right-aligned sort headers (Length / Stems / Comments) need their chevron
+   on the right of the label, hugging the column edge. */
+.fp-cell-duration.fp-sort-btn,
+.fp-cell-stems.fp-sort-btn,
+.fp-cell-comments.fp-sort-btn { justify-content: flex-end; }
 .fp-thumb {
   height: 18px;
   background: linear-gradient(to bottom, transparent 25%, var(--accent-tint-2) 25%, var(--accent-tint-2) 75%, transparent 75%);
@@ -1746,32 +1817,34 @@ body.env-non-prod[data-env="local"]::before {
   height: 18px;
   color: var(--accent);
 }
-.fp-row-end { display: flex; align-items: center; justify-content: flex-end; gap: 2px; }
+.fp-row-end { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
 .fp-drive-link {
-  width: 24px; height: 24px;
+  width: 28px; height: 28px;
   display: inline-flex; align-items: center; justify-content: center;
   text-decoration: none; color: var(--ink-2);
-  border-radius: 4px;
+  border-radius: 5px;
 }
 .fp-drive-link:hover { background: var(--rule-2); color: var(--ink); }
-.fp-rename-btn {
-  width: 22px; height: 22px;
+/* Row action buttons are 28px on desktop — small enough for the row, large
+   enough to mouse-target reliably. The danger color only appears on the
+   trash button hover so the destructive intent is obvious. */
+.fp-rename-btn,
+.fp-trash-btn {
+  width: 28px; height: 28px;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; padding: 0;
   color: var(--ink-2); cursor: pointer;
-  border-radius: 4px;
+  border-radius: 5px;
   font-size: var(--fs-md); line-height: 1;
 }
 .fp-rename-btn:hover { background: var(--rule-2); color: var(--ink); }
-.fp-trash-btn {
-  width: 22px; height: 22px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: transparent; border: none; padding: 0;
-  color: var(--ink-2); cursor: pointer;
-  border-radius: 4px;
-  font-size: var(--fs-md); line-height: 1;
+.fp-trash-btn:hover { background: #fae3df; color: #c0392b; }
+.fp-rename-btn:focus-visible,
+.fp-trash-btn:focus-visible,
+.fp-kebab-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
-.fp-trash-btn:hover { background: var(--rule-2); color: var(--ink); }
 /* Kebab (overflow) menu — desktop hides it entirely, mobile shows it instead
    of the inline rename/trash icons. */
 .fp-kebab-wrap { position: relative; display: inline-flex; }
@@ -1954,7 +2027,7 @@ body.env-non-prod[data-env="local"]::before {
   .fp-header .fp-upload-btn { display: none; }
 
   .fp-row {
-    grid-template-columns: 44px 1fr auto;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
     grid-template-areas:
       "thumb name actions"
       "thumb meta actions";
@@ -1967,7 +2040,9 @@ body.env-non-prod[data-env="local"]::before {
   .fp-row.fp-row-head { display: none; }
   /* Desktop-only columns disappear; the compact meta line replaces them. */
   .fp-cell-date,
-  .fp-cell-stems { display: none; }
+  .fp-cell-duration,
+  .fp-cell-stems,
+  .fp-cell-comments { display: none; }
   .fp-cell-meta {
     display: block;
     align-self: start;
@@ -1985,15 +2060,9 @@ body.env-non-prod[data-env="local"]::before {
   }
   .fp-cell-thumb .fp-thumb,
   .fp-cell-thumb .fp-thumb-canvas { height: 44px; }
-  /* Title wraps to two lines on long names instead of word-per-line. */
-  .fp-name {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    overflow-wrap: anywhere;
-    line-height: 1.25;
-  }
+  /* Mobile titles use a tighter line-height; the line-clamp comes from the
+     base rule. */
+  .fp-name { line-height: 1.25; }
   /* Inline rename/trash collapse into the kebab menu. They stay in the DOM
      (display:none keeps them out of the a11y tree and tab order) so jsdom
      tests that don't simulate viewport can still find them. */
