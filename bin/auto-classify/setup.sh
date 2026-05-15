@@ -15,8 +15,10 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 if [[ ! -d .venv ]]; then
-  echo "Creating Python venv with uv..."
-  uv venv .venv
+  echo "Creating Python venv with uv (Python 3.12)..."
+  # Pin to 3.12: ai-edge-litert 1.4.0 publishes wheels for cp39–cp312 only.
+  # Bump this once ai-edge-litert ships a cp313 wheel.
+  uv venv --python 3.12 .venv
 fi
 
 echo "Installing dependencies from requirements.txt..."

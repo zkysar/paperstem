@@ -1,0 +1,38 @@
+{
+  "source_audio": "scripts/poc/audio/practice-mix.wav",
+  "audio_hash": "f212b583fb25db103a744d430eac3adcf72365eef839adee05e2d65635c39408",
+  "duration_ms": 261549,
+  "segments_count": 3,
+  "segments": [
+    {
+      "start_ms": 0,
+      "end_ms": 51135,
+      "segment_type": "silence",
+      "top_classes_top1": {
+        "name": "Silence",
+        "score": 0.5655423677884616
+      },
+      "chroma_frames": 0
+    },
+    {
+      "start_ms": 51135,
+      "end_ms": 254701,
+      "segment_type": "music",
+      "top_classes_top1": {
+        "name": "Music",
+        "score": 0.935523456235012
+      },
+      "chroma_frames": 2190
+    },
+    {
+      "start_ms": 254701,
+      "end_ms": 260545,
+      "segment_type": "silence",
+      "top_classes_top1": {
+        "name": "Silence",
+        "score": 0.5836588541666666
+      },
+      "chroma_frames": 0
+    }
+  ]
+}

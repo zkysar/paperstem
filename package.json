@@ -27,7 +27,7 @@
     "@emoji-mart/react": "1.1.1",
     "@hono/node-server": "^1.13.7",
     "@mediapipe/tasks-audio": "^0.10.35",
-    "better-sqlite3": "^11.6.0",
+    "better-sqlite3": "^12.10.0",
     "busboy": "^1.6.0",
     "hono": "^4.6.13",
     "html2canvas-pro": "^2.0.2",
