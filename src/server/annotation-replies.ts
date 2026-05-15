@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import {
+  db,
   stmts,
   type AnnotationReplyJoinedRow,
   type ReplyReactionAggRow,
 } from './db.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
+import { recordActivity } from './notifications.js';
 import type { AnnotationReply, Reaction } from '../shared/types.js';
 
 const MAX_BODY_LENGTH = 32768;
@@ -97,9 +99,23 @@ export async function handleCreateReply(
   const text = validateBody(body.body);
   if (text === null) return c.json({ error: 'invalid_input' }, 400);
 
+  const ann = stmts.findAnnotationById.get(annId);
+  if (!ann) return c.json({ error: 'not_found' }, 404);
+
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  stmts.insertReply.run(id, annId, access.userId, text, now, now);
+  const insertWithNotifications = db.transaction(() => {
+    stmts.insertReply.run(id, annId, access.userId, text, now, now);
+    recordActivity({
+      kind: 'reply',
+      sourceType: 'reply',
+      sourceId: id,
+      projectId: ann.project_id,
+      authorId: access.userId,
+      body: text,
+    });
+  });
+  insertWithNotifications();
 
   const row = stmts.findReplyByIdJoined.get(id);
   if (!row) return c.json({ error: 'server_error' }, 500);
