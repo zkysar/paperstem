@@ -1,0 +1,61 @@
+{
+  "http_status": 200,
+  "response": {
+    "run_id": "fdf8110c-a85b-41f9-bbd2-123c9fb0cf7e",
+    "sections": [
+      {
+        "id": "af1e0640-11ac-4c16-89ab-f1ef5c937865",
+        "start_ms": 0,
+        "end_ms": 4000,
+        "song_id": null,
+        "song_name": null,
+        "label": "Music",
+        "segment_type": "music",
+        "confidence": 0,
+        "tentative": false
+      },
+      {
+        "id": "e3ac80ef-9099-452f-9827-2a8918f08ae4",
+        "start_ms": 4000,
+        "end_ms": 8000,
+        "song_id": null,
+        "song_name": null,
+        "label": "Chatter",
+        "segment_type": "chatter",
+        "confidence": 0,
+        "tentative": false
+      }
+    ],
+    "reused": false
+  },
+  "persisted_sections": [
+    {
+      "id": "af1e0640-11ac-4c16-89ab-f1ef5c937865",
+      "start_ms": 0,
+      "source": "auto",
+      "run_id": "fdf8110c-a85b-41f9-bbd2-123c9fb0cf7e",
+      "segment_type": "music",
+      "label": "Music",
+      "song_id": null,
+      "confidence": 0,
+      "top_classes_json": "[{\"name\":\"Music\",\"score\":0.92}]"
+    },
+    {
+      "id": "e3ac80ef-9099-452f-9827-2a8918f08ae4",
+      "start_ms": 4000,
+      "source": "auto",
+      "run_id": "fdf8110c-a85b-41f9-bbd2-123c9fb0cf7e",
+      "segment_type": "chatter",
+      "label": "Chatter",
+      "song_id": null,
+      "confidence": 0,
+      "top_classes_json": "[{\"name\":\"Speech\",\"score\":0.81}]"
+    }
+  ],
+  "classification_run_row": {
+    "id": "fdf8110c-a85b-41f9-bbd2-123c9fb0cf7e",
+    "status": "done",
+    "completed_at": 1778886358202,
+    "error": null
+  }
+}
