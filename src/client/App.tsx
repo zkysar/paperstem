@@ -173,6 +173,7 @@ function PaperstemApp({
   // plays from local File objects (object URLs). We keep the underlying Files
   // around so "Save to band" can hand them to UploadDrawer for promotion.
   const [draftFiles, setDraftFiles] = useState<File[]>([]);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [replies, setReplies] = useState<Map<string, AnnotationReply[]>>(
     () => new Map(),
   );
