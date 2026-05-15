@@ -11,6 +11,34 @@ type Props = {
   forceMac?: boolean;
 };
 
+function Keycap({
+  letter,
+  glyph,
+  modifier,
+  size = 'md',
+  muted = false,
+}: {
+  letter: string;
+  glyph?: React.ReactNode;
+  modifier?: string;
+  size?: 'sm' | 'md';
+  muted?: boolean;
+}) {
+  return (
+    <span
+      className={[
+        'keycap',
+        `keycap--${size}`,
+        muted ? 'keycap--muted' : '',
+      ].filter(Boolean).join(' ')}
+    >
+      {modifier && <span className="keycap__mod">{modifier}</span>}
+      <span className="keycap__letter">{letter}</span>
+      {glyph && <span className="keycap__glyph">{glyph}</span>}
+    </span>
+  );
+}
+
 export function ShortcutsOverlay({ open, onClose, forceMac }: Props) {
   const mac = forceMac ?? isMac();
 
@@ -43,41 +71,6 @@ export function ShortcutsOverlay({ open, onClose, forceMac }: Props) {
         { keys: k(['Space']), label: 'Play / pause' },
         { keys: k(['L']), label: 'Toggle loop on/off (when loop is set)' },
         { keys: k(['Esc']), label: 'Clear loop / dismiss overlays' },
-      ],
-    },
-    {
-      title: 'Zoom & navigation',
-      items: [
-        {
-          keys: <>
-            <kbd>W</kbd> / <kbd>S</kbd>
-            {' · '}
-            <kbd>{m}{plus}=</kbd> / <kbd>{m}{plus}-</kbd>
-            {' · '}
-            <kbd>{a}{plus}scroll</kbd>
-          </>,
-          label: 'Horizontal zoom in / out',
-          note: 'scroll is mouse-anchored; keys are playhead-anchored',
-        },
-        {
-          keys: <>
-            <kbd>{s}{plus}W</kbd> / <kbd>{s}{plus}S</kbd>
-            {' · '}
-            <kbd>{s}{plus}{m}{plus}=</kbd> / <kbd>{s}{plus}{m}{plus}-</kbd>
-            {' · '}
-            <kbd>{a}{plus}{s}{plus}scroll</kbd>
-          </>,
-          label: 'Vertical zoom in / out (track height)',
-        },
-        {
-          keys: <>
-            <kbd>A</kbd> / <kbd>D</kbd>
-            {' · '}
-            <kbd>{s}{plus}scroll</kbd>
-          </>,
-          label: 'Pan left / right (when zoomed)',
-        },
-        { keys: <><kbd>{m}{plus}0</kbd></>, label: 'Fit to window (reset zoom)' },
       ],
     },
     {
@@ -121,6 +114,54 @@ export function ShortcutsOverlay({ open, onClose, forceMac }: Props) {
           </button>
         </header>
         <div className="shortcuts-body">
+          <section className="shortcuts-section shortcuts-wasd">
+            <h3>Zoom &amp; navigation</h3>
+            <div className="wasd-clusters" aria-hidden="true">
+              <figure className="wasd-mode">
+                <div className="wasd-cluster">
+                  <div className="wasd-row">
+                    <Keycap letter="W" glyph="+" />
+                  </div>
+                  <div className="wasd-row">
+                    <Keycap letter="A" glyph="←" />
+                    <Keycap letter="S" glyph="−" />
+                    <Keycap letter="D" glyph="→" />
+                  </div>
+                </div>
+                <figcaption>Zoom horizontal · pan</figcaption>
+              </figure>
+              <div className="wasd-divider">
+                <span>+</span>
+                <kbd>{s}</kbd>
+              </div>
+              <figure className="wasd-mode">
+                <div className="wasd-cluster">
+                  <div className="wasd-row">
+                    <Keycap letter="W" modifier={s} glyph="+" />
+                  </div>
+                  <div className="wasd-row">
+                    <Keycap letter="A" muted />
+                    <Keycap letter="S" modifier={s} glyph="−" />
+                    <Keycap letter="D" muted />
+                  </div>
+                </div>
+                <figcaption>Zoom vertical (track height)</figcaption>
+              </figure>
+            </div>
+            <ul className="visually-hidden">
+              <li>Press W or S to zoom horizontally; the playhead stays anchored.</li>
+              <li>Press A or D to pan left or right when zoomed in.</li>
+              <li>Hold Shift with W or S to zoom vertically (track height).</li>
+            </ul>
+            <p className="wasd-fit">
+              <kbd>{m}{plus}0</kbd> Fit to window (reset zoom)
+            </p>
+            <p className="shortcuts-also">
+              Also: <kbd>{m}{plus}=</kbd> / <kbd>{m}{plus}−</kbd> zoom ·{' '}
+              <kbd>{a}{plus}scroll</kbd> zoom from cursor ·{' '}
+              <kbd>{s}{plus}scroll</kbd> pan
+            </p>
+          </section>
           {sections.map((sec) => (
             <section key={sec.title} className="shortcuts-section">
               <h3>{sec.title}</h3>

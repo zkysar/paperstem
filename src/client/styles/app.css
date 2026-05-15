@@ -1239,7 +1239,8 @@ button.track-name:disabled { cursor: default; }
 }
 @media (prefers-reduced-motion: reduce) {
   .annotation-mode-banner,
-  .annotation-mode-dot { animation: none; }
+  .annotation-mode-dot,
+  .shortcuts-modal { animation: none; }
 }
 
 .annotations-markers-toggle {
@@ -3039,6 +3040,11 @@ body.env-non-prod[data-env="local"]::before {
   max-height: calc(100vh - 64px);
   display: flex;
   flex-direction: column;
+  animation: shortcuts-pop 160ms cubic-bezier(0.2, 0.7, 0.2, 1.05);
+}
+@keyframes shortcuts-pop {
+  from { opacity: 0; transform: translateY(4px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
 }
 .shortcuts-header {
   display: flex;
@@ -3080,6 +3086,148 @@ body.env-non-prod[data-env="local"]::before {
 .shortcuts-row dt { margin: 0; }
 .shortcuts-row dd { margin: 0; font-size: 0.9rem; }
 .shortcuts-note { color: var(--muted); }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.shortcuts-wasd { margin-bottom: 4px; }
+.wasd-clusters {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 16px 4px 4px;
+}
+.wasd-mode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+.wasd-mode figcaption {
+  font-size: 0.78rem;
+  color: var(--muted);
+  letter-spacing: 0.01em;
+}
+.wasd-divider {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding-bottom: 28px;
+  user-select: none;
+}
+.wasd-divider span { font-weight: 600; }
+.wasd-divider kbd { font-size: 0.8rem; }
+.wasd-cluster {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.wasd-row {
+  display: flex;
+  gap: 6px;
+}
+.keycap {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  background: linear-gradient(to bottom, var(--paper), #f5efde);
+  border: 1px solid #d8cfbb;
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  color: var(--fg);
+  user-select: none;
+  transition: transform 120ms ease;
+}
+.keycap--md {
+  width: 46px;
+  height: 46px;
+  padding: 4px;
+}
+.keycap--sm {
+  width: 24px;
+  height: 24px;
+  font-size: 0.75rem;
+  padding: 0;
+}
+.keycap--muted {
+  background: transparent;
+  border-color: var(--rule);
+  box-shadow: none;
+  color: var(--muted-2);
+}
+.keycap__letter {
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1;
+}
+.keycap--sm .keycap__letter {
+  font-size: 0.78rem;
+}
+.keycap__glyph {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 3px;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+.keycap--muted .keycap__glyph { color: var(--muted-2); }
+.keycap__mod {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.62rem;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+.wasd-fit {
+  margin: 8px 4px 0;
+  font-size: 0.85rem;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+}
+.shortcuts-also {
+  margin: 6px 4px 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.7;
+  text-align: center;
+}
+.shortcuts-also kbd { font-size: 0.72rem; }
+@media (max-width: 520px) {
+  .wasd-clusters {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .wasd-divider { flex-direction: row; padding-bottom: 0; }
+}
 
 .follow-pill {
   font-size: 0.75rem;
