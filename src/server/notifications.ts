@@ -125,7 +125,7 @@ export function recordActivity(args: RecordActivityArgs): { mentionRowIds: strin
   const project = db.prepare('SELECT band_id FROM projects WHERE id = ?').get(projectId) as { band_id: string } | undefined;
   if (!project) throw new Error('recordActivity: project not found');
   const bandId = project.band_id;
-  const now = Date.now();
+  const now = Math.floor(Date.now() / 1000);
 
   const tokens = parseMentions(body);
   const mentionTargets = resolveMentions(tokens, projectId).filter((u) => u !== authorId);
