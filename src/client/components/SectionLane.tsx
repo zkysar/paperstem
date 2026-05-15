@@ -82,6 +82,12 @@ export function SectionLane({
 
   return (
     <div className="section-lane" aria-label="Song sections">
+      {/* Sticky mask over the rail column — when the viewport is zoomed
+          and scrolled horizontally, pills positioned in the wave column
+          (viewport-inner x >= railWidth) move left in screen space and
+          would otherwise bleed over the track-name / M / S / delete
+          column below. Mirrors .ruler-rail-mask in the ruler band. */}
+      <div className="section-rail-mask" aria-hidden="true" />
       {computed.map((c) => {
         const isActive = activeSectionId === c.section.id;
         return (
