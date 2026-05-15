@@ -3924,18 +3924,23 @@ body.env-non-prod[data-env="local"]::before {
    wrapper itself adds no padding. */
 .section-lane-wrap {
   position: relative;
+  /* Reserve the expanded lane height in both modes so hover-to-expand
+     doesn't reflow the tracks below. Matches .section-lane height. */
+  height: 22px;
 }
 .section-lane-wrap.disabled {
   pointer-events: none;
 }
 
-/* Ribbon mode — 6px strip, segments share the wave column. Below the
-   strip we extend the hit target by 8 transparent pixels into the top
-   of the first track row (no interactive content there). */
+/* Ribbon mode — 6px strip pinned to the top of the reserved 22px wrap.
+   Below the strip the segment ::after extends the hit target by 8 more
+   transparent pixels (no interactive content there). */
 .section-ribbon {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   height: 6px;
-  margin-bottom: 8px;
 }
 .section-ribbon-seg {
   position: absolute;

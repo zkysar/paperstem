@@ -187,15 +187,26 @@ export function SectionLane({
   return (
     <div
       className={wrapClassName}
-      onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
-      onPointerDown={() => {
-        if (!expanded) onTapToExpand();
+      onPointerDown={(e) => {
+        // Only count taps that land on an actual section element — tapping
+        // empty space in the wrap shouldn't expand the lane.
+        if (expanded) return;
+        const target = e.target as Element | null;
+        if (target && target.closest('.section-ribbon-seg, .section-pill')) {
+          onTapToExpand();
+        }
       }}
     >
       <div className="section-rail-mask" aria-hidden="true" />
       {expanded ? (
-        <div className="section-lane" aria-label="Song sections">
+        <div
+          className="section-lane"
+          aria-label="Song sections"
+          // Re-entry while expanded (e.g. activeSectionId set, cursor re-enters
+          // a pill area) needs to re-set hover=true. Leave is handled by the wrap.
+          onMouseEnter={() => onHoverChange(true)}
+        >
           <DragGuideline visible={guideline !== null} leftPx={guideline ?? 0} />
           {computed.map((c) => {
             const isActive = activeSectionId === c.section.id;
@@ -315,6 +326,7 @@ export function SectionLane({
                   if (!e.shiftKey) onSeek(c.section.start_ms / 1000);
                   onSelect(c.section);
                 }}
+                onMouseEnter={() => onHoverChange(true)}
                 aria-label={c.label}
               />
             );
