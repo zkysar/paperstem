@@ -325,4 +325,62 @@ describe('SectionLane', () => {
     expect(onSelect).toHaveBeenCalled();
     expect(onSeek).toHaveBeenCalled();
   });
+
+  it('clamps section left-edge drag at 250ms from previous boundary', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 10000 }),
+      section({ id: 's2', start_ms: 12000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const grip = document.querySelector(
+      '[data-testid="section-s2"] .section-grip-left',
+    )!;
+    (grip as any).setPointerCapture = vi.fn();
+    (grip as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(grip, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 0, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 0, pointerId: 1 });
+
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 10250 });
+  });
+
+  it('snaps section drag to nearest 10ms', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const customProps = {
+      ...baseProps,
+      duration: 2,
+    };
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 1000 }),
+    ];
+    render(
+      <SectionLane
+        {...customProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const grip = document.querySelector(
+      '[data-testid="section-s2"] .section-grip-left',
+    )!;
+    (grip as any).setPointerCapture = vi.fn();
+    (grip as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(grip, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 503, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 503, pointerId: 1 });
+
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 1010 });
+  });
 });
