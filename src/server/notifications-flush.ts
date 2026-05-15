@@ -3,7 +3,13 @@ import {
   sendMentionEmail, sendDigestEmail,
   type DigestEvent, type DigestProjectGroup,
 } from './mailer.js';
-import { getEffectivePrefs } from './notifications.js';
+import { getEffectivePrefs, type EffectivePrefs } from './notifications.js';
+
+function effectiveModeForRow(row: PendingNotificationRow, prefs: EffectivePrefs): 'batched' | 'daily' | 'off' {
+  if (row.kind === 'mention') return prefs.email_mentions ? 'batched' : 'off';
+  if (row.kind === 'reply') return prefs.email_thread_activity;
+  return prefs.email_project_activity; // 'comment' and 'reaction'
+}
 
 export interface FlushContext {
   appBaseUrl: string;
@@ -130,20 +136,41 @@ export async function flushPendingNotifications(opts: FlushOptions): Promise<voi
   if (allRows.length === 0) return;
   const buckets = bucketByRecipient(allRows);
   const now = new Date();
+
   for (const [recipientId, rows] of buckets) {
     const prefs = getEffectivePrefs(recipientId);
-    const isDailyUser =
-      prefs.email_project_activity === 'daily' || prefs.email_thread_activity === 'daily';
-    if (opts.mode === 'batched' && isDailyUser) continue;
-    if (opts.mode === 'daily' && !isDailyUser) continue;
+
+    // Per-row routing: each row's mode is determined by its kind + the user's
+    // per-kind pref, not by a single per-user classification. A user with
+    // email_project_activity='batched' and email_thread_activity='daily' has
+    // some rows in each mode; only the rows matching opts.mode are flushed
+    // this run.
+    const matching = rows.filter((r) => {
+      const mode = effectiveModeForRow(r, prefs);
+      return mode === opts.mode;
+    });
+    if (matching.length === 0) continue;
+
     if (opts.mode === 'daily' && !hourMatchesUserLocal(prefs, now)) continue;
 
     const to = fetchUserEmail(recipientId);
     if (!to) {
-      for (const r of rows) stmts.markPendingSent.run(nowSec(), r.id);
+      for (const r of matching) stmts.markPendingSent.run(nowSec(), r.id);
       continue;
     }
-    const byProject = groupByProject(rows);
+
+    // Mention rows always go out individually (not bundled into a digest).
+    // They reach this flush only if the immediate fire-and-forget send failed.
+    const mentionRows = matching.filter((r) => r.kind === 'mention');
+    const digestRows = matching.filter((r) => r.kind !== 'mention');
+
+    for (const r of mentionRows) {
+      await flushOne(r.id, opts);
+    }
+
+    if (digestRows.length === 0) continue;
+
+    const byProject = groupByProject(digestRows);
     const groups: DigestProjectGroup[] = [];
     const linksByGroupEventIndex = new Map<string, string>();
     let groupIndex = 0;
@@ -158,10 +185,10 @@ export async function flushPendingNotifications(opts: FlushOptions): Promise<voi
       });
       groupIndex++;
     }
-    const representativeToken = rows[rows.length - 1].reply_token ?? '';
+    const representativeToken = digestRows[digestRows.length - 1].reply_token ?? '';
 
-    const linkBuilder = (_g: DigestProjectGroup, _ev: DigestEvent, idx: number): string => {
-      const gi = groups.indexOf(_g);
+    const linkBuilder = (g: DigestProjectGroup, _ev: DigestEvent, idx: number): string => {
+      const gi = groups.indexOf(g);
       return linksByGroupEventIndex.get(`${gi}:${idx}`) ?? '';
     };
 
@@ -173,9 +200,9 @@ export async function flushPendingNotifications(opts: FlushOptions): Promise<voi
         representativeReplyToken: representativeToken,
         inboundDomain: opts.inboundDomain,
       });
-      for (const r of rows) stmts.markPendingSent.run(nowSec(), r.id);
+      for (const r of digestRows) stmts.markPendingSent.run(nowSec(), r.id);
     } catch {
-      for (const r of rows) {
+      for (const r of digestRows) {
         stmts.bumpPendingAttempt.run(r.id);
         const after = stmts.findPendingById.get(r.id) as PendingNotificationRow | undefined;
         if (after && after.send_attempts >= MAX_ATTEMPTS) {
@@ -183,5 +210,22 @@ export async function flushPendingNotifications(opts: FlushOptions): Promise<voi
         }
       }
     }
+  }
+}
+
+function envFlushContext(): FlushContext {
+  return {
+    appBaseUrl: process.env.APP_BASE_URL ?? 'http://localhost:5173',
+    inboundDomain: process.env.INBOUND_DOMAIN ?? 'mail.paperstem.app',
+  };
+}
+
+export function fireImmediateMentionSends(pendingIds: string[]): void {
+  if (pendingIds.length === 0) return;
+  const ctx = envFlushContext();
+  for (const id of pendingIds) {
+    void flushOne(id, ctx).catch((err) => {
+      console.error('[notifications] immediate mention send failed:', id, err);
+    });
   }
 }

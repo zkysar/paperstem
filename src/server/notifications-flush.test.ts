@@ -208,3 +208,68 @@ describe('flushPendingNotifications daily', () => {
     expect(sendMailSpy.mock.calls[0][0].to).toBe('r1@e.test');
   });
 });
+
+describe('flushPendingNotifications per-row routing', () => {
+  it('mixed-pref user gets only matching-kind rows per run, not all-or-nothing per recipient', async () => {
+    // User has email_project_activity='batched' (so comment rows route batched)
+    // and email_thread_activity='daily' (so reply rows route daily).
+    // Batched run should send the comment but leave the reply queued.
+    const author = createUser('a@e.test');
+    const recipient = createUser('mixed@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, recipient);
+    const pid = insertProject(bandId, author);
+    setPref(recipient, {
+      email_project_activity: 'batched',
+      email_thread_activity: 'daily',
+      digest_hour_local: 8,
+      timezone: 'UTC',
+    });
+    const annId = insertAnnotation(pid, author, 'parent');
+    const commentRowId = randomUUID();
+    const replyRowId = randomUUID();
+    dbMod.stmts.insertPendingNotification.run(
+      commentRowId, recipient, 'comment', pid, 'annotation', annId, author, 'c-preview', 'tokC', 1,
+    );
+    dbMod.stmts.insertPendingNotification.run(
+      replyRowId, recipient, 'reply', pid, 'reply', annId, author, 'r-preview', 'tokR', 1,
+    );
+
+    await flushMod.flushPendingNotifications({ mode: 'batched', appBaseUrl: 'https://x', inboundDomain: 'mail.x' });
+
+    expect(sendMailSpy).toHaveBeenCalledTimes(1);
+    const arg = sendMailSpy.mock.calls[0][0];
+    expect(arg.text).toContain('c-preview');
+    expect(arg.text).not.toContain('r-preview');
+
+    const commentRow = dbMod.stmts.findPendingById.get(commentRowId) as { sent_at: number | null };
+    const replyRow = dbMod.stmts.findPendingById.get(replyRowId) as { sent_at: number | null };
+    expect(commentRow.sent_at).not.toBeNull();
+    expect(replyRow.sent_at).toBeNull(); // reply still queued for daily flush
+  });
+
+  it('sends mention rows via sendMentionEmail (one per mention), not bundled into a digest', async () => {
+    const author = createUser('a@e.test');
+    const recipient = createUser('r@e.test');
+    const bandId = createBand(author);
+    addMembership(bandId, recipient);
+    const pid = insertProject(bandId, author);
+    const annId = insertAnnotation(pid, author, 'hi');
+    const mentionRowId = randomUUID();
+    const commentRowId = randomUUID();
+    dbMod.stmts.insertPendingNotification.run(
+      mentionRowId, recipient, 'mention', pid, 'annotation', annId, author, 'mention-preview', 'tokM', 1,
+    );
+    dbMod.stmts.insertPendingNotification.run(
+      commentRowId, recipient, 'comment', pid, 'annotation', annId, author, 'comment-preview', 'tokC', 1,
+    );
+
+    await flushMod.flushPendingNotifications({ mode: 'batched', appBaseUrl: 'https://x', inboundDomain: 'mail.x' });
+
+    // One mention email + one digest email.
+    expect(sendMailSpy).toHaveBeenCalledTimes(2);
+    const subjects = sendMailSpy.mock.calls.map((call) => call[0].subject);
+    expect(subjects.some((s) => s.includes('mention-preview'))).toBe(true);
+    expect(subjects.some((s) => /new comment/i.test(s) || /^a@e\.test/.test(s))).toBe(true);
+  });
+});

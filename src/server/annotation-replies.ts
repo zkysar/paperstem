@@ -8,6 +8,7 @@ import {
 } from './db.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
 import { recordActivity } from './notifications.js';
+import { fireImmediateMentionSends } from './notifications-flush.js';
 import type { AnnotationReply, Reaction } from '../shared/types.js';
 
 const MAX_BODY_LENGTH = 32768;
@@ -104,9 +105,10 @@ export async function handleCreateReply(
 
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
+  let activity: { mentionPendingIds: string[] } | undefined;
   const insertWithNotifications = db.transaction(() => {
     stmts.insertReply.run(id, annId, access.userId, text, now, now);
-    recordActivity({
+    activity = recordActivity({
       kind: 'reply',
       sourceType: 'reply',
       sourceId: id,
@@ -116,6 +118,7 @@ export async function handleCreateReply(
     });
   });
   insertWithNotifications();
+  fireImmediateMentionSends(activity?.mentionPendingIds ?? []);
 
   const row = stmts.findReplyByIdJoined.get(id);
   if (!row) return c.json({ error: 'server_error' }, 500);

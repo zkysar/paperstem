@@ -120,7 +120,7 @@ function previewFor(body: string, names: Map<string, string>): string {
   return resolved.slice(0, 140);
 }
 
-export function recordActivity(args: RecordActivityArgs): { mentionRowIds: string[] } {
+export function recordActivity(args: RecordActivityArgs): { mentionRowIds: string[]; mentionPendingIds: string[] } {
   const { kind, sourceType, sourceId, projectId, authorId, body } = args;
   const project = db.prepare('SELECT band_id FROM projects WHERE id = ?').get(projectId) as { band_id: string } | undefined;
   if (!project) throw new Error('recordActivity: project not found');
@@ -159,9 +159,11 @@ export function recordActivity(args: RecordActivityArgs): { mentionRowIds: strin
   const names = nameLookupForUids(tokens);
   const preview = previewFor(body, names);
 
+  const mentionPendingIds: string[] = [];
   for (const e of enqueue) {
+    const pendingId = randomUUID();
     stmts.insertPendingNotification.run(
-      randomUUID(),
+      pendingId,
       e.recipientId,
       e.kind,
       projectId,
@@ -172,7 +174,8 @@ export function recordActivity(args: RecordActivityArgs): { mentionRowIds: strin
       generateReplyToken(),
       now,
     );
+    if (e.kind === 'mention') mentionPendingIds.push(pendingId);
   }
 
-  return { mentionRowIds };
+  return { mentionRowIds, mentionPendingIds };
 }

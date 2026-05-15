@@ -4,6 +4,7 @@ import { db, stmts, type AnnotationJoinedRow, type AnnotationReactionAggRow } fr
 import { recordAudit } from './audit.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
 import { recordActivity } from './notifications.js';
+import { fireImmediateMentionSends } from './notifications-flush.js';
 import type { Annotation, Reaction } from '../shared/types.js';
 
 const MAX_BODY_LENGTH = 32768;
@@ -141,6 +142,7 @@ export async function handleCreateAnnotation(
 
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
+  let activity: { mentionPendingIds: string[] } | undefined;
   const insertWithNotifications = db.transaction(() => {
     stmts.insertAnnotation.run(
       id,
@@ -153,7 +155,7 @@ export async function handleCreateAnnotation(
       now,
       now,
     );
-    recordActivity({
+    activity = recordActivity({
       kind: 'comment',
       sourceType: 'annotation',
       sourceId: id,
@@ -163,6 +165,7 @@ export async function handleCreateAnnotation(
     });
   });
   insertWithNotifications();
+  fireImmediateMentionSends(activity?.mentionPendingIds ?? []);
 
   const row = stmts.findAnnotationByIdJoined.get(id);
   if (!row) return c.json({ error: 'server_error' }, 500);
