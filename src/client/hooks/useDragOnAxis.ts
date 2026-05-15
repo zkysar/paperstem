@@ -1,4 +1,3 @@
-// src/client/hooks/useDragOnAxis.ts
 import { useCallback, useEffect, useRef } from 'react';
 
 export type DragPhase = 'preview' | 'commit' | 'cancel';
@@ -12,7 +11,7 @@ export type DragChange<P> = {
 export type UseDragOnAxisOpts<P> = {
   threshold?: number;
   onChange(change: DragChange<P>): void;
-  onTap?(payload: P, clientX: number, clientY: number): void;
+  onTap?(payload: P, clientX: number): void;
 };
 
 type State<P> = {
@@ -34,15 +33,14 @@ export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
       const s = stateRef.current;
       if (!s) return;
       try {
-        (s.target as Element & { releasePointerCapture(id: number): void })
-          .releasePointerCapture(s.pointerId);
+        s.target.releasePointerCapture(s.pointerId);
       } catch {
         /* ignore */
       }
       if (s.crossed) {
         onChange({ phase, deltaPx: s.lastX - s.startX, payload: s.payload });
       } else if (phase === 'commit' && onTap) {
-        onTap(s.payload, s.lastX, 0);
+        onTap(s.payload, s.lastX);
       }
       stateRef.current = null;
     },
@@ -51,9 +49,7 @@ export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent, payload: P) => {
-      const target = e.currentTarget as Element & {
-        setPointerCapture(id: number): void;
-      };
+      const target = e.currentTarget as Element;
       try {
         target.setPointerCapture(e.pointerId);
       } catch {

@@ -1,4 +1,3 @@
-// src/client/hooks/useDragOnAxis.test.ts
 import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { useDragOnAxis } from './useDragOnAxis';
