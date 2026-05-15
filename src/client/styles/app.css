@@ -3172,3 +3172,20 @@ body.env-non-prod[data-env="local"]::before {
     padding-bottom: calc(56px + env(safe-area-inset-bottom));
   }
 }
+
+/* iOS Safari auto-zooms when a focused form control has computed
+   font-size < 16px. Lock everything to 16px on phones so focusing a
+   comment textarea (or any other input) doesn't yank the page. The
+   four comment-textarea selectors are listed explicitly to win the
+   cascade against their (0,1,1) base rules at equal specificity. */
+@media (max-width: 720px) {
+  input,
+  textarea,
+  select,
+  .cp-edit textarea,
+  .cs-edit textarea,
+  .cd-draft textarea,
+  .cl-edit textarea {
+    font-size: 16px;
+  }
+}
