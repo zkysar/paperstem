@@ -3172,3 +3172,315 @@ body.env-non-prod[data-env="local"]::before {
     padding-bottom: calc(56px + env(safe-area-inset-bottom));
   }
 }
+
+/* ---- Section lane (song chapters above the waveform) ---------------- */
+
+/* The section lane sits inside .tracks, between .ruler-row and the first
+   track. It's a non-sticky band whose pills are absolutely positioned
+   along the wave column. Height matches the ruler band so the visual
+   rhythm of the timeline stays even. */
+.section-lane {
+  position: relative;
+  height: 22px;
+  border-bottom: 1px solid var(--rule-2);
+  background: var(--bg);
+}
+
+.section-pill {
+  position: absolute;
+  top: 2px;
+  height: 18px;
+  border: none;
+  padding: 0 6px;
+  border-radius: 3px;
+  color: var(--paper);
+  font-size: var(--fs-2xs);
+  font-family: var(--font-sans, inherit);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  text-align: left;
+  overflow: hidden;
+  white-space: nowrap;
+  opacity: 0.85;
+  /* The fill comes inline from JS (per-song hash); border just sharpens
+     the edge against the lane background so neighbouring sections read
+     as distinct even at very narrow widths. */
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+  transition: opacity 80ms ease;
+}
+.section-pill:hover,
+.section-pill:focus-visible {
+  opacity: 1;
+  outline: none;
+}
+.section-pill.active {
+  opacity: 1;
+  box-shadow: inset 0 0 0 2px var(--ink, #333);
+}
+.section-pill-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.section-pill-chain {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+
+/* ---- Section creation/edit popover ---------------------------------- */
+
+.section-popover {
+  position: fixed;
+  z-index: 50;
+  min-width: 280px;
+  max-width: 340px;
+  background: var(--paper, #fff);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--fs-sm);
+  /* Anchor passes the playhead-edge x,y; offset so the panel sits just
+     below the lane rather than overlapping the click point. */
+  transform: translate(-50%, 8px);
+}
+
+.sp-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sp-title {
+  flex: 1 1 auto;
+  font-weight: 500;
+  color: var(--ink);
+  font-size: var(--fs-sm);
+}
+.sp-close {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 2px;
+  border-radius: 3px;
+}
+.sp-close:hover { background: var(--accent-tint); color: var(--ink); }
+
+.sp-mode-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 4px;
+}
+.sp-mode-tab {
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 3px;
+}
+.sp-mode-tab.active {
+  background: var(--accent-tint);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.sp-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font-size: var(--fs-sm);
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.sp-input:focus { outline: none; border-color: var(--accent); }
+
+.sp-rename-note {
+  font-size: var(--fs-2xs);
+  color: var(--accent);
+  font-weight: 500;
+  padding: 0 2px;
+}
+
+.sp-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.sp-suggestion {
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+.sp-suggestion:hover,
+.sp-suggestion:focus-visible {
+  background: var(--accent-tint);
+  outline: none;
+}
+.sp-suggestion-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-suggestion-count {
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.sp-suggestion-create {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.sp-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+  padding: 4px 2px;
+}
+
+.sp-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--rule);
+  padding-top: 6px;
+}
+.sp-actions-spacer { flex: 1 1 auto; }
+.sp-action {
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  border-radius: 3px;
+  font-size: var(--fs-2xs);
+  cursor: pointer;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sp-action:hover { background: var(--accent-tint); }
+.sp-action-primary {
+  background: var(--accent);
+  color: var(--paper);
+  border-color: var(--accent);
+}
+.sp-action-primary:hover {
+  background: var(--accent);
+  color: var(--paper);
+  filter: brightness(0.95);
+}
+.sp-action-danger { color: var(--danger, #9f4a4a); }
+.sp-action-danger:hover { background: rgba(159, 74, 74, 0.1); }
+
+/* ---- Toast for rename undo ----------------------------------------- */
+
+.song-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink, #333);
+  color: var(--paper);
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-size: var(--fs-sm);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.song-toast-undo {
+  background: transparent;
+  border: 1px solid var(--paper);
+  color: var(--paper);
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: var(--fs-2xs);
+  font-weight: 500;
+}
+.song-toast-undo:hover { background: var(--paper); color: var(--ink); }
+
+/* ---- FilePicker song chip-rail ------------------------------------ */
+
+.fp-song-rail {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--rule);
+  overflow-x: auto;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.fp-song-rail-label {
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.fp-song-chip {
+  background: transparent;
+  border: 1px solid var(--rule);
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: var(--fs-2xs);
+  cursor: pointer;
+  white-space: nowrap;
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.fp-song-chip:hover { background: var(--accent-tint); }
+.fp-song-chip.active {
+  background: var(--accent);
+  color: var(--paper);
+  border-color: var(--accent);
+}
+.fp-song-chip-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.fp-song-chip-count {
+  font-size: 10px;
+  opacity: 0.7;
+}
+.fp-song-chip-clear {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: var(--fs-2xs);
+  text-decoration: underline;
+  padding: 3px 6px;
+}
+.fp-song-chip-clear:hover { color: var(--ink); }

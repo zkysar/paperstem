@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
 import { stmts, type SectionJoinedRow } from './db.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
-import { findOrCreateSongRow, validateName } from './songs.js';
+import { findOrCreateSongRow } from './songs.js';
 import type { Section } from '../shared/types.js';
 
 const MAX_LABEL_LENGTH = 200;

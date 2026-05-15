@@ -19,6 +19,8 @@ const baseProps = {
   duration: 272.5,
   annotationCreateMode: false,
   canCreateAnnotations: true,
+  sectionCreateMode: false,
+  canCreateSections: true,
   markersVisible: true,
   railCollapsed: false,
   showRailToggle: false, // wide widths default
@@ -28,6 +30,7 @@ const baseProps = {
   onToggleLoopEnabled: vi.fn(),
   onToggleWaveformNormalization: vi.fn(),
   onToggleAnnotationCreate: vi.fn(),
+  onToggleSectionCreate: vi.fn(),
   onToggleMarkersVisible: vi.fn(),
   onSetMasterVolume: vi.fn(),
   onToggleRailCollapsed: vi.fn(),

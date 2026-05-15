@@ -85,6 +85,7 @@ export function ShortcutsOverlay({ open, onClose, forceMac }: Props) {
       items: [
         { keys: <><kbd>{m}{plus}K</kbd></>, label: 'Open file picker' },
         { keys: k(['C']), label: 'Add comment at playhead' },
+        { keys: k(['M']), label: 'Add section (song marker) at playhead' },
         { keys: k(['?']), label: 'This help' },
       ],
     },
