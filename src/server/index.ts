@@ -67,6 +67,7 @@ import {
   handlePatchSection,
 } from './sections.js';
 import { handleClassifyProject } from './auto-classify/routes.js';
+import { handleSectionFingerprint } from './auto-classify/fingerprint-route.js';
 import { handleSnapshotsHealth } from './health.js';
 import { handleVersion } from './version.js';
 import { handleBugReport } from './bug-report.js';
@@ -134,6 +135,10 @@ app.post('/api/projects/:id/sections', handleCreateSection);
 app.patch('/api/sections/:id', handlePatchSection);
 app.delete('/api/sections/:id', handleDeleteSection);
 app.post('/api/projects/:id/classify', handleClassifyProject);
+app.post(
+  '/api/projects/:id/sections/:sectionId/fingerprint',
+  handleSectionFingerprint,
+);
 app.get('/api/health/snapshots', handleSnapshotsHealth);
 app.get('/api/version', handleVersion);
 app.post('/api/bug-report', handleBugReport);
