@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import type { BugReportPayload } from './mailer.js';
 
 // mailer.ts reads GMAIL_USER and GMAIL_APP_PASSWORD at module init time and
 // throws if either is missing. Set placeholders before the static import below.
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
+
+const mailer = await import('./mailer.js');
 
 const {
   formatBugReportSubject,
@@ -13,7 +15,7 @@ const {
   formatBatchedDigestSubject,
   formatBatchedDigestText,
   formatDailyDigestSubject,
-} = await import('./mailer.js');
+} = mailer;
 
 function makePayload(overrides: Partial<BugReportPayload> = {}): BugReportPayload {
   return {
@@ -197,5 +199,46 @@ describe('formatBatchedDigestText', () => {
     expect(text).toContain('Mute: https://app/m');
     expect(text).toContain('Notification settings: https://app/s');
     expect(text).toContain('— Paperstem');
+  });
+});
+
+describe('sendMentionEmail', () => {
+  let sendMailSpy: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    sendMailSpy = vi.fn().mockResolvedValue({});
+    (mailer._transporter as unknown as { sendMail: typeof sendMailSpy }).sendMail = sendMailSpy;
+  });
+  it('uses Reply-To header with reply-token address', async () => {
+    await mailer.sendMentionEmail({
+      to: 'b@e.test', authorName: 'A', projectName: 'P', preview: 'x',
+      commentLink: 'https://app/x', muteBandLink: 'https://app/m', settingsLink: 'https://app/s',
+      replyToken: 'tok123', inboundDomain: 'mail.paperstem.app',
+    });
+    expect(sendMailSpy).toHaveBeenCalledTimes(1);
+    const arg = sendMailSpy.mock.calls[0][0];
+    expect(arg.replyTo).toBe('replies+tok123@mail.paperstem.app');
+    expect(arg.to).toBe('b@e.test');
+    expect(arg.subject).toBe('A on "P": x');
+  });
+});
+
+describe('sendDigestEmail', () => {
+  let sendMailSpy: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    sendMailSpy = vi.fn().mockResolvedValue({});
+    (mailer._transporter as unknown as { sendMail: typeof sendMailSpy }).sendMail = sendMailSpy;
+  });
+  it('uses Reply-To with representative token and uses daily subject when daily=true', async () => {
+    await mailer.sendDigestEmail({
+      to: 'b@e.test', daily: true,
+      groups: [{ projectName: 'P', events: [{ authorName: 'A', preview: 'x' }] }],
+      linkBuilder: () => 'https://app/c',
+      settingsLink: 'https://app/s',
+      representativeReplyToken: 'tokZ',
+      inboundDomain: 'mail.x',
+    });
+    const arg = sendMailSpy.mock.calls[0][0];
+    expect(arg.replyTo).toBe('replies+tokZ@mail.x');
+    expect(arg.subject).toMatch(/^\[Paperstem\] Daily summary —/);
   });
 });
