@@ -23,7 +23,7 @@ function makeReply(over: Partial<AnnotationReply> = {}): AnnotationReply {
 }
 
 describe('ReplyCard', () => {
-  it('shows edit/delete for the author', () => {
+  it('overflow menu exposes Edit/Delete for the author', () => {
     render(
       <ReplyCard
         reply={makeReply()}
@@ -35,11 +35,12 @@ describe('ReplyCard', () => {
         onToggleReaction={() => {}}
       />,
     );
-    expect(screen.getByLabelText('Edit')).toBeTruthy();
-    expect(screen.getByLabelText('Delete')).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('More actions'));
+    expect(screen.getByRole('menuitem', { name: 'Edit' })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeTruthy();
   });
 
-  it('hides edit/delete for non-authors', () => {
+  it('non-authors see no overflow trigger', () => {
     render(
       <ReplyCard
         reply={makeReply()}
@@ -51,7 +52,7 @@ describe('ReplyCard', () => {
         onToggleReaction={() => {}}
       />,
     );
-    expect(screen.queryByLabelText('Edit')).toBeNull();
+    expect(screen.queryByLabelText('More actions')).toBeNull();
   });
 
   it('saves edited body via callback', () => {
@@ -67,7 +68,8 @@ describe('ReplyCard', () => {
         onToggleReaction={() => {}}
       />,
     );
-    fireEvent.click(screen.getByLabelText('Edit'));
+    fireEvent.click(screen.getByLabelText('More actions'));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
     const textarea = screen.getByRole('textbox');
     fireEvent.change(textarea, { target: { value: 'updated' } });
     fireEvent.click(screen.getByText('Save'));
