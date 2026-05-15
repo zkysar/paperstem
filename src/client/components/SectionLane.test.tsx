@@ -311,7 +311,7 @@ describe('SectionLane', () => {
     expect(onPatchSection).toHaveBeenCalledWith('s3', { start_ms: 96000 });
   });
 
-  it('middle drag of last section only updates self', async () => {
+  it('middle drag of the last section is a no-op — there is no next start to translate, so resizing would be the only outcome', async () => {
     const onPatchSection = vi.fn(async () => {});
     const sections = [
       section({ id: 's1', start_ms: 0 }),
@@ -333,8 +333,40 @@ describe('SectionLane', () => {
     fireEvent.pointerMove(window, { clientX: 510, pointerId: 1 });
     fireEvent.pointerUp(window, { clientX: 510, pointerId: 1 });
 
-    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 61500 });
-    expect(onPatchSection).toHaveBeenCalledTimes(1);
+    expect(onPatchSection).not.toHaveBeenCalled();
+  });
+
+  it('a dragged pill does not also fire its click — no dialog should open after a drag', () => {
+    const onPatchSection = vi.fn(async () => {});
+    const onSelect = vi.fn();
+    const onSeek = vi.fn();
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 30000 }),
+      section({ id: 's3', start_ms: 90000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        onSelect={onSelect}
+        onSeek={onSeek}
+        activeSectionId="s2"
+      />,
+    );
+    const pill = screen.getByTestId('section-s2');
+    (pill as any).setPointerCapture = vi.fn();
+    (pill as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
+    fireEvent.click(pill, { clientX: 540 });
+
+    expect(onPatchSection).toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSeek).not.toHaveBeenCalled();
   });
 
   it('clicking a pill below the drag threshold still seeks and selects', () => {
