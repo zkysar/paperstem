@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import { ChevronLeft, ChevronRight, Pencil, Repeat, Star, Trash2, X } from 'lucide-react';
 import type {
   Annotation,
@@ -47,6 +47,23 @@ export function CommentBottomSheet({
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(annotation.body);
+  const [kbInset, setKbInset] = useState(0);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKbInset(inset);
+    };
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    update();
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
   const author = annotation.user_display_name ?? annotation.user_email;
   const isRegion = annotation.end_ms !== null;
   const timeText = isRegion
@@ -66,6 +83,7 @@ export function CommentBottomSheet({
       role="dialog"
       aria-label="Comment"
       onPointerDown={(e) => e.stopPropagation()}
+      style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${kbInset}px)` }}
     >
       <div className="cs-handle" aria-hidden="true" />
       <div className="cs-meta">
