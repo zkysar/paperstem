@@ -106,11 +106,12 @@ describe('CommentPopover', () => {
     expect(screen.queryByLabelText(/loop region/i)).toBeNull();
   });
 
-  it('clicking edit switches to textarea, save calls onSaveEdit', async () => {
+  it('overflow Edit menu item switches to textarea, save calls onSaveEdit', async () => {
     const onSaveEdit = vi.fn();
     const user = userEvent.setup();
     render(<CommentPopover {...baseProps} onSaveEdit={onSaveEdit} />);
-    await user.click(screen.getByLabelText('Edit'));
+    await user.click(screen.getByLabelText('More actions'));
+    await user.click(screen.getByRole('menuitem', { name: 'Edit' }));
     const ta = screen.getByRole('textbox');
     await user.clear(ta);
     await user.type(ta, 'updated');
@@ -118,24 +119,31 @@ describe('CommentPopover', () => {
     expect(onSaveEdit).toHaveBeenCalledWith('updated');
   });
 
-  it('clicking delete (confirmed) calls onDelete', async () => {
+  it('overflow Delete menu item (confirmed) calls onDelete', async () => {
     const onDelete = vi.fn();
     vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = userEvent.setup();
     render(<CommentPopover {...baseProps} onDelete={onDelete} />);
-    await userEvent.click(screen.getByLabelText('Delete'));
+    await user.click(screen.getByLabelText('More actions'));
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
     expect(onDelete).toHaveBeenCalledOnce();
   });
 
-  it('non-owner does not see edit/delete', () => {
+  it('non-owner overflow menu omits edit/delete but keeps copy-link', async () => {
+    const user = userEvent.setup();
     render(<CommentPopover {...baseProps} isOwn={false} />);
-    expect(screen.queryByLabelText('Edit')).toBeNull();
-    expect(screen.queryByLabelText('Delete')).toBeNull();
+    await user.click(screen.getByLabelText('More actions'));
+    expect(screen.queryByRole('menuitem', { name: 'Edit' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Delete' })).toBeNull();
+    expect(screen.getByRole('menuitem', { name: /copy link/i })).not.toBeNull();
   });
 
-  it('copy-link click calls onCopyLink', async () => {
+  it('copy-link menu item calls onCopyLink', async () => {
     const onCopyLink = vi.fn();
+    const user = userEvent.setup();
     render(<CommentPopover {...baseProps} onCopyLink={onCopyLink} />);
-    await userEvent.click(screen.getByLabelText('Copy link to this comment'));
+    await user.click(screen.getByLabelText('More actions'));
+    await user.click(screen.getByRole('menuitem', { name: /copy link/i }));
     expect(onCopyLink).toHaveBeenCalledOnce();
   });
 
