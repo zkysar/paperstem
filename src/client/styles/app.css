@@ -2166,6 +2166,8 @@ body.env-non-prod[data-env="local"]::before {
   padding: 9px 11px 10px;
   width: 260px;
   font-size: var(--fs-md);
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
 }
 .cp-meta {
   display: flex;
