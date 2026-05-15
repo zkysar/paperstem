@@ -614,9 +614,9 @@
 
     <div class="daw">
       <div class="draft-banner">
-        <span class="draft-banner-label"><strong>Local draft</strong> — only on this device. Nothing is uploaded until you save.</span>
+        <span class="draft-banner-label"><strong>Local draft</strong> — Save now to skip detection, or wait for sections to finish.</span>
         <button class="draft-banner-discard">Discard</button>
-        <button class="draft-banner-save" disabled style="opacity: 0.55; cursor: wait;">Save to Paper Straw</button>
+        <button class="draft-banner-save">Save to Paper Straw</button>
       </div>
       <div class="transport">
         <button class="transport-btn">⏵</button>
@@ -658,11 +658,11 @@
     <div class="notes">
       <strong>Decisions:</strong>
       <ul>
-        <li>Save button on the draft banner is disabled (greyed) while detection is running. Tooltip: "Detecting sections…" Or we could enable Save anytime and have sections POST after upload — see Flow C decisions.</li>
+        <li><strong>Save is always enabled.</strong> Clicking Save while detection is still running cancels detection — the project is saved with whatever sections (if any) are already finalized at that instant. No separate "Cancel" button needed; Save IS the "skip detection" gesture.</li>
         <li>Detection banner is non-blocking — the user can already play, mute, add manual sections, etc. while it runs.</li>
         <li>If detection fails, the detection banner becomes "Detection failed (try again)" with a retry link. Save still works without sections.</li>
         <li>If the user creates a manual section in this window, the auto-detector respects it: any auto section that would overlap gets dropped before being written.</li>
-        <li>"Discard" on the draft banner is the existing Paperstem behavior — abandons the local draft, no upload happens.</li>
+        <li>"Discard" on the draft banner is the existing Paperstem behavior — abandons the local draft entirely.</li>
       </ul>
     </div>
   </div>
