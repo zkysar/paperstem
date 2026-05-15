@@ -64,6 +64,7 @@ function defaultOpts() {
     onToggleShortcuts: vi.fn(),
     onAddCommentAtPlayhead: vi.fn(),
     onAddSectionAtPlayhead: vi.fn(),
+    onAddEndMarkerAtPlayhead: vi.fn(),
   };
 }
 
@@ -443,6 +444,43 @@ describe('useKeyboard WASD navigation', () => {
     );
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'c' }));
     expect(onAddCommentAtPlayhead).toHaveBeenCalledOnce();
+  });
+
+  it('M calls onAddSectionAtPlayhead, Shift+M calls onAddEndMarkerAtPlayhead', () => {
+    const onAddSectionAtPlayhead = vi.fn();
+    const onAddEndMarkerAtPlayhead = vi.fn();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        onAddSectionAtPlayhead,
+        onAddEndMarkerAtPlayhead,
+      }),
+    );
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
+    expect(onAddSectionAtPlayhead).toHaveBeenCalledOnce();
+    expect(onAddEndMarkerAtPlayhead).not.toHaveBeenCalled();
+
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'M', shiftKey: true }),
+    );
+    expect(onAddEndMarkerAtPlayhead).toHaveBeenCalledOnce();
+    // Plain-M counter should not have ticked up on the shifted keystroke.
+    expect(onAddSectionAtPlayhead).toHaveBeenCalledOnce();
+  });
+
+  it('Shift+M does not fire in text inputs', () => {
+    const onAddEndMarkerAtPlayhead = vi.fn();
+    renderHook(() =>
+      useKeyboard({ ...defaultOpts(), onAddEndMarkerAtPlayhead }),
+    );
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    input.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'M', shiftKey: true, bubbles: true }),
+    );
+    expect(onAddEndMarkerAtPlayhead).not.toHaveBeenCalled();
+    document.body.removeChild(input);
   });
 
   it('C does not fire in text inputs', () => {

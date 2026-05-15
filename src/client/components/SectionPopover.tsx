@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Plus, Tag, Trash2, X } from 'lucide-react';
 import type { Section, Song } from '../../shared/types';
 import { fmt } from '../lib/format';
+import { END_SECTION_LABEL } from '../lib/section-end';
 
 export type SectionSubmit =
   | { kind: 'song_id'; song_id: string }
@@ -329,6 +330,18 @@ export function SectionPopover({
           >
             <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
             Delete section
+          </button>
+        )}
+        {!section && (
+          <button
+            type="button"
+            className="sp-action sp-action-end"
+            onClick={() =>
+              onSubmit({ kind: 'label', label: END_SECTION_LABEL })
+            }
+            title="Mark the previous section as ending here without naming what comes next"
+          >
+            End here
           </button>
         )}
         <span className="sp-actions-spacer" />

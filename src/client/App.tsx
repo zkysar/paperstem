@@ -42,6 +42,7 @@ import {
   patchSection,
   deleteSection,
 } from './data/sections-repo';
+import { END_SECTION_LABEL } from './lib/section-end';
 import {
   listSongs,
   listSongUsage,
@@ -299,6 +300,28 @@ function PaperstemApp({
       if (!activeProjectId) return;
       const startMs = Math.max(0, Math.round(player.currentTime * 1000));
       openSectionPopoverAtPlayhead(startMs);
+    },
+    onAddEndMarkerAtPlayhead: () => {
+      if (!activeProjectId) return;
+      const startMs = Math.max(0, Math.round(player.currentTime * 1000));
+      const projectId = activeProjectId;
+      // Shift+M drops a section labeled "—" at the playhead with no
+      // popover prompt. The previous section's pill auto-truncates at
+      // this point via the existing next-start render rule.
+      void (async () => {
+        try {
+          const created = await createSection(projectId, {
+            start_ms: startMs,
+            label: END_SECTION_LABEL,
+          });
+          setSections((cur) =>
+            [...cur, created].sort((a, b) => a.start_ms - b.start_ms),
+          );
+          setActiveSectionId(created.id);
+        } catch (err) {
+          console.error('end marker create failed', err);
+        }
+      })();
     },
   });
 

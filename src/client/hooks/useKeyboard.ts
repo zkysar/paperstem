@@ -43,6 +43,7 @@ export type KeyboardOpts = {
   onToggleShortcuts(): void;
   onAddCommentAtPlayhead(): void;
   onAddSectionAtPlayhead(): void;
+  onAddEndMarkerAtPlayhead(): void;
 };
 
 /**
@@ -67,6 +68,7 @@ export function useKeyboard(opts: KeyboardOpts): void {
     onCancelCreate,
     onAddCommentAtPlayhead,
     onAddSectionAtPlayhead,
+    onAddEndMarkerAtPlayhead,
   } = opts;
 
   useEffect(() => {
@@ -172,8 +174,15 @@ export function useKeyboard(opts: KeyboardOpts): void {
       } else if (e.key === 'm' || e.key === 'M') {
         // M drops a section at the playhead, mirroring C for comments.
         // Chosen because S/W/A/D are taken by stem solo + WASD pan/zoom.
+        // Shift+M instead drops an em-dash "section ends here" marker —
+        // the previous section's pill truncates at this point via the
+        // existing next-start render rule, no schema change required.
         e.preventDefault();
-        onAddSectionAtPlayhead();
+        if (e.shiftKey) {
+          onAddEndMarkerAtPlayhead();
+        } else {
+          onAddSectionAtPlayhead();
+        }
       } else if (
         e.key === 'w' || e.key === 'W' ||
         e.key === 'a' || e.key === 'A' ||
@@ -243,5 +252,6 @@ export function useKeyboard(opts: KeyboardOpts): void {
     onCancelCreate,
     onAddCommentAtPlayhead,
     onAddSectionAtPlayhead,
+    onAddEndMarkerAtPlayhead,
   ]);
 }
