@@ -6,7 +6,14 @@ import type { BugReportPayload } from './mailer.js';
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
 
-const { formatBugReportSubject, formatBugReportText } = await import('./mailer.js');
+const {
+  formatBugReportSubject,
+  formatBugReportText,
+  formatMentionEmailSubject,
+  formatBatchedDigestSubject,
+  formatBatchedDigestText,
+  formatDailyDigestSubject,
+} = await import('./mailer.js');
 
 function makePayload(overrides: Partial<BugReportPayload> = {}): BugReportPayload {
   return {
@@ -129,5 +136,66 @@ describe('formatBugReportText', () => {
     const text = formatBugReportText(makePayload());
     expect(text).toContain('[No screenshot attached]');
     expect(text).not.toContain('[Attachment: screenshot.png]');
+  });
+});
+
+describe('formatMentionEmailSubject', () => {
+  it('returns the expected subject for normal inputs', () => {
+    expect(formatMentionEmailSubject({ authorName: 'Sarah', projectName: 'Mix v3', preview: 'bass is buried' }))
+      .toBe('Sarah on "Mix v3": bass is buried');
+  });
+
+  it('truncates to ≤80 chars with … suffix when over', () => {
+    const preview = 'a'.repeat(100);
+    const result = formatMentionEmailSubject({ authorName: 'Sarah', projectName: 'Mix v3', preview });
+    expect(result.length).toBeLessThanOrEqual(80);
+    expect(result.endsWith('…')).toBe(true);
+  });
+});
+
+describe('formatBatchedDigestSubject', () => {
+  it('returns single-event format for 1 group with 1 event', () => {
+    const groups = [{ projectName: 'Mix v3', events: [{ authorName: 'A', preview: 'nice take' }] }];
+    expect(formatBatchedDigestSubject(groups)).toBe('A on "Mix v3": nice take');
+  });
+
+  it('returns plural comment count format for 1 group with 2 events', () => {
+    const groups = [{ projectName: 'Mix v3', events: [{ authorName: 'A', preview: 'x' }, { authorName: 'B', preview: 'y' }] }];
+    expect(formatBatchedDigestSubject(groups)).toBe('2 new comments on "Mix v3"');
+  });
+
+  it('returns activity-in-N-projects format for 2 groups', () => {
+    const groups = [
+      { projectName: 'Mix v3', events: [{ authorName: 'A', preview: 'x' }] },
+      { projectName: 'Drums', events: [{ authorName: 'B', preview: 'y' }] },
+    ];
+    expect(formatBatchedDigestSubject(groups)).toBe('Activity in 2 projects');
+  });
+});
+
+describe('formatDailyDigestSubject', () => {
+  it('prefixes with [Paperstem] Daily summary —', () => {
+    const groups = [{ projectName: 'Mix v3', events: [{ authorName: 'A', preview: 'x' }] }];
+    const result = formatDailyDigestSubject(groups);
+    expect(result.startsWith('[Paperstem] Daily summary —')).toBe(true);
+  });
+});
+
+describe('formatBatchedDigestText', () => {
+  it('produces a grouped body with bullets per event and the footer', () => {
+    const groups = [
+      { projectName: 'Mix v3', events: [{ authorName: 'Alice', preview: 'bass is buried' }] },
+    ];
+    const text = formatBatchedDigestText(
+      groups,
+      (_g, _ev, _idx) => 'https://app/c1',
+      { settingsLink: 'https://app/s', muteBandLink: 'https://app/m' },
+    );
+    expect(text).toContain('In "Mix v3":');
+    expect(text).toContain('  • Alice: bass is buried');
+    expect(text).toContain('    https://app/c1');
+    expect(text).toContain('Mute: https://app/m');
+    expect(text).toContain('Notification settings: https://app/s');
+    expect(text).toContain('— Paperstem');
   });
 });
