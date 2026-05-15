@@ -2419,6 +2419,8 @@ body.env-non-prod[data-env="local"]::before {
 .cl-card:hover .cl-overflow-trigger,
 .cl-card:focus-within .cl-overflow-trigger,
 .cl-card.active .cl-overflow-trigger,
+.reply-card:hover .cl-overflow-trigger,
+.reply-card:focus-within .cl-overflow-trigger,
 .cl-overflow.open .cl-overflow-trigger,
 .cl-overflow-trigger:focus-visible {
   opacity: 1;
@@ -3533,20 +3535,16 @@ body.env-non-prod[data-env="local"]::before {
   padding: 6px 9px;
 }
 
-.reply-meta { font-size: var(--fs-xs); color: var(--muted); }
+.reply-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-xs);
+  color: var(--muted);
+}
+.reply-meta .cl-overflow { margin-left: auto; }
 .reply-author { font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--ink); }
 .reply-body { font-size: var(--fs-md); line-height: 1.35; margin: 3px 0 6px; }
-
-.reply-iconbtn {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  padding: 2px;
-  cursor: pointer;
-}
-
-.reply-iconbtn:hover { color: var(--ink); }
-.reply-actions { display: flex; gap: 6px; margin-top: 4px; }
 
 .reply-edit textarea {
   width: 100%;

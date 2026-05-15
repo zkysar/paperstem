@@ -1,5 +1,5 @@
-import { useState, type KeyboardEvent } from 'react';
-import { Pencil, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import type { AnnotationReply } from '../../shared/types';
 import { Reactions } from './Reactions';
 import { isMac } from '../lib/platform';
@@ -31,8 +31,28 @@ export function ReplyCard({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(reply.body);
   const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const author = reply.user_display_name ?? reply.user_email;
   const isOwn = reply.user_id === selfUserId;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleDocClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    function handleKey(e: globalThis.KeyboardEvent) {
+      if (e.key === 'Escape') setMenuOpen(false);
+    }
+    document.addEventListener('mousedown', handleDocClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleDocClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [menuOpen]);
 
   async function commit() {
     const text = draft.trim();
@@ -61,6 +81,58 @@ export function ReplyCard({
     <div className="reply-card" data-testid={`reply-card-${reply.id}`}>
       <div className="reply-meta">
         <span className="reply-author">{author}</span>
+        {isOwn && canEdit && !editing && (
+          <div
+            className={'cl-overflow' + (menuOpen ? ' open' : '')}
+            ref={menuOpen ? menuRef : undefined}
+          >
+            <button
+              type="button"
+              className="cl-iconbtn cl-overflow-trigger"
+              aria-label="More actions"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              title="More actions"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen((cur) => !cur);
+              }}
+            ><MoreHorizontal size={14} strokeWidth={2} aria-hidden="true" /></button>
+            {menuOpen && (
+              <div className="cl-overflow-menu" role="menu" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="cl-overflow-item"
+                  aria-label="Edit"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    setDraft(reply.body);
+                    setEditing(true);
+                  }}
+                >
+                  <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+                  <span>Edit</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="cl-overflow-item cl-overflow-item-danger"
+                  aria-label="Delete"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMenuOpen(false);
+                    void handleDelete();
+                  }}
+                >
+                  <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {editing ? (
         <div className="reply-edit">
@@ -118,33 +190,6 @@ export function ReplyCard({
         isNarrow={isNarrow}
         onToggle={(emoji) => onToggleReaction(reply.id, emoji)}
       />
-      {isOwn && canEdit && !editing && (
-        <div className="reply-actions">
-          <button
-            type="button"
-            className="reply-iconbtn"
-            aria-label="Edit"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDraft(reply.body);
-              setEditing(true);
-            }}
-          >
-            <Pencil size={12} strokeWidth={2} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className="reply-iconbtn"
-            aria-label="Delete"
-            onClick={(e) => {
-              e.stopPropagation();
-              void handleDelete();
-            }}
-          >
-            <Trash2 size={12} strokeWidth={2} aria-hidden="true" />
-          </button>
-        </div>
-      )}
     </div>
   );
 }
