@@ -28,6 +28,11 @@ type Props = {
   onHover: Dispatch<SetStateAction<string | null>>;
   onLoopAnnotation(annotation: Annotation): void;
   createMode: boolean;
+  selfUserId?: string;
+  onPatchAnnotation?(
+    id: string,
+    input: { start_ms: number; end_ms: number | null },
+  ): Promise<void>;
 };
 
 export function AnnotationMarkers({
@@ -41,6 +46,8 @@ export function AnnotationMarkers({
   hoveredId,
   onHover,
   createMode,
+  selfUserId,
+  onPatchAnnotation,
 }: Props) {
   const markers = useMemo(() => {
     if (!visible || !duration || !waveWidthPx) return [];

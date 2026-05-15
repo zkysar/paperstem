@@ -1190,6 +1190,23 @@ function PaperstemApp({
     }
   }
 
+  const handleAnnotationPatchRange = useCallback(
+    async (id: string, input: { start_ms: number; end_ms: number | null }) => {
+      const prev = annotations;
+      setAnnotations((cur) =>
+        cur.map((a) => (a.id === id ? { ...a, ...input } : a)),
+      );
+      try {
+        const updated = await patchAnnotation(id, input);
+        setAnnotations((cur) => cur.map((a) => (a.id === id ? updated : a)));
+      } catch (err) {
+        console.error('annotation patch failed', err);
+        setAnnotations(prev);
+      }
+    },
+    [annotations],
+  );
+
   async function handleCreateFromDraft(body: string): Promise<void> {
     if (!activeProjectId || !pendingDraft) return;
     const created = await createAnnotation(activeProjectId, {
@@ -1571,6 +1588,8 @@ function PaperstemApp({
               onSectionSelected={handleSectionSelected}
               onSectionCreated={handleSectionCreatedAtClick}
               onPatchSection={handleSectionPatchStart}
+              onPatchAnnotation={handleAnnotationPatchRange}
+              selfUserId={user.id}
               onToggleSectionCreate={() => setSectionCreateMode((v) => !v)}
               railCollapsed={railCollapsed}
               canMutate={player.state.stems.length > 0}
