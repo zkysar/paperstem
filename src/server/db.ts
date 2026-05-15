@@ -604,6 +604,19 @@ export const stmts = {
       GROUP BY rr.reply_id, rr.emoji
       ORDER BY rr.reply_id, rr.emoji`,
   ),
+  findReactionsForReply: db.prepare<
+    { reply_id: string; user_id: string },
+    ReplyReactionAggRow
+  >(
+    `SELECT reply_id, emoji,
+            COUNT(*) AS count,
+            json_group_array(user_id) AS user_ids_json,
+            MAX(CASE WHEN user_id = @user_id THEN 1 ELSE 0 END) AS reacted_by_self
+       FROM annotation_reply_reactions
+      WHERE reply_id = @reply_id
+      GROUP BY emoji
+      ORDER BY emoji`,
+  ),
   insertReplyReaction: db.prepare<[string, string, string, number]>(
     `INSERT OR IGNORE INTO annotation_reply_reactions
        (reply_id, user_id, emoji, created_at)

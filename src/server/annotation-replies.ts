@@ -141,12 +141,11 @@ export async function handlePatchReply(
   const row = stmts.findReplyByIdJoined.get(id);
   if (!row) return c.json({ error: 'server_error' }, 500);
 
-  const aggRows = stmts.findReactionsForReplies.all(
-    { annotation_id: existing.annotation_id, user_id: user.id },
-  );
-  const reactions = aggRows
-    .filter((r) => r.reply_id === id)
-    .map(aggToReaction);
+  const aggRows = stmts.findReactionsForReply.all({
+    reply_id: id,
+    user_id: user.id,
+  });
+  const reactions = aggRows.map(aggToReaction);
 
   return c.json({ reply: toApiReply(row, reactions) });
 }

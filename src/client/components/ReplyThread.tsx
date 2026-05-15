@@ -39,13 +39,16 @@ export function ReplyThread({
   const [expanded, setExpanded] = useState(false);
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState('');
-  const fetchedRef = useRef(false);
+  // Track which annotationId we've already fetched for so a reused instance
+  // (CommentPopover / CommentBottomSheet navigating between annotations) doesn't
+  // skip the fetch when the prop changes.
+  const fetchedForRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!expanded) return;
     if (replies !== undefined) return;
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
+    if (fetchedForRef.current === annotationId) return;
+    fetchedForRef.current = annotationId;
     void onLoadReplies(annotationId);
   }, [expanded, replies, annotationId, onLoadReplies]);
 
