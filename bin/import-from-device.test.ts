@@ -7,6 +7,8 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs';
+// mkdirSync is used both by placeOneStemFolder and by the fake-sidecar setup
+// in the auto-classify test below.
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runImporter } from './import-from-device.js';
@@ -166,6 +168,320 @@ describe('runImporter', () => {
     });
     expect(result.status).toBe('ok');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('runs the auto-classify sidecar and POSTs the result when enabled', async () => {
+    const card = tempCard();
+    placeOneStemFolder(
+      card,
+      '260512_0004',
+      new Date(Date.now() - 60 * 60 * 1000),
+    );
+    const cfg = {
+      device: 'model12',
+      sd_card_path: card,
+      paperstem_url: 'https://paperstem.test',
+      band_id: 'b1',
+    };
+
+    const seenCalls: Array<{ url: string; method?: string; body?: string }> = [];
+    const fetchMock = vi
+      .fn()
+      .mockImplementation((url: string, init: RequestInit) => {
+        seenCalls.push({
+          url,
+          method: init.method,
+          body: typeof init.body === 'string' ? init.body : undefined,
+        });
+        if (
+          url === 'https://paperstem.test/api/projects' &&
+          init.method === 'POST'
+        ) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ project: { id: 'pr_ac' } }), {
+              status: 201,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+          );
+        }
+        if (url.startsWith('https://paperstem.test/api/projects/pr_ac/stems')) {
+          if (init.method === 'POST') {
+            return Promise.resolve(
+              new Response(JSON.stringify({ stem: { id: 's1' } }), {
+                status: 201,
+              }),
+            );
+          }
+          return Promise.resolve(
+            new Response(JSON.stringify({ stems: [] }), { status: 200 }),
+          );
+        }
+        if (
+          url === 'https://paperstem.test/api/projects/pr_ac/classify' &&
+          init.method === 'POST'
+        ) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                run_id: 'run_1',
+                reused: false,
+                sections: [
+                  {
+                    id: 'sec_a',
+                    start_ms: 0,
+                    end_ms: 30000,
+                    song_id: 'song_1',
+                    song_name: 'Wagon Wheel',
+                    label: null,
+                    segment_type: 'music',
+                    confidence: 0.9,
+                    tentative: false,
+                  },
+                  {
+                    id: 'sec_b',
+                    start_ms: 30000,
+                    end_ms: 35000,
+                    song_id: null,
+                    song_name: null,
+                    label: 'Chatter',
+                    segment_type: 'chatter',
+                    confidence: 0,
+                    tentative: false,
+                  },
+                  {
+                    id: 'sec_c',
+                    start_ms: 35000,
+                    end_ms: 40000,
+                    song_id: null,
+                    song_name: null,
+                    label: null,
+                    segment_type: 'unknown',
+                    confidence: 0,
+                    tentative: false,
+                  },
+                ],
+              }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
+            ),
+          );
+        }
+        throw new Error(`unexpected url ${url} ${init.method}`);
+      });
+
+    // Stub the Python sidecar — emits the JSON wire format that classify.py
+    // would. Existence check happens inside runSidecar against runnerPaths,
+    // so point it at the real sidecar dir (which has a real Python script
+    // and yamnet.tflite checked into the repo, but no .venv on test
+    // machines). We bypass the venv check by passing runnerPaths that point
+    // at a tmp dir with a fake python binary.
+    const fakeSidecarDir = mkdtempSync(join(tmpdir(), 'paperstem-fake-sidecar-'));
+    const fakeVenvBin = join(fakeSidecarDir, '.venv', 'bin');
+    mkdirSync(fakeVenvBin, { recursive: true });
+    // Write a placeholder; existence is all we check.
+    writeFileSync(join(fakeVenvBin, 'python'), '#!/bin/sh\nexit 0\n');
+
+    const execFileSyncFn = vi
+      .fn()
+      .mockImplementation((file: string, args: readonly string[]) => {
+        expect(file).toBe(join(fakeSidecarDir, '.venv', 'bin', 'python'));
+        expect(args[0]).toBe(join(fakeSidecarDir, 'classify.py'));
+        // args[1] is the audio path — should be one of the encoded mp3s.
+        expect(args[1]).toMatch(/\.mp3$/);
+        return Buffer.from(
+          JSON.stringify({
+            segments: [
+              {
+                start_ms: 0,
+                end_ms: 30000,
+                segment_type: 'music',
+                top_classes: [{ name: 'Music', score: 0.8 }],
+                chroma: [
+                  [
+                    0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 0.0, 0.0,
+                  ],
+                ],
+              },
+              {
+                start_ms: 30000,
+                end_ms: 35000,
+                segment_type: 'chatter',
+                top_classes: [{ name: 'Speech', score: 0.7 }],
+              },
+            ],
+            audio_hash: 'abc123',
+            duration_ms: 35000,
+          }),
+          'utf8',
+        );
+      });
+
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const result = await runImporter({
+        config: cfg,
+        token: 'tok',
+        fetchImpl: fetchMock,
+        encodeFn: async ({ outputPath }) => {
+          writeFileSync(outputPath, Buffer.from('fake mp3 bytes'));
+        },
+        autoClassify: true,
+        execFileSyncFn,
+        runnerPaths: { sidecarDir: fakeSidecarDir },
+      });
+      expect(result.status).toBe('ok');
+      expect(execFileSyncFn).toHaveBeenCalledTimes(1);
+
+      const classifyCall = seenCalls.find(
+        (c) =>
+          c.url === 'https://paperstem.test/api/projects/pr_ac/classify' &&
+          c.method === 'POST',
+      );
+      expect(classifyCall).toBeDefined();
+      const parsed = JSON.parse(classifyCall!.body!);
+      expect(parsed.audio_hash).toBe('abc123');
+      expect(parsed.duration_ms).toBe(35000);
+      expect(parsed.classifier_version).toBe('yamnet-v1');
+      expect(parsed.fingerprint_version).toBe(1);
+      expect(parsed.source_surface).toBe('cli');
+      expect(parsed.segments).toHaveLength(2);
+
+      // Summary line: 2 named (song_id on the music section, label on the
+      // chatter section), 1 unnamed (the unknown section).
+      const summaryLine = logSpy.mock.calls
+        .map((c) => c.join(' '))
+        .find((s) => s.startsWith('Classified '));
+      expect(summaryLine).toBeDefined();
+      expect(summaryLine).toMatch(/3 sections proposed \(2 named\)/);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it('skips classification gracefully when the sidecar .venv is missing', async () => {
+    const card = tempCard();
+    placeOneStemFolder(
+      card,
+      '260512_0005',
+      new Date(Date.now() - 60 * 60 * 1000),
+    );
+    const cfg = {
+      device: 'model12',
+      sd_card_path: card,
+      paperstem_url: 'https://paperstem.test',
+      band_id: 'b1',
+    };
+    const seenCalls: string[] = [];
+    const fetchMock = vi
+      .fn()
+      .mockImplementation((url: string, init: RequestInit) => {
+        seenCalls.push(`${init.method} ${url}`);
+        if (
+          url === 'https://paperstem.test/api/projects' &&
+          init.method === 'POST'
+        ) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ project: { id: 'pr_skip' } }), {
+              status: 201,
+            }),
+          );
+        }
+        if (
+          url.startsWith('https://paperstem.test/api/projects/pr_skip/stems')
+        ) {
+          if (init.method === 'POST') {
+            return Promise.resolve(
+              new Response(JSON.stringify({ stem: { id: 's1' } }), {
+                status: 201,
+              }),
+            );
+          }
+          return Promise.resolve(
+            new Response(JSON.stringify({ stems: [] }), { status: 200 }),
+          );
+        }
+        throw new Error(`unexpected url ${url} ${init.method}`);
+      });
+    const execFileSyncFn = vi.fn();
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const result = await runImporter({
+        config: cfg,
+        token: 'tok',
+        fetchImpl: fetchMock,
+        encodeFn: async ({ outputPath }) => {
+          writeFileSync(outputPath, Buffer.from('fake mp3 bytes'));
+        },
+        autoClassify: true,
+        execFileSyncFn,
+        runnerPaths: { sidecarDir: join(tmpdir(), 'paperstem-nonexistent-sidecar-xyz') },
+      });
+      expect(result.status).toBe('ok');
+      // Sidecar was never invoked.
+      expect(execFileSyncFn).not.toHaveBeenCalled();
+      // No classify POST.
+      expect(seenCalls).not.toContain('POST https://paperstem.test/api/projects/pr_skip/classify');
+      // Hint was printed.
+      const warnLines = warnSpy.mock.calls.map((c) => c.join(' ')).join('\n');
+      expect(warnLines).toMatch(/setup\.sh/);
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
+  it('does not invoke the sidecar when autoClassify is false', async () => {
+    const card = tempCard();
+    placeOneStemFolder(
+      card,
+      '260512_0006',
+      new Date(Date.now() - 60 * 60 * 1000),
+    );
+    const cfg = {
+      device: 'model12',
+      sd_card_path: card,
+      paperstem_url: 'https://paperstem.test',
+      band_id: 'b1',
+    };
+    const fetchMock = vi
+      .fn()
+      .mockImplementation((url: string, init: RequestInit) => {
+        if (
+          url === 'https://paperstem.test/api/projects' &&
+          init.method === 'POST'
+        ) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ project: { id: 'pr_off' } }), {
+              status: 201,
+            }),
+          );
+        }
+        if (url.startsWith('https://paperstem.test/api/projects/pr_off/stems')) {
+          if (init.method === 'POST') {
+            return Promise.resolve(
+              new Response(JSON.stringify({ stem: { id: 's1' } }), {
+                status: 201,
+              }),
+            );
+          }
+          return Promise.resolve(
+            new Response(JSON.stringify({ stems: [] }), { status: 200 }),
+          );
+        }
+        throw new Error(`unexpected url ${url} ${init.method}`);
+      });
+    const execFileSyncFn = vi.fn();
+    const result = await runImporter({
+      config: cfg,
+      token: 'tok',
+      fetchImpl: fetchMock,
+      encodeFn: async ({ outputPath }) => {
+        writeFileSync(outputPath, Buffer.from('fake mp3 bytes'));
+      },
+      autoClassify: false,
+      execFileSyncFn,
+    });
+    expect(result.status).toBe('ok');
+    expect(execFileSyncFn).not.toHaveBeenCalled();
   });
 
   it('skips a folder whose mtime is within the still-recording threshold', async () => {
