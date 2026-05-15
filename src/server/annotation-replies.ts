@@ -38,7 +38,8 @@ function toApiReply(
 
 function validateBody(body: unknown): string | null {
   if (typeof body !== 'string') return null;
-  if (body.length < 1 || body.length > MAX_BODY_LENGTH) return null;
+  if (body.length > MAX_BODY_LENGTH) return null;
+  if (body.trim().length < 1) return null;
   return body;
 }
 

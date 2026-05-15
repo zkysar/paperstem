@@ -20,6 +20,14 @@ async function readEmoji(c: Context): Promise<string | null> {
   }
 }
 
+// DELETE requests can't reliably carry bodies through every proxy (Fly's edge,
+// CDNs, ALBs), so the delete handlers read the emoji from the query string
+// instead. Both forms are accepted for forward compatibility.
+function readEmojiQuery(c: Context): string | null {
+  const q = c.req.query('emoji');
+  return validateEmoji(q);
+}
+
 function assertAnnotationAccessible(
   c: Context<{ Variables: AuthVariables }>,
   annotationId: string,
@@ -80,7 +88,7 @@ export async function handleRemoveAnnotationReaction(
   const access = assertAnnotationAccessible(c, annId);
   if (!access.ok) return access.res;
 
-  const emoji = await readEmoji(c);
+  const emoji = readEmojiQuery(c) ?? (await readEmoji(c));
   if (!emoji) return c.json({ error: 'invalid_input' }, 400);
 
   stmts.deleteReaction.run(annId, access.userId, emoji);
@@ -115,7 +123,7 @@ export async function handleRemoveReplyReaction(
   const access = assertReplyAccessible(c, replyId);
   if (!access.ok) return access.res;
 
-  const emoji = await readEmoji(c);
+  const emoji = readEmojiQuery(c) ?? (await readEmoji(c));
   if (!emoji) return c.json({ error: 'invalid_input' }, 400);
 
   stmts.deleteReplyReaction.run(replyId, access.userId, emoji);

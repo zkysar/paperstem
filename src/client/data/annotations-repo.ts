@@ -162,11 +162,12 @@ export async function removeReaction(
   target: ReactionTarget,
   emoji: string,
 ): Promise<void> {
-  const res = await fetch(reactionUrl(target), {
+  // emoji as a query param — DELETE-with-body is unreliable through some
+  // proxies (Fly's edge, CDNs, ALBs).
+  const url = `${reactionUrl(target)}?emoji=${encodeURIComponent(emoji)}`;
+  const res = await fetch(url, {
     method: 'DELETE',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ emoji }),
   });
   if (!res.ok && res.status !== 204) throw new Error(await readError(res));
 }

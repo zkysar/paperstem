@@ -232,7 +232,7 @@ export async function handlePatchAnnotation(
     user_id: user.id,
   });
   const reactions = aggs.map(aggToReaction);
-  const replyCount = stmts.findRepliesForAnnotation.all(id).length;
+  const replyCount = stmts.countRepliesForAnnotation.get(id)?.n ?? 0;
   return c.json({ annotation: toApiAnnotation(row, replyCount, reactions) });
 }
 

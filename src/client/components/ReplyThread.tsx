@@ -52,13 +52,22 @@ export function ReplyThread({
     void onLoadReplies(annotationId);
   }, [expanded, replies, annotationId, onLoadReplies]);
 
+  const [error, setError] = useState<string | null>(null);
+
   async function submit() {
     const text = draft.trim();
     if (!text) return;
-    await onCreateReply(annotationId, text);
-    setDraft('');
-    setComposing(false);
-    setExpanded(true);
+    setError(null);
+    try {
+      await onCreateReply(annotationId, text);
+      // Only clear the composer on success. On failure the draft stays so the
+      // user can retry without re-typing.
+      setDraft('');
+      setComposing(false);
+      setExpanded(true);
+    } catch {
+      setError("Couldn't send reply — try again.");
+    }
   }
 
   return (
@@ -117,7 +126,10 @@ export function ReplyThread({
                 rows={2}
                 aria-label="Reply"
                 value={draft}
-                onChange={(e) => setDraft(e.target.value)}
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  if (error) setError(null);
+                }}
                 onKeyDown={(e) => {
                   if (isSubmitShortcut(e) && draft.trim().length > 0) {
                     e.preventDefault();
@@ -127,15 +139,18 @@ export function ReplyThread({
                     e.preventDefault();
                     setDraft('');
                     setComposing(false);
+                    setError(null);
                   }
                 }}
               />
+              {error && <div className="reply-composer-error">{error}</div>}
               <div className="reply-composer-actions">
                 <button
                   type="button"
                   onClick={() => {
                     setDraft('');
                     setComposing(false);
+                    setError(null);
                   }}
                 >
                   Cancel

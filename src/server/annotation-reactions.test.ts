@@ -196,6 +196,31 @@ describe('reactions on annotations', () => {
     expect(row).toEqual([{ user_id: a }]);
   });
 
+  it('accepts emoji as a query parameter on DELETE (proxy-safe)', async () => {
+    const u = createUser('u@e.test');
+    const bandId = createBand(u);
+    const pid = insertProject(bandId, u);
+    const annId = insertAnnotation(pid, u, 0, null, 'parent');
+    const sid = createSession(u);
+
+    await app.request(`/api/annotations/${annId}/reactions`, {
+      method: 'POST',
+      headers: { cookie: cookie(sid), 'content-type': 'application/json' },
+      body: JSON.stringify({ emoji: '🎵' }),
+    });
+
+    const del = await app.request(
+      `/api/annotations/${annId}/reactions?emoji=${encodeURIComponent('🎵')}`,
+      { method: 'DELETE', headers: { cookie: cookie(sid) } },
+    );
+    expect(del.status).toBe(204);
+
+    const row = dbMod.db
+      .prepare('SELECT COUNT(*) AS n FROM annotation_reactions')
+      .get() as { n: number };
+    expect(row.n).toBe(0);
+  });
+
   it('rejects empty or oversized emoji', async () => {
     const u = createUser('u@e.test');
     const bandId = createBand(u);

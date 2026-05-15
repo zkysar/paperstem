@@ -252,6 +252,7 @@ export function CommentPopover({
             }
           />
           <ReplyThread
+            key={annotation.id}
             annotationId={annotation.id}
             replyCount={replyCount}
             replies={replies}

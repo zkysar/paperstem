@@ -214,7 +214,7 @@ describe('replies', () => {
     expect(delRes.status).toBe(403);
   });
 
-  it('rejects empty body and body over 32 KB', async () => {
+  it('rejects empty body, whitespace-only body, and body over 32 KB', async () => {
     const u = createUser('u@e.test');
     const bandId = createBand(u);
     const pid = insertProject(bandId, u);
@@ -227,6 +227,13 @@ describe('replies', () => {
       body: JSON.stringify({ body: '' }),
     });
     expect(empty.status).toBe(400);
+
+    const whitespace = await app.request(`/api/annotations/${annId}/replies`, {
+      method: 'POST',
+      headers: { cookie: cookie(sid), 'content-type': 'application/json' },
+      body: JSON.stringify({ body: '   \n\t  ' }),
+    });
+    expect(whitespace.status).toBe(400);
 
     const tooLong = await app.request(`/api/annotations/${annId}/replies`, {
       method: 'POST',

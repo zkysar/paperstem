@@ -178,6 +178,7 @@ export function CommentBottomSheet({
         }
       />
       <ReplyThread
+        key={annotation.id}
         annotationId={annotation.id}
         replyCount={replyCount}
         replies={replies}

@@ -3211,3 +3211,9 @@ body.env-non-prod[data-env="local"]::before {
   overflow-y: auto;
   padding-bottom: env(safe-area-inset-bottom);
 }
+
+.reply-composer-error {
+  color: var(--accent);
+  font-size: var(--fs-xs);
+  margin-top: 4px;
+}

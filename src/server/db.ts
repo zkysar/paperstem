@@ -550,6 +550,9 @@ export const stmts = {
       WHERE a.project_id = ?
       GROUP BY a.id`,
   ),
+  countRepliesForAnnotation: db.prepare<[string], { n: number }>(
+    `SELECT COUNT(*) AS n FROM annotation_replies WHERE annotation_id = ?`,
+  ),
 
   // --- reactions: comments ---
   findReactionsForProject: db.prepare<
@@ -558,7 +561,8 @@ export const stmts = {
   >(
     `SELECT ar.annotation_id, ar.emoji,
             COUNT(*) AS count,
-            json_group_array(ar.user_id) AS user_ids_json,
+            json_group_array(ar.user_id ORDER BY ar.created_at, ar.user_id)
+              AS user_ids_json,
             MAX(CASE WHEN ar.user_id = @user_id THEN 1 ELSE 0 END) AS reacted_by_self
        FROM annotation_reactions ar
        JOIN annotations a ON a.id = ar.annotation_id
@@ -572,7 +576,8 @@ export const stmts = {
   >(
     `SELECT annotation_id, emoji,
             COUNT(*) AS count,
-            json_group_array(user_id) AS user_ids_json,
+            json_group_array(user_id ORDER BY created_at, user_id)
+              AS user_ids_json,
             MAX(CASE WHEN user_id = @user_id THEN 1 ELSE 0 END) AS reacted_by_self
        FROM annotation_reactions
       WHERE annotation_id = @annotation_id
@@ -596,7 +601,8 @@ export const stmts = {
   >(
     `SELECT rr.reply_id, rr.emoji,
             COUNT(*) AS count,
-            json_group_array(rr.user_id) AS user_ids_json,
+            json_group_array(rr.user_id ORDER BY rr.created_at, rr.user_id)
+              AS user_ids_json,
             MAX(CASE WHEN rr.user_id = @user_id THEN 1 ELSE 0 END) AS reacted_by_self
        FROM annotation_reply_reactions rr
        JOIN annotation_replies r ON r.id = rr.reply_id
@@ -610,7 +616,8 @@ export const stmts = {
   >(
     `SELECT reply_id, emoji,
             COUNT(*) AS count,
-            json_group_array(user_id) AS user_ids_json,
+            json_group_array(user_id ORDER BY created_at, user_id)
+              AS user_ids_json,
             MAX(CASE WHEN user_id = @user_id THEN 1 ELSE 0 END) AS reacted_by_self
        FROM annotation_reply_reactions
       WHERE reply_id = @reply_id

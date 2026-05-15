@@ -9,11 +9,6 @@ type Props = {
   onToggle(emoji: string): void;
 };
 
-function reactorsTooltip(r: Reaction): string {
-  if (r.user_ids.length <= 3) return r.user_ids.join(', ');
-  return `${r.user_ids.slice(0, 2).join(', ')} and ${r.user_ids.length - 2} others`;
-}
-
 export function Reactions({ reactions, isNarrow, onToggle }: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
@@ -37,7 +32,6 @@ export function Reactions({ reactions, isNarrow, onToggle }: Props) {
               ? `Remove ${r.emoji} reaction`
               : `React with ${r.emoji}`
           }
-          title={reactorsTooltip(r)}
           onClick={(e) => {
             e.stopPropagation();
             onToggle(r.emoji);
