@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
-import { stmts, type SongRow, type SongWithUseCountRow } from './db.js';
+import { db, stmts, type SongRow, type SongWithUseCountRow } from './db.js';
 import { recordAudit } from './audit.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
 import type { Song } from '../shared/types.js';
@@ -191,8 +191,26 @@ export async function handleMergeSong(
     return c.json({ error: 'invalid_input' }, 400);
   }
 
-  stmts.repointSectionsToSong.run(winner.id, loser.id);
-  stmts.deleteSong.run(loser.id);
+  // Repoint + delete must be atomic so that two concurrent merges (A→B
+  // racing B→A) can't interleave to orphan sections or surface as a 500
+  // from a unique-index violation. better-sqlite3 transactions are
+  // synchronous and lock the DB, which is the behaviour we want here.
+  try {
+    db.transaction(() => {
+      // Re-fetch both songs inside the transaction so the row we delete
+      // is the one we just repointed away from — guards against a third
+      // party renaming the loser between the outer fetch and now.
+      const stillLoser = stmts.findSongById.get(loser.id);
+      const stillWinner = stmts.findSongById.get(winner.id);
+      if (!stillLoser || !stillWinner) throw new Error('vanished');
+      if (stillWinner.band_id !== stillLoser.band_id) throw new Error('drift');
+      stmts.repointSectionsToSong.run(stillWinner.id, stillLoser.id);
+      stmts.deleteSong.run(stillLoser.id);
+    })();
+  } catch (err) {
+    console.error('[songs] merge transaction failed', err);
+    return c.json({ error: 'conflict' }, 409);
+  }
 
   recordAudit({
     action: 'song.merge',

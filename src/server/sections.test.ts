@@ -329,6 +329,70 @@ describe('sections CRUD', () => {
     expect(body.sections).toHaveLength(0);
   });
 
+  it('rejects sections with a song_id from a different band', async () => {
+    const userId = createUser('owner@example.com');
+    const bandA = createBand('Alpha', userId);
+    const bandB = createBand('Beta', userId);
+    const sid = createSession(userId);
+    const projectInA = insertProject(bandA, userId, 'p1');
+
+    // Create a song in Band B.
+    const songRes = await app.fetch(
+      new Request(`http://localhost/api/bands/${bandB}/songs`, {
+        method: 'POST',
+        headers: { Cookie: cookieHeader(sid), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Heart Sounds' }),
+      }),
+    );
+    const bandBSongId = ((await songRes.json()) as { song: { id: string } }).song.id;
+
+    // Try to attach Band B's song to a Band A project's section.
+    const res = await app.fetch(
+      new Request(`http://localhost/api/projects/${projectInA}/sections`, {
+        method: 'POST',
+        headers: { Cookie: cookieHeader(sid), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_ms: 0, song_id: bandBSongId }),
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('section create with song_name finds existing band song (no duplicates)', async () => {
+    const userId = createUser('owner@example.com');
+    const bandId = createBand('Alpha', userId);
+    const sid = createSession(userId);
+    const project = insertProject(bandId, userId, 'p1');
+
+    // Pre-create the song with one casing/whitespace shape.
+    const first = await app.fetch(
+      new Request(`http://localhost/api/bands/${bandId}/songs`, {
+        method: 'POST',
+        headers: { Cookie: cookieHeader(sid), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Heart Sounds' }),
+      }),
+    );
+    const songId = ((await first.json()) as { song: { id: string } }).song.id;
+
+    // Section creation with a normalization-equivalent song_name should
+    // re-use the existing row, not insert a duplicate.
+    const res = await app.fetch(
+      new Request(`http://localhost/api/projects/${project}/sections`, {
+        method: 'POST',
+        headers: { Cookie: cookieHeader(sid), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ start_ms: 0, song_name: '  heart sounds  ' }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { section: { song_id: string | null } };
+    expect(body.section.song_id).toBe(songId);
+
+    // Confirm the catalog still has exactly one song row.
+    const songCount = dbMod.db
+      .prepare<[string], { c: number }>('SELECT COUNT(*) AS c FROM songs WHERE band_id = ?')
+      .get(bandId);
+    expect(songCount?.c).toBe(1);
+  });
+
   it('refuses access from non-members', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);

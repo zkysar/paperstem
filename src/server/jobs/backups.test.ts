@@ -28,7 +28,7 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM sections; DELETE FROM songs; DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
 }
 
@@ -190,6 +190,96 @@ describe('buildBandDump', () => {
         .all()
         .map((u) => u.email);
       expect(emails).toEqual(['a@example.com', 'member-a@example.com']);
+    } finally {
+      dump.close();
+    }
+  });
+
+  it('includes the band\'s songs and the per-project sections', () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const pid = insertProject(bandId, owner, 'project-1');
+    insertStem(pid, 0, 'drums');
+
+    // Seed a song and a section pointing at it.
+    const songId = randomUUID();
+    const now = Math.floor(Date.now() / 1000);
+    dbMod.stmts.insertSong.run(songId, bandId, 'Heart Sounds', 'heart sounds', now, owner);
+    const sectionId = randomUUID();
+    dbMod.stmts.insertSection.run(
+      sectionId,
+      pid,
+      12000,
+      songId,
+      null,
+      'manual',
+      now,
+      owner,
+      now,
+    );
+
+    const buf = backupsMod.buildBandDump(bandId);
+    const dump = new Database(buf);
+    try {
+      const songs = dump
+        .prepare<[], { id: string; name: string; band_id: string }>(
+          'SELECT id, name, band_id FROM songs',
+        )
+        .all();
+      expect(songs).toHaveLength(1);
+      expect(songs[0]).toMatchObject({ id: songId, name: 'Heart Sounds', band_id: bandId });
+
+      const sections = dump
+        .prepare<[], {
+          id: string;
+          project_id: string;
+          start_ms: number;
+          song_id: string | null;
+          source: string;
+        }>(
+          'SELECT id, project_id, start_ms, song_id, source FROM sections',
+        )
+        .all();
+      expect(sections).toHaveLength(1);
+      expect(sections[0]).toMatchObject({
+        id: sectionId,
+        project_id: pid,
+        start_ms: 12000,
+        song_id: songId,
+        source: 'manual',
+      });
+    } finally {
+      dump.close();
+    }
+  });
+
+  it('scopes songs and sections to the selected band', () => {
+    const ownerA = createUser('a@example.com');
+    const ownerB = createUser('b@example.com');
+    const bandA = createBand('A', ownerA);
+    const bandB = createBand('B', ownerB);
+    const pA = insertProject(bandA, ownerA, 'pa');
+    const pB = insertProject(bandB, ownerB, 'pb');
+
+    const now = Math.floor(Date.now() / 1000);
+    const songA = randomUUID();
+    const songB = randomUUID();
+    dbMod.stmts.insertSong.run(songA, bandA, 'A Song', 'a song', now, ownerA);
+    dbMod.stmts.insertSong.run(songB, bandB, 'B Song', 'b song', now, ownerB);
+    dbMod.stmts.insertSection.run(randomUUID(), pA, 0, songA, null, 'manual', now, ownerA, now);
+    dbMod.stmts.insertSection.run(randomUUID(), pB, 0, songB, null, 'manual', now, ownerB, now);
+
+    const buf = backupsMod.buildBandDump(bandA);
+    const dump = new Database(buf);
+    try {
+      const songs = dump
+        .prepare<[], { band_id: string }>('SELECT band_id FROM songs')
+        .all();
+      expect(songs.every((s) => s.band_id === bandA)).toBe(true);
+      const sections = dump
+        .prepare<[], { project_id: string }>('SELECT project_id FROM sections')
+        .all();
+      expect(sections.every((s) => s.project_id === pA)).toBe(true);
     } finally {
       dump.close();
     }

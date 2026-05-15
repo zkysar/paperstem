@@ -41,6 +41,20 @@ export type SnapshotMeta = {
     created_at: number;
     updated_at: number;
   }[];
+  // Chapter boundaries on the timeline. song_name is denormalized in case
+  // the catalog row is later deleted — the snapshot still tells you what
+  // this section pointed at when it was captured.
+  sections: {
+    id: string;
+    start_ms: number;
+    song_id: string | null;
+    song_name: string | null;
+    label: string | null;
+    source: 'manual' | 'auto';
+    created_at: number;
+    created_by: string;
+    updated_at: number;
+  }[];
 };
 
 export function buildProjectMeta(
@@ -69,6 +83,17 @@ export function buildProjectMeta(
       created_at: a.created_at,
       updated_at: a.updated_at,
     }));
+  const sections = stmts.findSectionsForProject.all(project.id).map((s) => ({
+    id: s.id,
+    start_ms: s.start_ms,
+    song_id: s.song_id,
+    song_name: s.song_name,
+    label: s.label,
+    source: s.source,
+    created_at: s.created_at,
+    created_by: s.created_by,
+    updated_at: s.updated_at,
+  }));
   return {
     schema_version: SCHEMA_VERSION,
     snapshot_at: nowSec,
@@ -84,6 +109,7 @@ export function buildProjectMeta(
     },
     stems,
     annotations,
+    sections,
   };
 }
 

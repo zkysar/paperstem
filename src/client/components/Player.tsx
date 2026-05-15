@@ -799,6 +799,27 @@ export function Player({
         </div>
       )}
 
+      {sectionCreateMode && (
+        <div className="annotation-mode-banner" role="status">
+          <span className="annotation-mode-dot" aria-hidden="true" />
+          <strong className="annotation-mode-title">Section mode</strong>
+          <span className="annotation-mode-chip">
+            <span className="annotation-mode-glyph annotation-mode-glyph-point" aria-hidden="true" />
+            <span><strong>Click</strong> the timeline where a song starts</span>
+          </span>
+          <span className="annotation-mode-esc">
+            <kbd>Esc</kbd> or <kbd>M</kbd> to cancel
+          </span>
+          <button
+            type="button"
+            className="annotation-mode-cancel"
+            onClick={onToggleSectionCreate}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       <div className="status-row">
         <div className="status">{status}</div>
         {viewport.state.hZoom > 1 && (

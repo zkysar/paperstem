@@ -46,14 +46,22 @@ export function SectionLane({
     if (!duration || !waveWidthPx || sections.length === 0) return [];
     const durationMs = duration * 1000;
     const sorted = [...sections].sort((a, b) => a.start_ms - b.start_ms);
+    const laneRightPx = waveLeftPx + waveWidthPx;
     return sorted.map((section, i) => {
       const next = sorted[i + 1];
       const endMs = next ? next.start_ms : durationMs;
       const startFrac = Math.max(0, Math.min(1, section.start_ms / durationMs));
       const endFrac = Math.max(0, Math.min(1, endMs / durationMs));
-      const leftPx = waveLeftPx + startFrac * waveWidthPx;
-      // Floor at 4px so a section right before another stays clickable.
+      let leftPx = waveLeftPx + startFrac * waveWidthPx;
+      // Floor at 4px so a section right before another (or right at the
+      // end of the song) stays clickable.
       const widthPx = Math.max(4, (endFrac - startFrac) * waveWidthPx);
+      // If the pill would extend past the lane's right edge — e.g. a
+      // section dropped at t=duration with the floor applied — pull
+      // leftPx back so the full 4px sits on-screen.
+      if (leftPx + widthPx > laneRightPx) {
+        leftPx = Math.max(waveLeftPx, laneRightPx - widthPx);
+      }
       const fillColor = section.song_id
         ? colorForSong(section.song_id)
         : FREE_TEXT_SECTION_COLOR;

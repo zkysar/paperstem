@@ -325,4 +325,93 @@ describe('FilePicker', () => {
     await user.click(screen.getByRole('button', { name: /retry/i }));
     expect(onLoadTrash).toHaveBeenCalled();
   });
+
+  it('renders one song chip per band song with use_count > 0', () => {
+    render(
+      <FilePicker
+        {...baseProps}
+        bandSongs={[
+          { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 4 },
+          { id: 's-2', band_id: 'b', name: 'Solo Idea', created_at: 0, use_count: 1 },
+          // use_count = 0 — kept off the chip rail (catalog ghost)
+          { id: 's-3', band_id: 'b', name: 'Abandoned', created_at: 0, use_count: 0 },
+        ]}
+      />,
+    );
+    expect(screen.queryByText('Heart Sounds')).not.toBeNull();
+    expect(screen.queryByText('Solo Idea')).not.toBeNull();
+    expect(screen.queryByText('Abandoned')).toBeNull();
+  });
+
+  it('clicking a chip calls onSetFilterSongId with the song id', async () => {
+    const user = userEvent.setup();
+    const onSetFilterSongId = vi.fn();
+    render(
+      <FilePicker
+        {...baseProps}
+        bandSongs={[
+          { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 4 },
+        ]}
+        onSetFilterSongId={onSetFilterSongId}
+      />,
+    );
+    await user.click(screen.getByTestId('fp-song-chip-s-1'));
+    expect(onSetFilterSongId).toHaveBeenCalledWith('s-1');
+  });
+
+  it('clicking the active chip clears the filter', async () => {
+    const user = userEvent.setup();
+    const onSetFilterSongId = vi.fn();
+    render(
+      <FilePicker
+        {...baseProps}
+        filterSongId="s-1"
+        bandSongs={[
+          { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 4 },
+        ]}
+        onSetFilterSongId={onSetFilterSongId}
+      />,
+    );
+    await user.click(screen.getByTestId('fp-song-chip-s-1'));
+    expect(onSetFilterSongId).toHaveBeenCalledWith(null);
+  });
+
+  it('filters the project list when a chip is active', () => {
+    const rows: Project[] = [
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p2', title: 'Bravo', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p3', title: 'Charlie', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+    ];
+    render(
+      <FilePicker
+        {...baseProps}
+        projects={rows}
+        filterSongId="s-1"
+        bandSongs={[
+          { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 2 },
+        ]}
+        songUsage={[
+          { project_id: 'p1', song_id: 's-1' },
+          { project_id: 'p3', song_id: 's-1' },
+        ]}
+      />,
+    );
+    // Only p1 and p3 contain Heart Sounds; p2 should be filtered out.
+    expect(screen.queryByText('Alpha')).not.toBeNull();
+    expect(screen.queryByText('Bravo')).toBeNull();
+    expect(screen.queryByText('Charlie')).not.toBeNull();
+  });
+
+  it('"Clear filter" link appears when a chip is active', () => {
+    render(
+      <FilePicker
+        {...baseProps}
+        filterSongId="s-1"
+        bandSongs={[
+          { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 2 },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/clear filter/i)).not.toBeNull();
+  });
 });

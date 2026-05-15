@@ -554,6 +554,13 @@ function PaperstemApp({
     void refreshBandSongs();
   }, [refreshBandSongs]);
 
+  // Clear the chip-rail filter when the active band changes — a filter
+  // set in Band A doesn't match any song in Band B, so leaving it set
+  // would render an empty project list with no obvious cause.
+  useEffect(() => {
+    setFilterSongId(null);
+  }, [activeBandId]);
+
   // use_count from the songs endpoint is by project. The section-lane chain
   // glyph wants the same number, so just project it from `songs`.
   const songUseCounts = useMemo<Map<string, number>>(() => {
@@ -619,11 +626,74 @@ function PaperstemApp({
     [],
   );
 
+  // Rename the song the section currently references. Handles the
+  // 409-collision path (offer merge), the >1-practice path (offer undo
+  // toast), and refreshes both the band catalog and the local sections
+  // list since multiple section rows may now display a new song_name.
+  const renameSongUnderSection = useCallback(
+    async (songId: string, newName: string) => {
+      const before = songs.find((s) => s.id === songId);
+      if (!before) return;
+      try {
+        const result = await renameSong(songId, newName);
+        if (result.kind === 'conflict') {
+          const ok = window.confirm(
+            `A song named "${result.existing_song_name}" already exists. Merge "${before.name}" into it?`,
+          );
+          if (!ok) return;
+          await mergeSong(songId, result.existing_song_id);
+        } else if (before.use_count > 1) {
+          // Only surface the undo toast when the rename had a real blast
+          // radius. Merge is destructive (the loser row is gone) and so
+          // can't be undone with a simple rename — covered by the merge
+          // confirm above.
+          const previousName = before.name;
+          setSongToast({
+            message: `Renamed in ${before.use_count} practices.`,
+            onUndo: () => {
+              void (async () => {
+                try {
+                  await renameSong(songId, previousName);
+                  await refreshBandSongs();
+                  if (activeProjectId) {
+                    const list = await listSections(activeProjectId);
+                    setSections(list);
+                  }
+                  setSongToast(null);
+                } catch {
+                  /* ignore */
+                }
+              })();
+            },
+          });
+          window.setTimeout(() => setSongToast((t) => (t ? null : t)), 6000);
+        }
+        await refreshBandSongs();
+        if (activeProjectId) {
+          const list = await listSections(activeProjectId);
+          setSections(list);
+        }
+      } catch (err) {
+        console.error('song rename failed', err);
+      }
+    },
+    [songs, activeProjectId, refreshBandSongs],
+  );
+
   const handleSectionSubmit = useCallback(
     async (payload: SectionSubmit) => {
       const popover = sectionPopover;
       if (!popover || !activeProjectId) return;
       try {
+        // Rename branch: the section already exists and the user typed a
+        // name that's neither an exact match nor identical to the
+        // current song's name. The whole "rename one renames all"
+        // semantic happens here; the rest of the popover's branches
+        // edit the section's reference only.
+        if (payload.kind === 'song_rename') {
+          await renameSongUnderSection(payload.song_id, payload.new_name);
+          return;
+        }
         if (popover.section === null) {
           // Create new section. Map the popover payload to the repo input.
           const input =
@@ -657,7 +727,7 @@ function PaperstemApp({
         setSectionPopover(null);
       }
     },
-    [sectionPopover, activeProjectId, refreshBandSongs],
+    [sectionPopover, activeProjectId, refreshBandSongs, renameSongUnderSection],
   );
 
   const handleSectionDelete = useCallback(async () => {
@@ -684,69 +754,6 @@ function PaperstemApp({
     }
   }, [sectionPopover, activeSectionId, activeProjectId, refreshBandSongs]);
 
-  // Rename the song currently underlying a section. Handles the 409
-  // collision path: if the new name normalizes to an existing song in the
-  // band, surface a merge prompt rather than silently failing. The toast
-  // gives users an undo for up to 6 seconds.
-  const handleSectionSongRename = useCallback(
-    async (sectionId: string, songId: string, newName: string) => {
-      const before = songs.find((s) => s.id === songId);
-      if (!before) return;
-      const result = await renameSong(songId, newName);
-      if (result.kind === 'conflict') {
-        const ok = window.confirm(
-          `A song named "${result.existing_song_name}" already exists. Merge "${before.name}" into it?`,
-        );
-        if (!ok) return;
-        await mergeSong(songId, result.existing_song_id);
-        await refreshBandSongs();
-        // Reflect the merge in any loaded sections.
-        if (activeProjectId) {
-          try {
-            const list = await listSections(activeProjectId);
-            setSections(list);
-          } catch {
-            /* ignore */
-          }
-        }
-        return;
-      }
-      await refreshBandSongs();
-      // Surface a toast with undo when the rename affected >1 practice.
-      if (before.use_count > 1) {
-        const undoName = before.name;
-        setSongToast({
-          message: `Renamed in ${before.use_count} practices.`,
-          onUndo: () => {
-            void (async () => {
-              try {
-                await renameSong(songId, undoName);
-                await refreshBandSongs();
-                setSongToast(null);
-              } catch {
-                /* ignore */
-              }
-            })();
-          },
-        });
-        // Auto-dismiss after 6s.
-        window.setTimeout(() => setSongToast((t) => (t ? null : t)), 6000);
-      }
-      // No-op: returning the renamed section is taken care of by
-      // refreshBandSongs and the section list refetch below.
-      if (activeProjectId) {
-        try {
-          const list = await listSections(activeProjectId);
-          setSections(list);
-        } catch {
-          /* ignore */
-        }
-      }
-      void sectionId;
-    },
-    [songs, activeProjectId, refreshBandSongs],
-  );
-  void handleSectionSongRename;
 
   const reloadActive = useCallback(async () => {
     if (!activeProjectId) return;

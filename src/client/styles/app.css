@@ -3247,9 +3247,8 @@ body.env-non-prod[data-env="local"]::before {
   flex-direction: column;
   gap: 6px;
   font-size: var(--fs-sm);
-  /* Anchor passes the playhead-edge x,y; offset so the panel sits just
-     below the lane rather than overlapping the click point. */
-  transform: translate(-50%, 8px);
+  /* Inline `transform` set by the component clamps against the viewport
+     and flips above the anchor when there isn't enough room below. */
 }
 
 .sp-header {
@@ -3352,6 +3351,11 @@ body.env-non-prod[data-env="local"]::before {
 .sp-suggestion-create {
   font-style: italic;
   color: var(--accent);
+}
+.sp-suggestion-label-hint {
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+  font-style: italic;
 }
 
 .sp-hint {

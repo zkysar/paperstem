@@ -93,6 +93,153 @@ describe('SectionPopover', () => {
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'label', label: 'warmup' });
   });
 
+  it('emits song_rename when editing a section attached to a song and typing a new name', async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SectionPopover
+        {...baseProps}
+        section={{
+          id: 'sec-1',
+          project_id: 'p-1',
+          start_ms: 12000,
+          song_id: 's-1',
+          song_name: 'Heart Sounds',
+          label: null,
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+        bandSongs={[song({ id: 's-1', name: 'Heart Sounds', use_count: 3 })]}
+        onSubmit={onSubmit}
+      />,
+    );
+    const input = screen.getByLabelText('Song name');
+    await user.clear(input);
+    await user.type(input, 'Heart Sounds (final){Enter}');
+    expect(onSubmit).toHaveBeenCalledWith({
+      kind: 'song_rename',
+      song_id: 's-1',
+      new_name: 'Heart Sounds (final)',
+    });
+  });
+
+  it('clicking another catalog song re-attaches the section (no rename)', async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SectionPopover
+        {...baseProps}
+        section={{
+          id: 'sec-1',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: 's-1',
+          song_name: 'Heart Sounds',
+          label: null,
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+        bandSongs={[
+          song({ id: 's-1', name: 'Heart Sounds' }),
+          song({ id: 's-2', name: 'Solo Idea' }),
+        ]}
+        onSubmit={onSubmit}
+      />,
+    );
+    // The popover seeds the input with the current song name; clear it
+    // so the full catalog re-appears in the suggestions, then pick the
+    // other song.
+    const input = screen.getByLabelText('Song name');
+    await user.clear(input);
+    await user.click(screen.getByTestId('sp-suggestion-s-2'));
+    expect(onSubmit).toHaveBeenCalledWith({ kind: 'song_id', song_id: 's-2' });
+  });
+
+  it('Cancel button calls onClose', async () => {
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(<SectionPopover {...baseProps} onClose={onClose} />);
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('Delete button is shown only when editing and calls onDelete', async () => {
+    const onDelete = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SectionPopover
+        {...baseProps}
+        section={{
+          id: 'sec-1',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: null,
+          song_name: null,
+          label: 'warmup',
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+        onDelete={onDelete}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /delete section/i }));
+    expect(onDelete).toHaveBeenCalledOnce();
+  });
+
+  it('empty input + Save fires the clear payload', async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SectionPopover
+        {...baseProps}
+        section={{
+          id: 'sec-1',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: null,
+          song_name: null,
+          label: 'warmup',
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+        onSubmit={onSubmit}
+      />,
+    );
+    const input = screen.getByLabelText('Label');
+    await user.clear(input);
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(onSubmit).toHaveBeenCalledWith({ kind: 'clear' });
+  });
+
+  it('renders submit button as "Rename in N practices" when retyping a shared song', async () => {
+    const user = userEvent.setup();
+    render(
+      <SectionPopover
+        {...baseProps}
+        section={{
+          id: 'sec-1',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: 's-1',
+          song_name: 'Heart Sounds',
+          label: null,
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+        bandSongs={[song({ id: 's-1', name: 'Heart Sounds', use_count: 4 })]}
+      />,
+    );
+    const input = screen.getByLabelText('Song name');
+    await user.clear(input);
+    await user.type(input, 'Heart Sounds (final)');
+    expect(screen.getByRole('button', { name: /rename in 4 practices/i })).not.toBeNull();
+  });
+
   it('shows the "Will rename in N practices" hint when retyping a shared song', async () => {
     const user = userEvent.setup();
     render(
