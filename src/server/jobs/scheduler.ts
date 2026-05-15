@@ -1,6 +1,7 @@
 import { runSnapshotsNow } from './snapshots.js';
 import { runBackupsNow } from './backups.js';
 import { runDiskUsageCheckNow } from './disk-usage.js';
+import { runAuditPruneNow } from './audit-prune.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const WEEK_MS = 7 * DAY_MS;
@@ -9,6 +10,7 @@ const SNAPSHOT_HOUR_UTC = 3;
 const BACKUP_HOUR_UTC = 4;
 const BACKUP_DOW_UTC = 0;
 const DISK_CHECK_HOUR_UTC = 5;
+const AUDIT_PRUNE_HOUR_UTC = 2;
 
 export function msUntilNextDailyUtc(nowMs: number, hourUtc: number): number {
   const now = new Date(nowMs);
@@ -61,6 +63,7 @@ export function msUntilNextWeeklyUtc(
 let snapshotTimer: ReturnType<typeof setTimeout> | null = null;
 let backupTimer: ReturnType<typeof setTimeout> | null = null;
 let diskCheckTimer: ReturnType<typeof setTimeout> | null = null;
+let auditPruneTimer: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleSnapshots(delayMs: number): void {
   snapshotTimer = setTimeout(() => {
@@ -95,18 +98,33 @@ function scheduleDiskCheck(delayMs: number): void {
   if (typeof diskCheckTimer.unref === 'function') diskCheckTimer.unref();
 }
 
+function scheduleAuditPrune(delayMs: number): void {
+  auditPruneTimer = setTimeout(() => {
+    try {
+      runAuditPruneNow();
+    } catch (err) {
+      console.error('[scheduler] audit prune run failed:', err);
+    }
+    scheduleAuditPrune(DAY_MS);
+  }, delayMs);
+  if (typeof auditPruneTimer.unref === 'function') auditPruneTimer.unref();
+}
+
 export function startScheduler(): void {
   const now = Date.now();
   const snapshotDelay = msUntilNextDailyUtc(now, SNAPSHOT_HOUR_UTC);
   const backupDelay = msUntilNextWeeklyUtc(now, BACKUP_DOW_UTC, BACKUP_HOUR_UTC);
   const diskDelay = msUntilNextDailyUtc(now, DISK_CHECK_HOUR_UTC);
+  const auditPruneDelay = msUntilNextDailyUtc(now, AUDIT_PRUNE_HOUR_UTC);
   scheduleSnapshots(snapshotDelay);
   scheduleBackups(backupDelay);
   scheduleDiskCheck(diskDelay);
+  scheduleAuditPrune(auditPruneDelay);
   console.log(
     `[scheduler] next snapshot in ${Math.round(snapshotDelay / 1000)}s, ` +
       `next backup in ${Math.round(backupDelay / 1000)}s, ` +
-      `next disk check in ${Math.round(diskDelay / 1000)}s`,
+      `next disk check in ${Math.round(diskDelay / 1000)}s, ` +
+      `next audit prune in ${Math.round(auditPruneDelay / 1000)}s`,
   );
 }
 
@@ -122,5 +140,9 @@ export function stopScheduler(): void {
   if (diskCheckTimer) {
     clearTimeout(diskCheckTimer);
     diskCheckTimer = null;
+  }
+  if (auditPruneTimer) {
+    clearTimeout(auditPruneTimer);
+    auditPruneTimer = null;
   }
 }

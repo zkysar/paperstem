@@ -169,6 +169,37 @@ export type AnnotationJoinedRow = AnnotationRow & {
   user_display_name: string | null;
 };
 
+export type AuditLogRow = {
+  id: string;
+  created_at: number;
+  user_id: string | null;
+  user_email: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  band_id: string | null;
+  metadata: string | null;
+};
+
+export type ProjectPurgePreviewRow = {
+  id: string;
+  name: string;
+  folder_id: string;
+  deleted_at: number;
+  deleted_by: string | null;
+  deleted_reason: string | null;
+};
+
+export type StemPurgePreviewRow = {
+  id: string;
+  project_id: string;
+  name: string;
+  file_id: string;
+  deleted_at: number | null;
+  deleted_by: string | null;
+  deleted_reason: string | null;
+};
+
 export const stmts = {
   findUserByEmail: db.prepare<[string], UserRow>(
     'SELECT * FROM users WHERE email = ?',
@@ -466,5 +497,44 @@ export const stmts = {
     `DELETE FROM stems
       WHERE project_id IN (SELECT id FROM projects WHERE band_id = ?)
         AND deleted_at IS NOT NULL AND deleted_at < ?`,
+  ),
+  findProjectsToPurge: db.prepare<[string, number], ProjectPurgePreviewRow>(
+    `SELECT id, name, folder_id, deleted_at, deleted_by, deleted_reason
+       FROM projects
+      WHERE band_id = ? AND deleted_at IS NOT NULL AND deleted_at < ?`,
+  ),
+  findStemsForProjectAnyState: db.prepare<[string], StemPurgePreviewRow>(
+    `SELECT id, project_id, name, file_id, deleted_at, deleted_by, deleted_reason
+       FROM stems WHERE project_id = ?`,
+  ),
+  findStemsToPurgeDirect: db.prepare<[string, number], StemPurgePreviewRow>(
+    `SELECT s.id, s.project_id, s.name, s.file_id, s.deleted_at, s.deleted_by, s.deleted_reason
+       FROM stems s
+       JOIN projects p ON p.id = s.project_id
+      WHERE p.band_id = ?
+        AND s.deleted_at IS NOT NULL AND s.deleted_at < ?`,
+  ),
+  insertAuditLog: db.prepare<
+    [string, number, string | null, string | null, string, string, string, string | null, string | null]
+  >(
+    `INSERT INTO audit_log
+       (id, created_at, user_id, user_email, action, resource_type, resource_id, band_id, metadata)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ),
+  deleteAuditOlderThan: db.prepare<[number]>(
+    'DELETE FROM audit_log WHERE created_at < ?',
+  ),
+  // Drops everything past the most-recent `keepRows` entries. LIMIT -1 means
+  // "no upper bound" in SQLite; combined with OFFSET this selects the tail.
+  trimAuditOverflow: db.prepare<[number]>(
+    `DELETE FROM audit_log
+      WHERE id IN (
+        SELECT id FROM audit_log
+        ORDER BY created_at DESC, id DESC
+        LIMIT -1 OFFSET ?
+      )`,
+  ),
+  countAuditLog: db.prepare<[], { c: number }>(
+    'SELECT COUNT(*) AS c FROM audit_log',
   ),
 };
