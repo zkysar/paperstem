@@ -3357,6 +3357,26 @@ body.env-non-prod[data-env="local"]::before {
   background: var(--bg);
 }
 
+/* Sticks to the left edge of .viewport so the rail column area in the
+   section band is always painted over, even when .viewport-inner has
+   scrolled horizontally and section pills have moved left in screen
+   space. z-index sits above the pills (which use z-auto). */
+.section-rail-mask {
+  position: sticky;
+  left: 0;
+  width: var(--rail-w);
+  height: 22px;
+  background: var(--bg);
+  z-index: 1;
+  pointer-events: none;
+  /* Pull subsequent flow content back up — the mask is in-flow so it
+     would otherwise occupy the lane's full 22px vertically. Pills are
+     position: absolute so they don't flow next to it; this just keeps
+     the lane's effective height at 22px. */
+  margin-bottom: -22px;
+}
+.player.rail-collapsed .section-rail-mask { display: none; }
+
 .section-pill {
   position: absolute;
   top: 2px;
