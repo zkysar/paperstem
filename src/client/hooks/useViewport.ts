@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 export const MIN_TRACK_H = 22;
 export const MAX_TRACK_H = 160;
@@ -172,18 +172,38 @@ export function useViewport(): ViewportControls {
     [],
   );
 
-  return {
-    state,
-    zoomH,
-    zoomHBy,
-    zoomV,
-    zoomVBy,
-    setScrollLeft,
-    fitToWindow,
-    setFollowActive,
-    setFollowMode,
-    setStageWidth,
-    setRailWidth,
-    setView,
-  };
+  // Memoize the returned controls object so consumers using `[viewport]`
+  // as a useEffect dep don't tear down and re-build infrastructure on
+  // every render. All the setters are useCallback'd with [] above, so the
+  // only identity-relevant input is `state`.
+  return useMemo<ViewportControls>(
+    () => ({
+      state,
+      zoomH,
+      zoomHBy,
+      zoomV,
+      zoomVBy,
+      setScrollLeft,
+      fitToWindow,
+      setFollowActive,
+      setFollowMode,
+      setStageWidth,
+      setRailWidth,
+      setView,
+    }),
+    [
+      state,
+      zoomH,
+      zoomHBy,
+      zoomV,
+      zoomVBy,
+      setScrollLeft,
+      fitToWindow,
+      setFollowActive,
+      setFollowMode,
+      setStageWidth,
+      setRailWidth,
+      setView,
+    ],
+  );
 }
