@@ -9,6 +9,7 @@ const fixture: Annotation = {
   user_email: 'sam@example.com', user_display_name: 'Sam',
   start_ms: 1000, end_ms: null, body: 'note', starred: false,
   created_at: 0, updated_at: 0,
+  reply_count: 0, reactions: [],
 };
 
 const baseProps = {
@@ -49,5 +50,21 @@ describe('AnnotationMarkers', () => {
     render(<AnnotationMarkers {...baseProps} />);
     const el = screen.getByTestId(`annotation-marker-${fixture.id}`);
     expect(el.getAttribute('data-annotation-id')).toBe('a1');
+  });
+
+  it('renders the same marker regardless of reply_count and reactions', () => {
+    const annWithThread: Annotation = {
+      ...fixture,
+      reply_count: 5,
+      reactions: [
+        { emoji: '👍', count: 3, user_ids: ['u1', 'u2', 'u3'], reacted_by_self: true },
+      ],
+    };
+    const { container } = render(
+      <AnnotationMarkers {...baseProps} annotations={[annWithThread]} />,
+    );
+    expect(container.querySelectorAll('.annotation-marker').length).toBe(1);
+    expect(container.querySelector('.reaction-pill')).toBeNull();
+    expect(container.querySelector('.reply-thread')).toBeNull();
   });
 });

@@ -2,7 +2,16 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { CommentList } from './CommentList';
-import type { Annotation } from '../../shared/types';
+import type { Annotation, AnnotationReply } from '../../shared/types';
+
+vi.mock('./Reactions', () => ({
+  Reactions: () => <div data-testid="mock-reactions" />,
+}));
+vi.mock('./ReplyThread', () => ({
+  ReplyThread: ({ annotationId }: { annotationId: string }) => (
+    <div data-testid={`mock-reply-thread-${annotationId}`} />
+  ),
+}));
 
 function ann(over: Partial<Annotation>): Annotation {
   return {
@@ -10,6 +19,7 @@ function ann(over: Partial<Annotation>): Annotation {
     user_email: 'u@example.com', user_display_name: 'Sam',
     start_ms: 0, end_ms: null, body: 'b',
     starred: false, created_at: 0, updated_at: 0,
+    reply_count: 0, reactions: [],
     ...over,
   };
 }
@@ -26,11 +36,18 @@ const baseProps = {
   activeId: null as string | null,
   userColorMap: new Map([['u2', '#6f8559']]),
   canEdit: true,
+  isNarrow: false,
   onSelect: vi.fn(),
   onToggleStar: vi.fn(),
   onSaveEdit: vi.fn(),
   onDelete: vi.fn(),
   onCopyLink: vi.fn(),
+  replies: new Map<string, AnnotationReply[]>(),
+  onLoadReplies: vi.fn(),
+  onCreateReply: vi.fn(),
+  onEditReply: vi.fn(),
+  onDeleteReply: vi.fn(),
+  onToggleReaction: vi.fn(),
 };
 
 describe('CommentList', () => {

@@ -2,13 +2,21 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { CommentBottomSheet } from './CommentBottomSheet';
-import type { Annotation } from '../../shared/types';
+import type { Annotation, AnnotationReply } from '../../shared/types';
+
+vi.mock('./Reactions', () => ({
+  Reactions: () => <div data-testid="mock-reactions" />,
+}));
+vi.mock('./ReplyThread', () => ({
+  ReplyThread: () => <div data-testid="mock-reply-thread" />,
+}));
 
 const ann: Annotation = {
   id: 'a1', project_id: 'p1', user_id: 'u1',
   user_email: 'sam@example.com', user_display_name: 'Sam',
   start_ms: 1000, end_ms: null, body: 'note', starred: false,
   created_at: 0, updated_at: 0,
+  reply_count: 0, reactions: [],
 };
 
 const baseProps = {
@@ -18,6 +26,14 @@ const baseProps = {
   onPrev: vi.fn(), onNext: vi.fn(),
   onLoopRegion: vi.fn(), onToggleStar: vi.fn(),
   onSaveEdit: vi.fn(), onDelete: vi.fn(), onClose: vi.fn(),
+  selfUserId: 'u1',
+  replies: undefined as AnnotationReply[] | undefined,
+  replyCount: 0,
+  onLoadReplies: vi.fn(),
+  onCreateReply: vi.fn(),
+  onEditReply: vi.fn(),
+  onDeleteReply: vi.fn(),
+  onToggleReaction: vi.fn(),
 };
 
 describe('CommentBottomSheet', () => {

@@ -1,8 +1,14 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useEffect, useState, type KeyboardEvent } from 'react';
 import { ChevronLeft, ChevronRight, Pencil, Repeat, Star, Trash2, X } from 'lucide-react';
-import type { Annotation } from '../../shared/types';
+import type {
+  Annotation,
+  AnnotationReply,
+  ReactionTarget,
+} from '../../shared/types';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
+import { Reactions } from './Reactions';
+import { ReplyThread } from './ReplyThread';
 
 type Props = {
   annotation: Annotation;
@@ -18,6 +24,14 @@ type Props = {
   onSaveEdit(body: string): void;
   onDelete(): void;
   onClose(): void;
+  selfUserId: string;
+  replies: AnnotationReply[] | undefined;
+  replyCount: number;
+  onLoadReplies(annotationId: string): Promise<void> | void;
+  onCreateReply(annotationId: string, body: string): Promise<void> | void;
+  onEditReply(replyId: string, body: string): Promise<void> | void;
+  onDeleteReply(annotationId: string, replyId: string): Promise<void> | void;
+  onToggleReaction(target: ReactionTarget, emoji: string): void;
 };
 
 function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
@@ -28,9 +42,28 @@ function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
 export function CommentBottomSheet({
   annotation, color, canEdit, isOwn, index, total,
   onPrev, onNext, onLoopRegion, onToggleStar, onSaveEdit, onDelete, onClose,
+  selfUserId, replies, replyCount,
+  onLoadReplies, onCreateReply, onEditReply, onDeleteReply, onToggleReaction,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(annotation.body);
+  const [kbInset, setKbInset] = useState(0);
+
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      setKbInset(inset);
+    };
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    update();
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
   const author = annotation.user_display_name ?? annotation.user_email;
   const isRegion = annotation.end_ms !== null;
   const timeText = isRegion
@@ -50,6 +83,7 @@ export function CommentBottomSheet({
       role="dialog"
       aria-label="Comment"
       onPointerDown={(e) => e.stopPropagation()}
+      style={{ paddingBottom: `calc(env(safe-area-inset-bottom) + ${kbInset}px)` }}
     >
       <div className="cs-handle" aria-hidden="true" />
       <div className="cs-meta">
@@ -136,6 +170,29 @@ export function CommentBottomSheet({
           )}
         </>
       )}
+      <Reactions
+        reactions={annotation.reactions}
+        isNarrow={true}
+        onToggle={(emoji) =>
+          onToggleReaction({ kind: 'annotation', id: annotation.id }, emoji)
+        }
+      />
+      <ReplyThread
+        key={annotation.id}
+        annotationId={annotation.id}
+        replyCount={replyCount}
+        replies={replies}
+        selfUserId={selfUserId}
+        canEdit={canEdit}
+        isNarrow={true}
+        onLoadReplies={onLoadReplies}
+        onCreateReply={onCreateReply}
+        onEditReply={onEditReply}
+        onDeleteReply={onDeleteReply}
+        onToggleReaction={(replyId, emoji) =>
+          onToggleReaction({ kind: 'reply', id: replyId }, emoji)
+        }
+      />
       <div className="cs-nav">
         <button
           type="button"

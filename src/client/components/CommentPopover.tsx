@@ -6,9 +6,15 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { Link2, Pencil, Repeat, Star, Trash2, X } from 'lucide-react';
-import type { Annotation } from '../../shared/types';
+import type {
+  Annotation,
+  AnnotationReply,
+  ReactionTarget,
+} from '../../shared/types';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
+import { Reactions } from './Reactions';
+import { ReplyThread } from './ReplyThread';
 
 type Props = {
   annotation: Annotation;
@@ -30,6 +36,15 @@ type Props = {
    */
   onCopyLink(): void;
   onClose(): void;
+  selfUserId: string;
+  isNarrow: boolean;
+  replies: AnnotationReply[] | undefined;
+  replyCount: number;
+  onLoadReplies(annotationId: string): Promise<void> | void;
+  onCreateReply(annotationId: string, body: string): Promise<void> | void;
+  onEditReply(replyId: string, body: string): Promise<void> | void;
+  onDeleteReply(annotationId: string, replyId: string): Promise<void> | void;
+  onToggleReaction(target: ReactionTarget, emoji: string): void;
 };
 
 function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
@@ -52,6 +67,15 @@ export function CommentPopover({
   onDelete,
   onCopyLink,
   onClose,
+  selfUserId,
+  isNarrow,
+  replies,
+  replyCount,
+  onLoadReplies,
+  onCreateReply,
+  onEditReply,
+  onDeleteReply,
+  onToggleReaction,
 }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<'above' | 'below'>('above');
@@ -228,6 +252,29 @@ export function CommentPopover({
               </button>
             </div>
           )}
+          <Reactions
+            reactions={annotation.reactions}
+            isNarrow={isNarrow}
+            onToggle={(emoji) =>
+              onToggleReaction({ kind: 'annotation', id: annotation.id }, emoji)
+            }
+          />
+          <ReplyThread
+            key={annotation.id}
+            annotationId={annotation.id}
+            replyCount={replyCount}
+            replies={replies}
+            selfUserId={selfUserId}
+            canEdit={canEdit}
+            isNarrow={isNarrow}
+            onLoadReplies={onLoadReplies}
+            onCreateReply={onCreateReply}
+            onEditReply={onEditReply}
+            onDeleteReply={onDeleteReply}
+            onToggleReaction={(replyId, emoji) =>
+              onToggleReaction({ kind: 'reply', id: replyId }, emoji)
+            }
+          />
         </>
       )}
     </div>

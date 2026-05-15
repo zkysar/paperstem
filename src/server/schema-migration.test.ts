@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
 
@@ -85,5 +86,112 @@ describe('schema migration', () => {
       .prepare('SELECT project_id FROM stems WHERE id = ?')
       .get('s1') as { project_id: string };
     expect(s.project_id).toBe('p1');
+  });
+
+  it('creates reply and reaction tables', async () => {
+    const dbMod = await import('./db.js');
+    const tables = dbMod.db
+      .prepare(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name IN (?,?,?)",
+      )
+      .all(
+        'annotation_replies',
+        'annotation_reactions',
+        'annotation_reply_reactions',
+      );
+    expect(tables.length).toBe(3);
+  });
+
+  it('cascades replies and reactions when annotation is deleted', async () => {
+    const dbMod = await import('./db.js');
+
+    function createUser(email: string): string {
+      const id = randomUUID();
+      dbMod.stmts.insertUser.run(id, email, null, Math.floor(Date.now() / 1000));
+      return id;
+    }
+
+    function createBand(ownerId: string): string {
+      const id = randomUUID();
+      const now = Math.floor(Date.now() / 1000);
+      dbMod.stmts.insertBand.run(id, 'Alpha', 'folder-x', ownerId, now);
+      dbMod.stmts.insertMembership.run(id, ownerId, 'owner', now);
+      return id;
+    }
+
+    function insertProject(bandId: string, userId: string): string {
+      const id = randomUUID();
+      const now = Math.floor(Date.now() / 1000);
+      dbMod.stmts.insertProject.run(
+        id,
+        bandId,
+        'p1',
+        null,
+        'project-folder',
+        null,
+        now,
+        userId,
+        now,
+      );
+      return id;
+    }
+
+    function insertAnnotation(
+      projectId: string,
+      userId: string,
+      startMs: number,
+      endMs: number | null,
+      body: string,
+    ): string {
+      const id = randomUUID();
+      const now = Math.floor(Date.now() / 1000);
+      dbMod.stmts.insertAnnotation.run(
+        id,
+        projectId,
+        userId,
+        startMs,
+        endMs,
+        body,
+        0,
+        now,
+        now,
+      );
+      return id;
+    }
+
+    const userId = createUser('u@e.test');
+    const bandId = createBand(userId);
+    const projectId = insertProject(bandId, userId);
+    const annId = insertAnnotation(projectId, userId, 0, null, 'parent');
+
+    dbMod.db
+      .prepare(
+        'INSERT INTO annotation_replies (id, annotation_id, user_id, body, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+      )
+      .run('r1', annId, userId, 'hi', 1, 1);
+    dbMod.db
+      .prepare(
+        'INSERT INTO annotation_reactions (annotation_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?)',
+      )
+      .run(annId, userId, '👍', 1);
+    dbMod.db
+      .prepare(
+        'INSERT INTO annotation_reply_reactions (reply_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?)',
+      )
+      .run('r1', userId, '🎵', 1);
+
+    dbMod.stmts.deleteAnnotation.run(annId);
+
+    expect(
+      dbMod.db.prepare('SELECT COUNT(*) AS n FROM annotation_replies').get(),
+    ).toEqual({ n: 0 });
+    expect(
+      dbMod.db.prepare('SELECT COUNT(*) AS n FROM annotation_reactions').get(),
+    ).toEqual({ n: 0 });
+    expect(
+      dbMod.db
+        .prepare('SELECT COUNT(*) AS n FROM annotation_reply_reactions')
+        .get(),
+    ).toEqual({ n: 0 });
   });
 });

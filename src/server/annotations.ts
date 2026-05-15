@@ -1,13 +1,26 @@
 import { randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
-import { stmts, type AnnotationJoinedRow } from './db.js';
+import { stmts, type AnnotationJoinedRow, type AnnotationReactionAggRow } from './db.js';
 import { recordAudit } from './audit.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
-import type { Annotation } from '../shared/types.js';
+import type { Annotation, Reaction } from '../shared/types.js';
 
 const MAX_BODY_LENGTH = 32768;
 
-function toApiAnnotation(row: AnnotationJoinedRow): Annotation {
+function aggToReaction(row: AnnotationReactionAggRow): Reaction {
+  return {
+    emoji: row.emoji,
+    count: row.count,
+    user_ids: JSON.parse(row.user_ids_json) as string[],
+    reacted_by_self: row.reacted_by_self === 1,
+  };
+}
+
+function toApiAnnotation(
+  row: AnnotationJoinedRow,
+  replyCount: number,
+  reactions: Reaction[],
+): Annotation {
   return {
     id: row.id,
     project_id: row.project_id,
@@ -20,6 +33,8 @@ function toApiAnnotation(row: AnnotationJoinedRow): Annotation {
     starred: row.starred === 1,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    reply_count: replyCount,
+    reactions,
   };
 }
 
@@ -62,7 +77,30 @@ export function handleListAnnotations(
   }
 
   const rows = stmts.findAnnotationsForProject.all(projectId);
-  return c.json({ annotations: rows.map(toApiAnnotation) });
+  const counts = stmts.countRepliesForProject.all(projectId);
+  const countByAnn = new Map<string, number>();
+  for (const row of counts) countByAnn.set(row.annotation_id, row.reply_count);
+
+  const aggRows = stmts.findReactionsForProject.all({
+    project_id: projectId,
+    user_id: user.id,
+  });
+  const reactionsByAnn = new Map<string, Reaction[]>();
+  for (const r of aggRows) {
+    const list = reactionsByAnn.get(r.annotation_id) ?? [];
+    list.push(aggToReaction(r));
+    reactionsByAnn.set(r.annotation_id, list);
+  }
+
+  return c.json({
+    annotations: rows.map((row) =>
+      toApiAnnotation(
+        row,
+        countByAnn.get(row.id) ?? 0,
+        reactionsByAnn.get(row.id) ?? [],
+      ),
+    ),
+  });
 }
 
 type CreateAnnotationBody = {
@@ -116,7 +154,7 @@ export async function handleCreateAnnotation(
 
   const row = stmts.findAnnotationByIdJoined.get(id);
   if (!row) return c.json({ error: 'server_error' }, 500);
-  return c.json({ annotation: toApiAnnotation(row) }, 201);
+  return c.json({ annotation: toApiAnnotation(row, 0, []) }, 201);
 }
 
 type PatchAnnotationBody = {
@@ -190,7 +228,13 @@ export async function handlePatchAnnotation(
 
   const row = stmts.findAnnotationByIdJoined.get(id);
   if (!row) return c.json({ error: 'server_error' }, 500);
-  return c.json({ annotation: toApiAnnotation(row) });
+  const aggs = stmts.findReactionsForAnnotation.all({
+    annotation_id: id,
+    user_id: user.id,
+  });
+  const reactions = aggs.map(aggToReaction);
+  const replyCount = stmts.countRepliesForAnnotation.get(id)?.n ?? 0;
+  return c.json({ annotation: toApiAnnotation(row, replyCount, reactions) });
 }
 
 export function handleDeleteAnnotation(

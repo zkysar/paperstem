@@ -169,6 +169,49 @@ export type AnnotationJoinedRow = AnnotationRow & {
   user_display_name: string | null;
 };
 
+export type AnnotationReplyRow = {
+  id: string;
+  annotation_id: string;
+  user_id: string;
+  body: string;
+  created_at: number;
+  updated_at: number;
+};
+
+export type AnnotationReplyJoinedRow = AnnotationReplyRow & {
+  user_email: string;
+  user_display_name: string | null;
+};
+
+export type ReactionRow = {
+  user_id: string;
+  emoji: string;
+  created_at: number;
+};
+
+export type ReplyReactionRow = ReactionRow & { reply_id: string };
+
+export type AnnotationReactionAggRow = {
+  annotation_id: string;
+  emoji: string;
+  count: number;
+  user_ids_json: string;        // JSON array string from SQLite
+  reacted_by_self: number;       // 0/1
+};
+
+export type ReplyReactionAggRow = {
+  reply_id: string;
+  emoji: string;
+  count: number;
+  user_ids_json: string;
+  reacted_by_self: number;
+};
+
+export type AnnotationReplyCountRow = {
+  annotation_id: string;
+  reply_count: number;
+};
+
 export type SongRow = {
   id: string;
   band_id: string;
@@ -553,6 +596,130 @@ export const stmts = {
       WHERE p.band_id = ?
         AND s.deleted_at IS NOT NULL AND s.deleted_at < ?`,
   ),
+
+  // --- replies ---
+  findRepliesForAnnotation: db.prepare<[string], AnnotationReplyJoinedRow>(
+    `SELECT r.id, r.annotation_id, r.user_id, r.body, r.created_at, r.updated_at,
+            u.email AS user_email, u.display_name AS user_display_name
+       FROM annotation_replies r
+       JOIN users u ON u.id = r.user_id
+      WHERE r.annotation_id = ?
+      ORDER BY r.created_at ASC`,
+  ),
+  findReplyById: db.prepare<[string], AnnotationReplyRow>(
+    'SELECT * FROM annotation_replies WHERE id = ?',
+  ),
+  findReplyByIdJoined: db.prepare<[string], AnnotationReplyJoinedRow>(
+    `SELECT r.id, r.annotation_id, r.user_id, r.body, r.created_at, r.updated_at,
+            u.email AS user_email, u.display_name AS user_display_name
+       FROM annotation_replies r
+       JOIN users u ON u.id = r.user_id
+      WHERE r.id = ?`,
+  ),
+  insertReply: db.prepare<
+    [string, string, string, string, number, number]
+  >(
+    `INSERT INTO annotation_replies
+       (id, annotation_id, user_id, body, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  ),
+  updateReply: db.prepare<[string, number, string]>(
+    `UPDATE annotation_replies SET body = ?, updated_at = ? WHERE id = ?`,
+  ),
+  deleteReply: db.prepare<[string]>(
+    'DELETE FROM annotation_replies WHERE id = ?',
+  ),
+  countRepliesForProject: db.prepare<[string], AnnotationReplyCountRow>(
+    `SELECT a.id AS annotation_id, COUNT(r.id) AS reply_count
+       FROM annotations a
+       LEFT JOIN annotation_replies r ON r.annotation_id = a.id
+      WHERE a.project_id = ?
+      GROUP BY a.id`,
+  ),
+  countRepliesForAnnotation: db.prepare<[string], { n: number }>(
+    `SELECT COUNT(*) AS n FROM annotation_replies WHERE annotation_id = ?`,
+  ),
+
+  // --- reactions: comments ---
+  findReactionsForProject: db.prepare<
+    { project_id: string; user_id: string },
+    AnnotationReactionAggRow
+  >(
+    `SELECT ar.annotation_id, ar.emoji,
+            COUNT(*) AS count,
+            json_group_array(ar.user_id ORDER BY ar.created_at, ar.user_id)
+              AS user_ids_json,
+            MAX(CASE WHEN ar.user_id = @user_id THEN 1 ELSE 0 END) AS reacted_by_self
+       FROM annotation_reactions ar
+       JOIN annotations a ON a.id = ar.annotation_id
+      WHERE a.project_id = @project_id
+      GROUP BY ar.annotation_id, ar.emoji
+      ORDER BY ar.annotation_id, ar.emoji`,
+  ),
+  findReactionsForAnnotation: db.prepare<
+    { annotation_id: string; user_id: string },
+    AnnotationReactionAggRow
+  >(
+    `SELECT annotation_id, emoji,
+            COUNT(*) AS count,
+            json_group_array(user_id ORDER BY created_at, user_id)
+              AS user_ids_json,
+            MAX(CASE WHEN user_id = @user_id THEN 1 ELSE 0 END) AS reacted_by_self
+       FROM annotation_reactions
+      WHERE annotation_id = @annotation_id
+      GROUP BY emoji
+      ORDER BY emoji`,
+  ),
+  insertReaction: db.prepare<[string, string, string, number]>(
+    `INSERT OR IGNORE INTO annotation_reactions
+       (annotation_id, user_id, emoji, created_at)
+     VALUES (?, ?, ?, ?)`,
+  ),
+  deleteReaction: db.prepare<[string, string, string]>(
+    `DELETE FROM annotation_reactions
+       WHERE annotation_id = ? AND user_id = ? AND emoji = ?`,
+  ),
+
+  // --- reactions: replies ---
+  findReactionsForReplies: db.prepare<
+    { annotation_id: string; user_id: string },
+    ReplyReactionAggRow
+  >(
+    `SELECT rr.reply_id, rr.emoji,
+            COUNT(*) AS count,
+            json_group_array(rr.user_id ORDER BY rr.created_at, rr.user_id)
+              AS user_ids_json,
+            MAX(CASE WHEN rr.user_id = @user_id THEN 1 ELSE 0 END) AS reacted_by_self
+       FROM annotation_reply_reactions rr
+       JOIN annotation_replies r ON r.id = rr.reply_id
+      WHERE r.annotation_id = @annotation_id
+      GROUP BY rr.reply_id, rr.emoji
+      ORDER BY rr.reply_id, rr.emoji`,
+  ),
+  findReactionsForReply: db.prepare<
+    { reply_id: string; user_id: string },
+    ReplyReactionAggRow
+  >(
+    `SELECT reply_id, emoji,
+            COUNT(*) AS count,
+            json_group_array(user_id ORDER BY created_at, user_id)
+              AS user_ids_json,
+            MAX(CASE WHEN user_id = @user_id THEN 1 ELSE 0 END) AS reacted_by_self
+       FROM annotation_reply_reactions
+      WHERE reply_id = @reply_id
+      GROUP BY emoji
+      ORDER BY emoji`,
+  ),
+  insertReplyReaction: db.prepare<[string, string, string, number]>(
+    `INSERT OR IGNORE INTO annotation_reply_reactions
+       (reply_id, user_id, emoji, created_at)
+     VALUES (?, ?, ?, ?)`,
+  ),
+  deleteReplyReaction: db.prepare<[string, string, string]>(
+    `DELETE FROM annotation_reply_reactions
+       WHERE reply_id = ? AND user_id = ? AND emoji = ?`,
+  ),
+
   // --- songs ---
   findSongById: db.prepare<[string], SongRow>(
     'SELECT * FROM songs WHERE id = ?',
@@ -587,10 +754,6 @@ export const stmts = {
     `UPDATE songs SET name = ?, name_norm = ? WHERE id = ?`,
   ),
   deleteSong: db.prepare<[string]>('DELETE FROM songs WHERE id = ?'),
-  // Repoint sections from one song to another (merge support). Only sections
-  // tied to live projects are touched implicitly — the FK is unaffected by
-  // project tombstones, and we want trashed projects to follow merges too so
-  // restore-after-merge keeps consistent labels.
   repointSectionsToSong: db.prepare<[string, string]>(
     `UPDATE sections SET song_id = ?, updated_at = strftime('%s','now')
       WHERE song_id = ?`,
@@ -630,10 +793,6 @@ export const stmts = {
       WHERE id = ?`,
   ),
   deleteSection: db.prepare<[string]>('DELETE FROM sections WHERE id = ?'),
-  // Each row: (band_id, project_id, song_id). Backs the FilePicker
-  // chip-rail filter — given a song_id, the list of projects that contain
-  // a section pointing at it. Returned in the same order projects appear
-  // in the picker so we don't have to re-sort client-side.
   findSongUsageForBand: db.prepare<[string], { project_id: string; song_id: string }>(
     `SELECT DISTINCT sec.project_id, sec.song_id
        FROM sections sec
@@ -642,6 +801,7 @@ export const stmts = {
       WHERE p.band_id = ? AND p.deleted_at IS NULL`,
   ),
 
+  // --- audit log ---
   insertAuditLog: db.prepare<
     [string, number, string | null, string | null, string, string, string, string | null, string | null]
   >(
@@ -652,8 +812,6 @@ export const stmts = {
   deleteAuditOlderThan: db.prepare<[number]>(
     'DELETE FROM audit_log WHERE created_at < ?',
   ),
-  // Drops everything past the most-recent `keepRows` entries. LIMIT -1 means
-  // "no upper bound" in SQLite; combined with OFFSET this selects the tail.
   trimAuditOverflow: db.prepare<[number]>(
     `DELETE FROM audit_log
       WHERE id IN (
