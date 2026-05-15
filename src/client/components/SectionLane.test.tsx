@@ -86,6 +86,35 @@ describe('SectionLane', () => {
     expect(container.querySelector('.section-pill-chain')).toBeNull();
   });
 
+  it('dragging a section left edge calls onPatchSection with snapped new start_ms', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const grip = document.querySelector(
+      '[data-testid="section-s2"] .section-grip-left',
+    )!;
+    (grip as any).setPointerCapture = vi.fn();
+    (grip as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(grip, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 530, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 530, pointerId: 1 });
+
+    // baseProps: waveLeftPx=100, waveWidthPx=800, duration=120 -> 150ms/px.
+    // 30px * 150ms/px = 4500ms; snap-10 -> 4500. New start_ms = 60000 + 4500 = 64500.
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 64500 });
+  });
+
   it('clicking a pill seeks and selects', async () => {
     const onSelect = vi.fn();
     const onSeek = vi.fn();
@@ -222,5 +251,164 @@ describe('SectionLane', () => {
     const wrap = container.querySelector<HTMLElement>('.section-lane-wrap');
     fireEvent.pointerDown(wrap!);
     expect(onTapToExpand).not.toHaveBeenCalled();
+  });
+
+  it('middle drag of a section translates self + next by same delta', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 30000 }),
+      section({ id: 's3', start_ms: 90000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const pill = screen.getByTestId('section-s2');
+    (pill as any).setPointerCapture = vi.fn();
+    (pill as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
+
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 36000 });
+    expect(onPatchSection).toHaveBeenCalledWith('s3', { start_ms: 96000 });
+  });
+
+  it('middle drag of last section only updates self', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const pill = screen.getByTestId('section-s2');
+    (pill as any).setPointerCapture = vi.fn();
+    (pill as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 510, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 510, pointerId: 1 });
+
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 61500 });
+    expect(onPatchSection).toHaveBeenCalledTimes(1);
+  });
+
+  it('clicking a pill below the drag threshold still seeks and selects', () => {
+    const onSelect = vi.fn();
+    const onSeek = vi.fn();
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onSelect={onSelect}
+        onSeek={onSeek}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('section-s2'));
+    expect(onSelect).toHaveBeenCalled();
+    expect(onSeek).toHaveBeenCalled();
+  });
+
+  it('clamps section left-edge drag at 250ms from previous boundary', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 10000 }),
+      section({ id: 's2', start_ms: 12000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const grip = document.querySelector(
+      '[data-testid="section-s2"] .section-grip-left',
+    )!;
+    (grip as any).setPointerCapture = vi.fn();
+    (grip as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(grip, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 0, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 0, pointerId: 1 });
+
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 10250 });
+  });
+
+  it('snaps section drag to nearest 10ms', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const customProps = {
+      ...baseProps,
+      duration: 2,
+    };
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 1000 }),
+    ];
+    render(
+      <SectionLane
+        {...customProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const grip = document.querySelector(
+      '[data-testid="section-s2"] .section-grip-left',
+    )!;
+    (grip as any).setPointerCapture = vi.fn();
+    (grip as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(grip, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 503, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 503, pointerId: 1 });
+
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 1010 });
+  });
+
+  it('Escape during section drag cancels the patch', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const grip = document.querySelector(
+      '[data-testid="section-s2"] .section-grip-left',
+    )!;
+    (grip as any).setPointerCapture = vi.fn();
+    (grip as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(grip, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 530, pointerId: 1 });
+    fireEvent.keyDown(window, { key: 'Escape' });
+    fireEvent.pointerUp(window, { clientX: 530, pointerId: 1 });
+
+    expect(onPatchSection).not.toHaveBeenCalled();
   });
 });

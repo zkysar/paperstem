@@ -61,6 +61,12 @@ type Props = {
   activeSectionId: string | null;
   sectionCreateMode: boolean;
   onSectionSelected(section: Section): void;
+  onPatchSection(id: string, input: { start_ms: number }): Promise<void>;
+  onPatchAnnotation(
+    id: string,
+    input: { start_ms: number; end_ms: number | null },
+  ): Promise<void>;
+  selfUserId: string;
   onSectionCreated(start_ms: number, clientX: number, clientY: number): void;
   onToggleSectionCreate(): void;
   // Controlled rail-collapse state (lifted to App so AppToolbar's rail-toggle
@@ -92,6 +98,9 @@ export function Player({
   activeSectionId,
   sectionCreateMode,
   onSectionSelected,
+  onPatchSection,
+  onPatchAnnotation,
+  selfUserId,
   onSectionCreated,
   onToggleSectionCreate,
   railCollapsed,
@@ -696,6 +705,7 @@ export function Player({
                 expanded={laneExpanded}
                 interactionDisabled={annotationCreateMode}
                 onSelect={onSectionSelected}
+                onPatchSection={onPatchSection}
                 onSeek={player.seek}
                 onHoverChange={setLaneHovered}
                 onTapToExpand={() => setLaneTappedOpen(true)}
@@ -786,6 +796,12 @@ export function Player({
               onHover={onHoverAnnotation}
               onLoopAnnotation={onLoopAnnotation}
               createMode={annotationCreateMode}
+              selfUserId={selfUserId}
+              onPatchAnnotation={onPatchAnnotation}
+              onSeekFromClientX={(clientX: number) => {
+                const t = xToTime(clientX);
+                player.seek(Math.max(0, Math.min(duration, t)));
+              }}
             />
             {previewSource && (
               <div

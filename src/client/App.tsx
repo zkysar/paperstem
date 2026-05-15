@@ -871,6 +871,33 @@ function PaperstemApp({
     [sectionPopover, activeProjectId, refreshBandSongs, renameSongUnderSection],
   );
 
+  const handleSectionPatchStart = useCallback(
+    async (id: string, input: { start_ms: number }) => {
+      setSections((cur) =>
+        cur
+          .map((s) => (s.id === id ? { ...s, start_ms: input.start_ms } : s))
+          .sort((a, b) => a.start_ms - b.start_ms),
+      );
+      try {
+        const updated = await patchSection(id, input);
+        setSections((cur) =>
+          cur.map((s) => (s.id === id ? updated : s)).sort((a, b) => a.start_ms - b.start_ms),
+        );
+      } catch (err) {
+        console.error('section patch failed', err);
+        if (activeProjectId) {
+          try {
+            const list = await listSections(activeProjectId);
+            setSections(list);
+          } catch {
+            /* ignore — the user will see stale data until next reload */
+          }
+        }
+      }
+    },
+    [activeProjectId],
+  );
+
   const handleSectionDelete = useCallback(async () => {
     const popover = sectionPopover;
     if (!popover?.section) return;
@@ -1168,6 +1195,29 @@ function PaperstemApp({
       setPopoverAnchor(null);
     }
   }
+
+  const handleAnnotationPatchRange = useCallback(
+    async (id: string, input: { start_ms: number; end_ms: number | null }) => {
+      setAnnotations((cur) =>
+        cur.map((a) => (a.id === id ? { ...a, ...input } : a)),
+      );
+      try {
+        const updated = await patchAnnotation(id, input);
+        setAnnotations((cur) => cur.map((a) => (a.id === id ? updated : a)));
+      } catch (err) {
+        console.error('annotation patch failed', err);
+        if (activeProjectId) {
+          try {
+            const list = await listAnnotations(activeProjectId);
+            setAnnotations(list);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    },
+    [activeProjectId],
+  );
 
   async function handleCreateFromDraft(body: string): Promise<void> {
     if (!activeProjectId || !pendingDraft) return;
@@ -1549,6 +1599,9 @@ function PaperstemApp({
               sectionCreateMode={sectionCreateMode}
               onSectionSelected={handleSectionSelected}
               onSectionCreated={handleSectionCreatedAtClick}
+              onPatchSection={handleSectionPatchStart}
+              onPatchAnnotation={handleAnnotationPatchRange}
+              selfUserId={user.id}
               onToggleSectionCreate={() => setSectionCreateMode((v) => !v)}
               railCollapsed={railCollapsed}
               canMutate={player.state.stems.length > 0}

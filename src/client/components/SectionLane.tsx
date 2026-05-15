@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Link2 } from 'lucide-react';
 import type { Section } from '../../shared/types';
 import { FREE_TEXT_SECTION_COLOR, colorForSong } from '../lib/colors';
+import { useDragOnAxis } from '../hooks/useDragOnAxis';
+import { DragGuideline } from './DragGuideline';
 
 type Props = {
   sections: Section[];
@@ -16,18 +18,34 @@ type Props = {
   onSeek(timeSeconds: number): void;
   onHoverChange(hovered: boolean): void;
   onTapToExpand(): void;
+  onPatchSection?(id: string, input: { start_ms: number }): Promise<void>;
 };
 
-type ComputedSection = {
-  section: Section;
-  leftPx: number;
-  widthPx: number;
-  fillColor: string;
-  label: string;
-  shared: boolean;
+type LeftEdgePayload = {
+  kind: 'left-edge';
+  sectionId: string;
+  baseStartMs: number;
+  minStartMs: number;
+  maxStartMs: number;
 };
+type MiddlePayload = {
+  kind: 'middle';
+  sectionId: string;
+  nextId: string | null;
+  baseStartMs: number;
+  baseNextStartMs: number;
+  minDelta: number;
+  maxDelta: number;
+};
+type DragPayload = LeftEdgePayload | MiddlePayload;
 
 const NARROW_SEGMENT_PX = 8;
+const MIN_GAP_MS = 250;
+const SNAP_MS = 10;
+
+function snap(v: number): number {
+  return Math.round(v / SNAP_MS) * SNAP_MS;
+}
 
 function labelFor(section: Section): string {
   if (section.song_name) return section.song_name;
@@ -48,20 +66,93 @@ export function SectionLane({
   onSeek,
   onHoverChange,
   onTapToExpand,
+  onPatchSection,
 }: Props) {
-  const computed = useMemo<ComputedSection[]>(() => {
+  const [provisional, setProvisional] = useState<Map<string, number>>(
+    () => new Map(),
+  );
+  const [guideline, setGuideline] = useState<number | null>(null);
+
+  const msPerPx = duration && waveWidthPx ? (duration * 1000) / waveWidthPx : 0;
+
+  const drag = useDragOnAxis<DragPayload>({
+    threshold: 3,
+    onChange: ({ phase, deltaPx, payload }) => {
+      if (msPerPx <= 0) return;
+      if (payload.kind === 'left-edge') {
+        const candidate = snap(payload.baseStartMs + deltaPx * msPerPx);
+        const next = Math.max(
+          payload.minStartMs,
+          Math.min(payload.maxStartMs, candidate),
+        );
+        if (phase === 'preview') {
+          setProvisional((cur) => {
+            const m = new Map(cur);
+            m.set(payload.sectionId, next);
+            return m;
+          });
+          setGuideline(waveLeftPx + (next / (duration * 1000)) * waveWidthPx);
+        } else {
+          setProvisional((cur) => {
+            const m = new Map(cur);
+            m.delete(payload.sectionId);
+            return m;
+          });
+          setGuideline(null);
+          if (phase === 'commit' && onPatchSection) {
+            void onPatchSection(payload.sectionId, { start_ms: next });
+          }
+        }
+        return;
+      }
+      let delta = snap(deltaPx * msPerPx);
+      delta = Math.max(payload.minDelta, Math.min(payload.maxDelta, delta));
+      const nextStart = payload.baseStartMs + delta;
+      const nextNextStart = payload.baseNextStartMs + delta;
+      if (phase === 'preview') {
+        setProvisional((cur) => {
+          const m = new Map(cur);
+          m.set(payload.sectionId, nextStart);
+          if (payload.nextId) m.set(payload.nextId, nextNextStart);
+          return m;
+        });
+        setGuideline(waveLeftPx + (nextStart / (duration * 1000)) * waveWidthPx);
+      } else {
+        setProvisional((cur) => {
+          const m = new Map(cur);
+          m.delete(payload.sectionId);
+          if (payload.nextId) m.delete(payload.nextId);
+          return m;
+        });
+        setGuideline(null);
+        if (phase === 'commit' && onPatchSection) {
+          void onPatchSection(payload.sectionId, { start_ms: nextStart });
+          if (payload.nextId) {
+            void onPatchSection(payload.nextId, { start_ms: nextNextStart });
+          }
+        }
+      }
+    },
+  });
+
+  const effective = useCallback(
+    (s: Section): number => provisional.get(s.id) ?? s.start_ms,
+    [provisional],
+  );
+
+  const computed = useMemo(() => {
     if (!duration || !waveWidthPx || sections.length === 0) return [];
     const durationMs = duration * 1000;
-    const sorted = [...sections].sort((a, b) => a.start_ms - b.start_ms);
+    const sorted = [...sections].sort((a, b) => effective(a) - effective(b));
     const laneRightPx = waveLeftPx + waveWidthPx;
     return sorted.map((section, i) => {
+      const prev = sorted[i - 1];
       const next = sorted[i + 1];
-      const endMs = next ? next.start_ms : durationMs;
-      const startFrac = Math.max(0, Math.min(1, section.start_ms / durationMs));
+      const startMs = effective(section);
+      const endMs = next ? effective(next) : durationMs;
+      const startFrac = Math.max(0, Math.min(1, startMs / durationMs));
       const endFrac = Math.max(0, Math.min(1, endMs / durationMs));
       let leftPx = waveLeftPx + startFrac * waveWidthPx;
-      // Floor at 4px so a section right before another (or right at the
-      // end of the song) stays clickable.
       const widthPx = Math.max(4, (endFrac - startFrac) * waveWidthPx);
       if (leftPx + widthPx > laneRightPx) {
         leftPx = Math.max(waveLeftPx, laneRightPx - widthPx);
@@ -69,10 +160,14 @@ export function SectionLane({
       const fillColor = section.song_id
         ? colorForSong(section.song_id)
         : FREE_TEXT_SECTION_COLOR;
-      const shared = !!section.song_id
-        && (songUseCounts.get(section.song_id) ?? 0) > 1;
+      const shared =
+        !!section.song_id &&
+        (songUseCounts.get(section.song_id) ?? 0) > 1;
       return {
         section,
+        index: i,
+        prevStartMs: prev ? effective(prev) : 0,
+        nextStartMs: next ? effective(next) : durationMs,
         leftPx,
         widthPx,
         fillColor,
@@ -80,7 +175,7 @@ export function SectionLane({
         shared,
       };
     });
-  }, [sections, duration, waveLeftPx, waveWidthPx, songUseCounts]);
+  }, [sections, duration, waveWidthPx, waveLeftPx, songUseCounts, effective]);
 
   if (computed.length === 0) return null;
 
@@ -98,17 +193,13 @@ export function SectionLane({
         if (!expanded) onTapToExpand();
       }}
     >
-      {/* Sticky mask over the rail column — when the viewport is zoomed
-          and scrolled horizontally, segments positioned in the wave
-          column (viewport-inner x >= railWidth) move left in screen space
-          and would otherwise bleed over the track-name / M / S / delete
-          column below. Mirrors .ruler-rail-mask in the ruler band. Lives
-          here so both ribbon and pills modes get the same coverage. */}
       <div className="section-rail-mask" aria-hidden="true" />
       {expanded ? (
         <div className="section-lane" aria-label="Song sections">
+          <DragGuideline visible={guideline !== null} leftPx={guideline ?? 0} />
           {computed.map((c) => {
             const isActive = activeSectionId === c.section.id;
+            const showGrips = !!onPatchSection;
             return (
               <button
                 type="button"
@@ -129,12 +220,61 @@ export function SectionLane({
                     : c.section.label ?? 'Untitled boundary'
                 }
                 onClick={(e) => {
-                  // Shift+click selects without seeking — useful when you
-                  // want to rename without losing your listening position.
                   if (!e.shiftKey) onSeek(c.section.start_ms / 1000);
                   onSelect(c.section);
                 }}
+                onPointerDown={(e) => {
+                  if (!onPatchSection) return;
+                  if ((e.target as Element).closest('.section-grip')) return;
+                  const durationMs = duration * 1000;
+                  const baseStart = effective(c.section);
+                  const baseNextStart = c.nextStartMs;
+                  const hasNext = c.index + 1 < computed.length;
+                  const nextId = hasNext ? computed[c.index + 1].section.id : null;
+
+                  const minDelta = Math.max(
+                    -baseStart,
+                    c.prevStartMs + MIN_GAP_MS - baseStart,
+                  );
+
+                  let maxDelta: number;
+                  if (hasNext) {
+                    const nextOfNextStart =
+                      c.index + 2 < computed.length
+                        ? effective(computed[c.index + 2].section)
+                        : durationMs;
+                    maxDelta = nextOfNextStart - MIN_GAP_MS - baseNextStart;
+                  } else {
+                    maxDelta = durationMs - MIN_GAP_MS - baseStart;
+                  }
+
+                  drag.handlePointerDown(e, {
+                    kind: 'middle',
+                    sectionId: c.section.id,
+                    nextId,
+                    baseStartMs: baseStart,
+                    baseNextStartMs: baseNextStart,
+                    minDelta,
+                    maxDelta,
+                  });
+                }}
               >
+                {showGrips && c.index > 0 && (
+                  <span
+                    className="section-grip section-grip-left"
+                    aria-hidden="true"
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      drag.handlePointerDown(e, {
+                        kind: 'left-edge',
+                        sectionId: c.section.id,
+                        baseStartMs: effective(c.section),
+                        minStartMs: c.prevStartMs + MIN_GAP_MS,
+                        maxStartMs: c.nextStartMs - MIN_GAP_MS,
+                      });
+                    }}
+                  />
+                )}
                 <span className="section-pill-label">{c.label}</span>
                 {c.shared && (
                   <Link2
