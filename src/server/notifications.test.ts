@@ -213,6 +213,7 @@ describe('applyPrefsFilter', () => {
     addMembership(bandId, m1);
     addMembership(bandId, m2);
     setPref(m1, { email_project_activity: 'off' });
+    setPref(m2, {});
     expect(notifMod.applyPrefsFilter([m1, m2], bandId, 'comment').sort()).toEqual([m2].sort());
   });
   it('drops muted-band recipients regardless of pref', () => {
@@ -223,12 +224,12 @@ describe('applyPrefsFilter', () => {
     muteBand(m1, bandId);
     expect(notifMod.applyPrefsFilter([m1], bandId, 'mention')).toEqual([]);
   });
-  it('keeps users with no prefs row (defaults apply)', () => {
+  it('drops users with no prefs row (defaults are off)', () => {
     const author = createUser('a@e.test');
     const m1 = createUser('m1@e.test');
     const bandId = createBand(author);
     addMembership(bandId, m1);
-    expect(notifMod.applyPrefsFilter([m1], bandId, 'comment')).toEqual([m1]);
+    expect(notifMod.applyPrefsFilter([m1], bandId, 'comment')).toEqual([]);
   });
   it('uses email_thread_activity for kind=reply', () => {
     const author = createUser('a@e.test');
@@ -246,7 +247,7 @@ describe('getEffectivePrefs', () => {
     const u = createUser('u@e.test');
     const prefs = notifMod.getEffectivePrefs(u);
     expect(prefs).toMatchObject({
-      email_mentions: 1, email_project_activity: 'batched', email_thread_activity: 'batched',
+      email_mentions: 0, email_project_activity: 'off', email_thread_activity: 'off',
       digest_hour_local: 8, timezone: 'UTC',
     });
   });
@@ -260,6 +261,8 @@ describe('recordActivity', () => {
     const bandId = createBand(author);
     addMembership(bandId, m1);
     addMembership(bandId, m2);
+    setPref(m1, {});
+    setPref(m2, {});
     const pid = insertProject(bandId, author);
     const annId = insertAnnotation(pid, author, 'hi everyone');
 
@@ -279,6 +282,7 @@ describe('recordActivity', () => {
     const m1 = createUser('m1@e.test');
     const bandId = createBand(author);
     addMembership(bandId, m1);
+    setPref(m1, {});
     const pid = insertProject(bandId, author);
     const body = `hey @[${m1}] thoughts?`;
     const annId = insertAnnotation(pid, author, body);
@@ -337,6 +341,7 @@ describe('recordActivity', () => {
     const m1 = createUser('m1@e.test', 'Sarah Lee');
     const bandId = createBand(author);
     addMembership(bandId, m1);
+    setPref(m1, {});
     const pid = insertProject(bandId, author);
     const body = `hi @[${m1}] check this`;
     const annId = insertAnnotation(pid, author, body);
@@ -357,6 +362,8 @@ describe('recordActivity', () => {
     const bandId = createBand(a);
     addMembership(bandId, b);
     addMembership(bandId, c);
+    setPref(a, {});
+    setPref(c, {});
     const pid = insertProject(bandId, a);
     const annId = insertAnnotation(pid, a, 'parent');
     insertReply(annId, c, 'prior');
@@ -376,6 +383,7 @@ describe('recordActivity', () => {
     const reactor = createUser('r@e.test');
     const bandId = createBand(author);
     addMembership(bandId, reactor);
+    setPref(author, {});
     const pid = insertProject(bandId, author);
     const annId = insertAnnotation(pid, author, 'parent');
 
