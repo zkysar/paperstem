@@ -1,12 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // scheduler.ts pulls in disk-usage.ts → mailer.ts, which throws at import
-// time if GMAIL_* are unset. This file only tests pure helpers, but the
-// transitive import still needs the env to be set.
+// time if GMAIL_* are unset. It also now pulls in notifications-flush.ts →
+// db.ts, which requires DATABASE_PATH. Set all env vars before any dynamic import.
 process.env.GMAIL_USER ||= 'test@example.com';
 process.env.GMAIL_APP_PASSWORD ||= 'test-pass';
+process.env.DATABASE_PATH ||= join(mkdtempSync(join(tmpdir(), 'paperstem-scheduler-test-')), 'test.sqlite');
 
-const { msUntilNextDailyUtc, msUntilNextWeeklyUtc } = await import('./scheduler.js');
+type SchedulerModule = typeof import('./scheduler.js');
+type FlushModule = typeof import('./notifications-flush.js');
+
+const schedulerMod = await import('./scheduler.js') as SchedulerModule;
+const flushMod = await import('./notifications-flush.js') as FlushModule;
+const { msUntilNextDailyUtc, msUntilNextWeeklyUtc } = schedulerMod;
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -73,5 +82,23 @@ describe('msUntilNextWeeklyUtc', () => {
     expect(target.getUTCHours()).toBe(4);
     expect(ms).toBeGreaterThan(6 * DAY_MS);
     expect(ms).toBeLessThan(WEEK_MS);
+  });
+});
+
+describe('startScheduler flush jobs', () => {
+  afterEach(() => {
+    schedulerMod.stopScheduler();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('triggers batched and daily flush after FIRST_RUN_DELAY_MS (30s)', async () => {
+    vi.useFakeTimers();
+    const batchedSpy = vi.spyOn(flushMod, 'runBatchedFlushNow').mockResolvedValue(undefined);
+    const dailySpy = vi.spyOn(flushMod, 'runDailyFlushNow').mockResolvedValue(undefined);
+    schedulerMod.startScheduler();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(batchedSpy).toHaveBeenCalledTimes(1);
+    expect(dailySpy).toHaveBeenCalledTimes(1);
   });
 });
