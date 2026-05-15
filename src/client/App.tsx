@@ -27,6 +27,7 @@ import { TokensDrawer } from './components/TokensDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FilePicker } from './components/FilePicker';
 import { Player } from './components/Player';
+import { SectionHintChip } from './components/SectionHintChip';
 import { ShortcutsOverlay } from './components/ShortcutsOverlay';
 import { ShareDialog } from './components/ShareDialog';
 import { UploadDrawer } from './components/UploadDrawer';
@@ -54,6 +55,7 @@ import { HttpProjectsRepo, type ProjectsRepo } from './data/projects-repo';
 import type { Project, StemSource, TrashList } from './data/types';
 import { decodePeaks } from './lib/peaks';
 import { useAppVersion } from './hooks/useAppVersion';
+import { useIsMobile } from './hooks/useIsMobile';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
 import { useViewport } from './hooks/useViewport';
@@ -116,6 +118,7 @@ function PaperstemApp({
 }) {
   const player = usePlayer();
   const viewport = useViewport();
+  const isMobile = useIsMobile();
   const shareLink = useShareLink();
   const pendingShareStateRef = useRef(shareLink.initial);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -132,6 +135,23 @@ function PaperstemApp({
     setShowZoomHint(false);
     try {
       localStorage.setItem('paperstem.hints.zoom.seen', '1');
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const [showSectionHint, setShowSectionHint] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('paperstem.hints.sections.seen') !== '1';
+    } catch {
+      return false;
+    }
+  });
+
+  const dismissSectionHint = useCallback(() => {
+    setShowSectionHint(false);
+    try {
+      localStorage.setItem('paperstem.hints.sections.seen', '1');
     } catch {
       // ignore
     }
@@ -1278,35 +1298,41 @@ function PaperstemApp({
         </div>
       )}
       <div className="app-body">
-        <ErrorBoundary onReportBug={openBugReport}>
-          <Player
-            player={player}
-            annotations={annotations}
-            userColorMap={userColorMap}
-            markersVisible={markersVisible}
-            annotationCreateMode={annotationCreateMode}
-            onToggleAnnotationCreate={() => setAnnotationCreateMode((v) => !v)}
-            onAnnotationCreated={handleAnnotationCreated}
-            onAnnotationSelected={handleAnnotationSelected}
-            onLoopAnnotation={handleLoopAnnotation}
-            pendingDraft={pendingDraft}
-            hoveredAnnotationId={hoveredAnnotationId}
-            onHoverAnnotation={setHoveredAnnotationId}
-            sections={sections}
-            songUseCounts={songUseCounts}
-            activeSectionId={activeSectionId}
-            sectionCreateMode={sectionCreateMode}
-            onSectionSelected={handleSectionSelected}
-            onSectionCreated={handleSectionCreatedAtClick}
-            onToggleSectionCreate={() => setSectionCreateMode((v) => !v)}
-            railCollapsed={railCollapsed}
-            canMutate={player.state.stems.length > 0}
-            onOpenPicker={openPicker}
-            onRenameStem={(id, name) => void renameStem(id, name)}
-            onDeleteStem={(id) => void deleteStem(id)}
-            viewport={viewport}
+        <div style={{ position: 'relative', minHeight: 0 }}>
+          <ErrorBoundary onReportBug={openBugReport}>
+            <Player
+              player={player}
+              annotations={annotations}
+              userColorMap={userColorMap}
+              markersVisible={markersVisible}
+              annotationCreateMode={annotationCreateMode}
+              onToggleAnnotationCreate={() => setAnnotationCreateMode((v) => !v)}
+              onAnnotationCreated={handleAnnotationCreated}
+              onAnnotationSelected={handleAnnotationSelected}
+              onLoopAnnotation={handleLoopAnnotation}
+              pendingDraft={pendingDraft}
+              hoveredAnnotationId={hoveredAnnotationId}
+              onHoverAnnotation={setHoveredAnnotationId}
+              sections={sections}
+              songUseCounts={songUseCounts}
+              activeSectionId={activeSectionId}
+              sectionCreateMode={sectionCreateMode}
+              onSectionSelected={handleSectionSelected}
+              onSectionCreated={handleSectionCreatedAtClick}
+              onToggleSectionCreate={() => setSectionCreateMode((v) => !v)}
+              railCollapsed={railCollapsed}
+              canMutate={player.state.stems.length > 0}
+              onOpenPicker={openPicker}
+              onRenameStem={(id, name) => void renameStem(id, name)}
+              onDeleteStem={(id) => void deleteStem(id)}
+              viewport={viewport}
+            />
+          </ErrorBoundary>
+          <SectionHintChip
+            visible={isMobile && sections.length > 0 && showSectionHint}
+            onDismiss={dismissSectionHint}
           />
-        </ErrorBoundary>
+        </div>
         {showZoomHint && player.state.stems.length > 0 && (
           <div className="zoom-hint" role="status" onClick={dismissZoomHint}>
             <span>Hold <kbd>⌥</kbd> and scroll to zoom in. Press <kbd>?</kbd> for shortcuts.</span>
