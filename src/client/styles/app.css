@@ -744,12 +744,15 @@ button.track-name:disabled { cursor: default; }
   border-left: 2px solid var(--accent);
   border-right: 2px solid var(--accent);
   pointer-events: auto;
-  cursor: move;
+  cursor: grab;
   box-sizing: border-box;
   touch-action: none;
   /* Below the rail (z 8) so the loop, like annotation markers, is hidden
      by the track names when it would otherwise bleed into the rail area. */
   z-index: 6;
+}
+.loop-region:active {
+  cursor: grabbing;
 }
 .loop-region.disabled {
   bottom: auto;
@@ -4320,11 +4323,16 @@ body.env-non-prod[data-env="local"]::before {
 }
 
 /* ---- Section grips -------------------------------------------------- */
+/* The pill has overflow:hidden, so the grip must sit inside the pill —
+   anything that pokes out the left/right edge would be clipped and the
+   ew-resize cursor wouldn't apply over the clipped half. 8px gives the
+   cursor a comfortable hit zone; the visible indicator (::after) is
+   nudged a couple pixels in so it still reads as an edge handle. */
 .section-grip {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 6px;
+  width: 8px;
   background: transparent;
   cursor: ew-resize;
   z-index: 2;
@@ -4337,21 +4345,25 @@ body.env-non-prod[data-env="local"]::before {
   opacity: 1;
 }
 .section-grip-left {
-  left: -3px;
+  left: 0;
 }
 .section-grip-right {
-  right: -3px;
+  right: 0;
 }
 .section-grip::after {
   content: '';
   position: absolute;
   top: 4px;
   bottom: 4px;
-  left: 2px;
+  left: 3px;
   width: 2px;
   background: var(--ink, #333);
   border-radius: 1px;
   opacity: 0.5;
+}
+.section-grip-right::after {
+  left: auto;
+  right: 3px;
 }
 
 /* ---- Annotation grips ---------------------------------------------- */
@@ -4405,7 +4417,7 @@ body.env-non-prod[data-env="local"]::before {
 
 /* ---- Drag-zone cursors --------------------------------------------- */
 /* The middle of section pills and annotation markers is the translate
-   zone. ew-resize on the edge grips overrides this on the 6px hot zones. */
+   zone. ew-resize on the edge grips overrides this on the 8px hot zones. */
 .section-pill {
   cursor: grab;
 }

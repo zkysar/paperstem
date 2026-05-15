@@ -28,6 +28,9 @@ export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
   const stateRef = useRef<State<P> | null>(null);
   const onChangeRef = useRef(opts.onChange);
   const onTapRef = useRef(opts.onTap);
+  // True if the most recent drag crossed the threshold. Consumers read this
+  // in their click handler to suppress the click that follows pointerup.
+  const wasDragRef = useRef(false);
 
   onChangeRef.current = opts.onChange;
   onTapRef.current = opts.onTap;
@@ -56,6 +59,7 @@ export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
       } catch {
         /* ignore */
       }
+      wasDragRef.current = false;
       stateRef.current = {
         startX: e.clientX,
         lastX: e.clientX,
@@ -76,6 +80,7 @@ export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
       const delta = e.clientX - s.startX;
       if (!s.crossed && Math.abs(delta) >= threshold) {
         s.crossed = true;
+        wasDragRef.current = true;
       }
       if (s.crossed) {
         onChangeRef.current({ phase: 'preview', deltaPx: delta, payload: s.payload });
@@ -101,5 +106,5 @@ export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
     };
   }, [finish, threshold]);
 
-  return { handlePointerDown };
+  return { handlePointerDown, wasDragRef };
 }

@@ -231,33 +231,35 @@ export function SectionLane({
                     : c.section.label ?? 'Untitled boundary'
                 }
                 onClick={(e) => {
+                  if (drag.wasDragRef.current) return;
                   if (!e.shiftKey) onSeek(c.section.start_ms / 1000);
                   onSelect(c.section);
                 }}
                 onPointerDown={(e) => {
                   if (!onPatchSection) return;
                   if ((e.target as Element).closest('.section-grip')) return;
-                  const durationMs = duration * 1000;
+                  const hasNext = c.index + 1 < computed.length;
+                  // Middle drag translates self + next by the same delta so
+                  // the section keeps its width. The last section has no
+                  // next start to push, so translating would just resize it
+                  // — skip middle drag entirely and let the click fall
+                  // through to seek/select.
+                  if (!hasNext) return;
                   const baseStart = effective(c.section);
                   const baseNextStart = c.nextStartMs;
-                  const hasNext = c.index + 1 < computed.length;
-                  const nextId = hasNext ? computed[c.index + 1].section.id : null;
+                  const nextId = computed[c.index + 1].section.id;
 
                   const minDelta = Math.max(
                     -baseStart,
                     c.prevStartMs + MIN_GAP_MS - baseStart,
                   );
 
-                  let maxDelta: number;
-                  if (hasNext) {
-                    const nextOfNextStart =
-                      c.index + 2 < computed.length
-                        ? effective(computed[c.index + 2].section)
-                        : durationMs;
-                    maxDelta = nextOfNextStart - MIN_GAP_MS - baseNextStart;
-                  } else {
-                    maxDelta = durationMs - MIN_GAP_MS - baseStart;
-                  }
+                  const durationMs = duration * 1000;
+                  const nextOfNextStart =
+                    c.index + 2 < computed.length
+                      ? effective(computed[c.index + 2].section)
+                      : durationMs;
+                  const maxDelta = nextOfNextStart - MIN_GAP_MS - baseNextStart;
 
                   drag.handlePointerDown(e, {
                     kind: 'middle',
