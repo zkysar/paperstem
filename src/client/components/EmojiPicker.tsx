@@ -39,6 +39,7 @@ export function EmojiPicker({ isNarrow, anchorRect, onSelect, onClose }: Props) 
     };
   }, [onClose]);
 
+  const POPOVER_WIDTH = 320;
   const style: React.CSSProperties = isNarrow
     ? {
         position: 'fixed',
@@ -50,7 +51,10 @@ export function EmojiPicker({ isNarrow, anchorRect, onSelect, onClose }: Props) 
     : anchorRect
       ? {
           position: 'fixed',
-          left: Math.max(8, Math.min(window.innerWidth - 328, anchorRect.left)),
+          left: Math.max(
+            8,
+            Math.min(window.innerWidth - POPOVER_WIDTH - 8, anchorRect.left),
+          ),
           top: anchorRect.bottom + 6,
           zIndex: 1000,
         }
@@ -74,6 +78,7 @@ export function EmojiPicker({ isNarrow, anchorRect, onSelect, onClose }: Props) 
           theme="light"
           previewPosition="none"
           skinTonePosition="none"
+          dynamicWidth={true}
         />
       </Suspense>
     </div>
