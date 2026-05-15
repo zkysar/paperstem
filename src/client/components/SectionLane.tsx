@@ -16,6 +16,7 @@ type Props = {
   onSeek(timeSeconds: number): void;
   onHoverChange(hovered: boolean): void;
   onTapToExpand(): void;
+  onPatchSection?(id: string, input: { start_ms: number }): Promise<void>;
 };
 
 type ComputedSection = {
@@ -48,6 +49,7 @@ export function SectionLane({
   onSeek,
   onHoverChange,
   onTapToExpand,
+  onPatchSection,
 }: Props) {
   const computed = useMemo<ComputedSection[]>(() => {
     if (!duration || !waveWidthPx || sections.length === 0) return [];

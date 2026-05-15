@@ -61,6 +61,7 @@ type Props = {
   activeSectionId: string | null;
   sectionCreateMode: boolean;
   onSectionSelected(section: Section): void;
+  onPatchSection(id: string, input: { start_ms: number }): Promise<void>;
   onSectionCreated(start_ms: number, clientX: number, clientY: number): void;
   onToggleSectionCreate(): void;
   // Controlled rail-collapse state (lifted to App so AppToolbar's rail-toggle
@@ -92,6 +93,7 @@ export function Player({
   activeSectionId,
   sectionCreateMode,
   onSectionSelected,
+  onPatchSection,
   onSectionCreated,
   onToggleSectionCreate,
   railCollapsed,
@@ -696,6 +698,7 @@ export function Player({
                 expanded={laneExpanded}
                 interactionDisabled={annotationCreateMode}
                 onSelect={onSectionSelected}
+                onPatchSection={onPatchSection}
                 onSeek={player.seek}
                 onHoverChange={setLaneHovered}
                 onTapToExpand={() => setLaneTappedOpen(true)}

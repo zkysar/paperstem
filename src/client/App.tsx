@@ -871,6 +871,27 @@ function PaperstemApp({
     [sectionPopover, activeProjectId, refreshBandSongs, renameSongUnderSection],
   );
 
+  const handleSectionPatchStart = useCallback(
+    async (id: string, input: { start_ms: number }) => {
+      const prev = sections;
+      setSections((cur) =>
+        cur
+          .map((s) => (s.id === id ? { ...s, start_ms: input.start_ms } : s))
+          .sort((a, b) => a.start_ms - b.start_ms),
+      );
+      try {
+        const updated = await patchSection(id, input);
+        setSections((cur) =>
+          cur.map((s) => (s.id === id ? updated : s)).sort((a, b) => a.start_ms - b.start_ms),
+        );
+      } catch (err) {
+        console.error('section patch failed', err);
+        setSections(prev);
+      }
+    },
+    [sections],
+  );
+
   const handleSectionDelete = useCallback(async () => {
     const popover = sectionPopover;
     if (!popover?.section) return;
@@ -1549,6 +1570,7 @@ function PaperstemApp({
               sectionCreateMode={sectionCreateMode}
               onSectionSelected={handleSectionSelected}
               onSectionCreated={handleSectionCreatedAtClick}
+              onPatchSection={handleSectionPatchStart}
               onToggleSectionCreate={() => setSectionCreateMode((v) => !v)}
               railCollapsed={railCollapsed}
               canMutate={player.state.stems.length > 0}
