@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { SectionLane } from './SectionLane';
@@ -26,8 +26,12 @@ const baseProps = {
   waveWidthPx: 800,
   songUseCounts: new Map<string, number>(),
   activeSectionId: null as string | null,
+  expanded: true,
+  interactionDisabled: false,
   onSelect: vi.fn(),
   onSeek: vi.fn(),
+  onHoverChange: vi.fn(),
+  onTapToExpand: vi.fn(),
 };
 
 describe('SectionLane', () => {
@@ -98,5 +102,125 @@ describe('SectionLane', () => {
     await user.click(screen.getByText('Heart Sounds'));
     expect(onSeek).toHaveBeenCalledWith(12);
     expect(onSelect).toHaveBeenCalledWith(s);
+  });
+
+  it('renders the ribbon (no labels, no pills) when expanded is false', () => {
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        expanded={false}
+        sections={[
+          section({ id: 'a', start_ms: 0, song_id: 'song-1', song_name: 'Heart Sounds' }),
+          section({ id: 'b', start_ms: 30000, song_id: 'song-2', song_name: 'Solo Idea' }),
+        ]}
+      />,
+    );
+    expect(container.querySelector('.section-ribbon')).not.toBeNull();
+    expect(container.querySelector('.section-pill')).toBeNull();
+    expect(container.querySelectorAll('.section-ribbon-seg')).toHaveLength(2);
+    expect(container.textContent ?? '').not.toContain('Heart Sounds');
+    expect(container.textContent ?? '').not.toContain('Solo Idea');
+  });
+
+  it('omits the trailing divider on ribbon segments narrower than 8px', () => {
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        expanded={false}
+        duration={1000}
+        sections={[
+          section({ id: 'a', start_ms: 0 }),
+          section({ id: 'b', start_ms: 5 }),
+          section({ id: 'c', start_ms: 500000 }),
+        ]}
+      />,
+    );
+    const segs = container.querySelectorAll<HTMLElement>('.section-ribbon-seg');
+    expect(segs).toHaveLength(3);
+    expect(segs[0].classList.contains('has-divider')).toBe(false);
+    expect(segs[1].classList.contains('has-divider')).toBe(false);
+    expect(segs[2].classList.contains('has-divider')).toBe(false);
+  });
+
+  it('clicking a ribbon segment seeks and selects (same handlers as pills)', async () => {
+    const onSelect = vi.fn();
+    const onSeek = vi.fn();
+    const user = userEvent.setup();
+    const s = section({ id: 'a', start_ms: 12000, song_id: 'song-1', song_name: 'Heart Sounds' });
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        expanded={false}
+        sections={[s]}
+        onSelect={onSelect}
+        onSeek={onSeek}
+      />,
+    );
+    const seg = container.querySelector<HTMLButtonElement>('.section-ribbon-seg');
+    expect(seg).not.toBeNull();
+    await user.click(seg!);
+    expect(onSeek).toHaveBeenCalledWith(12);
+    expect(onSelect).toHaveBeenCalledWith(s);
+  });
+
+  it('sets pointer-events: none on the wrapper when interactionDisabled is true', () => {
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        expanded={false}
+        interactionDisabled
+        sections={[section({ id: 'a', start_ms: 0 })]}
+      />,
+    );
+    const wrap = container.querySelector<HTMLElement>('.section-lane-wrap');
+    expect(wrap).not.toBeNull();
+    expect(wrap!.classList.contains('disabled')).toBe(true);
+  });
+
+  it('fires onHoverChange(true/false) on mouse enter/leave of the wrapper', () => {
+    const onHoverChange = vi.fn();
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        expanded={false}
+        sections={[section({ id: 'a', start_ms: 0 })]}
+        onHoverChange={onHoverChange}
+      />,
+    );
+    const wrap = container.querySelector<HTMLElement>('.section-lane-wrap');
+    fireEvent.mouseEnter(wrap!);
+    expect(onHoverChange).toHaveBeenLastCalledWith(true);
+    fireEvent.mouseLeave(wrap!);
+    expect(onHoverChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('fires onTapToExpand on pointerdown when collapsed', () => {
+    const onTapToExpand = vi.fn();
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        expanded={false}
+        sections={[section({ id: 'a', start_ms: 0 })]}
+        onTapToExpand={onTapToExpand}
+      />,
+    );
+    const wrap = container.querySelector<HTMLElement>('.section-lane-wrap');
+    fireEvent.pointerDown(wrap!);
+    expect(onTapToExpand).toHaveBeenCalledOnce();
+  });
+
+  it('does NOT fire onTapToExpand on pointerdown when already expanded', () => {
+    const onTapToExpand = vi.fn();
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        expanded
+        sections={[section({ id: 'a', start_ms: 0 })]}
+        onTapToExpand={onTapToExpand}
+      />,
+    );
+    const wrap = container.querySelector<HTMLElement>('.section-lane-wrap');
+    fireEvent.pointerDown(wrap!);
+    expect(onTapToExpand).not.toHaveBeenCalled();
   });
 });

@@ -8,13 +8,14 @@ type Props = {
   duration: number;
   waveLeftPx: number;
   waveWidthPx: number;
-  // How many distinct projects each song appears in (across the band).
-  // Sections whose song appears in >1 project get a chain glyph signaling
-  // "this name is shared." Free-text and unnamed sections never get one.
   songUseCounts: Map<string, number>;
   activeSectionId: string | null;
+  expanded: boolean;
+  interactionDisabled: boolean;
   onSelect(section: Section): void;
   onSeek(timeSeconds: number): void;
+  onHoverChange(hovered: boolean): void;
+  onTapToExpand(): void;
 };
 
 type ComputedSection = {
@@ -25,6 +26,8 @@ type ComputedSection = {
   label: string;
   shared: boolean;
 };
+
+const NARROW_SEGMENT_PX = 8;
 
 function labelFor(section: Section): string {
   if (section.song_name) return section.song_name;
@@ -39,8 +42,12 @@ export function SectionLane({
   waveWidthPx,
   songUseCounts,
   activeSectionId,
+  expanded,
+  interactionDisabled,
   onSelect,
   onSeek,
+  onHoverChange,
+  onTapToExpand,
 }: Props) {
   const computed = useMemo<ComputedSection[]>(() => {
     if (!duration || !waveWidthPx || sections.length === 0) return [];
@@ -56,9 +63,6 @@ export function SectionLane({
       // Floor at 4px so a section right before another (or right at the
       // end of the song) stays clickable.
       const widthPx = Math.max(4, (endFrac - startFrac) * waveWidthPx);
-      // If the pill would extend past the lane's right edge — e.g. a
-      // section dropped at t=duration with the floor applied — pull
-      // leftPx back so the full 4px sits on-screen.
       if (leftPx + widthPx > laneRightPx) {
         leftPx = Math.max(waveLeftPx, laneRightPx - widthPx);
       }
@@ -80,48 +84,96 @@ export function SectionLane({
 
   if (computed.length === 0) return null;
 
+  const wrapClassName =
+    'section-lane-wrap' +
+    (expanded ? ' expanded' : ' collapsed') +
+    (interactionDisabled ? ' disabled' : '');
+
   return (
-    <div className="section-lane" aria-label="Song sections">
-      {computed.map((c) => {
-        const isActive = activeSectionId === c.section.id;
-        return (
-          <button
-            type="button"
-            key={c.section.id}
-            data-testid={`section-${c.section.id}`}
-            data-section-id={c.section.id}
-            className={'section-pill' + (isActive ? ' active' : '')}
-            style={{
-              left: `${c.leftPx}px`,
-              width: `${c.widthPx}px`,
-              backgroundColor: c.fillColor,
-            }}
-            title={
-              c.section.song_name
-                ? c.shared
-                  ? `${c.section.song_name} · used in ${songUseCounts.get(c.section.song_id ?? '') ?? 1} practices`
-                  : c.section.song_name
-                : c.section.label ?? 'Untitled boundary'
-            }
-            onClick={(e) => {
-              // Shift+click selects without seeking — useful when you want
-              // to rename without losing your listening position.
-              if (!e.shiftKey) onSeek(c.section.start_ms / 1000);
-              onSelect(c.section);
-            }}
-          >
-            <span className="section-pill-label">{c.label}</span>
-            {c.shared && (
-              <Link2
-                size={10}
-                strokeWidth={2.5}
-                aria-hidden="true"
-                className="section-pill-chain"
+    <div
+      className={wrapClassName}
+      onMouseEnter={() => onHoverChange(true)}
+      onMouseLeave={() => onHoverChange(false)}
+      onPointerDown={() => {
+        if (!expanded) onTapToExpand();
+      }}
+    >
+      {expanded ? (
+        <div className="section-lane" aria-label="Song sections">
+          {computed.map((c) => {
+            const isActive = activeSectionId === c.section.id;
+            return (
+              <button
+                type="button"
+                key={c.section.id}
+                data-testid={`section-${c.section.id}`}
+                data-section-id={c.section.id}
+                className={'section-pill' + (isActive ? ' active' : '')}
+                style={{
+                  left: `${c.leftPx}px`,
+                  width: `${c.widthPx}px`,
+                  backgroundColor: c.fillColor,
+                }}
+                title={
+                  c.section.song_name
+                    ? c.shared
+                      ? `${c.section.song_name} · used in ${songUseCounts.get(c.section.song_id ?? '') ?? 1} practices`
+                      : c.section.song_name
+                    : c.section.label ?? 'Untitled boundary'
+                }
+                onClick={(e) => {
+                  // Shift+click selects without seeking — useful when you
+                  // want to rename without losing your listening position.
+                  if (!e.shiftKey) onSeek(c.section.start_ms / 1000);
+                  onSelect(c.section);
+                }}
+              >
+                <span className="section-pill-label">{c.label}</span>
+                {c.shared && (
+                  <Link2
+                    size={10}
+                    strokeWidth={2.5}
+                    aria-hidden="true"
+                    className="section-pill-chain"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="section-ribbon" aria-label="Song sections (collapsed)">
+          {computed.map((c, i) => {
+            const isLast = i === computed.length - 1;
+            const isNarrow = c.widthPx < NARROW_SEGMENT_PX;
+            const prevIsNarrow = i > 0 && computed[i - 1].widthPx < NARROW_SEGMENT_PX;
+            const hasDivider = !isLast && !isNarrow && !prevIsNarrow;
+            return (
+              <button
+                type="button"
+                key={c.section.id}
+                data-section-id={c.section.id}
+                className={
+                  'section-ribbon-seg' +
+                  (hasDivider ? ' has-divider' : '') +
+                  (activeSectionId === c.section.id ? ' active' : '')
+                }
+                style={{
+                  left: `${c.leftPx}px`,
+                  width: `${c.widthPx}px`,
+                  backgroundColor: c.fillColor,
+                }}
+                title={c.label}
+                onClick={(e) => {
+                  if (!e.shiftKey) onSeek(c.section.start_ms / 1000);
+                  onSelect(c.section);
+                }}
+                aria-label={c.label}
               />
-            )}
-          </button>
-        );
-      })}
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { Minimap } from './Minimap';
 import { Playhead } from './Playhead';
 import { Ruler } from './Ruler';
 import { SectionLane } from './SectionLane';
+import { ActiveSectionChip } from './ActiveSectionChip';
 import { Track } from './Track';
 import type { ViewportControls } from '../hooks/useViewport';
 
@@ -125,6 +126,28 @@ export function Player({
   // shrinks the player via the .app-body grid), etc. — without needing each
   // parent state to be threaded in as a prop.
   const [, forceRender] = useState(0);
+
+  const [laneHovered, setLaneHovered] = useState(false);
+  const [laneTappedOpen, setLaneTappedOpen] = useState(false);
+
+  const laneExpanded =
+    laneHovered ||
+    (isMobile && laneTappedOpen) ||
+    sectionCreateMode ||
+    activeSectionId !== null;
+
+  useEffect(() => {
+    if (!laneTappedOpen) return;
+    const handler = (e: PointerEvent) => {
+      const target = e.target as Element | null;
+      if (target && target.closest('.section-lane-wrap')) return;
+      setLaneTappedOpen(false);
+    };
+    document.addEventListener('pointerdown', handler, { capture: true });
+    return () =>
+      document.removeEventListener('pointerdown', handler, { capture: true });
+  }, [laneTappedOpen]);
+
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -640,6 +663,12 @@ export function Player({
               />
             )}
             <div className="tracks" ref={tracksRef}>
+              <ActiveSectionChip
+                sections={sections}
+                songUseCounts={songUseCounts}
+                currentTimeSeconds={currentTime}
+                onSeek={player.seek}
+              />
               <Ruler duration={duration} onPointerDown={onRulerPointerDown} rulerRef={rulerRef} />
               <SectionLane
                 sections={sections}
@@ -648,8 +677,12 @@ export function Player({
                 waveWidthPx={waveWidth}
                 songUseCounts={songUseCounts}
                 activeSectionId={activeSectionId}
+                expanded={laneExpanded}
+                interactionDisabled={annotationCreateMode}
                 onSelect={onSectionSelected}
                 onSeek={player.seek}
+                onHoverChange={setLaneHovered}
+                onTapToExpand={() => setLaneTappedOpen(true)}
               />
               {!stems.length && !loading && (
                 <div className="empty-stage">
