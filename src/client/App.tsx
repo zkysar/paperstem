@@ -57,6 +57,11 @@ import {
   type SongUsageRow,
 } from './data/songs-repo';
 import { SectionPopover, type SectionSubmit } from './components/SectionPopover';
+import { AutoClassifyToast } from './components/AutoClassifyToast';
+import { DetectionBanner } from './components/DetectionBanner';
+import { useAutoClassify } from './hooks/useAutoClassify';
+import { postSectionFingerprint } from './data/classify-repo';
+import { FINGERPRINT_VERSION } from './lib/auto-classify/chroma';
 import { HttpProjectsRepo, type ProjectsRepo } from './data/projects-repo';
 import type { Project, StemSource, TrashList } from './data/types';
 import { decodePeaks } from './lib/peaks';
@@ -175,6 +180,10 @@ function PaperstemApp({
   // around so the "Save to {bandName}" banner button can hand them to
   // UploadDrawer for promotion.
   const [draftFiles, setDraftFiles] = useState<File[]>([]);
+  // Toast that announces "N sections detected" the first time a user sees
+  // auto-detected sections. Persists a one-time flag in localStorage so it
+  // never re-appears for the same browser profile.
+  const [autoClassifyToastShown, setAutoClassifyToastShown] = useState(false);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [replies, setReplies] = useState<Map<string, AnnotationReply[]>>(
     () => new Map(),
@@ -344,6 +353,44 @@ function PaperstemApp({
     },
   });
 
+  // Auto-classify in draft mode. The hook listens for stems-loaded with
+  // activeProjectId===null and draftFiles set, runs YAMNet+chroma on the
+  // mixed full-mix, exposes preview sections + progress, and provides
+  // cancel/commit hooks. cancel() is wired to the Save button so clicking
+  // Save mid-detection drops the partial result; commit(projectId) is
+  // called after the project is persisted server-side.
+  const autoClassifyEnabled =
+    activeProjectId === null && draftFiles.length > 0;
+  const autoClassify = useAutoClassify({
+    enabled: autoClassifyEnabled,
+    stems: player.state.stems,
+    loading: player.state.loading !== null,
+  });
+
+  // Surface a one-time toast the first time the user sees auto-detected
+  // sections. Read the localStorage flag eagerly so subsequent project loads
+  // don't trip the toast again.
+  useEffect(() => {
+    if (autoClassify.state.phase !== 'ready') return;
+    if (autoClassify.state.previewSections.length === 0) return;
+    try {
+      const seen = localStorage.getItem('paperstem.hints.auto-classify.seen');
+      if (seen === '1') return;
+    } catch {
+      // ignore — best-effort
+    }
+    setAutoClassifyToastShown(true);
+  }, [autoClassify.state.phase, autoClassify.state.previewSections.length]);
+
+  const dismissAutoClassifyToast = useCallback(() => {
+    setAutoClassifyToastShown(false);
+    try {
+      localStorage.setItem('paperstem.hints.auto-classify.seen', '1');
+    } catch {
+      // ignore — best-effort
+    }
+  }, []);
+
   const userColorMap = useMemo(
     () => buildUserColorMap(annotations.map((a) => a.user_id), user.id),
     [annotations, user.id],
@@ -446,9 +493,34 @@ function PaperstemApp({
   async function handleUploaded(projectId: string) {
     setUploadOpen(false);
     setDraftFiles([]);
+    // Commit auto-classified sections (if Stage 1 finished before Save).
+    // commit() is a no-op when the hook is anywhere but in `ready`. The
+    // server returns the persisted Section rows; we merge them into local
+    // state below in selectProject's load. We just need to fire the POST
+    // before navigating so the timeline shows them on first render.
+    const committed = await autoClassify.commit(projectId);
     try {
       await refreshProjects();
       await selectProject(projectId);
+      // After selectProject loads sections fresh from the server, merge in
+      // the auto fields (confidence/segment_type/tentative/run_id) carried
+      // by the classify response. The GET /sections route doesn't expose
+      // those yet (Phase 4 ships that), so we hydrate them client-side.
+      if (committed && committed.length > 0) {
+        const byId = new Map(committed.map((s) => [s.id, s] as const));
+        setSections((prev) =>
+          prev.map((s) => {
+            const c = byId.get(s.id);
+            if (!c) return s;
+            return {
+              ...s,
+              confidence: c.confidence,
+              segment_type: c.segment_type,
+              tentative: c.tentative,
+            };
+          }),
+        );
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setLoadError(msg);
@@ -823,7 +895,8 @@ function PaperstemApp({
           setSections((cur) => [...cur, created].sort((a, b) => a.start_ms - b.start_ms));
           setActiveSectionId(created.id);
         } else {
-          const id = popover.section.id;
+          const prior = popover.section;
+          const id = prior.id;
           const input =
             payload.kind === 'song_id'
               ? { song_id: payload.song_id }
@@ -834,6 +907,30 @@ function PaperstemApp({
                   : { clear_name: true };
           const updated = await patchSection(id, input);
           setSections((cur) => cur.map((s) => (s.id === id ? updated : s)));
+          // If an auto section just had a song attached (or swapped to a
+          // different song), upload its chroma fingerprint so the band's
+          // matcher corpus grows. Phase 4 owns the endpoint; if it isn't
+          // available yet (404) we swallow the error silently.
+          if (
+            prior.source === 'auto' &&
+            updated.song_id !== null &&
+            updated.song_id !== prior.song_id
+          ) {
+            const chroma = autoClassify.chromaForSection(prior);
+            if (chroma && chroma.length > 0) {
+              const result = await postSectionFingerprint(activeProjectId, id, {
+                chroma,
+                fingerprint_version: FINGERPRINT_VERSION,
+              });
+              if (!result.ok && result.status !== 404) {
+                console.warn(
+                  'fingerprint upload failed',
+                  result.status,
+                  result.error,
+                );
+              }
+            }
+          }
         }
         await refreshBandSongs();
       } catch (err) {
@@ -842,7 +939,7 @@ function PaperstemApp({
         setSectionPopover(null);
       }
     },
-    [sectionPopover, activeProjectId, refreshBandSongs, renameSongUnderSection],
+    [sectionPopover, activeProjectId, refreshBandSongs, renameSongUnderSection, autoClassify],
   );
 
   const handleSectionDelete = useCallback(async () => {
@@ -1494,12 +1591,23 @@ function PaperstemApp({
             <button
               type="button"
               className="draft-banner-save"
-              onClick={() => setUploadOpen(true)}
+              onClick={() => {
+                // Save mid-detection cancels the in-flight classification —
+                // that's the "skip auto-classify" gesture per the design.
+                // No-op if detection isn't running.
+                if (autoClassify.state.phase === 'running') {
+                  autoClassify.cancel();
+                }
+                setUploadOpen(true);
+              }}
             >
               Save to <span className="band-name-clip">{activeBand.name}</span>
             </button>
           )}
         </div>
+      )}
+      {autoClassifyEnabled && autoClassify.state.phase === 'running' && (
+        <DetectionBanner progress={autoClassify.state.progress} />
       )}
       <div className="app-body">
         <ErrorBoundary onReportBug={openBugReport}>
@@ -1516,7 +1624,11 @@ function PaperstemApp({
             pendingDraft={pendingDraft}
             hoveredAnnotationId={hoveredAnnotationId}
             onHoverAnnotation={setHoveredAnnotationId}
-            sections={sections}
+            sections={
+              autoClassifyEnabled && autoClassify.state.phase === 'ready'
+                ? [...sections, ...autoClassify.state.previewSections]
+                : sections
+            }
             songUseCounts={songUseCounts}
             activeSectionId={activeSectionId}
             sectionCreateMode={sectionCreateMode}
@@ -1778,6 +1890,16 @@ function PaperstemApp({
               Undo
             </button>
           </div>,
+          document.body,
+        )}
+      {autoClassifyToastShown &&
+        autoClassify.state.phase === 'ready' &&
+        autoClassify.state.previewSections.length > 0 &&
+        createPortal(
+          <AutoClassifyToast
+            count={autoClassify.state.previewSections.length}
+            onDismiss={dismissAutoClassifyToast}
+          />,
           document.body,
         )}
     </div>
