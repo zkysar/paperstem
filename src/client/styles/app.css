@@ -4378,3 +4378,22 @@ body.env-non-prod[data-env="local"]::before {
   border-radius: 1px;
   opacity: 0.8;
 }
+
+/* ---- Annotation open-tab ------------------------------------------- */
+.annotation-tab {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: currentColor;
+  opacity: 0.7;
+  cursor: pointer;
+  z-index: 7;
+}
+.annotation-marker.point .annotation-tab {
+  height: 6px;
+}
+.annotation-tab:hover {
+  opacity: 1;
+}

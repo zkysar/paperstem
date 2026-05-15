@@ -11,6 +11,14 @@ const fixture: Annotation = {
   reply_count: 0, reactions: [],
 };
 
+const region: Annotation = {
+  id: 'r1', project_id: 'p1', user_id: 'u1',
+  user_email: 'sam@example.com', user_display_name: 'Sam',
+  start_ms: 1000, end_ms: 3000, body: 'note', starred: false,
+  created_at: 0, updated_at: 0,
+  reply_count: 0, reactions: [],
+};
+
 const baseProps = {
   annotations: [fixture],
   duration: 10,
@@ -31,13 +39,58 @@ describe('AnnotationMarkers', () => {
     expect(screen.getByTestId(`annotation-marker-${fixture.id}`)).not.toBeNull();
   });
 
-  it('clicking a marker calls onSelect with the annotation', () => {
+  it('tapping the marker body (no drag) forwards to onSeekFromClientX, not onSelect', () => {
+    const onSelect = vi.fn();
+    const onSeekFromClientX = vi.fn();
+    render(
+      <AnnotationMarkers
+        {...baseProps}
+        onSelect={onSelect}
+        onSeekFromClientX={onSeekFromClientX}
+      />,
+    );
+    const marker = screen.getByTestId(`annotation-marker-${fixture.id}`);
+    (marker as any).setPointerCapture = vi.fn();
+    (marker as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(marker, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 100, pointerId: 1 });
+
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSeekFromClientX).toHaveBeenCalledWith(100);
+  });
+
+  it('clicking the open tab calls onSelect', () => {
     const onSelect = vi.fn();
     render(<AnnotationMarkers {...baseProps} onSelect={onSelect} />);
-    fireEvent.pointerDown(
-      screen.getByTestId(`annotation-marker-${fixture.id}`),
-    );
+    const tab = document.querySelector(
+      `[data-testid="annotation-marker-${fixture.id}"] .annotation-tab`,
+    )!;
+    fireEvent.pointerDown(tab);
     expect(onSelect).toHaveBeenCalledWith(fixture);
+  });
+
+  it('edge grip pointerdown does not call onSelect or onSeekFromClientX', () => {
+    const onSelect = vi.fn();
+    const onSeekFromClientX = vi.fn();
+    render(
+      <AnnotationMarkers
+        {...baseProps}
+        annotations={[region]}
+        hoveredId="r1"
+        selfUserId="u1"
+        onSelect={onSelect}
+        onSeekFromClientX={onSeekFromClientX}
+      />,
+    );
+    const grip = document.querySelector(
+      `[data-testid="annotation-marker-r1"] .annotation-grip-left`,
+    )!;
+    fireEvent.pointerDown(grip, { clientX: 100, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 100, pointerId: 1 });
+
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSeekFromClientX).not.toHaveBeenCalled();
   });
 
   it('renders nothing when visible is false', () => {
@@ -67,13 +120,6 @@ describe('AnnotationMarkers', () => {
     expect(container.querySelector('.reply-thread')).toBeNull();
   });
 });
-
-const region: Annotation = {
-  ...fixture,
-  id: 'r1',
-  start_ms: 1000,
-  end_ms: 3000,
-};
 
 it('left edge drag on a region calls onPatchAnnotation with new start_ms', () => {
   const onPatchAnnotation = vi.fn(async () => {});

@@ -35,6 +35,7 @@ type Props = {
     id: string,
     input: { start_ms: number; end_ms: number | null },
   ): Promise<void>;
+  onSeekFromClientX?(clientX: number): void;
 };
 
 type DragPayload =
@@ -61,6 +62,7 @@ export function AnnotationMarkers({
   createMode,
   selfUserId,
   onPatchAnnotation,
+  onSeekFromClientX,
 }: Props) {
   const msPerPx = duration && waveWidthPx ? (duration * 1000) / waveWidthPx : 0;
   const durationMs = duration * 1000;
@@ -71,6 +73,9 @@ export function AnnotationMarkers({
 
   const drag = useDragOnAxis<DragPayload>({
     threshold: 3,
+    onTap: (payload, clientX) => {
+      if (payload.kind === 'middle') onSeekFromClientX?.(clientX);
+    },
     onChange: ({ phase, deltaPx, payload }) => {
       if (msPerPx <= 0) return;
       let nextStart: number;
@@ -156,11 +161,17 @@ export function AnnotationMarkers({
             onPointerEnter={() => { if (!createMode) onHover(m.ann.id); }}
             onPointerLeave={() => { onHover((cur) => (cur === m.ann.id ? null : cur)); }}
             onPointerDown={(e) => {
-              e.stopPropagation();
               if (createMode) return;
-              if ((e.target as Element).closest('.annotation-grip')) return;
+              if ((e.target as Element).closest('.annotation-grip, .annotation-tab')) return;
               if (!editable || !onPatchAnnotation) {
-                onSelect(m.ann);
+                drag.handlePointerDown(e, {
+                  kind: 'middle',
+                  id: m.ann.id,
+                  baseStart: m.start_ms,
+                  baseEnd: m.end_ms,
+                  minDelta: 0,
+                  maxDelta: 0,
+                });
                 return;
               }
               const baseEnd = m.end_ms;
@@ -178,6 +189,23 @@ export function AnnotationMarkers({
               });
             }}
           >
+            <span
+              className="annotation-tab"
+              aria-label={`Open comment by ${authorLabel(m.ann)}`}
+              role="button"
+              tabIndex={0}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                if (createMode) return;
+                onSelect(m.ann);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onSelect(m.ann);
+                }
+              }}
+            />
             {editable && m.isRegion && (
               <>
                 <span
