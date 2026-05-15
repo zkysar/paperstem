@@ -135,7 +135,7 @@ describe('reactions on annotations', () => {
       headers: { cookie: cookie(sid), 'content-type': 'application/json' },
       body: JSON.stringify({ emoji: '👍' }),
     });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(204);
 
     const row = dbMod.db
       .prepare(

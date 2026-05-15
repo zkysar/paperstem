@@ -769,16 +769,15 @@ function PaperstemApp({
 
   async function loadReplies(annotationId: string): Promise<void> {
     if (replies.has(annotationId)) return;
-    try {
-      const fetched = await listReplies(annotationId);
-      setReplies((m) => {
-        const next = new Map(m);
-        next.set(annotationId, fetched);
-        return next;
-      });
-    } catch (err) {
-      console.error('loadReplies failed', err);
-    }
+    // Let the caller observe failure so it can surface an error and offer a
+    // retry. App.tsx itself doesn't need a toast here — ReplyThread owns the
+    // per-thread error UI.
+    const fetched = await listReplies(annotationId);
+    setReplies((m) => {
+      const next = new Map(m);
+      next.set(annotationId, fetched);
+      return next;
+    });
   }
 
   async function createReply(

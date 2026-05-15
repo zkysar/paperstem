@@ -9,8 +9,8 @@ type Props = {
   selfUserId: string;
   canEdit: boolean;
   isNarrow: boolean;
-  onEdit(replyId: string, body: string): void;
-  onDelete(replyId: string): void;
+  onEdit(replyId: string, body: string): Promise<void> | void;
+  onDelete(replyId: string): Promise<void> | void;
   onToggleReaction(replyId: string, emoji: string): void;
 };
 
@@ -30,14 +30,31 @@ export function ReplyCard({
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(reply.body);
+  const [error, setError] = useState<string | null>(null);
   const author = reply.user_display_name ?? reply.user_email;
   const isOwn = reply.user_id === selfUserId;
 
-  function commit() {
+  async function commit() {
     const text = draft.trim();
     if (!text) return;
-    onEdit(reply.id, text);
-    setEditing(false);
+    setError(null);
+    try {
+      await onEdit(reply.id, text);
+      // Only exit edit mode on success so a failed save doesn't discard the draft.
+      setEditing(false);
+    } catch {
+      setError("Couldn't save edit — try again.");
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('Delete this reply?')) return;
+    setError(null);
+    try {
+      await onDelete(reply.id);
+    } catch {
+      setError("Couldn't delete — try again.");
+    }
   }
 
   return (
@@ -51,25 +68,31 @@ export function ReplyCard({
             autoFocus
             rows={2}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              if (error) setError(null);
+            }}
             onKeyDown={(e) => {
               if (isSubmitShortcut(e) && draft.trim().length > 0) {
                 e.preventDefault();
-                commit();
+                void commit();
               }
               if (e.key === 'Escape') {
                 e.preventDefault();
                 setDraft(reply.body);
                 setEditing(false);
+                setError(null);
               }
             }}
           />
+          {error && <div className="reply-composer-error">{error}</div>}
           <div className="reply-edit-actions">
             <button
               type="button"
               onClick={() => {
                 setDraft(reply.body);
                 setEditing(false);
+                setError(null);
               }}
             >
               Cancel
@@ -78,14 +101,17 @@ export function ReplyCard({
               type="button"
               className="reply-save"
               disabled={draft.trim().length === 0}
-              onClick={commit}
+              onClick={() => void commit()}
             >
               Save
             </button>
           </div>
         </div>
       ) : (
-        <div className="reply-body">{reply.body}</div>
+        <>
+          <div className="reply-body">{reply.body}</div>
+          {error && <div className="reply-composer-error">{error}</div>}
+        </>
       )}
       <Reactions
         reactions={reply.reactions}
@@ -112,7 +138,7 @@ export function ReplyCard({
             aria-label="Delete"
             onClick={(e) => {
               e.stopPropagation();
-              if (window.confirm('Delete this reply?')) onDelete(reply.id);
+              void handleDelete();
             }}
           >
             <Trash2 size={12} strokeWidth={2} aria-hidden="true" />

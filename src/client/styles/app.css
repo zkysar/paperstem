@@ -3217,3 +3217,26 @@ body.env-non-prod[data-env="local"]::before {
   font-size: var(--fs-xs);
   margin-top: 4px;
 }
+
+.reply-thread-loading {
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  padding: 4px 0;
+}
+
+.reply-thread-error {
+  font-size: var(--fs-sm);
+  color: var(--accent);
+  padding: 4px 0;
+}
+
+.reply-thread-retry {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-weight: var(--fw-semi);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: inherit;
+}

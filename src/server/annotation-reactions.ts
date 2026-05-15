@@ -77,7 +77,7 @@ export async function handleAddAnnotationReaction(
     emoji,
     Math.floor(Date.now() / 1000),
   );
-  return c.json({ ok: true });
+  return c.body(null, 204);
 }
 
 export async function handleRemoveAnnotationReaction(
@@ -112,7 +112,7 @@ export async function handleAddReplyReaction(
     emoji,
     Math.floor(Date.now() / 1000),
   );
-  return c.json({ ok: true });
+  return c.body(null, 204);
 }
 
 export async function handleRemoveReplyReaction(

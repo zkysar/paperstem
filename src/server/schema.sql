@@ -115,8 +115,10 @@ CREATE TABLE IF NOT EXISTS annotation_reactions (
   created_at    INTEGER NOT NULL,
   PRIMARY KEY (annotation_id, user_id, emoji)
 );
-CREATE INDEX IF NOT EXISTS idx_annotation_reactions_annotation
-  ON annotation_reactions(annotation_id);
+-- No secondary index on annotation_id: the PK already covers prefix lookups
+-- by (annotation_id) and (annotation_id, user_id). An earlier revision
+-- created idx_annotation_reactions_annotation; drop it on existing DBs.
+DROP INDEX IF EXISTS idx_annotation_reactions_annotation;
 
 CREATE TABLE IF NOT EXISTS annotation_reply_reactions (
   reply_id      TEXT NOT NULL REFERENCES annotation_replies(id) ON DELETE CASCADE,
@@ -125,5 +127,5 @@ CREATE TABLE IF NOT EXISTS annotation_reply_reactions (
   created_at    INTEGER NOT NULL,
   PRIMARY KEY (reply_id, user_id, emoji)
 );
-CREATE INDEX IF NOT EXISTS idx_annotation_reply_reactions_reply
-  ON annotation_reply_reactions(reply_id);
+-- No secondary index on reply_id: PK prefix lookups suffice.
+DROP INDEX IF EXISTS idx_annotation_reply_reactions_reply;

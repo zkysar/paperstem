@@ -259,14 +259,14 @@ it('comment -> reply -> react -> delete parent cascades', async () => {
     headers: { cookie: cookie(sid), 'content-type': 'application/json' },
     body: JSON.stringify({ emoji: '👍' }),
   });
-  expect(annReactRes.status).toBe(200);
+  expect(annReactRes.status).toBe(204);
 
   const replyReactRes = await app.request(`/api/annotation-replies/${reply.id}/reactions`, {
     method: 'POST',
     headers: { cookie: cookie(sid), 'content-type': 'application/json' },
     body: JSON.stringify({ emoji: '🎵' }),
   });
-  expect(replyReactRes.status).toBe(200);
+  expect(replyReactRes.status).toBe(204);
 
   // 4. List shows aggregates
   const listRes = await app.request(`/api/projects/${pid}/annotations`, {

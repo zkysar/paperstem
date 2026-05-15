@@ -39,6 +39,8 @@ export function ReplyThread({
   const [expanded, setExpanded] = useState(false);
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   // Track which annotationId we've already fetched for so a reused instance
   // (CommentPopover / CommentBottomSheet navigating between annotations) doesn't
   // skip the fetch when the prop changes.
@@ -49,8 +51,36 @@ export function ReplyThread({
     if (replies !== undefined) return;
     if (fetchedForRef.current === annotationId) return;
     fetchedForRef.current = annotationId;
-    void onLoadReplies(annotationId);
+    setLoading(true);
+    setLoadError(null);
+    (async () => {
+      try {
+        await onLoadReplies(annotationId);
+      } catch {
+        // Clear the fetch guard so the user can retry by collapsing/re-expanding.
+        fetchedForRef.current = null;
+        setLoadError("Couldn't load replies.");
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [expanded, replies, annotationId, onLoadReplies]);
+
+  function retryLoad() {
+    fetchedForRef.current = null;
+    setLoadError(null);
+    setLoading(true);
+    (async () => {
+      try {
+        await onLoadReplies(annotationId);
+        fetchedForRef.current = annotationId;
+      } catch {
+        setLoadError("Couldn't load replies.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }
 
   const [error, setError] = useState<string | null>(null);
 
@@ -107,6 +137,21 @@ export function ReplyThread({
       </div>
       {expanded && (
         <div className="reply-thread-list">
+          {loading && replies === undefined && (
+            <div className="reply-thread-loading">Loading replies…</div>
+          )}
+          {loadError && (
+            <div className="reply-thread-error">
+              {loadError}{' '}
+              <button
+                type="button"
+                className="reply-thread-retry"
+                onClick={retryLoad}
+              >
+                Retry
+              </button>
+            </div>
+          )}
           {(replies ?? []).map((r) => (
             <ReplyCard
               key={r.id}
