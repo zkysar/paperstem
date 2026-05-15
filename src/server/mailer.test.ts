@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import type { BugReportPayload } from './mailer.js';
 
 // mailer.ts reads GMAIL_USER and GMAIL_APP_PASSWORD at module init time and
@@ -6,7 +6,16 @@ import type { BugReportPayload } from './mailer.js';
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
 
-const { formatBugReportSubject, formatBugReportText } = await import('./mailer.js');
+const mailer = await import('./mailer.js');
+
+const {
+  formatBugReportSubject,
+  formatBugReportText,
+  formatMentionEmailSubject,
+  formatBatchedDigestSubject,
+  formatBatchedDigestText,
+  formatDailyDigestSubject,
+} = mailer;
 
 function makePayload(overrides: Partial<BugReportPayload> = {}): BugReportPayload {
   return {
@@ -129,5 +138,107 @@ describe('formatBugReportText', () => {
     const text = formatBugReportText(makePayload());
     expect(text).toContain('[No screenshot attached]');
     expect(text).not.toContain('[Attachment: screenshot.png]');
+  });
+});
+
+describe('formatMentionEmailSubject', () => {
+  it('returns the expected subject for normal inputs', () => {
+    expect(formatMentionEmailSubject({ authorName: 'Sarah', projectName: 'Mix v3', preview: 'bass is buried' }))
+      .toBe('Sarah on "Mix v3": bass is buried');
+  });
+
+  it('truncates to ≤80 chars with … suffix when over', () => {
+    const preview = 'a'.repeat(100);
+    const result = formatMentionEmailSubject({ authorName: 'Sarah', projectName: 'Mix v3', preview });
+    expect(result.length).toBeLessThanOrEqual(80);
+    expect(result.endsWith('…')).toBe(true);
+  });
+});
+
+describe('formatBatchedDigestSubject', () => {
+  it('returns single-event format for 1 group with 1 event', () => {
+    const groups = [{ projectName: 'Mix v3', events: [{ authorName: 'A', preview: 'nice take' }] }];
+    expect(formatBatchedDigestSubject(groups)).toBe('A on "Mix v3": nice take');
+  });
+
+  it('returns plural comment count format for 1 group with 2 events', () => {
+    const groups = [{ projectName: 'Mix v3', events: [{ authorName: 'A', preview: 'x' }, { authorName: 'B', preview: 'y' }] }];
+    expect(formatBatchedDigestSubject(groups)).toBe('2 new comments on "Mix v3"');
+  });
+
+  it('returns activity-in-N-projects format for 2 groups', () => {
+    const groups = [
+      { projectName: 'Mix v3', events: [{ authorName: 'A', preview: 'x' }] },
+      { projectName: 'Drums', events: [{ authorName: 'B', preview: 'y' }] },
+    ];
+    expect(formatBatchedDigestSubject(groups)).toBe('Activity in 2 projects');
+  });
+});
+
+describe('formatDailyDigestSubject', () => {
+  it('prefixes with [Paperstem] Daily summary —', () => {
+    const groups = [{ projectName: 'Mix v3', events: [{ authorName: 'A', preview: 'x' }] }];
+    const result = formatDailyDigestSubject(groups);
+    expect(result.startsWith('[Paperstem] Daily summary —')).toBe(true);
+  });
+});
+
+describe('formatBatchedDigestText', () => {
+  it('produces a grouped body with bullets per event and the footer', () => {
+    const groups = [
+      { projectName: 'Mix v3', events: [{ authorName: 'Alice', preview: 'bass is buried' }] },
+    ];
+    const text = formatBatchedDigestText(
+      groups,
+      (_g, _ev, _idx) => 'https://app/c1',
+      { settingsLink: 'https://app/s', muteBandLink: 'https://app/m' },
+    );
+    expect(text).toContain('In "Mix v3":');
+    expect(text).toContain('  • Alice: bass is buried');
+    expect(text).toContain('    https://app/c1');
+    expect(text).toContain('Mute: https://app/m');
+    expect(text).toContain('Notification settings: https://app/s');
+    expect(text).toContain('— Paperstem');
+  });
+});
+
+describe('sendMentionEmail', () => {
+  let sendMailSpy: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    sendMailSpy = vi.fn().mockResolvedValue({});
+    (mailer._transporter as unknown as { sendMail: typeof sendMailSpy }).sendMail = sendMailSpy;
+  });
+  it('uses Reply-To header with reply-token address', async () => {
+    await mailer.sendMentionEmail({
+      to: 'b@e.test', authorName: 'A', projectName: 'P', preview: 'x',
+      commentLink: 'https://app/x', muteBandLink: 'https://app/m', settingsLink: 'https://app/s',
+      replyToken: 'tok123', inboundDomain: 'mail.paperstem.app',
+    });
+    expect(sendMailSpy).toHaveBeenCalledTimes(1);
+    const arg = sendMailSpy.mock.calls[0][0];
+    expect(arg.replyTo).toBe('replies+tok123@mail.paperstem.app');
+    expect(arg.to).toBe('b@e.test');
+    expect(arg.subject).toBe('A on "P": x');
+  });
+});
+
+describe('sendDigestEmail', () => {
+  let sendMailSpy: ReturnType<typeof vi.fn>;
+  beforeEach(() => {
+    sendMailSpy = vi.fn().mockResolvedValue({});
+    (mailer._transporter as unknown as { sendMail: typeof sendMailSpy }).sendMail = sendMailSpy;
+  });
+  it('uses Reply-To with representative token and uses daily subject when daily=true', async () => {
+    await mailer.sendDigestEmail({
+      to: 'b@e.test', daily: true,
+      groups: [{ projectName: 'P', events: [{ authorName: 'A', preview: 'x' }] }],
+      linkBuilder: () => 'https://app/c',
+      settingsLink: 'https://app/s',
+      representativeReplyToken: 'tokZ',
+      inboundDomain: 'mail.x',
+    });
+    const arg = sendMailSpy.mock.calls[0][0];
+    expect(arg.replyTo).toBe('replies+tokZ@mail.x');
+    expect(arg.subject).toMatch(/^\[Paperstem\] Daily summary —/);
   });
 });

@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
-import { stmts } from './db.js';
+import { db, stmts } from './db.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
+import { recordActivity } from './notifications.js';
 
 const MAX_EMOJI_BYTES = 32;
 
@@ -71,12 +72,26 @@ export async function handleAddAnnotationReaction(
   const emoji = await readEmoji(c);
   if (!emoji) return c.json({ error: 'invalid_input' }, 400);
 
-  stmts.insertReaction.run(
-    annId,
-    access.userId,
-    emoji,
-    Math.floor(Date.now() / 1000),
-  );
+  const ann = stmts.findAnnotationById.get(annId);
+  if (!ann) return c.json({ error: 'not_found' }, 404);
+
+  const insertWithNotifications = db.transaction(() => {
+    stmts.insertReaction.run(
+      annId,
+      access.userId,
+      emoji,
+      Math.floor(Date.now() / 1000),
+    );
+    recordActivity({
+      kind: 'reaction',
+      sourceType: 'annotation',
+      sourceId: annId,
+      projectId: ann.project_id,
+      authorId: access.userId,
+      body: '',
+    });
+  });
+  insertWithNotifications();
   return c.body(null, 204);
 }
 
@@ -106,12 +121,28 @@ export async function handleAddReplyReaction(
   const emoji = await readEmoji(c);
   if (!emoji) return c.json({ error: 'invalid_input' }, 400);
 
-  stmts.insertReplyReaction.run(
-    replyId,
-    access.userId,
-    emoji,
-    Math.floor(Date.now() / 1000),
-  );
+  const reply = stmts.findReplyById.get(replyId);
+  if (!reply) return c.json({ error: 'not_found' }, 404);
+  const ann = stmts.findAnnotationById.get(reply.annotation_id);
+  if (!ann) return c.json({ error: 'not_found' }, 404);
+
+  const insertWithNotifications = db.transaction(() => {
+    stmts.insertReplyReaction.run(
+      replyId,
+      access.userId,
+      emoji,
+      Math.floor(Date.now() / 1000),
+    );
+    recordActivity({
+      kind: 'reaction',
+      sourceType: 'reply',
+      sourceId: replyId,
+      projectId: ann.project_id,
+      authorId: access.userId,
+      body: '',
+    });
+  });
+  insertWithNotifications();
   return c.body(null, 204);
 }
 

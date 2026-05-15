@@ -38,6 +38,7 @@ afterAll(() => rmSync(tmpDir, { recursive: true, force: true }));
 
 function reset() {
   dbMod.db.exec(
+    'DELETE FROM pending_notifications; DELETE FROM band_mutes; DELETE FROM notification_prefs; DELETE FROM project_reads; DELETE FROM mentions; ' +
     'DELETE FROM annotation_reply_reactions; DELETE FROM annotation_reactions; ' +
     'DELETE FROM annotation_replies; DELETE FROM annotations; DELETE FROM stems; ' +
     'DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; ' +
@@ -241,6 +242,40 @@ describe('replies', () => {
       body: JSON.stringify({ body: 'x'.repeat(32769) }),
     });
     expect(tooLong.status).toBe(400);
+  });
+
+  it('records a pending notification for annotation author and prior repliers, not the current author', async () => {
+    const annAuthor = createUser('ann@e.test');
+    const priorReplier = createUser('prior@e.test');
+    const replier = createUser('r@e.test');
+    const bandId = createBand(annAuthor);
+    addMember(bandId, priorReplier);
+    addMember(bandId, replier);
+    const pid = insertProject(bandId, annAuthor);
+    const annId = insertAnnotation(pid, annAuthor, 0, null, 'parent');
+
+    const priorSid = createSession(priorReplier);
+    await app.request(`/api/annotations/${annId}/replies`, {
+      method: 'POST',
+      headers: { cookie: cookie(priorSid), 'content-type': 'application/json' },
+      body: JSON.stringify({ body: 'first' }),
+    });
+
+    dbMod.db.exec('DELETE FROM pending_notifications');
+
+    const replierSid = createSession(replier);
+    const res = await app.request(`/api/annotations/${annId}/replies`, {
+      method: 'POST',
+      headers: { cookie: cookie(replierSid), 'content-type': 'application/json' },
+      body: JSON.stringify({ body: 'second' }),
+    });
+    expect(res.status).toBe(201);
+
+    const rows = dbMod.db.prepare('SELECT recipient_id FROM pending_notifications ORDER BY recipient_id').all() as { recipient_id: string }[];
+    const recipientIds = rows.map((r) => r.recipient_id).sort();
+    expect(recipientIds).toContain(annAuthor);
+    expect(recipientIds).toContain(priorReplier);
+    expect(recipientIds).not.toContain(replier);
   });
 
   it('cascade-deletes replies and reactions when parent annotation is deleted', async () => {

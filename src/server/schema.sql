@@ -189,3 +189,60 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_band
   ON audit_log(band_id, created_at DESC) WHERE band_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_audit_log_action
   ON audit_log(action, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS mentions (
+  id              TEXT PRIMARY KEY,
+  source_type     TEXT NOT NULL CHECK (source_type IN ('annotation','reply')),
+  source_id       TEXT NOT NULL,
+  project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  author_user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  target_user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at      INTEGER NOT NULL,
+  read_at         INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_mentions_target_unread
+  ON mentions(target_user_id, created_at DESC) WHERE read_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_mentions_source ON mentions(source_type, source_id);
+
+CREATE TABLE IF NOT EXISTS project_reads (
+  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  project_id   TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  last_read_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, project_id)
+);
+
+CREATE TABLE IF NOT EXISTS notification_prefs (
+  user_id                 TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  email_mentions          INTEGER NOT NULL DEFAULT 1,
+  email_project_activity  TEXT NOT NULL DEFAULT 'batched'
+    CHECK (email_project_activity IN ('batched','daily','off')),
+  email_thread_activity   TEXT NOT NULL DEFAULT 'batched'
+    CHECK (email_thread_activity IN ('batched','daily','off')),
+  digest_hour_local       INTEGER NOT NULL DEFAULT 8,
+  timezone                TEXT NOT NULL DEFAULT 'UTC',
+  updated_at              INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS band_mutes (
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  band_id    TEXT NOT NULL REFERENCES bands(id) ON DELETE CASCADE,
+  muted_at   INTEGER NOT NULL,
+  PRIMARY KEY (user_id, band_id)
+);
+
+CREATE TABLE IF NOT EXISTS pending_notifications (
+  id              TEXT PRIMARY KEY,
+  recipient_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind            TEXT NOT NULL CHECK (kind IN ('comment','reply','mention','reaction')),
+  project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  source_type     TEXT NOT NULL CHECK (source_type IN ('annotation','reply')),
+  source_id       TEXT NOT NULL,
+  author_user_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  preview         TEXT NOT NULL,
+  reply_token     TEXT,
+  created_at      INTEGER NOT NULL,
+  sent_at         INTEGER,
+  send_attempts   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_pending_notifications_unsent
+  ON pending_notifications(recipient_id, created_at) WHERE sent_at IS NULL;

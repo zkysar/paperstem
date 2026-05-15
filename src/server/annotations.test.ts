@@ -42,7 +42,7 @@ afterAll(() => {
 
 function reset() {
   dbMod.db.exec(
-    'DELETE FROM annotation_reply_reactions; DELETE FROM annotation_reactions; DELETE FROM annotation_replies; DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM pending_notifications; DELETE FROM band_mutes; DELETE FROM notification_prefs; DELETE FROM project_reads; DELETE FROM mentions; DELETE FROM annotation_reply_reactions; DELETE FROM annotation_reactions; DELETE FROM annotation_replies; DELETE FROM annotations; DELETE FROM stems; DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
   );
 }
 
@@ -516,6 +516,49 @@ describe('DELETE /api/annotations/:id', () => {
     );
     expect(res.status).toBe(204);
     expect(dbMod.stmts.findAnnotationById.get(aid)).toBeUndefined();
+  });
+});
+
+describe('annotation create + notifications', () => {
+  it('records a pending notification per band member on create', async () => {
+    reset();
+    const author = createUser('a@e.test');
+    const member = createUser('m@e.test');
+    const bandId = createBand(author);
+    addMember(bandId, member);
+    const projectId = insertProject(bandId, author);
+    const sessionId = createSession(author);
+
+    const res = await app.request(`/api/projects/${projectId}/annotations`, {
+      method: 'POST',
+      headers: { cookie: cookie(sessionId), 'content-type': 'application/json' },
+      body: JSON.stringify({ start_ms: 0, body: 'listen here' }),
+    });
+    expect(res.status).toBe(201);
+
+    const rows = dbMod.db.prepare('SELECT recipient_id, kind FROM pending_notifications').all() as { recipient_id: string; kind: string }[];
+    expect(rows.length).toBe(1);
+    expect(rows[0]).toMatchObject({ recipient_id: member, kind: 'comment' });
+  });
+
+  it('emits a mention row when the body contains @[uid]', async () => {
+    reset();
+    const author = createUser('a@e.test');
+    const target = createUser('t@e.test');
+    const bandId = createBand(author);
+    addMember(bandId, target);
+    const projectId = insertProject(bandId, author);
+    const sessionId = createSession(author);
+
+    const res = await app.request(`/api/projects/${projectId}/annotations`, {
+      method: 'POST',
+      headers: { cookie: cookie(sessionId), 'content-type': 'application/json' },
+      body: JSON.stringify({ start_ms: 0, body: `hey @[${target}] check this` }),
+    });
+    expect(res.status).toBe(201);
+
+    const count = dbMod.db.prepare('SELECT COUNT(*) AS c FROM mentions').get() as { c: number };
+    expect(count.c).toBe(1);
   });
 });
 

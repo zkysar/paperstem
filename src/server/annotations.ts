@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
-import { stmts, type AnnotationJoinedRow, type AnnotationReactionAggRow } from './db.js';
+import { db, stmts, type AnnotationJoinedRow, type AnnotationReactionAggRow } from './db.js';
 import { recordAudit } from './audit.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
+import { recordActivity } from './notifications.js';
+import { fireImmediateMentionSends } from './notifications-flush.js';
 import type { Annotation, Reaction } from '../shared/types.js';
 
 const MAX_BODY_LENGTH = 32768;
@@ -140,17 +142,30 @@ export async function handleCreateAnnotation(
 
   const id = randomUUID();
   const now = Math.floor(Date.now() / 1000);
-  stmts.insertAnnotation.run(
-    id,
-    projectId,
-    user.id,
-    range.start,
-    range.end,
-    text,
-    starred,
-    now,
-    now,
-  );
+  let activity: { mentionPendingIds: string[] } | undefined;
+  const insertWithNotifications = db.transaction(() => {
+    stmts.insertAnnotation.run(
+      id,
+      projectId,
+      user.id,
+      range.start,
+      range.end,
+      text,
+      starred,
+      now,
+      now,
+    );
+    activity = recordActivity({
+      kind: 'comment',
+      sourceType: 'annotation',
+      sourceId: id,
+      projectId,
+      authorId: user.id,
+      body: text,
+    });
+  });
+  insertWithNotifications();
+  fireImmediateMentionSends(activity?.mentionPendingIds ?? []);
 
   const row = stmts.findAnnotationByIdJoined.get(id);
   if (!row) return c.json({ error: 'server_error' }, 500);
