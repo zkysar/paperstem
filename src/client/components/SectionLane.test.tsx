@@ -86,6 +86,35 @@ describe('SectionLane', () => {
     expect(container.querySelector('.section-pill-chain')).toBeNull();
   });
 
+  it('dragging a section left edge calls onPatchSection with snapped new start_ms', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const grip = document.querySelector(
+      '[data-testid="section-s2"] .section-grip-left',
+    )!;
+    (grip as any).setPointerCapture = vi.fn();
+    (grip as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(grip, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 530, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 530, pointerId: 1 });
+
+    // baseProps: waveLeftPx=100, waveWidthPx=800, duration=120 -> 150ms/px.
+    // 30px * 150ms/px = 4500ms; snap-10 -> 4500. New start_ms = 60000 + 4500 = 64500.
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 64500 });
+  });
+
   it('clicking a pill seeks and selects', async () => {
     const onSelect = vi.fn();
     const onSeek = vi.fn();
