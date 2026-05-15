@@ -69,6 +69,31 @@ describe('createFolder', () => {
   });
 });
 
+describe('resolveFileIdToPath', () => {
+  it('returns the absolute on-disk path for an existing file id', async () => {
+    const folder = await storage.createFolder('band-a');
+    const body = Buffer.from('content', 'utf8');
+    const { id } = await storage.uploadFile(folder.id, 'mix.mp3', 'audio/mpeg', body);
+
+    const abs = await storage.resolveFileIdToPath(id);
+    expect(abs).toBe(join(root, 'band-a', 'mix.mp3'));
+    const onDisk = await readFile(abs);
+    expect(onDisk.equals(body)).toBe(true);
+  });
+
+  it('throws StorageNotFoundError when the file is missing', async () => {
+    const missingId = encode('band-a/nope.mp3');
+    await expect(storage.resolveFileIdToPath(missingId)).rejects.toMatchObject({
+      name: 'StorageNotFoundError',
+    });
+  });
+
+  it('rejects ids that would escape the storage root', async () => {
+    const evil = encode('../escape.mp3');
+    await expect(storage.resolveFileIdToPath(evil)).rejects.toThrow(/invalid path segment/);
+  });
+});
+
 describe('uploadFile', () => {
   it('uploads a Buffer body and returns id + size', async () => {
     const folder = await storage.createFolder('band-a');

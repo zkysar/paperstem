@@ -329,6 +329,26 @@ export async function updateFile(
   return { id: fileId, size: body.length };
 }
 
+/**
+ * Resolve a storage file id (base64url-encoded relative path) to an absolute
+ * filesystem path under PAPERSTEM_AUDIO_ROOT. Throws StorageNotFoundError
+ * when the file doesn't exist on disk. The id-decoding still goes through
+ * `sanitizeSegment` via `pathFromRel` so path-traversal attempts surface as
+ * errors rather than producing a path outside the root.
+ *
+ * Use only for read-only out-of-band tooling (e.g. the fingerprint backfill
+ * script that has to hand an audio path to the Python sidecar). Request
+ * handlers should keep using `getFile` so range headers / 404 mapping stay
+ * consistent.
+ */
+export async function resolveFileIdToPath(fileId: string): Promise<string> {
+  const root = audioRoot();
+  const rel = decodeId(fileId);
+  const abs = pathFromRel(root, rel);
+  await statOrNotFound(abs, fileId);
+  return abs;
+}
+
 export async function uploadFile(
   parentFolderId: string,
   name: string,
