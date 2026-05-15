@@ -157,6 +157,15 @@ kbd {
   outline-offset: 2px;
 }
 
+.band-name-clip {
+  display: inline-block;
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
 /* ===== Topbar (used by bands-empty fallback) ===== */
 .topbar {
   display: flex;

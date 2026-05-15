@@ -260,7 +260,7 @@ export function FilePicker({
               onClick={(e) => e.stopPropagation()}
             >
               <h3 id="fp-modal-title">Move "{confirm.name}" to trash?</h3>
-              <p>You can restore from this band's trash for 30 days.</p>
+              <p>Items in trash can be restored for 30 days.</p>
               <div className="fp-modal-actions">
                 <button
                   type="button"
@@ -368,8 +368,7 @@ function FilePickerBody({
           </button>
         )}
         <p className="fp-state-secondary">
-          Pick a folder of stems. You can listen and rename before saving it
-          to your band.
+          Pick a folder of stems. You can listen and rename before saving it.
         </p>
       </div>
     );

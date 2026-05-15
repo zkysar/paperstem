@@ -5,6 +5,7 @@ import { UploadDrawer } from './UploadDrawer';
 
 const baseProps = {
   bandId: 'band-1',
+  bandName: 'The Wombats',
   open: true,
   onClose: vi.fn(),
   onUploaded: vi.fn(),
@@ -18,7 +19,7 @@ afterEach(() => {
 describe('UploadDrawer', () => {
   it('renders the standard upload form when no prefill is supplied', () => {
     render(<UploadDrawer {...baseProps} />);
-    expect(screen.getByText('Upload project')).not.toBeNull();
+    expect(screen.getByText('New project')).not.toBeNull();
     // Folder input is the only way to provide stems in the standalone flow.
     const folderInput = document.querySelector(
       'input[type="file"][webkitdirectory]',
@@ -39,8 +40,10 @@ describe('UploadDrawer', () => {
         prefilledName="My band project"
       />,
     );
-    // Heading flips to the promote-flow title.
-    expect(screen.getByText('Save to your band')).not.toBeNull();
+    // Submit button names the band — the commit moment surfaces the destination.
+    expect(
+      screen.getByRole('button', { name: /^Save to The Wombats$/ }),
+    ).not.toBeNull();
     // Folder input is hidden — the user already picked the folder upstream.
     const folderInput = document.querySelector(
       'input[type="file"][webkitdirectory]',
@@ -126,7 +129,9 @@ describe('UploadDrawer', () => {
         />,
       );
 
-      await user.click(screen.getByRole('button', { name: 'Upload' }));
+      await user.click(
+        screen.getByRole('button', { name: /^Save to The Wombats$/ }),
+      );
 
       await waitFor(() => expect(onUploaded).toHaveBeenCalledOnce());
       expect(onUploaded).toHaveBeenCalledWith('proj-1');
@@ -158,14 +163,18 @@ describe('UploadDrawer', () => {
         />,
       );
 
-      await user.click(screen.getByRole('button', { name: 'Upload' }));
+      await user.click(
+        screen.getByRole('button', { name: /^Save to The Wombats$/ }),
+      );
 
       // Once every stem is 'done', the Upload button is gone — the only
       // footer action left is "Close". This is defense in depth: even if
       // some future refactor breaks the onUploaded-on-success contract, an
       // accidental re-click cannot fire a second POST /api/projects.
       await waitFor(() => expect(screen.getByText('done')).not.toBeNull());
-      expect(screen.queryByRole('button', { name: 'Upload' })).toBeNull();
+      expect(
+        screen.queryByRole('button', { name: /^Save to The Wombats$/ }),
+      ).toBeNull();
       expect(screen.getByRole('button', { name: 'Close' })).not.toBeNull();
     });
   });
