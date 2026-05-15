@@ -38,6 +38,7 @@ afterAll(() => rmSync(tmpDir, { recursive: true, force: true }));
 
 function reset() {
   dbMod.db.exec(
+    'DELETE FROM pending_notifications; DELETE FROM band_mutes; DELETE FROM notification_prefs; DELETE FROM project_reads; DELETE FROM mentions; ' +
     'DELETE FROM annotation_reply_reactions; DELETE FROM annotation_reactions; ' +
     'DELETE FROM annotation_replies; DELETE FROM annotations; DELETE FROM stems; ' +
     'DELETE FROM projects; DELETE FROM memberships; DELETE FROM bands; ' +
@@ -252,6 +253,47 @@ describe('reactions on annotations', () => {
       body: JSON.stringify({ emoji: '👍' }),
     });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('reaction notifications', () => {
+  it('reaction on another member comment notifies the annotation author', async () => {
+    const author = createUser('author@e.test');
+    const reactor = createUser('reactor@e.test');
+    const bandId = createBand(author);
+    addMember(bandId, reactor);
+    const pid = insertProject(bandId, author);
+    const annId = insertAnnotation(pid, author, 0, null, 'note');
+    const sid = createSession(reactor);
+
+    const res = await app.request(`/api/annotations/${annId}/reactions`, {
+      method: 'POST',
+      headers: { cookie: cookie(sid), 'content-type': 'application/json' },
+      body: JSON.stringify({ emoji: '👍' }),
+    });
+    expect(res.status).toBe(204);
+
+    const rows = dbMod.db.prepare('SELECT recipient_id, kind FROM pending_notifications').all() as { recipient_id: string; kind: string }[];
+    expect(rows.length).toBe(1);
+    expect(rows[0]).toMatchObject({ recipient_id: author, kind: 'reaction' });
+  });
+
+  it('reaction on your own comment does not notify yourself', async () => {
+    const author = createUser('author@e.test');
+    const bandId = createBand(author);
+    const pid = insertProject(bandId, author);
+    const annId = insertAnnotation(pid, author, 0, null, 'note');
+    const sid = createSession(author);
+
+    const res = await app.request(`/api/annotations/${annId}/reactions`, {
+      method: 'POST',
+      headers: { cookie: cookie(sid), 'content-type': 'application/json' },
+      body: JSON.stringify({ emoji: '👍' }),
+    });
+    expect(res.status).toBe(204);
+
+    const count = dbMod.db.prepare('SELECT COUNT(*) AS n FROM pending_notifications').get() as { n: number };
+    expect(count.n).toBe(0);
   });
 });
 
