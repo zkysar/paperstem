@@ -873,7 +873,6 @@ function PaperstemApp({
 
   const handleSectionPatchStart = useCallback(
     async (id: string, input: { start_ms: number }) => {
-      const prev = sections;
       setSections((cur) =>
         cur
           .map((s) => (s.id === id ? { ...s, start_ms: input.start_ms } : s))
@@ -886,10 +885,17 @@ function PaperstemApp({
         );
       } catch (err) {
         console.error('section patch failed', err);
-        setSections(prev);
+        if (activeProjectId) {
+          try {
+            const list = await listSections(activeProjectId);
+            setSections(list);
+          } catch {
+            /* ignore — the user will see stale data until next reload */
+          }
+        }
       }
     },
-    [sections],
+    [activeProjectId],
   );
 
   const handleSectionDelete = useCallback(async () => {
@@ -1192,7 +1198,6 @@ function PaperstemApp({
 
   const handleAnnotationPatchRange = useCallback(
     async (id: string, input: { start_ms: number; end_ms: number | null }) => {
-      const prev = annotations;
       setAnnotations((cur) =>
         cur.map((a) => (a.id === id ? { ...a, ...input } : a)),
       );
@@ -1201,10 +1206,17 @@ function PaperstemApp({
         setAnnotations((cur) => cur.map((a) => (a.id === id ? updated : a)));
       } catch (err) {
         console.error('annotation patch failed', err);
-        setAnnotations(prev);
+        if (activeProjectId) {
+          try {
+            const list = await listAnnotations(activeProjectId);
+            setAnnotations(list);
+          } catch {
+            /* ignore */
+          }
+        }
       }
     },
-    [annotations],
+    [activeProjectId],
   );
 
   async function handleCreateFromDraft(body: string): Promise<void> {
