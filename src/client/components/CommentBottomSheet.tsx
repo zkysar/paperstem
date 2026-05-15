@@ -1,8 +1,14 @@
 import { useState, type KeyboardEvent } from 'react';
 import { ChevronLeft, ChevronRight, Pencil, Repeat, Star, Trash2, X } from 'lucide-react';
-import type { Annotation } from '../../shared/types';
+import type {
+  Annotation,
+  AnnotationReply,
+  ReactionTarget,
+} from '../../shared/types';
 import { fmt } from '../lib/format';
 import { isMac } from '../lib/platform';
+import { Reactions } from './Reactions';
+import { ReplyThread } from './ReplyThread';
 
 type Props = {
   annotation: Annotation;
@@ -18,6 +24,14 @@ type Props = {
   onSaveEdit(body: string): void;
   onDelete(): void;
   onClose(): void;
+  selfUserId: string;
+  replies: AnnotationReply[] | undefined;
+  replyCount: number;
+  onLoadReplies(annotationId: string): Promise<void> | void;
+  onCreateReply(annotationId: string, body: string): Promise<void> | void;
+  onEditReply(replyId: string, body: string): Promise<void> | void;
+  onDeleteReply(annotationId: string, replyId: string): Promise<void> | void;
+  onToggleReaction(target: ReactionTarget, emoji: string): void;
 };
 
 function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
@@ -28,6 +42,8 @@ function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
 export function CommentBottomSheet({
   annotation, color, canEdit, isOwn, index, total,
   onPrev, onNext, onLoopRegion, onToggleStar, onSaveEdit, onDelete, onClose,
+  selfUserId, replies, replyCount,
+  onLoadReplies, onCreateReply, onEditReply, onDeleteReply, onToggleReaction,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(annotation.body);
@@ -136,6 +152,28 @@ export function CommentBottomSheet({
           )}
         </>
       )}
+      <Reactions
+        reactions={annotation.reactions}
+        isNarrow={true}
+        onToggle={(emoji) =>
+          onToggleReaction({ kind: 'annotation', id: annotation.id }, emoji)
+        }
+      />
+      <ReplyThread
+        annotationId={annotation.id}
+        replyCount={replyCount}
+        replies={replies}
+        selfUserId={selfUserId}
+        canEdit={canEdit}
+        isNarrow={true}
+        onLoadReplies={onLoadReplies}
+        onCreateReply={onCreateReply}
+        onEditReply={onEditReply}
+        onDeleteReply={onDeleteReply}
+        onToggleReaction={(replyId, emoji) =>
+          onToggleReaction({ kind: 'reply', id: replyId }, emoji)
+        }
+      />
       <div className="cs-nav">
         <button
           type="button"

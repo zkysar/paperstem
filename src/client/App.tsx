@@ -1224,6 +1224,7 @@ function PaperstemApp({
                         onSaveEdit={(body) => void handleSaveEdit(active, body)}
                         onDelete={() => void handleDelete(active)}
                         onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
+                        selfUserId={user.id}
                         replies={replies.get(active.id)}
                         replyCount={active.reply_count}
                         onLoadReplies={loadReplies}
