@@ -65,6 +65,16 @@ Audio lives on the local filesystem under `$PAPERSTEM_AUDIO_ROOT`. In production
 - `npx tsc --noEmit` — typecheck.
 - For UI changes, refresh http://localhost:<vite-port> and exercise the feature. Don't claim a UI fix is done without loading it in a browser.
 
+### Showing the user work-in-progress
+
+If you have the Claude Preview MCP available (`preview_start`, `preview_screenshot`, etc.), strongly prefer using it to show Zach the change before opening the PR. The flow that works well:
+
+1. **Start `npm run dev` early in the task** (background it), not after edits are done. Vite cold-start and dependency resolution cost the same time whether the server boots now or later, so kicking it off up front means it's ready when you need a screenshot. Once the launcher prints UI/API URLs, run `preview_start` against the Vite URL.
+2. **Lean on HMR.** After edits to `src/client/`, the running Vite picks them up automatically. No restart needed for normal UI work; `preview_screenshot` (or `preview_snapshot` for layout questions) just shows the new state.
+3. **Post a screenshot inline before opening the PR** for any UI-visible change. Zach would rather see the result than read a diff description. A short caption ("here's the new ribbon collapsed state") with the screenshot beats a paragraph of prose.
+
+This is a strong default, not a hard rule. Skip it when the change is purely server-side with no UI surface, when the dev server is already known to be broken, or when the task is small enough that booting the server costs more than it's worth. But for anything user-visible, treat the screenshot as part of "done."
+
 A pre-push hook in [scripts/git-hooks/pre-push](scripts/git-hooks/pre-push) runs `npm run build` and `vitest` before any push and blocks if either fails (matches CI). It also refuses direct pushes to `main` — open a PR instead (see below). New checkouts must opt in once: `git config core.hooksPath scripts/git-hooks`. Bypass with `git push --no-verify`.
 
 ## Tests

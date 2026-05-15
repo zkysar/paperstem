@@ -2,7 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Buffer } from 'node:buffer';
-import { db, stmts } from '../src/server/db.js';
+import { db } from '../src/server/db.js';
 
 // One-off recovery tool. Run after fixing on-disk paths so stem.file_id
 // matches the real file again, then this script unghosts the row.
