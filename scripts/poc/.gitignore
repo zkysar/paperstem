@@ -1,0 +1,7 @@
+node_modules/
+.venv/
+yamnet.tflite
+*.out.txt
+sample-*.wav
+ground-truth.json
+/tmp/

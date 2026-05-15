@@ -1,0 +1,12 @@
+{
+  "_comment": "Copy to ground-truth.json and fill in real values. Times are millisecond offsets into the audio file. `type` is one of chatter | music | tuning | silence | count_in.",
+  "audio_file": "/absolute/path/to/practice.wav",
+  "duration_ms": 5400000,
+  "segments": [
+    { "start_ms": 0,       "end_ms": 35000,   "type": "chatter",  "song_name": null },
+    { "start_ms": 35000,   "end_ms": 38000,   "type": "count_in", "song_name": null },
+    { "start_ms": 38000,   "end_ms": 280000,  "type": "music",    "song_name": "Wagon Wheel" },
+    { "start_ms": 280000,  "end_ms": 305000,  "type": "chatter",  "song_name": null },
+    { "start_ms": 305000,  "end_ms": 540000,  "type": "music",    "song_name": "Tennessee Stud" }
+  ]
+}
