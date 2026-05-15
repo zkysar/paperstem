@@ -61,9 +61,9 @@ describe('FilePicker', () => {
   });
 
   const fixtureProjects: Project[] = [
-    { id: 'p1', title: 'Project 2026-04-28', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'c', name: 'c' }], stemCount: 3, folderId: 'd1', referenceStemId: null },
-    { id: 'p2', title: 'Project 2026-04-21', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }], stemCount: 2, folderId: 'd2', referenceStemId: null },
-    { id: 'p3', title: 'Project 2026-03-31', folder: '2026/03', stems: [{ id: 'a', name: 'a' }], stemCount: 1, folderId: null, referenceStemId: null },
+    { id: 'p1', title: 'Project 2026-04-28', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }, { id: 'c', name: 'c' }], stemCount: 3, folderId: 'd1', referenceStemId: null, updatedAt: 1714262400000, totalDurationMs: 272_000, commentCount: 0 },
+    { id: 'p2', title: 'Project 2026-04-21', folder: '2026/04', stems: [{ id: 'a', name: 'a' }, { id: 'b', name: 'b' }], stemCount: 2, folderId: 'd2', referenceStemId: null, updatedAt: 1713657600000, totalDurationMs: 180_000, commentCount: 5 },
+    { id: 'p3', title: 'Project 2026-03-31', folder: '2026/03', stems: [{ id: 'a', name: 'a' }], stemCount: 1, folderId: null, referenceStemId: null, updatedAt: 1711843200000, totalDurationMs: null, commentCount: 1 },
   ];
 
   it('renders one row per project', () => {
@@ -71,6 +71,63 @@ describe('FilePicker', () => {
     expect(screen.getByText('Project 2026-04-28')).not.toBeNull();
     expect(screen.getByText('Project 2026-04-21')).not.toBeNull();
     expect(screen.getByText('Project 2026-03-31')).not.toBeNull();
+  });
+
+  it('default sort puts the most recently updated project first', () => {
+    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    const titles = screen
+      .getAllByTestId(/^fp-row-/)
+      .map((el) => el.textContent ?? '');
+    // p1 (newest) first; p3 (oldest) last.
+    expect(titles[0]).toMatch(/Project 2026-04-28/);
+    expect(titles[2]).toMatch(/Project 2026-03-31/);
+  });
+
+  it('clicking a sort header reorders rows by that column', async () => {
+    const user = userEvent.setup();
+    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    // Click "Comments" — first click is desc, so p2 (5 comments) leads.
+    await user.click(screen.getByRole('button', { name: /^Comments/ }));
+    let titles = screen
+      .getAllByTestId(/^fp-row-/)
+      .map((el) => el.textContent ?? '');
+    expect(titles[0]).toMatch(/Project 2026-04-21/);
+    // Click again to flip to asc — p1 (0 comments) leads.
+    await user.click(screen.getByRole('button', { name: /^Comments/ }));
+    titles = screen
+      .getAllByTestId(/^fp-row-/)
+      .map((el) => el.textContent ?? '');
+    expect(titles[0]).toMatch(/Project 2026-04-28/);
+  });
+
+  it('renders duration and comment count from project fields', () => {
+    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    // 272_000 ms = 4:32
+    expect(screen.getByText('4:32')).not.toBeNull();
+    // 5 comments on p2 — the row's accessible label exposes the count.
+    expect(screen.getByLabelText('5 comments')).not.toBeNull();
+    expect(screen.getByLabelText('1 comment')).not.toBeNull();
+  });
+
+  it('Trash icon toggles to trash view and back', async () => {
+    const user = userEvent.setup();
+    const onLoadTrash = vi.fn();
+    render(
+      <FilePicker
+        {...baseProps}
+        projects={fixtureProjects}
+        trash={null}
+        onLoadTrash={onLoadTrash}
+      />,
+    );
+    const trashTab = screen.getByRole('tab', { name: /trash/i });
+    await user.click(trashTab);
+    expect(onLoadTrash).toHaveBeenCalledTimes(1);
+    // Clicking the same icon again returns to Recent without re-loading.
+    await user.click(trashTab);
+    expect(onLoadTrash).toHaveBeenCalledTimes(1);
+    // Recent rows are visible again.
+    expect(screen.getByText('Project 2026-04-28')).not.toBeNull();
   });
 
   it('filters by search query (title)', async () => {
@@ -156,7 +213,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onRenameProject={onRename} />,
@@ -172,7 +229,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onRename = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onRenameProject={onRename} />,
@@ -187,7 +244,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onSelect={onSelect} />,
@@ -200,7 +257,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onDeleteProject={onDelete} />,
@@ -215,7 +272,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
       <FilePicker {...baseProps} projects={rows} onDeleteProject={onDelete} />,
@@ -278,7 +335,7 @@ describe('FilePicker', () => {
     const onClose = vi.fn();
     const onDelete = vi.fn();
     const rows: Project[] = [
-      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
       <FilePicker

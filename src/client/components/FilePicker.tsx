@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { FolderOpen, Pencil, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, FolderOpen, MessageSquare, MoreVertical, Pencil, Trash2, X } from 'lucide-react';
 import type { Project, TrashList } from '../data/types';
 import { AUDIO_EXT } from '../lib/audio';
+import { formatDurationMs, formatRelativeDate } from '../lib/format';
 import { WaveformThumb } from './WaveformThumb';
+
+type SortKey = 'name' | 'updated' | 'duration' | 'stems' | 'comments';
+type SortDir = 'asc' | 'desc';
 
 type Tab = 'recent' | 'all' | 'trash';
 
@@ -122,17 +126,24 @@ export function FilePicker({
             className={'fp-tab' + (tab === 'all' ? ' active' : '')}
             onClick={() => setTab('all')}
           >All</button>
+          {/* Trash demoted from a peer tab to a quiet icon at the right edge —
+              a once-a-month destination shouldn't crowd the primary filters. */}
           <button
             type="button"
             role="tab"
             data-tab="trash"
             aria-selected={tab === 'trash'}
-            className={'fp-tab' + (tab === 'trash' ? ' active' : '')}
+            aria-label="Trash"
+            title="Trash"
+            className={'fp-tab fp-tab-trash' + (tab === 'trash' ? ' active' : '')}
             onClick={() => {
-              setTab('trash');
-              if (trash === null) onLoadTrash();
+              const next: Tab = tab === 'trash' ? 'recent' : 'trash';
+              setTab(next);
+              if (next === 'trash' && trash === null) onLoadTrash();
             }}
-          >Trash</button>
+          >
+            <Trash2 size={16} strokeWidth={2} aria-hidden="true" />
+          </button>
         </div>
         <input
           ref={folderInputRef}
@@ -232,6 +243,21 @@ function FilePickerBody({
   onRequestDelete(id: string, name: string): void;
 }) {
   const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
+  // Default sort matches the server's intent ("recently touched first").
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
+    key: 'updated', dir: 'desc',
+  });
+
+  function toggleSort(key: SortKey) {
+    setSort((prev) => {
+      if (prev.key !== key) {
+        // First click on a new column: default to desc for date/numeric (most
+        // useful), asc for name (alphabetical).
+        return { key, dir: key === 'name' ? 'asc' : 'desc' };
+      }
+      return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+    });
+  }
 
   function commitEdit(id: string) {
     if (!editing || editing.id !== id) return;
@@ -256,11 +282,13 @@ function FilePickerBody({
       <div className="fp-body">
         {[0, 1, 2, 3, 4].map((i) => (
           <div key={i} data-testid="fp-row-skeleton" className="fp-row fp-row-skeleton">
-            <span className="fp-skel fp-skel-name" />
-            <span className="fp-skel fp-skel-thumb" />
-            <span className="fp-skel fp-skel-meta" />
-            <span className="fp-skel fp-skel-meta" />
-            <span></span>
+            <span className="fp-cell-name fp-skel fp-skel-name" />
+            <span className="fp-cell-thumb fp-skel fp-skel-thumb" />
+            <span className="fp-cell-date fp-skel fp-skel-meta" />
+            <span className="fp-cell-duration fp-skel fp-skel-meta" />
+            <span className="fp-cell-stems fp-skel fp-skel-meta" />
+            <span className="fp-cell-comments fp-skel fp-skel-meta" />
+            <span className="fp-cell-actions" />
           </div>
         ))}
       </div>
@@ -287,101 +315,259 @@ function FilePickerBody({
   const filtered = projects.filter((p) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
-    return (
-      p.title.toLowerCase().includes(q) ||
-      (p.folder ?? '').toLowerCase().includes(q)
-    );
+    return p.title.toLowerCase().includes(q);
   });
-  // Default sort: name desc (matches existing date-coded titles)
-  const rows = [...filtered].sort((a, b) => b.title.localeCompare(a.title));
+  const rows = sortProjects(filtered, sort);
 
   return (
     <div className="fp-body">
       <div className="fp-row fp-row-head" role="row">
-        <span>Name</span>
-        <span>Waveform</span>
-        <span>Date</span>
-        <span>Stems</span>
-        <span></span>
+        <SortHeader className="fp-cell-name" label="Name" sortKey="name" sort={sort} onClick={toggleSort} />
+        <span className="fp-cell-thumb">Waveform</span>
+        <SortHeader className="fp-cell-date" label="Updated" sortKey="updated" sort={sort} onClick={toggleSort} />
+        <SortHeader className="fp-cell-duration" label="Length" sortKey="duration" sort={sort} onClick={toggleSort} />
+        <SortHeader className="fp-cell-stems" label="Stems" sortKey="stems" sort={sort} onClick={toggleSort} />
+        <SortHeader className="fp-cell-comments" label="Comments" sortKey="comments" sort={sort} onClick={toggleSort} />
+        <span className="fp-cell-actions" />
       </div>
-      {rows.map((p) => {
-        const isEditing = editing?.id === p.id;
-        return (
-          <div
-            key={p.id}
-            data-testid={`fp-row-${p.id}`}
-            className={'fp-row fp-row-data' + (p.id === activeProjectId ? ' active' : '')}
-          >
-            {isEditing ? (
-              <div className="fp-row-main fp-row-main-editing">
-                <input
-                  className="fp-name-input"
-                  aria-label="Rename project"
-                  autoFocus
-                  value={editing!.draft}
-                  onChange={(e) => setEditing({ id: p.id, draft: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      commitEdit(p.id);
-                    } else if (e.key === 'Escape') {
-                      e.preventDefault();
-                      setEditing(null);
-                    }
-                  }}
-                  onBlur={() => commitEdit(p.id)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <WaveformThumb stemId={p.referenceStemId} />
-                <span className="fp-meta">{p.folder ?? ''}</span>
-                <span className="fp-meta">{p.stemCount}</span>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="fp-row-main"
-                onClick={() => onSelect(p.id)}
-              >
-                <span className="fp-name">{p.title}</span>
-                <WaveformThumb stemId={p.referenceStemId} />
-                <span className="fp-meta">{p.folder ?? ''}</span>
-                <span className="fp-meta">{p.stemCount}</span>
-              </button>
-            )}
-            <span className="fp-row-end">
-              {!isEditing && (
-                <button
-                  type="button"
-                  className="fp-rename-btn"
-                  aria-label={`Rename ${p.title}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditing({ id: p.id, draft: p.title });
-                  }}
-                  title="Rename"
-                >
-                  <Pencil size={14} strokeWidth={2} aria-hidden="true" />
-                </button>
-              )}
-              {!isEditing && (
-                <button
-                  type="button"
-                  className="fp-trash-btn"
-                  aria-label={`Move ${p.title} to trash`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRequestDelete(p.id, p.title);
-                  }}
-                  title="Move to trash"
-                >
-                  <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
-                </button>
-              )}
-            </span>
-          </div>
-        );
-      })}
+      {rows.map((p) => (
+        <ProjectRow
+          key={p.id}
+          project={p}
+          active={p.id === activeProjectId}
+          editing={editing?.id === p.id ? editing.draft : null}
+          onSelect={() => onSelect(p.id)}
+          onStartRename={() => setEditing({ id: p.id, draft: p.title })}
+          onChangeDraft={(draft) => setEditing({ id: p.id, draft })}
+          onCommitRename={() => commitEdit(p.id)}
+          onCancelRename={() => setEditing(null)}
+          onRequestDelete={() => onRequestDelete(p.id, p.title)}
+        />
+      ))}
     </div>
+  );
+}
+
+function SortHeader({
+  className, label, sortKey, sort, onClick,
+}: {
+  className: string;
+  label: string;
+  sortKey: SortKey;
+  sort: { key: SortKey; dir: SortDir };
+  onClick(key: SortKey): void;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <button
+      type="button"
+      className={className + ' fp-sort-btn' + (active ? ' active' : '')}
+      aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      onClick={() => onClick(sortKey)}
+    >
+      {label}
+      {active && (sort.dir === 'asc'
+        ? <ChevronUp size={12} strokeWidth={2.5} aria-hidden="true" />
+        : <ChevronDown size={12} strokeWidth={2.5} aria-hidden="true" />)}
+    </button>
+  );
+}
+
+function sortProjects(
+  list: Project[],
+  sort: { key: SortKey; dir: SortDir },
+): Project[] {
+  const sign = sort.dir === 'asc' ? 1 : -1;
+  const cmp = (a: Project, b: Project): number => {
+    switch (sort.key) {
+      case 'name':     return sign * a.title.localeCompare(b.title);
+      case 'updated':  return sign * (a.updatedAt - b.updatedAt);
+      case 'duration': return sign * ((a.totalDurationMs ?? 0) - (b.totalDurationMs ?? 0));
+      case 'stems':    return sign * (a.stemCount - b.stemCount);
+      case 'comments': return sign * (a.commentCount - b.commentCount);
+    }
+  };
+  return [...list].sort(cmp);
+}
+
+function ProjectRow({
+  project: p, active, editing,
+  onSelect, onStartRename, onChangeDraft, onCommitRename, onCancelRename,
+  onRequestDelete,
+}: {
+  project: Project;
+  active: boolean;
+  editing: string | null;
+  onSelect(): void;
+  onStartRename(): void;
+  onChangeDraft(draft: string): void;
+  onCommitRename(): void;
+  onCancelRename(): void;
+  onRequestDelete(): void;
+}) {
+  const isEditing = editing !== null;
+  const date = formatRelativeDate(p.updatedAt);
+  const duration = formatDurationMs(p.totalDurationMs);
+  const stemsLabel = `${p.stemCount} ${p.stemCount === 1 ? 'stem' : 'stems'}`;
+  const commentsLabel = p.commentCount > 0
+    ? `${p.commentCount} ${p.commentCount === 1 ? 'comment' : 'comments'}`
+    : '';
+  // Mobile-only meta string. Empty fields are filtered so we don't leave
+  // double or trailing " · " separators.
+  const metaLine = [stemsLabel, duration, commentsLabel, date]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <div
+      data-testid={`fp-row-${p.id}`}
+      className={'fp-row fp-row-data' + (active ? ' active' : '')}
+    >
+      {isEditing ? (
+        // display:contents — children become direct grid items so cell
+        // placement is identical to the non-editing layout.
+        <div className="fp-row-main fp-row-main-editing">
+          <input
+            className="fp-cell-name fp-name-input"
+            aria-label="Rename project"
+            autoFocus
+            value={editing!}
+            onChange={(e) => onChangeDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); onCommitRename(); }
+              else if (e.key === 'Escape') { e.preventDefault(); onCancelRename(); }
+            }}
+            onBlur={onCommitRename}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <span className="fp-cell-thumb"><WaveformThumb stemId={p.referenceStemId} /></span>
+          <span className="fp-cell-date fp-meta">{date}</span>
+          <span className="fp-cell-duration fp-meta">{duration}</span>
+          <span className="fp-cell-stems fp-meta">{p.stemCount}</span>
+          <span className="fp-cell-comments fp-meta">{p.commentCount > 0 ? p.commentCount : ''}</span>
+          <span className="fp-cell-meta fp-meta">{metaLine}</span>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="fp-row-main"
+          onClick={onSelect}
+        >
+          <span className="fp-cell-name fp-name">{p.title}</span>
+          <span className="fp-cell-thumb"><WaveformThumb stemId={p.referenceStemId} /></span>
+          <span className="fp-cell-date fp-meta">{date}</span>
+          <span className="fp-cell-duration fp-meta">{duration}</span>
+          <span className="fp-cell-stems fp-meta">{p.stemCount}</span>
+          <span
+            className="fp-cell-comments fp-meta"
+            // Only announce when there are comments — "0 comments" on every
+            // empty project would be noise.
+            aria-label={p.commentCount > 0 ? commentsLabel : undefined}
+          >
+            {p.commentCount > 0 && (
+              <>
+                <MessageSquare size={12} strokeWidth={2} aria-hidden="true" />
+                {p.commentCount}
+              </>
+            )}
+          </span>
+          <span className="fp-cell-meta fp-meta">{metaLine}</span>
+        </button>
+      )}
+      <span className="fp-cell-actions fp-row-end">
+        {!isEditing && (
+          <>
+            <button
+              type="button"
+              className="fp-rename-btn"
+              aria-label={`Rename ${p.title}`}
+              onClick={(e) => { e.stopPropagation(); onStartRename(); }}
+              title="Rename"
+            >
+              <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="fp-trash-btn"
+              aria-label={`Move ${p.title} to trash`}
+              onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
+              title="Move to trash"
+            >
+              <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+            </button>
+            <RowKebab
+              title={p.title}
+              onRename={onStartRename}
+              onRequestDelete={onRequestDelete}
+            />
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function RowKebab({
+  title, onRename, onRequestDelete,
+}: {
+  title: string;
+  onRename(): void;
+  onRequestDelete(): void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLSpanElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <span className="fp-kebab-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className="fp-kebab-btn"
+        aria-label={`More actions for ${title}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+      >
+        <MoreVertical size={18} strokeWidth={2} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="fp-kebab-menu" role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            className="fp-kebab-item"
+            onClick={(e) => { e.stopPropagation(); setOpen(false); onRename(); }}
+          >
+            <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+            Rename
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="fp-kebab-item fp-kebab-item-danger"
+            onClick={(e) => { e.stopPropagation(); setOpen(false); onRequestDelete(); }}
+          >
+            <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+            Move to trash
+          </button>
+        </div>
+      )}
+    </span>
   );
 }
 
