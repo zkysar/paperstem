@@ -1693,7 +1693,7 @@ body.env-non-prod[data-env="local"]::before {
 }
 .fp-tabs {
   display: flex; gap: 18px;
-  padding: 0 16px;
+  padding: 4px 16px;
   border-bottom: 1px solid var(--rule);
 }
 .fp-tab {
@@ -1715,7 +1715,7 @@ body.env-non-prod[data-env="local"]::before {
 .fp-tab-trash {
   margin-left: auto;
   display: inline-flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px;
+  width: 28px; height: 28px;
   padding: 0;
   border-radius: 5px;
   align-self: center;
@@ -1778,6 +1778,32 @@ body.env-non-prod[data-env="local"]::before {
 .fp-row-data {
   /* Row is a flex/grid container, not a button — Task 9 nests button + link */
   cursor: default;
+}
+/* Trash view has its own column shape (Name / Type / Deleted by / Status / Action),
+   so override the file-list template instead of inheriting empty trailing columns. */
+.fp-row.fp-row-trash {
+  grid-template-columns: minmax(0, 1fr) 110px 220px 130px auto;
+  grid-template-areas: none;
+}
+.fp-restore-btn {
+  justify-self: end;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  padding: 4px 12px;
+  font: inherit; font-size: var(--fs-sm);
+  color: var(--ink);
+  cursor: pointer;
+}
+.fp-restore-btn:hover:not(:disabled) { background: var(--rule-2); }
+.fp-restore-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.fp-restore-btn:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 .fp-row-main {
   display: contents;
