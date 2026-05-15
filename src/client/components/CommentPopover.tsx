@@ -88,16 +88,46 @@ export function CommentPopover({
   useLayoutEffect(() => {
     const el = cardRef.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
-    if (r.top < 8) setPlacement('below');
-    else setPlacement('above');
-    const margin = 8;
-    const rightLimit = window.innerWidth - margin - (drawerOpen ? DRAWER_W : 0);
-    if (r.left < margin) setTranslateX(margin - r.left);
-    else if (r.right > rightLimit)
-      setTranslateX(rightLimit - r.right);
-    else setTranslateX(0);
-  }, [anchorLeftPx, anchorTopPx, drawerOpen, editing]);
+
+    const reflow = () => {
+      const node = cardRef.current;
+      if (!node) return;
+      const r = node.getBoundingClientRect();
+      const margin = 8;
+      const rightLimit = window.innerWidth - margin - (drawerOpen ? DRAWER_W : 0);
+
+      // Recover the anchor's viewport y from the popover's current position so
+      // we can re-decide placement after the popover grows (reply composer
+      // opens, replies expand, body edit, etc.).
+      const anchorY = placement === 'above' ? r.bottom + margin : r.top - margin;
+      const aboveSpace = anchorY - margin;
+      const belowSpace = window.innerHeight - anchorY - margin;
+      const fitsAbove = r.height <= aboveSpace;
+      const fitsBelow = r.height <= belowSpace;
+      let next: 'above' | 'below';
+      if (fitsAbove) next = 'above';
+      else if (fitsBelow) next = 'below';
+      else next = belowSpace > aboveSpace ? 'below' : 'above';
+      setPlacement(next);
+
+      setTranslateX((prev) => {
+        const naturalLeft = r.left - prev;
+        const naturalRight = r.right - prev;
+        if (naturalLeft < margin) return margin - naturalLeft;
+        if (naturalRight > rightLimit) return rightLimit - naturalRight;
+        return 0;
+      });
+    };
+
+    reflow();
+    const ro = new ResizeObserver(reflow);
+    ro.observe(el);
+    window.addEventListener('resize', reflow);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', reflow);
+    };
+  }, [anchorLeftPx, anchorTopPx, drawerOpen, editing, placement]);
 
   const author = annotation.user_display_name ?? annotation.user_email;
   const isRegion = annotation.end_ms !== null;
