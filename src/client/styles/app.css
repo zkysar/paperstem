@@ -2198,18 +2198,15 @@ body.env-non-prod[data-env="local"]::before {
 }
 .cp-iconbtn:hover { color: var(--ink); background: var(--rule-2); }
 .cp-star.on { color: var(--accent); }
+/* The popover is itself a transient, focused surface — keep the overflow
+   trigger always visible inside it so users don't have to hover to find it. */
+.comment-popover .cl-overflow-trigger { opacity: 1; }
 .cp-body {
   font-size: var(--fs-md);
   line-height: 1.4;
   color: var(--ink);
   white-space: pre-wrap;
   word-wrap: break-word;
-}
-.cp-actions {
-  display: flex;
-  gap: 4px;
-  margin-top: 6px;
-  justify-content: flex-end;
 }
 .cp-edit textarea {
   width: 100%;
