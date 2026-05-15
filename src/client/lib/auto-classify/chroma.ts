@@ -9,6 +9,9 @@ import Meyda from 'meyda';
 export const CHROMA_FRAME_SIZE = 4096; // ~186ms at 22.05kHz
 export const CHROMA_HOP_SIZE = 2048; // ~93ms hop
 export const CHROMA_SAMPLE_RATE = 22050;
+// Bump whenever the chroma extraction algorithm changes. Server matches on
+// this in the idempotency key for `classification_runs` and `song_fingerprints`.
+export const FINGERPRINT_VERSION = 1;
 
 /**
  * Compute a frame-rate chroma sequence over a mono Float32 audio buffer.

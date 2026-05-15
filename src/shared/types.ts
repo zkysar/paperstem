@@ -98,6 +98,13 @@ export type Section = {
   source: SectionSource;
   created_at: number;
   updated_at: number;
+  // Auto-classification fields. Populated only on the POST /classify
+  // response (and once Phase 4 lands, on `GET /sections` for rows with
+  // `source='auto'`). Optional so older Section consumers don't break.
+  confidence?: number | null;
+  segment_type?: SegmentType | null;
+  tentative?: boolean;
+  run_id?: string | null;
 };
 
 // Auto-classification (Stage 1 + Stage 2) types. See

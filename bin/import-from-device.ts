@@ -1,3 +1,22 @@
+/**
+ * CLI entry point: pull recordings off a multitrack device (currently
+ * Tascam Model 12) and upload them to a Paperstem server as projects.
+ *
+ * Config is JSON at `~/.config/paperstem/import.json` (override with
+ * `--config <path>`). Session token is read from the env var named by
+ * `session_token_env` (default `PAPERSTEM_SESSION_TOKEN`).
+ *
+ * Flags:
+ *   --config <path>           Alternative config file location.
+ *   --auto-classify           Run Stage 1 (audio scene classification) on
+ *                             each imported project and POST the result to
+ *                             /api/projects/:id/classify. Default: on.
+ *                             Requires the Python sidecar under
+ *                             `bin/auto-classify/` to be set up — if its
+ *                             `.venv` is missing the flag is silently
+ *                             disabled for the run and a hint is printed.
+ *   --no-auto-classify        Skip Stage 1.
+ */
 import {
   closeSync,
   existsSync,
@@ -29,6 +48,21 @@ import {
   ffmpegAvailable,
 } from '../src/server/import/audio-compress-local.js';
 import type { DeviceImporter, ImportTask } from '../src/server/import/types.js';
+import type { ClassifiedSegment } from '../src/shared/types.js';
+import {
+  runSidecar,
+  sidecarSetupHint,
+  sidecarVenvExists,
+  type ExecFileSyncFn,
+  type RunnerPaths,
+} from './auto-classify-runner.js';
+
+/** Repo-root-relative path to the Python sidecar directory. */
+const SIDECAR_DIR = join(dirname(new URL(import.meta.url).pathname), 'auto-classify');
+const RUNNER_PATHS: RunnerPaths = { sidecarDir: SIDECAR_DIR };
+
+const CLASSIFIER_VERSION = 'yamnet-v1';
+const FINGERPRINT_VERSION = 1;
 
 export type Config = {
   device: string;
@@ -56,6 +90,12 @@ export type RunOpts = {
   now?: () => number;
   /** Defaults to ~/.cache/paperstem-import/lock; pass false to skip locking (tests). */
   lockPath?: string | false;
+  /** When true, run the Python classification sidecar after each upload and POST results. */
+  autoClassify?: boolean;
+  /** Injected for tests so the Python sidecar isn't actually invoked. */
+  execFileSyncFn?: ExecFileSyncFn;
+  /** Override the resolved sidecar dir (tests). */
+  runnerPaths?: RunnerPaths;
 };
 
 export type RunResult =
@@ -273,6 +313,109 @@ async function getExistingStemPositions(args: {
   return new Set((body.stems ?? []).map((s) => s.position));
 }
 
+type ClassifyResponseSection = {
+  id: string;
+  song_id: string | null;
+  label: string | null;
+};
+
+/**
+ * Run the Python sidecar against a freshly-encoded stem and POST the result
+ * to /api/projects/:id/classify. Never throws — classification is a bonus,
+ * the import has already succeeded by the time this runs.
+ */
+async function classifyProject(args: {
+  baseUrl: string;
+  projectId: string;
+  projectName: string;
+  audioPath: string;
+  token: string;
+  fetchImpl: typeof fetch;
+  execFileSyncFn?: ExecFileSyncFn;
+  runnerPaths: RunnerPaths;
+}): Promise<void> {
+  const outcome = runSidecar(
+    args.audioPath,
+    args.runnerPaths,
+    args.execFileSyncFn,
+  );
+  if (!outcome.ok) {
+    if (outcome.failure.kind === 'venv-missing') {
+      // eslint-disable-next-line no-console
+      console.warn(sidecarSetupHint);
+    } else {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `auto-classify: sidecar failed for ${args.projectName}: ${outcome.failure.message}`,
+      );
+      // eslint-disable-next-line no-console
+      console.warn(sidecarSetupHint);
+    }
+    return;
+  }
+  const { result } = outcome;
+  const body: {
+    segments: ClassifiedSegment[];
+    audio_hash: string;
+    duration_ms: number;
+    classifier_version: string;
+    fingerprint_version: number;
+    source_surface: 'cli';
+  } = {
+    segments: result.segments,
+    audio_hash: result.audio_hash,
+    duration_ms: result.duration_ms,
+    classifier_version: CLASSIFIER_VERSION,
+    fingerprint_version: FINGERPRINT_VERSION,
+    source_surface: 'cli',
+  };
+  let res: Response;
+  try {
+    res = await args.fetchImpl(
+      `${args.baseUrl}/api/projects/${encodeURIComponent(args.projectId)}/classify`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: `${cookieNameFor(args.baseUrl)}=${args.token}`,
+        },
+        body: JSON.stringify(body),
+      },
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // eslint-disable-next-line no-console
+    console.warn(
+      `auto-classify: POST failed for ${args.projectName}: ${message}`,
+    );
+    return;
+  }
+  if (!res.ok) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `auto-classify: ${args.projectName} returned HTTP ${res.status}`,
+    );
+    return;
+  }
+  let parsed: { sections: ClassifyResponseSection[] };
+  try {
+    parsed = (await res.json()) as { sections: ClassifyResponseSection[] };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // eslint-disable-next-line no-console
+    console.warn(
+      `auto-classify: invalid response for ${args.projectName}: ${message}`,
+    );
+    return;
+  }
+  const sections = parsed.sections ?? [];
+  const named = sections.filter((s) => s.song_id || s.label).length;
+  // eslint-disable-next-line no-console
+  console.log(
+    `Classified ${args.projectName}: ${sections.length} sections proposed (${named} named)`,
+  );
+}
+
 export async function runImporter(opts: RunOpts): Promise<RunResult> {
   const cfg = opts.config;
   const defaults = resolveDefaults(cfg);
@@ -306,6 +449,9 @@ export async function runImporter(opts: RunOpts): Promise<RunResult> {
       now,
       token: opts.token,
       importer,
+      autoClassify: opts.autoClassify ?? false,
+      execFileSyncFn: opts.execFileSyncFn,
+      runnerPaths: opts.runnerPaths ?? RUNNER_PATHS,
     });
   } finally {
     if (lockPath && lockFd !== null) releaseLock(lockFd, lockPath);
@@ -320,8 +466,22 @@ async function runImporterInner(args: {
   now: () => number;
   token: string;
   importer: DeviceImporter;
+  autoClassify: boolean;
+  execFileSyncFn?: ExecFileSyncFn;
+  runnerPaths: RunnerPaths;
 }): Promise<RunResult> {
-  const { cfg, defaults, fetchImpl, encode, now, token, importer } = args;
+  const {
+    cfg,
+    defaults,
+    fetchImpl,
+    encode,
+    now,
+    token,
+    importer,
+    autoClassify,
+    execFileSyncFn,
+    runnerPaths,
+  } = args;
 
   const tasks = await importer.scan(cfg.sd_card_path, {
     stillRecordingThresholdMs:
@@ -378,6 +538,7 @@ async function runImporterInner(args: {
 
       const tmp = mkdtempSync(join(tmpdir(), 'paperstem-encode-'));
       let segmentTimedOut = false;
+      const encodedForClassify: string[] = [];
       try {
         for (let i = 0; i < task.trackFiles.length; i++) {
           if (now() - tickStart > tickBudgetMs) {
@@ -410,10 +571,23 @@ async function runImporterInner(args: {
             token,
             fetchImpl,
           });
+          encodedForClassify.push(outputPath);
         }
         if (!segmentTimedOut) {
           slot.uploaded_at = nowIso(now);
           writeMarker(folderPath, marker);
+          if (autoClassify && encodedForClassify.length > 0) {
+            await classifyProject({
+              baseUrl: cfg.paperstem_url,
+              projectId,
+              projectName: slot.name || task.defaultProjectName,
+              audioPath: encodedForClassify[0]!,
+              token,
+              fetchImpl,
+              execFileSyncFn,
+              runnerPaths,
+            });
+          }
         }
       } finally {
         rmSync(tmp, { recursive: true, force: true });
@@ -505,7 +679,10 @@ async function reclaimPass(args: {
 
 async function main(): Promise<void> {
   const { values } = parseArgs({
-    options: { config: { type: 'string' } },
+    options: {
+      config: { type: 'string' },
+      'auto-classify': { type: 'boolean', default: true },
+    },
   });
   const configPath =
     values.config ??
@@ -527,7 +704,13 @@ async function main(): Promise<void> {
     console.error('ffmpeg not found on PATH. brew install ffmpeg.');
     process.exit(1);
   }
-  const result = await runImporter({ config, token });
+  let autoClassify = values['auto-classify'] ?? true;
+  if (autoClassify && !sidecarVenvExists(RUNNER_PATHS)) {
+    console.log(sidecarSetupHint);
+    console.log('Continuing without auto-classification.');
+    autoClassify = false;
+  }
+  const result = await runImporter({ config, token, autoClassify });
   if (result.status === 'error') {
     console.error(result.message);
     process.exit(1);
