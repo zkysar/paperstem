@@ -143,7 +143,8 @@ function PaperstemApp({
   const [uploadOpen, setUploadOpen] = useState(false);
   // Draft mode: when the user picks a folder via "+ New project", the audio
   // plays from local File objects (object URLs). We keep the underlying Files
-  // around so "Save to band" can hand them to UploadDrawer for promotion.
+  // around so the "Save to {bandName}" banner button can hand them to
+  // UploadDrawer for promotion.
   const [draftFiles, setDraftFiles] = useState<File[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -899,13 +900,13 @@ function PaperstemApp({
           <span className="draft-banner-label">
             Local draft — only on this device.
           </span>
-          {showUploadButton && (
+          {showUploadButton && activeBand && (
             <button
               type="button"
               className="draft-banner-save"
               onClick={() => setUploadOpen(true)}
             >
-              Save to your band
+              Save to <span className="band-name-clip">{activeBand.name}</span>
             </button>
           )}
         </div>
@@ -1073,6 +1074,7 @@ function PaperstemApp({
       {showUploadButton && activeBandId && (
         <UploadDrawer
           bandId={activeBandId}
+          bandName={activeBand?.name ?? null}
           open={uploadOpen}
           prefilledFiles={draftFiles}
           prefilledName={
