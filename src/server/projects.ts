@@ -77,6 +77,8 @@ export function handleListProjects(
     updated_at: p.updated_at,
     stem_count: p.stem_count,
     reference_stem_id: p.reference_stem_id,
+    total_duration_ms: p.total_duration_ms,
+    comment_count: p.comment_count,
   }));
   return c.json({ projects });
 }
@@ -102,6 +104,7 @@ export function handleGetProject(
     size_bytes: s.size_bytes,
     peaks: s.peaks,
   }));
+  const commentCount = stmts.countAnnotationsForProject.get(id)?.n ?? 0;
 
   return c.json({
     project: {
@@ -114,6 +117,7 @@ export function handleGetProject(
       created_at: project.created_at,
       created_by: project.created_by,
       updated_at: project.updated_at,
+      comment_count: commentCount,
     },
     stems,
   });

@@ -14,6 +14,14 @@ export function isIOS(): boolean {
   return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints ?? 0) > 1;
 }
 
+// True on Android. Used to gate the silent-loop HTMLAudioElement that
+// anchors Chrome's system Media Session — Web Audio alone doesn't surface
+// Android's notification/lock-screen media controls.
+export function isAndroid(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
 export type KeyName = 'mod' | 'alt' | 'ctrl' | 'shift';
 
 const MAC: Record<KeyName, string> = {
