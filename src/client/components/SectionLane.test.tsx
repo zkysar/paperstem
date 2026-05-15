@@ -252,4 +252,77 @@ describe('SectionLane', () => {
     fireEvent.pointerDown(wrap!);
     expect(onTapToExpand).not.toHaveBeenCalled();
   });
+
+  it('middle drag of a section translates self + next by same delta', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 30000 }),
+      section({ id: 's3', start_ms: 90000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const pill = screen.getByTestId('section-s2');
+    (pill as any).setPointerCapture = vi.fn();
+    (pill as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
+
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 36000 });
+    expect(onPatchSection).toHaveBeenCalledWith('s3', { start_ms: 96000 });
+  });
+
+  it('middle drag of last section only updates self', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const pill = screen.getByTestId('section-s2');
+    (pill as any).setPointerCapture = vi.fn();
+    (pill as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 510, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 510, pointerId: 1 });
+
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 61500 });
+    expect(onPatchSection).toHaveBeenCalledTimes(1);
+  });
+
+  it('clicking a pill below the drag threshold still seeks and selects', () => {
+    const onSelect = vi.fn();
+    const onSeek = vi.fn();
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onSelect={onSelect}
+        onSeek={onSeek}
+      />,
+    );
+    fireEvent.click(screen.getByTestId('section-s2'));
+    expect(onSelect).toHaveBeenCalled();
+    expect(onSeek).toHaveBeenCalled();
+  });
 });

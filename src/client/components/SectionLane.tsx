@@ -28,6 +28,16 @@ type LeftEdgePayload = {
   minStartMs: number;
   maxStartMs: number;
 };
+type MiddlePayload = {
+  kind: 'middle';
+  sectionId: string;
+  nextId: string | null;
+  baseStartMs: number;
+  baseNextStartMs: number;
+  minDelta: number;
+  maxDelta: number;
+};
+type DragPayload = LeftEdgePayload | MiddlePayload;
 
 const NARROW_SEGMENT_PX = 8;
 const MIN_GAP_MS = 250;
@@ -65,31 +75,61 @@ export function SectionLane({
 
   const msPerPx = duration && waveWidthPx ? (duration * 1000) / waveWidthPx : 0;
 
-  const drag = useDragOnAxis<LeftEdgePayload>({
+  const drag = useDragOnAxis<DragPayload>({
     threshold: 3,
     onChange: ({ phase, deltaPx, payload }) => {
       if (msPerPx <= 0) return;
-      const candidate = snap(payload.baseStartMs + deltaPx * msPerPx);
-      const next = Math.max(
-        payload.minStartMs,
-        Math.min(payload.maxStartMs, candidate),
-      );
+      if (payload.kind === 'left-edge') {
+        const candidate = snap(payload.baseStartMs + deltaPx * msPerPx);
+        const next = Math.max(
+          payload.minStartMs,
+          Math.min(payload.maxStartMs, candidate),
+        );
+        if (phase === 'preview') {
+          setProvisional((cur) => {
+            const m = new Map(cur);
+            m.set(payload.sectionId, next);
+            return m;
+          });
+          setGuideline(waveLeftPx + (next / (duration * 1000)) * waveWidthPx);
+        } else {
+          setProvisional((cur) => {
+            const m = new Map(cur);
+            m.delete(payload.sectionId);
+            return m;
+          });
+          setGuideline(null);
+          if (phase === 'commit' && onPatchSection) {
+            void onPatchSection(payload.sectionId, { start_ms: next });
+          }
+        }
+        return;
+      }
+      let delta = snap(deltaPx * msPerPx);
+      delta = Math.max(payload.minDelta, Math.min(payload.maxDelta, delta));
+      const nextStart = payload.baseStartMs + delta;
+      const nextNextStart = payload.baseNextStartMs + delta;
       if (phase === 'preview') {
         setProvisional((cur) => {
           const m = new Map(cur);
-          m.set(payload.sectionId, next);
+          m.set(payload.sectionId, nextStart);
+          if (payload.nextId) m.set(payload.nextId, nextNextStart);
           return m;
         });
-        setGuideline(waveLeftPx + (next / (duration * 1000)) * waveWidthPx);
+        setGuideline(waveLeftPx + (nextStart / (duration * 1000)) * waveWidthPx);
       } else {
         setProvisional((cur) => {
           const m = new Map(cur);
           m.delete(payload.sectionId);
+          if (payload.nextId) m.delete(payload.nextId);
           return m;
         });
         setGuideline(null);
         if (phase === 'commit' && onPatchSection) {
-          void onPatchSection(payload.sectionId, { start_ms: next });
+          void onPatchSection(payload.sectionId, { start_ms: nextStart });
+          if (payload.nextId) {
+            void onPatchSection(payload.nextId, { start_ms: nextNextStart });
+          }
         }
       }
     },
@@ -182,6 +222,41 @@ export function SectionLane({
                 onClick={(e) => {
                   if (!e.shiftKey) onSeek(c.section.start_ms / 1000);
                   onSelect(c.section);
+                }}
+                onPointerDown={(e) => {
+                  if (!onPatchSection) return;
+                  if ((e.target as Element).closest('.section-grip')) return;
+                  const durationMs = duration * 1000;
+                  const baseStart = effective(c.section);
+                  const baseNextStart = c.nextStartMs;
+                  const hasNext = c.index + 1 < computed.length;
+                  const nextId = hasNext ? computed[c.index + 1].section.id : null;
+
+                  const minDelta = Math.max(
+                    -baseStart,
+                    c.prevStartMs + MIN_GAP_MS - baseStart,
+                  );
+
+                  let maxDelta: number;
+                  if (hasNext) {
+                    const nextOfNextStart =
+                      c.index + 2 < computed.length
+                        ? effective(computed[c.index + 2].section)
+                        : durationMs;
+                    maxDelta = nextOfNextStart - MIN_GAP_MS - baseNextStart;
+                  } else {
+                    maxDelta = durationMs - MIN_GAP_MS - baseStart;
+                  }
+
+                  drag.handlePointerDown(e, {
+                    kind: 'middle',
+                    sectionId: c.section.id,
+                    nextId,
+                    baseStartMs: baseStart,
+                    baseNextStartMs: baseNextStart,
+                    minDelta,
+                    maxDelta,
+                  });
                 }}
               >
                 {showGrips && c.index > 0 && (
