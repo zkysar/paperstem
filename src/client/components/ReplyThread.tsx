@@ -192,6 +192,7 @@ export function ReplyThread({
               <div className="reply-composer-actions">
                 <button
                   type="button"
+                  className="reply-cancel"
                   onClick={() => {
                     setDraft('');
                     setComposing(false);

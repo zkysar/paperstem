@@ -89,6 +89,7 @@ export function ReplyCard({
           <div className="reply-edit-actions">
             <button
               type="button"
+              className="reply-cancel"
               onClick={() => {
                 setDraft(reply.body);
                 setEditing(false);
