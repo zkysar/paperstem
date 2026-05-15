@@ -3592,7 +3592,7 @@ body.env-non-prod[data-env="local"]::before {
   min-height: 36px;
 }
 
-.emoji-picker-popover { width: 320px; }
+.emoji-picker-popover { width: max-content; }
 
 .emoji-picker-sheet {
   width: 100%;
