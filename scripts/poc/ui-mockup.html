@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Auto-section classification — UX mockup v2 (inline-in-drawer)</title>
+<title>Auto-section classification — UX mockup v3 (sections on the DAW)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
@@ -22,8 +22,8 @@
     --accent-tint-3: rgba(193, 116, 70, 0.04);
     --auto-color: #6a7a8e;
     --auto-tint: rgba(106, 122, 142, 0.10);
+    --auto-tint-2: rgba(106, 122, 142, 0.22);
     --warn: #c89c3e;
-    --danger: #b54040;
     --font-sans: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --font-display: "Playfair Display", Georgia, serif;
@@ -50,7 +50,7 @@
   }
   .lede {
     color: var(--muted);
-    margin: 0 0 28px;
+    margin: 0 0 24px;
     max-width: 760px;
   }
   .pitch {
@@ -96,19 +96,19 @@
     max-width: 760px;
   }
 
-  /* ---------- Upload drawer mock ---------- */
+  /* ---------- Minimal upload drawer ---------- */
   .drawer {
     background: var(--bg);
     border: 1px solid var(--rule);
     border-radius: 6px;
     padding: 20px;
-    max-width: 560px;
+    max-width: 440px;
   }
   .drawer-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
   }
   .drawer-title {
     font-family: var(--font-display);
@@ -122,7 +122,7 @@
     font-size: 18px;
     cursor: pointer;
   }
-  .field { margin: 0 0 14px; }
+  .field { margin: 0 0 12px; }
   .field label {
     display: block;
     font-size: 11px;
@@ -157,218 +157,6 @@
   }
   .file-row + .file-row { border-top: 1px solid var(--rule-2); }
   .file-status { color: var(--muted); }
-
-  /* ---------- Section detection pane ---------- */
-  .sections-pane {
-    border: 1px solid var(--rule);
-    border-radius: 4px;
-    background: var(--paper);
-    padding: 12px;
-    margin-bottom: 16px;
-  }
-  .sections-pane.detecting {
-    background: linear-gradient(180deg, var(--paper) 0%, var(--accent-tint-3) 100%);
-  }
-  .sections-pane-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-  }
-  .sections-pane-header label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--muted);
-    margin: 0;
-  }
-  .sections-pane-count {
-    font-size: 11px;
-    color: var(--muted);
-    font-family: var(--font-mono);
-  }
-
-  /* Mini timeline */
-  .mini-timeline {
-    position: relative;
-    height: 26px;
-    background: var(--bg);
-    border-radius: 3px;
-    border: 1px solid var(--rule-2);
-    margin-bottom: 12px;
-  }
-  .mini-section {
-    position: absolute;
-    top: 3px;
-    bottom: 3px;
-    background: var(--accent-tint-2);
-    border: 1px solid var(--accent);
-    border-radius: 2px;
-    font-size: 9px;
-    color: var(--ink);
-    padding: 0 4px;
-    display: flex;
-    align-items: center;
-    overflow: hidden;
-    white-space: nowrap;
-  }
-  .mini-section.type-music { background: var(--accent-tint-2); border-color: var(--accent); }
-  .mini-section.type-chatter { background: var(--auto-tint); border-color: var(--auto-color); color: var(--auto-color); }
-  .mini-section.type-tuning { background: rgba(200, 156, 62, 0.12); border-color: var(--warn); color: #8a6620; }
-  .mini-section.discarded { opacity: 0.25; text-decoration: line-through; }
-  .mini-section.tentative { border-style: dashed; }
-
-  /* Section list */
-  .section-list {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .section-row {
-    display: grid;
-    grid-template-columns: 64px 96px 1fr auto;
-    align-items: center;
-    gap: 10px;
-    padding: 6px 8px;
-    border-radius: 4px;
-    font-size: 12px;
-  }
-  .section-row:hover { background: var(--accent-tint-3); }
-  .section-row.discarded {
-    opacity: 0.4;
-  }
-  .section-row.discarded .name-input {
-    text-decoration: line-through;
-    color: var(--muted);
-  }
-  .section-row.editing {
-    background: var(--accent-tint);
-    box-shadow: 0 0 0 1px var(--accent-tint-2) inset;
-  }
-  .section-time {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    color: var(--muted);
-    white-space: nowrap;
-  }
-  .section-type-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10px;
-    padding: 2px 7px;
-    border-radius: 10px;
-    font-weight: 500;
-    background: var(--rule-2);
-    color: var(--ink-2);
-    width: max-content;
-  }
-  .section-type-pill.type-music { background: var(--accent-tint-2); color: var(--accent); }
-  .section-type-pill.type-chatter { background: var(--auto-tint); color: var(--auto-color); }
-  .section-type-pill.type-tuning { background: rgba(200, 156, 62, 0.18); color: #8a6620; }
-  .name-input {
-    background: transparent;
-    border: none;
-    font-family: inherit;
-    font-size: 12px;
-    color: var(--ink);
-    padding: 2px 4px;
-    width: 100%;
-    border-radius: 2px;
-  }
-  .name-input:focus {
-    background: var(--paper);
-    outline: 1px solid var(--accent);
-  }
-  .name-input.tentative {
-    color: var(--ink-2);
-    font-style: italic;
-  }
-  .confidence-tag {
-    font-family: var(--font-mono);
-    font-size: 9px;
-    color: var(--muted);
-    margin-left: 4px;
-    background: var(--rule-2);
-    padding: 1px 4px;
-    border-radius: 6px;
-  }
-  .confidence-tag.low { background: rgba(200, 156, 62, 0.15); color: #8a6620; }
-  .discard-btn {
-    background: none;
-    border: none;
-    color: var(--muted);
-    cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 3px;
-    font-size: 14px;
-    line-height: 1;
-  }
-  .discard-btn:hover { background: var(--rule-2); color: var(--danger); }
-  .restore-btn {
-    background: none;
-    border: 1px solid var(--rule);
-    color: var(--muted);
-    cursor: pointer;
-    padding: 2px 8px;
-    border-radius: 3px;
-    font-size: 10px;
-  }
-
-  /* Detection progress */
-  .detecting-status {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 4px 0 8px;
-  }
-  .spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid var(--rule);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.9s linear infinite;
-    flex-shrink: 0;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .progress-bar-wrap {
-    flex: 1;
-    height: 4px;
-    background: var(--rule);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .progress-bar {
-    height: 100%;
-    background: var(--accent);
-    transition: width 0.2s;
-  }
-  .progress-label {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    color: var(--muted);
-  }
-  .skeleton-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 4px 0;
-  }
-  .skeleton {
-    height: 26px;
-    background: linear-gradient(90deg, var(--rule-2) 0%, var(--rule) 50%, var(--rule-2) 100%);
-    background-size: 200% 100%;
-    animation: shimmer 1.4s ease-in-out infinite;
-    border-radius: 3px;
-  }
-  .skeleton.short { width: 70%; }
-  .skeleton.medium { width: 90%; }
-  @keyframes shimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
-  }
-
   button.primary {
     width: 100%;
     padding: 10px;
@@ -382,48 +170,346 @@
     cursor: pointer;
   }
   button.primary:hover { background: #ab6539; }
-  button.primary:disabled {
-    background: var(--muted-2);
-    cursor: wait;
-  }
-  .secondary-action {
-    display: block;
-    text-align: center;
-    background: none;
-    border: none;
-    color: var(--muted);
-    font-size: 11px;
-    margin-top: 6px;
-    cursor: pointer;
-    width: 100%;
-  }
-  .secondary-action:hover { color: var(--ink-2); text-decoration: underline; }
 
-  /* Project list row */
-  .project-row {
-    display: flex;
-    align-items: center;
-    padding: 14px 16px;
+  /* ---------- DAW view mock ---------- */
+  .daw {
     background: var(--paper);
     border: 1px solid var(--rule);
     border-radius: 6px;
-    margin-bottom: 8px;
+    overflow: hidden;
   }
-  .project-row.has-pending { border-left: 3px solid var(--auto-color); padding-left: 13px; }
-  .project-row .name { font-weight: 500; flex: 1; }
-  .project-row .meta { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-right: 12px; }
-  .pending-badge {
-    background: var(--auto-tint);
-    color: var(--auto-color);
-    font-size: 11px;
-    padding: 3px 8px;
-    border-radius: 10px;
-    font-weight: 500;
+  .daw-header {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--bg);
+  }
+  .project-name {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 16px;
+  }
+  .daw-meta {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .transport {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--rule-2);
+    border-bottom: 1px solid var(--rule);
+  }
+  .transport-btn {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .transport-time {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--ink);
+    padding: 0 8px;
+    border-left: 1px solid var(--rule);
+  }
+  .transport-spacer { flex: 1; }
+
+  /* Section lane (at top of timeline) */
+  .timeline-area {
+    display: grid;
+    grid-template-columns: 130px 1fr;
+  }
+  .ruler {
+    grid-column: 2;
+    height: 22px;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 8px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--rule-2);
+    align-items: center;
+    background: var(--bg);
+  }
+  .lane-label-cell {
+    background: var(--bg);
+    border-right: 1px solid var(--rule);
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .section-lane {
+    position: relative;
+    height: 46px;
+    background: var(--bg);
+    border-bottom: 1px solid var(--rule);
+  }
+  .section {
+    position: absolute;
+    top: 6px;
+    bottom: 6px;
+    background: var(--accent-tint-2);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    padding: 0 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .section.fresh {
+    border: 1.5px dashed var(--auto-color);
+    background: var(--auto-tint);
+    color: var(--ink-2);
+  }
+  .section.fresh.tentative {
+    border-color: var(--warn);
+    background: rgba(200,156,62,0.10);
+  }
+  .section .ai-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--auto-color);
+    flex-shrink: 0;
+  }
+  .section.tentative .ai-dot { background: var(--warn); }
+  .section .chip {
+    background: rgba(255,255,255,0.7);
+    border-radius: 8px;
+    font-size: 9px;
+    padding: 1px 5px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--ink-2);
+    flex-shrink: 0;
+  }
+
+  /* Stem tracks below */
+  .track {
+    display: contents;
+  }
+  .track .name-cell {
+    background: var(--paper);
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule-2);
+    padding: 8px 10px;
+    font-size: 12px;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .track .name-cell .controls {
+    display: flex;
     gap: 4px;
   }
-  .pending-badge .dot { width: 5px; height: 5px; background: var(--auto-color); border-radius: 50%; }
+  .track .name-cell .mini-btn {
+    font-size: 9px;
+    color: var(--muted);
+    background: var(--rule-2);
+    border-radius: 3px;
+    padding: 1px 4px;
+  }
+  .waveform {
+    position: relative;
+    height: 48px;
+    background: linear-gradient(180deg, #fcfbf7 0%, #f7f3e9 100%);
+    border-bottom: 1px solid var(--rule-2);
+    overflow: hidden;
+  }
+  .waveform-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .waveform-skeleton {
+    position: absolute;
+    inset: 6px;
+    background: linear-gradient(90deg, var(--rule-2) 0%, var(--rule) 50%, var(--rule-2) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: 3px;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Detection banner */
+  .detect-banner {
+    background: var(--accent-tint-3);
+    border-bottom: 1px solid var(--accent-tint-2);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .spinner {
+    width: 13px;
+    height: 13px;
+    border: 2px solid var(--rule);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress-bar-wrap {
+    flex: 1;
+    height: 4px;
+    background: var(--rule);
+    border-radius: 2px;
+    overflow: hidden;
+    max-width: 240px;
+  }
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+  }
+  .detect-banner .num {
+    font-family: var(--font-mono);
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  /* Toast */
+  .toast-stage {
+    position: relative;
+    min-height: 80px;
+    padding-top: 14px;
+  }
+  .toast {
+    position: relative;
+    background: var(--paper);
+    border: 1px solid var(--auto-color);
+    border-left-width: 3px;
+    border-radius: 4px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 460px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  }
+  .toast-icon {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--auto-color);
+    flex-shrink: 0;
+  }
+  .toast-body {
+    flex: 1;
+    font-size: 13px;
+  }
+  .toast-body strong { color: var(--ink); }
+  .toast-body .sub { color: var(--muted); font-size: 11px; margin-top: 2px; display: block; }
+  .toast-dismiss {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 16px;
+  }
+
+  /* Variant comparison */
+  .variant-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .variant {
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--paper);
+    overflow: hidden;
+  }
+  .variant-label {
+    background: var(--rule-2);
+    padding: 6px 14px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    font-weight: 600;
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (max-width: 900px) {
+    .variant-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Popover mock */
+  .popover-stage {
+    position: relative;
+    padding: 30px;
+    background: var(--rule-2);
+    border-radius: 6px;
+    min-height: 220px;
+  }
+  .popover {
+    position: absolute;
+    top: 100px;
+    left: 40px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    padding: 12px;
+    min-width: 240px;
+  }
+  .popover-title {
+    font-weight: 600;
+    font-size: 13px;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--rule-2);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .popover-actions { display: flex; flex-direction: column; gap: 2px; }
+  .popover-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .popover-action:hover { background: var(--rule-2); }
+  .popover-action .kbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .popover-action.danger { color: #b54040; }
 
   .notes {
     background: rgba(193, 116, 70, 0.04);
@@ -436,195 +522,59 @@
   .notes strong { color: var(--ink); }
   .notes ul { margin: 6px 0 0; padding-left: 20px; }
   .notes li + li { margin-top: 4px; }
-
-  /* Side-by-side drawer states */
-  .drawer-states {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    align-items: flex-start;
-  }
-  .drawer-state-label {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--accent);
-    font-weight: 600;
-    margin-bottom: 6px;
-  }
-  @media (max-width: 900px) {
-    .drawer-states { grid-template-columns: 1fr; }
-  }
 </style>
 </head>
 <body>
 <div class="page">
 
-  <h1>Auto-section classification — UX mockup v2</h1>
+  <h1>Auto-section classification — UX mockup v3</h1>
   <p class="lede">
-    <strong>The flow:</strong> classification happens inline in the upload
-    drawer the moment the user picks a directory. The user reviews proposed
-    sections right there — rename or discard — and then commits everything
-    in one Save. No separate "review later" step on the project page.
+    Sections appear on the real DAW timeline as they're detected. No separate
+    review UI — you land on the project after Save and the sections render
+    in the same place you'd add them manually. The upload drawer stays
+    minimal.
   </p>
 
   <div class="pitch">
-    <strong>What collapsed from v1:</strong> the opt-in checkbox is gone (it just always runs);
-    the project-page "auto vs manual" visual distinction is gone (sections are
-    already approved at commit time); the "Accept all confident / Discard all"
-    toolbar is gone (you do that inline in the drawer); the "re-classify"
-    button is gone (re-import to re-classify). The badge on project rows
-    still exists — but only for CLI-imported projects, since the CLI has no
-    interactive review step.
+    <strong>The flow:</strong> pick a directory → drawer (unchanged from today) → Save → land on the
+    DAW. Audio loads, peaks render, sections appear. You edit any section the
+    same way regardless of whether you made it or the system did.
   </div>
 
   <!-- ============================================ -->
   <div class="flow">
     <div class="flow-head">
       <span class="flow-num">Flow A</span>
-      <h2 class="flow-title">Picking the directory — classification starts immediately</h2>
+      <h2 class="flow-title">The upload drawer — unchanged</h2>
     </div>
     <p class="flow-desc">
-      Right after the user picks files (or drops a folder), the drawer opens
-      and YAMNet + chroma start running on the full mix. While that happens,
-      the user can name the project and set the recorded date. Both happen
-      in parallel — the user's metadata input fills the otherwise-wasted
-      10–15s of classification compute.
+      Same drawer as today. No "auto-section" checkbox, no inline preview, no
+      detection happening here. All the smarts moved downstream to the DAW
+      itself.
     </p>
 
-    <div class="drawer-states">
-      <div>
-        <div class="drawer-state-label">State 1 — detecting</div>
-        <div class="drawer">
-          <div class="drawer-header">
-            <span class="drawer-title">Upload to Paper Straw</span>
-            <button class="drawer-close">×</button>
-          </div>
-          <div class="field">
-            <label>Project name</label>
-            <input type="text" value="practice-2026-05-15">
-          </div>
-          <div class="field">
-            <label>Recorded on</label>
-            <input type="date" value="2026-05-15">
-          </div>
-          <div class="field">
-            <label>Files (3)</label>
-            <div class="file-list">
-              <div class="file-row"><span>A Guitar.wav</span><span class="file-status">33.1 MB</span></div>
-              <div class="file-row"><span>Bass.wav</span><span class="file-status">32.9 MB</span></div>
-              <div class="file-row"><span>Drums.wav</span><span class="file-status">32.9 MB</span></div>
-            </div>
-          </div>
-
-          <div class="sections-pane detecting">
-            <div class="sections-pane-header">
-              <label>Sections</label>
-              <span class="sections-pane-count">detecting…</span>
-            </div>
-            <div class="detecting-status">
-              <div class="spinner"></div>
-              <div class="progress-bar-wrap"><div class="progress-bar" style="width: 47%;"></div></div>
-              <span class="progress-label">47%</span>
-            </div>
-            <div class="skeleton-list">
-              <div class="skeleton medium"></div>
-              <div class="skeleton short"></div>
-              <div class="skeleton medium"></div>
-            </div>
-          </div>
-
-          <button class="primary" disabled>Detecting sections…</button>
-          <button class="secondary-action">Skip detection and save now</button>
+    <div class="drawer">
+      <div class="drawer-header">
+        <span class="drawer-title">Upload to Paper Straw</span>
+        <button class="drawer-close">×</button>
+      </div>
+      <div class="field">
+        <label>Project name</label>
+        <input type="text" value="practice-2026-05-15">
+      </div>
+      <div class="field">
+        <label>Recorded on</label>
+        <input type="date" value="2026-05-15">
+      </div>
+      <div class="field">
+        <label>Files (3)</label>
+        <div class="file-list">
+          <div class="file-row"><span>A Guitar.wav</span><span class="file-status">33.1 MB</span></div>
+          <div class="file-row"><span>Bass.wav</span><span class="file-status">32.9 MB</span></div>
+          <div class="file-row"><span>Drums.wav</span><span class="file-status">32.9 MB</span></div>
         </div>
       </div>
-
-      <div>
-        <div class="drawer-state-label">State 2 — sections detected, ready to review</div>
-        <div class="drawer">
-          <div class="drawer-header">
-            <span class="drawer-title">Upload to Paper Straw</span>
-            <button class="drawer-close">×</button>
-          </div>
-          <div class="field">
-            <label>Project name</label>
-            <input type="text" value="practice-2026-05-15">
-          </div>
-          <div class="field">
-            <label>Recorded on</label>
-            <input type="date" value="2026-05-15">
-          </div>
-          <div class="field">
-            <label>Files (3)</label>
-            <div class="file-list">
-              <div class="file-row"><span>A Guitar.wav</span><span class="file-status">33.1 MB</span></div>
-              <div class="file-row"><span>Bass.wav</span><span class="file-status">32.9 MB</span></div>
-              <div class="file-row"><span>Drums.wav</span><span class="file-status">32.9 MB</span></div>
-            </div>
-          </div>
-
-          <div class="sections-pane">
-            <div class="sections-pane-header">
-              <label>Sections (5)</label>
-              <span class="sections-pane-count">click to rename · X to discard</span>
-            </div>
-            <div class="mini-timeline">
-              <div class="mini-section type-chatter" style="left: 0.5%; width: 12%;">Chatter</div>
-              <div class="mini-section type-music" style="left: 13%; width: 26%;">Wagon Wheel</div>
-              <div class="mini-section type-tuning" style="left: 40%; width: 18%;">Tuning</div>
-              <div class="mini-section type-music tentative" style="left: 59%; width: 22%;">Tennessee Stud?</div>
-              <div class="mini-section type-music" style="left: 82%; width: 17%;">Music</div>
-            </div>
-            <div class="section-list">
-              <div class="section-row">
-                <span class="section-time">0:00 – 0:32</span>
-                <span class="section-type-pill type-chatter">● chatter</span>
-                <input class="name-input" value="Chatter">
-                <button class="discard-btn" title="Discard">×</button>
-              </div>
-              <div class="section-row editing">
-                <span class="section-time">0:32 – 4:15</span>
-                <span class="section-type-pill type-music">● music</span>
-                <input class="name-input" value="Wagon Wheel"><span class="confidence-tag">92%</span>
-                <button class="discard-btn" title="Discard">×</button>
-              </div>
-              <div class="section-row">
-                <span class="section-time">4:15 – 5:48</span>
-                <span class="section-type-pill type-tuning">● tuning</span>
-                <input class="name-input" value="Tuning">
-                <button class="discard-btn" title="Discard">×</button>
-              </div>
-              <div class="section-row">
-                <span class="section-time">5:48 – 11:23</span>
-                <span class="section-type-pill type-music">● music</span>
-                <input class="name-input tentative" value="Tennessee Stud?"><span class="confidence-tag low">low</span>
-                <button class="discard-btn" title="Discard">×</button>
-              </div>
-              <div class="section-row">
-                <span class="section-time">11:23 – 14:55</span>
-                <span class="section-type-pill type-music">● music</span>
-                <input class="name-input" value="Music">
-                <button class="discard-btn" title="Discard">×</button>
-              </div>
-            </div>
-          </div>
-
-          <button class="primary">Save to Paper Straw</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="notes">
-      <strong>Decisions in this mock:</strong>
-      <ul>
-        <li><strong>No "auto" badging in the drawer.</strong> Every row is just "a section the system found." Once you Save, they're committed as ordinary sections.</li>
-        <li><strong>Type pills</strong> (music / chatter / tuning) replace the auto-vs-manual visual distinction. They convey what kind of segment it is, not where it came from.</li>
-        <li><strong>Tentative matches</strong> (Tennessee Stud?) show the song name with a question mark + italic + small "low" tag. Still committed as a manual section if you Save without editing — but visually flagged so you notice them.</li>
-        <li><strong>"Skip detection and save now"</strong> is the escape hatch — if the user knows detection is wrong / running long, they can bypass and save without sections.</li>
-        <li><strong>Save is disabled until detection finishes</strong> — keeps the model simple. (Alternative: enable Save anytime; detection results POST after upload completes.)</li>
-        <li><strong>Mini timeline at the top</strong> gives proportional visual context. The list below is the workspace for renaming/discarding.</li>
-      </ul>
+      <button class="primary">Save to Paper Straw</button>
     </div>
   </div>
 
@@ -632,67 +582,69 @@
   <div class="flow">
     <div class="flow-head">
       <span class="flow-num">Flow B</span>
-      <h2 class="flow-title">Interactions — rename, discard, restore</h2>
+      <h2 class="flow-title">DAW view, right after Save — detection in progress</h2>
     </div>
     <p class="flow-desc">
-      Three things the user does inside the section list. All are
-      keyboard-fluent so a power user can work through many sections fast.
+      Save dismisses the drawer and navigates to the project. The DAW renders
+      with skeleton waveforms while stems load, and a slim banner reports that
+      sections are being detected. Detection runs in the browser on the
+      already-decoded audio; finishes in 10–15 s on a typical practice.
     </p>
 
-    <div class="sections-pane" style="max-width: 560px;">
-      <div class="sections-pane-header">
-        <label>Sections (5)</label>
-        <span class="sections-pane-count">1 discarded · 1 renamed</span>
+    <div class="daw">
+      <div class="daw-header">
+        <span class="project-name">practice-2026-05-15</span>
+        <span class="daw-meta">
+          <span>Paper Straw</span>
+          <span>·</span>
+          <span>3 stems</span>
+          <span>·</span>
+          <span>recorded 2026-05-15</span>
+        </span>
       </div>
-      <div class="mini-timeline">
-        <div class="mini-section type-chatter" style="left: 0.5%; width: 12%;">Setup</div>
-        <div class="mini-section type-music" style="left: 13%; width: 26%;">Wagon Wheel</div>
-        <div class="mini-section type-tuning discarded" style="left: 40%; width: 18%;">Tuning</div>
-        <div class="mini-section type-music tentative" style="left: 59%; width: 22%;">Tennessee Stud?</div>
-        <div class="mini-section type-music" style="left: 82%; width: 17%;">Music</div>
+      <div class="transport">
+        <button class="transport-btn">⏵</button>
+        <span class="transport-time">0:00.000 / 4:21</span>
+        <span class="transport-spacer"></span>
+        <button class="transport-btn">M</button>
+        <button class="transport-btn">+ Section</button>
       </div>
-      <div class="section-list">
-        <div class="section-row">
-          <span class="section-time">0:00 – 0:32</span>
-          <span class="section-type-pill type-chatter">● chatter</span>
-          <input class="name-input" value="Setup"><span style="font-size: 9px; color: var(--accent); margin-left: 4px; font-style: italic;">edited</span>
-          <button class="discard-btn">×</button>
+      <div class="detect-banner">
+        <div class="spinner"></div>
+        <span><strong>Detecting sections</strong> — finds songs, chatter, and tuning automatically</span>
+        <span class="num">62%</span>
+        <div class="progress-bar-wrap"><div class="progress-bar" style="width: 62%;"></div></div>
+      </div>
+
+      <div class="timeline-area">
+        <div class="lane-label-cell" style="grid-column: 1;">Sections</div>
+        <div class="ruler">
+          <span>0:00</span><span>1:00</span><span>2:00</span><span>3:00</span><span>4:00</span>
         </div>
-        <div class="section-row">
-          <span class="section-time">0:32 – 4:15</span>
-          <span class="section-type-pill type-music">● music</span>
-          <input class="name-input" value="Wagon Wheel"><span class="confidence-tag">92%</span>
-          <button class="discard-btn">×</button>
+        <div></div>
+        <div class="section-lane"><!-- empty during detection --></div>
+
+        <div class="track">
+          <div class="name-cell">A Guitar <span class="controls"><span class="mini-btn">M</span><span class="mini-btn">S</span></span></div>
+          <div class="waveform"><div class="waveform-skeleton"></div></div>
         </div>
-        <div class="section-row discarded">
-          <span class="section-time">4:15 – 5:48</span>
-          <span class="section-type-pill type-tuning">● tuning</span>
-          <input class="name-input" value="Tuning" readonly>
-          <button class="restore-btn">restore</button>
+        <div class="track">
+          <div class="name-cell">Bass <span class="controls"><span class="mini-btn">M</span><span class="mini-btn">S</span></span></div>
+          <div class="waveform"><div class="waveform-skeleton"></div></div>
         </div>
-        <div class="section-row">
-          <span class="section-time">5:48 – 11:23</span>
-          <span class="section-type-pill type-music">● music</span>
-          <input class="name-input tentative" value="Tennessee Stud?"><span class="confidence-tag low">low</span>
-          <button class="discard-btn">×</button>
-        </div>
-        <div class="section-row">
-          <span class="section-time">11:23 – 14:55</span>
-          <span class="section-type-pill type-music">● music</span>
-          <input class="name-input" value="Music">
-          <button class="discard-btn">×</button>
+        <div class="track">
+          <div class="name-cell">Drums <span class="controls"><span class="mini-btn">M</span><span class="mini-btn">S</span></span></div>
+          <div class="waveform"><div class="waveform-skeleton"></div></div>
         </div>
       </div>
     </div>
 
     <div class="notes">
-      <strong>Interaction details:</strong>
+      <strong>Decisions:</strong>
       <ul>
-        <li><strong>Click anywhere in the name field to rename.</strong> Tab cycles between rows for fast keyboard editing.</li>
-        <li><strong>Discard</strong> doesn't remove the row — it strikes through and offers restore. Easy to undo before commit; goes away on Save.</li>
-        <li><strong>The mini timeline</strong> reflects discarded sections too (greyed-out), so you can see the resulting structure as you edit.</li>
-        <li><strong>Adjusting section *boundaries* in the drawer is intentionally not supported.</strong> Boundary drag is a precision task that belongs in the full project view (zoomed timeline). The drawer is for naming and pruning. If the user wants to fix a boundary, they save first, then adjust in the timeline.</li>
-        <li><strong>What about adding a new section the model missed?</strong> Same answer — defer to the project view. The drawer is the "review what the model found" view, not the "compose from scratch" view.</li>
+        <li>Banner is non-blocking — the user can already play, mute, add manual sections, etc. while detection runs.</li>
+        <li>If detection fails, the banner becomes "Detection failed (try again)" with a retry link. No regression — user keeps working without sections.</li>
+        <li>If the user creates a manual section in this window, the auto-detector respects it: any auto section that would overlap gets dropped before being written (server-side conflict rule from the design doc).</li>
       </ul>
     </div>
   </div>
@@ -701,52 +653,114 @@
   <div class="flow">
     <div class="flow-head">
       <span class="flow-num">Flow C</span>
-      <h2 class="flow-title">Save — uploading + committing in one shot</h2>
+      <h2 class="flow-title">DAW view — sections detected and rendered</h2>
     </div>
     <p class="flow-desc">
-      The user clicks Save. The drawer disables its inputs and shows the
-      upload progressing. Sections are POSTed alongside the project create
-      request (or right after), so when the drawer closes the project page
-      already has them.
+      Detection completes, sections fade onto the timeline. Two variants below
+      — pick the one that feels right. The functional behavior is identical;
+      only the visual treatment differs.
     </p>
 
-    <div class="drawer">
-      <div class="drawer-header">
-        <span class="drawer-title">Upload to Paper Straw</span>
-      </div>
-      <div class="field">
-        <label>Project name</label>
-        <input type="text" value="practice-2026-05-15" readonly style="opacity: 0.6;">
-      </div>
-      <div class="field">
-        <label>Files (3) — uploading</label>
-        <div class="file-list">
-          <div class="file-row"><span>A Guitar.wav</span><span class="file-status" style="color: var(--accent);">uploading 62%</span></div>
-          <div class="file-row"><span>Bass.wav</span><span class="file-status" style="color: var(--accent);">uploading 38%</span></div>
-          <div class="file-row"><span>Drums.wav</span><span class="file-status" style="color: var(--muted);">queued</span></div>
+    <div class="variant-grid">
+      <div class="variant">
+        <div class="variant-label">Variant 1 — no distinction (sections are sections)</div>
+        <div class="daw" style="border: 0;">
+          <div class="transport">
+            <button class="transport-btn">⏵</button>
+            <span class="transport-time">0:00.000 / 4:21</span>
+            <span class="transport-spacer"></span>
+            <button class="transport-btn">M</button>
+            <button class="transport-btn">+ Section</button>
+          </div>
+          <div class="timeline-area">
+            <div class="lane-label-cell" style="grid-column: 1;">Sections</div>
+            <div class="ruler"><span>0:00</span><span>1:00</span><span>2:00</span><span>3:00</span><span>4:00</span></div>
+            <div></div>
+            <div class="section-lane">
+              <div class="section" style="left: 0.5%; width: 12%;">Chatter</div>
+              <div class="section" style="left: 13%; width: 26%;">Wagon Wheel <span class="chip">92%</span></div>
+              <div class="section" style="left: 40%; width: 18%;">Tuning</div>
+              <div class="section" style="left: 59%; width: 22%;">Tennessee Stud? <span class="chip">low</span></div>
+              <div class="section" style="left: 82%; width: 17%;">Music</div>
+            </div>
+            <div class="track">
+              <div class="name-cell">A Guitar</div>
+              <div class="waveform">
+                <svg class="waveform-svg" viewBox="0 0 100 30" preserveAspectRatio="none"><path d="M0,15 L2,14 L4,16 L6,12 L8,18 L10,11 L12,19 L14,10 L16,20 L18,9 L20,21 L22,8 L24,22 L26,7 L28,23 L30,6 L32,24 L34,5 L36,25 L38,4 L40,26 L42,5 L44,25 L46,6 L48,24 L50,7 L52,23 L54,8 L56,22 L58,9 L60,21 L62,10 L64,20 L66,11 L68,19 L70,12 L72,18 L74,13 L76,17 L78,14 L80,16 L82,15 L84,15 L86,14 L88,16 L90,13 L92,17 L94,12 L96,18 L98,15 L100,15" fill="none" stroke="#c17446" stroke-width="0.4"/></svg>
+              </div>
+            </div>
+            <div class="track">
+              <div class="name-cell">Bass</div>
+              <div class="waveform">
+                <svg class="waveform-svg" viewBox="0 0 100 30" preserveAspectRatio="none"><path d="M0,15 L2,15 L4,13 L6,17 L8,14 L10,16 L12,12 L14,18 L16,13 L18,17 L20,14 L22,16 L24,12 L26,18 L28,11 L30,19 L32,13 L34,17 L36,14 L38,16 L40,12 L42,18 L44,13 L46,17 L48,14 L50,16 L52,13 L54,17 L56,14 L58,16 L60,12 L62,18 L64,13 L66,17 L68,14 L70,16 L72,15 L74,15 L76,14 L78,16 L80,15 L82,15 L84,14 L86,16 L88,15 L90,15 L92,15 L94,15 L96,15 L98,15 L100,15" fill="none" stroke="#c17446" stroke-width="0.4"/></svg>
+              </div>
+            </div>
+            <div class="track">
+              <div class="name-cell">Drums</div>
+              <div class="waveform">
+                <svg class="waveform-svg" viewBox="0 0 100 30" preserveAspectRatio="none"><path d="M0,15 L1,5 L2,15 L3,25 L4,15 L5,8 L6,15 L7,22 L8,15 L9,6 L10,15 L11,24 L12,15 L13,7 L14,15 L15,23 L16,15 L17,5 L18,15 L19,25 L20,15 L21,8 L22,15 L23,22 L24,15 L25,6 L26,15 L27,24 L28,15 L29,7 L30,15 L31,23 L32,15 L40,15 L50,15 L60,15 L70,15 L80,15 L90,15 L100,15" fill="none" stroke="#c17446" stroke-width="0.4"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="padding: 10px 14px; font-size: 11px; color: var(--muted);">
+          Auto and manual sections look identical. The user can edit any of them the same way. A small confidence chip ("92%", "low") is the only hint that the system suggested them.
         </div>
       </div>
-      <div class="sections-pane">
-        <div class="sections-pane-header">
-          <label>Sections (4)</label>
-          <span class="sections-pane-count" style="color: var(--accent);">✓ ready to commit</span>
+
+      <div class="variant">
+        <div class="variant-label">Variant 2 — fresh-from-detection treatment</div>
+        <div class="daw" style="border: 0;">
+          <div class="transport">
+            <button class="transport-btn">⏵</button>
+            <span class="transport-time">0:00.000 / 4:21</span>
+            <span class="transport-spacer"></span>
+            <button class="transport-btn">M</button>
+            <button class="transport-btn">+ Section</button>
+          </div>
+          <div class="timeline-area">
+            <div class="lane-label-cell" style="grid-column: 1;">Sections</div>
+            <div class="ruler"><span>0:00</span><span>1:00</span><span>2:00</span><span>3:00</span><span>4:00</span></div>
+            <div></div>
+            <div class="section-lane">
+              <div class="section fresh" style="left: 0.5%; width: 12%;"><span class="ai-dot"></span>Chatter</div>
+              <div class="section fresh" style="left: 13%; width: 26%;"><span class="ai-dot"></span>Wagon Wheel <span class="chip">92%</span></div>
+              <div class="section fresh" style="left: 40%; width: 18%;"><span class="ai-dot"></span>Tuning</div>
+              <div class="section fresh tentative" style="left: 59%; width: 22%;"><span class="ai-dot"></span>Tennessee Stud? <span class="chip">low</span></div>
+              <div class="section fresh" style="left: 82%; width: 17%;"><span class="ai-dot"></span>Music</div>
+            </div>
+            <div class="track">
+              <div class="name-cell">A Guitar</div>
+              <div class="waveform">
+                <svg class="waveform-svg" viewBox="0 0 100 30" preserveAspectRatio="none"><path d="M0,15 L2,14 L4,16 L6,12 L8,18 L10,11 L12,19 L14,10 L16,20 L18,9 L20,21 L22,8 L24,22 L26,7 L28,23 L30,6 L32,24 L34,5 L36,25 L38,4 L40,26 L42,5 L44,25 L46,6 L48,24 L50,7 L52,23 L54,8 L56,22 L58,9 L60,21 L62,10 L64,20 L66,11 L68,19 L70,12 L72,18 L74,13 L76,17 L78,14 L80,16 L82,15 L84,15 L86,14 L88,16 L90,13 L92,17 L94,12 L96,18 L98,15 L100,15" fill="none" stroke="#c17446" stroke-width="0.4"/></svg>
+              </div>
+            </div>
+            <div class="track">
+              <div class="name-cell">Bass</div>
+              <div class="waveform">
+                <svg class="waveform-svg" viewBox="0 0 100 30" preserveAspectRatio="none"><path d="M0,15 L2,15 L4,13 L6,17 L8,14 L10,16 L12,12 L14,18 L16,13 L18,17 L20,14 L22,16 L24,12 L26,18 L28,11 L30,19 L32,13 L34,17 L36,14 L38,16 L40,12 L42,18 L44,13 L46,17 L48,14 L50,16 L52,13 L54,17 L56,14 L58,16 L60,12 L62,18 L64,13 L66,17 L68,14 L70,16 L72,15 L74,15 L76,14 L78,16 L80,15 L82,15 L84,14 L86,16 L88,15 L90,15 L92,15 L94,15 L96,15 L98,15 L100,15" fill="none" stroke="#c17446" stroke-width="0.4"/></svg>
+              </div>
+            </div>
+            <div class="track">
+              <div class="name-cell">Drums</div>
+              <div class="waveform">
+                <svg class="waveform-svg" viewBox="0 0 100 30" preserveAspectRatio="none"><path d="M0,15 L1,5 L2,15 L3,25 L4,15 L5,8 L6,15 L7,22 L8,15 L9,6 L10,15 L11,24 L12,15 L13,7 L14,15 L15,23 L16,15 L17,5 L18,15 L19,25 L20,15 L21,8 L22,15 L23,22 L24,15 L25,6 L26,15 L27,24 L28,15 L29,7 L30,15 L31,23 L32,15 L40,15 L50,15 L60,15 L70,15 L80,15 L90,15 L100,15" fill="none" stroke="#c17446" stroke-width="0.4"/></svg>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="mini-timeline">
-          <div class="mini-section type-chatter" style="left: 0.5%; width: 12%;">Setup</div>
-          <div class="mini-section type-music" style="left: 13%; width: 26%;">Wagon Wheel</div>
-          <div class="mini-section type-music tentative" style="left: 59%; width: 22%;">Tennessee Stud?</div>
-          <div class="mini-section type-music" style="left: 82%; width: 17%;">Music</div>
+        <div style="padding: 10px 14px; font-size: 11px; color: var(--muted);">
+          Auto sections start with dashed slate border + small dot. Visual treatment fades to "normal" after the user touches them (rename, move, or open the popover). Tentative matches keep a warm-yellow border until edited.
         </div>
       </div>
-      <button class="primary" disabled>Uploading… 51%</button>
     </div>
 
     <div class="notes">
-      <strong>Notes:</strong>
+      <strong>The two-variant question:</strong>
       <ul>
-        <li>Sections render collapsed (mini timeline only, no row list) once committed — the workspace is for editing; once you've hit Save you're just watching.</li>
-        <li>If the upload fails partway, the user can retry; sections are held client-side until the project create succeeds.</li>
-        <li>If sections are large (e.g., many chroma fingerprints for a long practice), POSTing them separately after the project create avoids inflating the upload request.</li>
+        <li><strong>Variant 1</strong> is the radical simplification. Treat sections like first-class citizens regardless of origin. The user sees them, edits them, life is simple. Risk: someone opens the project later and doesn't realize the system made these — might be surprised.</li>
+        <li><strong>Variant 2</strong> keeps a subtle "not yet vouched-for" marker. Touching the section (any edit, or just opening the popover) removes the dashed treatment and the dot. Slightly more state to manage; clearer mental model.</li>
+        <li>My recommendation: <strong>Variant 2</strong>, but only for the very first viewing of a project — once the user has seen them, treat as normal sections forever after. Even untouched ones lose the "fresh" look on the second visit.</li>
       </ul>
     </div>
   </div>
@@ -755,49 +769,86 @@
   <div class="flow">
     <div class="flow-head">
       <span class="flow-num">Flow D</span>
-      <h2 class="flow-title">CLI imports — the only "review later" path</h2>
+      <h2 class="flow-title">First-time toast — "Hey, we did this"</h2>
     </div>
     <p class="flow-desc">
-      For Tascam Model 12 imports via <code>bin/import-from-device.ts
-      --auto-classify</code>, there's no interactive drawer to review in.
-      The CLI runs classification, POSTs the sections, and the user reviews
-      next time they open the web app. A slate badge on the project row
-      tells them which projects have un-reviewed auto sections.
+      The first time a user sees auto-detected sections in their DAW, a small
+      toast explains what happened. Auto-dismisses on interaction. After
+      they've seen it once, no more toast.
     </p>
 
-    <div>
-      <div class="project-row has-pending">
-        <span class="name">practice-2026-05-15</span>
-        <span class="meta">12 stems · 1h 24min</span>
-        <span class="pending-badge"><span class="dot"></span>5 sections to review</span>
+    <div class="toast-stage">
+      <div class="toast">
+        <div class="toast-icon"></div>
+        <div class="toast-body">
+          <strong>5 sections detected.</strong> Edit names or delete any you don't want.
+          <span class="sub">We listened to the audio and grouped it into songs, chatter, and tuning.</span>
+        </div>
+        <button class="toast-dismiss">×</button>
       </div>
-      <div class="project-row has-pending">
-        <span class="name">practice-2026-05-13</span>
-        <span class="meta">3 stems · 47min</span>
-        <span class="pending-badge"><span class="dot"></span>3 sections to review</span>
-      </div>
-      <div class="project-row">
-        <span class="name">practice-2026-05-08</span>
-        <span class="meta">3 stems · 4min</span>
-      </div>
-      <div class="project-row">
-        <span class="name">Sun and Soil Hyde Street</span>
-        <span class="meta">15 stems · 3min</span>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <div class="flow">
+    <div class="flow-head">
+      <span class="flow-num">Flow E</span>
+      <h2 class="flow-title">Clicking a section — same popover as today</h2>
+    </div>
+    <p class="flow-desc">
+      No special "Accept" action. Click → rename, delete, move boundary —
+      identical to what manual sections get today. If you're using Variant 2,
+      any of these interactions removes the "fresh" treatment.
+    </p>
+
+    <div class="popover-stage">
+      <div class="popover">
+        <div class="popover-title">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--auto-color);"></span>
+          Wagon Wheel <span class="chip" style="margin-left: auto;">92%</span>
+        </div>
+        <div class="popover-actions">
+          <div class="popover-action"><span>Rename...</span><span class="kbd">R</span></div>
+          <div class="popover-action"><span>Move boundary...</span><span class="kbd">M</span></div>
+          <div class="popover-action danger"><span>Delete</span><span class="kbd">⌫</span></div>
+        </div>
       </div>
     </div>
 
     <div class="notes">
-      <strong>How review works for CLI imports:</strong>
+      <strong>Notes:</strong>
       <ul>
-        <li>The project page shows the sections as <em>provisional</em> — same dashed-border + slate visual treatment from the v1 mockup, since these weren't reviewed at import time.</li>
-        <li>The user accepts or discards individual sections in the project view; once all are accepted (or all discarded), the badge clears.</li>
-        <li>This is the only place in v2 where the "auto vs manual" visual distinction lives. The web import path doesn't need it.</li>
+        <li>The popover is essentially the existing section popover. Only the small slate dot in the title indicates "system-detected" (and only on the first viewing — see Variant 2).</li>
+        <li>No "Accept" needed because the section is already a section. Touch = acknowledgment.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <div class="flow">
+    <div class="flow-head">
+      <span class="flow-num">Flow F</span>
+      <h2 class="flow-title">CLI imports — same DAW, no separate review path</h2>
+    </div>
+    <p class="flow-desc">
+      Tascam Model 12 imports run classification on the user's machine and
+      POST the sections. When the user opens the project in the web app for
+      the first time, the DAW renders the same way it would for a fresh web
+      import: with the "fresh" treatment (Variant 2) until they touch each
+      section. No project-row badge, no separate "review" screen.
+    </p>
+
+    <div class="notes">
+      <strong>What changed from v1/v2:</strong>
+      <ul>
+        <li><strong>No badge on the project row.</strong> When the user opens the project, the DAW itself communicates "here's what the system suggested" — same as for web imports.</li>
+        <li><strong>One UI for two import paths.</strong> Web and CLI converge on the DAW as the only review surface.</li>
       </ul>
     </div>
   </div>
 
   <p style="color: var(--muted); margin-top: 32px; font-size: 12px;">
-    Mockup at <code>scripts/poc/ui-mockup.html</code>. Previous version is in git history.
+    Mockup at <code>scripts/poc/ui-mockup.html</code>. Previous versions in git history (commits <code>9f46b12</code> and <code>03bc3e4</code>).
   </p>
 </div>
 </body>
