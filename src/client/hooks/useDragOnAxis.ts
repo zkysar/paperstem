@@ -26,30 +26,31 @@ type State<P> = {
 export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
   const threshold = opts.threshold ?? 3;
   const stateRef = useRef<State<P> | null>(null);
-  const { onChange, onTap } = opts;
+  const onChangeRef = useRef(opts.onChange);
+  const onTapRef = useRef(opts.onTap);
 
-  const finish = useCallback(
-    (phase: 'commit' | 'cancel') => {
-      const s = stateRef.current;
-      if (!s) return;
-      try {
-        s.target.releasePointerCapture(s.pointerId);
-      } catch {
-        /* ignore */
-      }
-      if (s.crossed) {
-        onChange({ phase, deltaPx: s.lastX - s.startX, payload: s.payload });
-      } else if (phase === 'commit' && onTap) {
-        onTap(s.payload, s.lastX);
-      }
-      stateRef.current = null;
-    },
-    [onChange, onTap],
-  );
+  onChangeRef.current = opts.onChange;
+  onTapRef.current = opts.onTap;
+
+  const finish = useCallback((phase: 'commit' | 'cancel') => {
+    const s = stateRef.current;
+    if (!s) return;
+    try {
+      s.target.releasePointerCapture(s.pointerId);
+    } catch {
+      /* ignore */
+    }
+    if (s.crossed) {
+      onChangeRef.current({ phase, deltaPx: s.lastX - s.startX, payload: s.payload });
+    } else if (phase === 'commit' && onTapRef.current) {
+      onTapRef.current(s.payload, s.lastX);
+    }
+    stateRef.current = null;
+  }, []);
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent, payload: P) => {
-      const target = e.currentTarget as Element;
+      const target = e.currentTarget;
       try {
         target.setPointerCapture(e.pointerId);
       } catch {
@@ -77,7 +78,7 @@ export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
         s.crossed = true;
       }
       if (s.crossed) {
-        onChange({ phase: 'preview', deltaPx: delta, payload: s.payload });
+        onChangeRef.current({ phase: 'preview', deltaPx: delta, payload: s.payload });
       }
     }
     function onPointerUp(e: PointerEvent) {
@@ -98,7 +99,7 @@ export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
       window.removeEventListener('pointercancel', onPointerUp);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [finish, onChange, threshold]);
+  }, [finish, threshold]);
 
   return { handlePointerDown };
 }
