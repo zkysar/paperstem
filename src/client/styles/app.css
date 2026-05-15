@@ -265,12 +265,18 @@ kbd {
   display: flex;
   flex-direction: column;
   /* At least viewport-tall so the playhead/loop overlays (top:0 bottom:0)
-     fill the visible window when tracks are short. Without `flex: 1`, this
-     box also grows past viewport height when .tracks overflows — without
-     that growth, absolutely-positioned overlays anchored to this element
-     would end at the visible-viewport bottom and not extend over the
-     overflowing tracks revealed by vertical scroll. */
+     fill the visible window when tracks are short. */
   min-height: 100%;
+  /* `.viewport` is a flex column, so .viewport-inner is sized by the flex
+     algorithm. With the default `flex-shrink: 1`, when `.tracks` content
+     overflows the viewport, the flex container shrinks `.viewport-inner`
+     back down to the viewport's height — `.tracks` then overflows
+     `.viewport-inner` and scrolls at the `.viewport` level, but
+     `.viewport-inner` itself stays viewport-tall. That caps the playhead's
+     `bottom: 0` (anchored here) at the visible-viewport bottom instead of
+     the bottom of the track list. `flex-shrink: 0` keeps .viewport-inner
+     sized to its content so the playhead spans the full scroll height. */
+  flex-shrink: 0;
   /* width is set inline via JS based on viewport.state.hZoom */
 }
 
