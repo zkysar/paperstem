@@ -6,6 +6,7 @@ export type Project = {
   stemCount: number;
   folderId: string | null;
   referenceStemId: string | null;
+  updatedAt: number;
 };
 
 export type ProjectStem = {

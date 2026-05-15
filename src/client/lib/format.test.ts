@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { fmt, clamp, pixelToTime, longestStemIdx } from './format';
+import { fmt, clamp, formatRelativeDate, pixelToTime, longestStemIdx } from './format';
 
 describe('fmt', () => {
   test('formats seconds as M:SS', () => {
@@ -36,6 +36,34 @@ describe('pixelToTime', () => {
   test('returns 0 for zero width or duration', () => {
     expect(pixelToTime(50, 0, 60)).toBe(0);
     expect(pixelToTime(50, 100, 0)).toBe(0);
+  });
+});
+
+describe('formatRelativeDate', () => {
+  // Pin "now" so the relative buckets are deterministic across CI machines.
+  const now = new Date('2026-05-14T12:00:00Z').getTime();
+
+  test('Today / Yesterday for recent timestamps', () => {
+    expect(formatRelativeDate(new Date('2026-05-14T08:00:00Z').getTime(), now)).toBe('Today');
+    expect(formatRelativeDate(new Date('2026-05-13T22:00:00Z').getTime(), now)).toBe('Yesterday');
+  });
+
+  test('within current year: short day+month', () => {
+    const out = formatRelativeDate(new Date('2026-03-14T12:00:00Z').getTime(), now);
+    // Locale-dependent formatting; just assert the year is omitted and Mar appears.
+    expect(out).toMatch(/Mar/);
+    expect(out).not.toMatch(/2026/);
+  });
+
+  test('prior years include the year', () => {
+    const out = formatRelativeDate(new Date('2024-08-02T12:00:00Z').getTime(), now);
+    expect(out).toMatch(/2024/);
+  });
+
+  test('empty string when timestamp is missing or invalid', () => {
+    expect(formatRelativeDate(0, now)).toBe('');
+    expect(formatRelativeDate(NaN, now)).toBe('');
+    expect(formatRelativeDate(Infinity, now)).toBe('');
   });
 });
 

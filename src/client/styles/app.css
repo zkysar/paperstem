@@ -1691,16 +1691,27 @@ body.env-non-prod[data-env="local"]::before {
   overflow-y: auto;
   min-height: 280px;
 }
+/* Picker rows are layout-only: cells are placed by grid-template-areas so
+   adding a column means appending one area name to the desktop template and
+   one new `.fp-cell-*` class — no re-numbering of nth-child selectors. */
 .fp-row {
   display: grid;
-  grid-template-columns: 1fr 110px 100px 50px 60px;
-  gap: 12px;
+  grid-template-columns: 1fr 110px 110px 60px auto;
+  grid-template-areas: "name thumb date stems actions";
+  column-gap: 12px;
   align-items: center;
   padding: 9px 16px;
   border-bottom: 1px solid var(--rule-2);
   text-align: left;
   font: inherit; font-size: var(--fs-md);
 }
+.fp-cell-name    { grid-area: name; min-width: 0; }
+.fp-cell-thumb   { grid-area: thumb; min-width: 0; }
+.fp-cell-date    { grid-area: date; }
+.fp-cell-stems   { grid-area: stems; text-align: right; }
+.fp-cell-actions { grid-area: actions; }
+/* The compact one-line meta string is the mobile-only fallback for date+stems. */
+.fp-cell-meta    { display: none; }
 .fp-row.fp-row-head {
   font-size: var(--fs-2xs);
   letter-spacing: 0.12em;
@@ -1708,9 +1719,6 @@ body.env-non-prod[data-env="local"]::before {
   color: var(--muted);
   border-bottom: 1px solid var(--rule);
 }
-/* Right-align the numeric Stems column so header and count share a baseline edge */
-.fp-row-head > :nth-child(4),
-.fp-row-main > :nth-child(4) { text-align: right; }
 .fp-row-data {
   /* Row is a flex/grid container, not a button — Task 9 nests button + link */
   cursor: default;
@@ -1764,6 +1772,44 @@ body.env-non-prod[data-env="local"]::before {
   font-size: var(--fs-md); line-height: 1;
 }
 .fp-trash-btn:hover { background: var(--rule-2); color: var(--ink); }
+/* Kebab (overflow) menu — desktop hides it entirely, mobile shows it instead
+   of the inline rename/trash icons. */
+.fp-kebab-wrap { position: relative; display: inline-flex; }
+.fp-kebab-btn {
+  display: none;
+  width: 44px; height: 44px;
+  align-items: center; justify-content: center;
+  background: transparent; border: none; padding: 0;
+  color: var(--ink-2); cursor: pointer;
+  border-radius: 6px;
+}
+.fp-kebab-btn:hover { background: var(--rule-2); color: var(--ink); }
+.fp-kebab-menu {
+  position: absolute;
+  top: 100%; right: 0;
+  margin-top: 4px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.14);
+  min-width: 180px;
+  padding: 4px;
+  z-index: 50;
+  display: flex; flex-direction: column;
+}
+.fp-kebab-item {
+  display: flex; align-items: center; gap: 10px;
+  background: transparent; border: none;
+  padding: 10px 12px;
+  font: inherit; font-size: var(--fs-md);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.fp-kebab-item:hover { background: var(--rule-2); }
+.fp-kebab-item-danger { color: #c0392b; }
+.fp-kebab-item-danger:hover { background: #fae3df; }
 .fp-modal-scrim {
   position: fixed; inset: 0;
   background: rgba(0, 0, 0, 0.4);
@@ -1891,7 +1937,10 @@ body.env-non-prod[data-env="local"]::before {
   font-size: var(--fs-sm);
 }
 
-/* ===== FilePicker narrow ===== */
+/* ===== FilePicker narrow =====
+   Mobile drops the table in favor of a card layout: 44px thumb on the left,
+   two-line title+meta in the middle, kebab on the right. New columns added
+   later are simply hidden on mobile and surface inside the meta string. */
 @media (max-width: 720px) {
   .filepicker {
     top: 0; left: 0;
@@ -1903,17 +1952,55 @@ body.env-non-prod[data-env="local"]::before {
   .fp-header { flex-wrap: wrap; }
   .fp-header .fp-search { order: 99; flex: 1 1 100%; margin-top: 8px; }
   .fp-header .fp-upload-btn { display: none; }
-  /* Drop the date column and shrink the waveform thumb so the name has real
-     room. Without this, fixed columns sum > viewport and the 1fr name column
-     collapses to min-content, wrapping one word per line. */
+
   .fp-row {
-    grid-template-columns: 1fr 64px auto 52px;
-    gap: 10px;
+    grid-template-columns: 44px 1fr auto;
+    grid-template-areas:
+      "thumb name actions"
+      "thumb meta actions";
+    column-gap: 12px;
+    row-gap: 2px;
     padding: 10px 12px;
+    align-items: center;
   }
-  .fp-row-head > :nth-child(3),
-  .fp-row-main > :nth-child(3) { display: none; }
-  .fp-name { overflow-wrap: anywhere; }
+  /* Header row is meaningless once cells are repurposed as a card. */
+  .fp-row.fp-row-head { display: none; }
+  /* Desktop-only columns disappear; the compact meta line replaces them. */
+  .fp-cell-date,
+  .fp-cell-stems { display: none; }
+  .fp-cell-meta {
+    display: block;
+    align-self: start;
+    color: var(--muted);
+    font-size: var(--fs-xs);
+    font-family: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Thumb becomes square "album art" on the left. */
+  .fp-cell-thumb {
+    width: 44px; height: 44px;
+    align-self: center;
+  }
+  .fp-cell-thumb .fp-thumb,
+  .fp-cell-thumb .fp-thumb-canvas { height: 44px; }
+  /* Title wraps to two lines on long names instead of word-per-line. */
+  .fp-name {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    line-height: 1.25;
+  }
+  /* Inline rename/trash collapse into the kebab menu. They stay in the DOM
+     (display:none keeps them out of the a11y tree and tab order) so jsdom
+     tests that don't simulate viewport can still find them. */
+  .fp-rename-btn,
+  .fp-trash-btn { display: none; }
+  .fp-kebab-btn { display: inline-flex; }
+  .fp-cell-actions { align-self: center; }
 }
 .fp-upload-bottom { display: none; }
 @media (max-width: 720px) {

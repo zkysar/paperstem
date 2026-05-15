@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { FolderOpen, Pencil, Trash2, X } from 'lucide-react';
+import { FolderOpen, MoreVertical, Pencil, Trash2, X } from 'lucide-react';
 import type { Project, TrashList } from '../data/types';
 import { AUDIO_EXT } from '../lib/audio';
+import { formatRelativeDate } from '../lib/format';
 import { WaveformThumb } from './WaveformThumb';
 
 type Tab = 'recent' | 'all' | 'trash';
@@ -256,11 +257,11 @@ function FilePickerBody({
       <div className="fp-body">
         {[0, 1, 2, 3, 4].map((i) => (
           <div key={i} data-testid="fp-row-skeleton" className="fp-row fp-row-skeleton">
-            <span className="fp-skel fp-skel-name" />
-            <span className="fp-skel fp-skel-thumb" />
-            <span className="fp-skel fp-skel-meta" />
-            <span className="fp-skel fp-skel-meta" />
-            <span></span>
+            <span className="fp-cell-name fp-skel fp-skel-name" />
+            <span className="fp-cell-thumb fp-skel fp-skel-thumb" />
+            <span className="fp-cell-date fp-skel fp-skel-meta" />
+            <span className="fp-cell-stems fp-skel fp-skel-meta" />
+            <span className="fp-cell-actions" />
           </div>
         ))}
       </div>
@@ -298,90 +299,186 @@ function FilePickerBody({
   return (
     <div className="fp-body">
       <div className="fp-row fp-row-head" role="row">
-        <span>Name</span>
-        <span>Waveform</span>
-        <span>Date</span>
-        <span>Stems</span>
-        <span></span>
+        <span className="fp-cell-name">Name</span>
+        <span className="fp-cell-thumb">Waveform</span>
+        <span className="fp-cell-date">Updated</span>
+        <span className="fp-cell-stems">Stems</span>
+        <span className="fp-cell-actions" />
       </div>
-      {rows.map((p) => {
-        const isEditing = editing?.id === p.id;
-        return (
-          <div
-            key={p.id}
-            data-testid={`fp-row-${p.id}`}
-            className={'fp-row fp-row-data' + (p.id === activeProjectId ? ' active' : '')}
-          >
-            {isEditing ? (
-              <div className="fp-row-main fp-row-main-editing">
-                <input
-                  className="fp-name-input"
-                  aria-label="Rename project"
-                  autoFocus
-                  value={editing!.draft}
-                  onChange={(e) => setEditing({ id: p.id, draft: e.target.value })}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      commitEdit(p.id);
-                    } else if (e.key === 'Escape') {
-                      e.preventDefault();
-                      setEditing(null);
-                    }
-                  }}
-                  onBlur={() => commitEdit(p.id)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <WaveformThumb stemId={p.referenceStemId} />
-                <span className="fp-meta">{p.folder ?? ''}</span>
-                <span className="fp-meta">{p.stemCount}</span>
-              </div>
-            ) : (
-              <button
-                type="button"
-                className="fp-row-main"
-                onClick={() => onSelect(p.id)}
-              >
-                <span className="fp-name">{p.title}</span>
-                <WaveformThumb stemId={p.referenceStemId} />
-                <span className="fp-meta">{p.folder ?? ''}</span>
-                <span className="fp-meta">{p.stemCount}</span>
-              </button>
-            )}
-            <span className="fp-row-end">
-              {!isEditing && (
-                <button
-                  type="button"
-                  className="fp-rename-btn"
-                  aria-label={`Rename ${p.title}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditing({ id: p.id, draft: p.title });
-                  }}
-                  title="Rename"
-                >
-                  <Pencil size={14} strokeWidth={2} aria-hidden="true" />
-                </button>
-              )}
-              {!isEditing && (
-                <button
-                  type="button"
-                  className="fp-trash-btn"
-                  aria-label={`Move ${p.title} to trash`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRequestDelete(p.id, p.title);
-                  }}
-                  title="Move to trash"
-                >
-                  <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
-                </button>
-              )}
-            </span>
-          </div>
-        );
-      })}
+      {rows.map((p) => (
+        <ProjectRow
+          key={p.id}
+          project={p}
+          active={p.id === activeProjectId}
+          editing={editing?.id === p.id ? editing.draft : null}
+          onSelect={() => onSelect(p.id)}
+          onStartRename={() => setEditing({ id: p.id, draft: p.title })}
+          onChangeDraft={(draft) => setEditing({ id: p.id, draft })}
+          onCommitRename={() => commitEdit(p.id)}
+          onCancelRename={() => setEditing(null)}
+          onRequestDelete={() => onRequestDelete(p.id, p.title)}
+        />
+      ))}
     </div>
+  );
+}
+
+function ProjectRow({
+  project: p, active, editing,
+  onSelect, onStartRename, onChangeDraft, onCommitRename, onCancelRename,
+  onRequestDelete,
+}: {
+  project: Project;
+  active: boolean;
+  editing: string | null;
+  onSelect(): void;
+  onStartRename(): void;
+  onChangeDraft(draft: string): void;
+  onCommitRename(): void;
+  onCancelRename(): void;
+  onRequestDelete(): void;
+}) {
+  const isEditing = editing !== null;
+  const date = formatRelativeDate(p.updatedAt);
+  const stemsLabel = `${p.stemCount} ${p.stemCount === 1 ? 'stem' : 'stems'}`;
+  // Mobile-only meta string. Date is omitted when missing so we don't leave a
+  // trailing " · " separator.
+  const metaLine = date ? `${stemsLabel} · ${date}` : stemsLabel;
+
+  return (
+    <div
+      data-testid={`fp-row-${p.id}`}
+      className={'fp-row fp-row-data' + (active ? ' active' : '')}
+    >
+      {isEditing ? (
+        // display:contents — children become direct grid items so cell
+        // placement is identical to the non-editing layout.
+        <div className="fp-row-main fp-row-main-editing">
+          <input
+            className="fp-cell-name fp-name-input"
+            aria-label="Rename project"
+            autoFocus
+            value={editing!}
+            onChange={(e) => onChangeDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); onCommitRename(); }
+              else if (e.key === 'Escape') { e.preventDefault(); onCancelRename(); }
+            }}
+            onBlur={onCommitRename}
+            onClick={(e) => e.stopPropagation()}
+          />
+          <span className="fp-cell-thumb"><WaveformThumb stemId={p.referenceStemId} /></span>
+          <span className="fp-cell-date fp-meta">{date}</span>
+          <span className="fp-cell-stems fp-meta">{p.stemCount}</span>
+          <span className="fp-cell-meta fp-meta">{metaLine}</span>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="fp-row-main"
+          onClick={onSelect}
+        >
+          <span className="fp-cell-name fp-name">{p.title}</span>
+          <span className="fp-cell-thumb"><WaveformThumb stemId={p.referenceStemId} /></span>
+          <span className="fp-cell-date fp-meta">{date}</span>
+          <span className="fp-cell-stems fp-meta">{p.stemCount}</span>
+          <span className="fp-cell-meta fp-meta">{metaLine}</span>
+        </button>
+      )}
+      <span className="fp-cell-actions fp-row-end">
+        {!isEditing && (
+          <>
+            <button
+              type="button"
+              className="fp-rename-btn"
+              aria-label={`Rename ${p.title}`}
+              onClick={(e) => { e.stopPropagation(); onStartRename(); }}
+              title="Rename"
+            >
+              <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="fp-trash-btn"
+              aria-label={`Move ${p.title} to trash`}
+              onClick={(e) => { e.stopPropagation(); onRequestDelete(); }}
+              title="Move to trash"
+            >
+              <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+            </button>
+            <RowKebab
+              title={p.title}
+              onRename={onStartRename}
+              onRequestDelete={onRequestDelete}
+            />
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
+function RowKebab({
+  title, onRename, onRequestDelete,
+}: {
+  title: string;
+  onRename(): void;
+  onRequestDelete(): void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLSpanElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <span className="fp-kebab-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className="fp-kebab-btn"
+        aria-label={`More actions for ${title}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+      >
+        <MoreVertical size={18} strokeWidth={2} aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="fp-kebab-menu" role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            className="fp-kebab-item"
+            onClick={(e) => { e.stopPropagation(); setOpen(false); onRename(); }}
+          >
+            <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+            Rename
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="fp-kebab-item fp-kebab-item-danger"
+            onClick={(e) => { e.stopPropagation(); setOpen(false); onRequestDelete(); }}
+          >
+            <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+            Move to trash
+          </button>
+        </div>
+      )}
+    </span>
   );
 }
 

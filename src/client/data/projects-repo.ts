@@ -27,6 +27,7 @@ function summaryToProject(p: ProjectSummary): Project {
     stemCount: p.stem_count,
     folderId: p.folder_id,
     referenceStemId: p.reference_stem_id ?? null,
+    updatedAt: p.updated_at,
   };
 }
 
@@ -42,6 +43,7 @@ function detailToProject(detail: ProjectDetail, stems: StemSummary[]): Project {
     stemCount: stems.length,
     folderId: detail.folder_id,
     referenceStemId: refId,
+    updatedAt: detail.updated_at,
   };
 }
 
