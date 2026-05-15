@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type {
   LoadContext,
   LoadedStem,
@@ -965,30 +965,60 @@ export function usePlayer(): PlayerControls {
   pauseRef.current = pause;
   seekRef.current = seek;
 
-  return {
-    state,
-    currentTime,
-    debugInfo,
-    audioSuppressed,
-    load,
-    togglePlay,
-    pause,
-    seek,
-    setVolume,
-    setMasterVolume,
-    toggleMute,
-    toggleSolo,
-    setLoop,
-    setLoopEnabled,
-    toggleLoopEnabled,
-    clearLoop,
-    setWaveformNormalization,
-    toggleWaveformNormalization,
-    setTitle,
-    renameStem,
-    removeStem,
-    clear,
-  };
+  // Memoize so consumers using `[player]` as a useEffect dep don't tear
+  // down and re-build infrastructure (rAF loops, listeners) on every
+  // render. The id-relevant inputs are state + currentTime + the few
+  // non-state flags; all the callbacks are useCallback'd with [].
+  return useMemo<PlayerControls>(
+    () => ({
+      state,
+      currentTime,
+      debugInfo,
+      audioSuppressed,
+      load,
+      togglePlay,
+      pause,
+      seek,
+      setVolume,
+      setMasterVolume,
+      toggleMute,
+      toggleSolo,
+      setLoop,
+      setLoopEnabled,
+      toggleLoopEnabled,
+      clearLoop,
+      setWaveformNormalization,
+      toggleWaveformNormalization,
+      setTitle,
+      renameStem,
+      removeStem,
+      clear,
+    }),
+    [
+      state,
+      currentTime,
+      debugInfo,
+      audioSuppressed,
+      load,
+      togglePlay,
+      pause,
+      seek,
+      setVolume,
+      setMasterVolume,
+      toggleMute,
+      toggleSolo,
+      setLoop,
+      setLoopEnabled,
+      toggleLoopEnabled,
+      clearLoop,
+      setWaveformNormalization,
+      toggleWaveformNormalization,
+      setTitle,
+      renameStem,
+      removeStem,
+      clear,
+    ],
+  );
 }
 
 function updateMediaSessionPosition(position: number, duration: number): void {

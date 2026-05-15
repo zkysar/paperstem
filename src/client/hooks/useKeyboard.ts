@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { PlayerControls } from './usePlayer';
 import type { ViewportControls } from './useViewport';
 
@@ -54,25 +54,36 @@ export type KeyboardOpts = {
  * overlay opens and call `.focus()` on that element when it closes.
  */
 export function useKeyboard(opts: KeyboardOpts): void {
-  const {
-    player,
-    pickerOpen,
-    drawerOpen,
-    popoverOpen,
-    annotationCreateMode,
-    sectionCreateMode,
-    onTogglePicker,
-    onClosePicker,
-    onCloseDrawer,
-    onClosePopover,
-    onCancelCreate,
-    onAddCommentAtPlayhead,
-    onAddSectionAtPlayhead,
-    onAddEndMarkerAtPlayhead,
-  } = opts;
+  // Stash the latest opts in a ref so the document-level keydown listener
+  // is attached exactly once (on mount) and reads the live closures via
+  // optsRef.current on every event. Caller passes inline arrow functions
+  // and a `player`/`viewport` whose identities change every render — if
+  // those were in the effect deps, the listener would tear down and
+  // re-attach on every render of the host component (60fps during
+  // playback), which became load-bearing once the player state pumped
+  // currentTime ticks at frame rate.
+  const optsRef = useRef(opts);
+  optsRef.current = opts;
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      const opts = optsRef.current;
+      const {
+        player,
+        pickerOpen,
+        drawerOpen,
+        popoverOpen,
+        annotationCreateMode,
+        sectionCreateMode,
+        onTogglePicker,
+        onClosePicker,
+        onCloseDrawer,
+        onClosePopover,
+        onCancelCreate,
+        onAddCommentAtPlayhead,
+        onAddSectionAtPlayhead,
+        onAddEndMarkerAtPlayhead,
+      } = opts;
       const target = e.target as HTMLElement | null;
       const isTextField =
         !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
@@ -238,20 +249,5 @@ export function useKeyboard(opts: KeyboardOpts): void {
     }
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [
-    player,
-    pickerOpen,
-    drawerOpen,
-    popoverOpen,
-    annotationCreateMode,
-    sectionCreateMode,
-    onTogglePicker,
-    onClosePicker,
-    onCloseDrawer,
-    onClosePopover,
-    onCancelCreate,
-    onAddCommentAtPlayhead,
-    onAddSectionAtPlayhead,
-    onAddEndMarkerAtPlayhead,
-  ]);
+  }, []);
 }
