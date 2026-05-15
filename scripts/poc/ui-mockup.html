@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Auto-section classification — UX mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fbf9f4;
+    --ink: #2a2723;
+    --ink-2: #5a5247;
+    --muted: #8a7e6b;
+    --muted-2: #a89a83;
+    --rule: #ece6d8;
+    --rule-2: #f1ebdd;
+    --paper: #fff;
+    --accent: #c17446;
+    --accent-tint: rgba(193, 116, 70, 0.08);
+    --accent-tint-2: rgba(193, 116, 70, 0.18);
+    --accent-tint-3: rgba(193, 116, 70, 0.04);
+    --auto-color: #6a7a8e;
+    --auto-tint: rgba(106, 122, 142, 0.10);
+    --auto-tint-2: rgba(106, 122, 142, 0.22);
+    --warn: #c89c3e;
+    --font-sans: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --font-display: "Playfair Display", Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 28px;
+    margin: 0 0 8px;
+  }
+  .lede {
+    color: var(--muted);
+    margin: 0 0 36px;
+    max-width: 700px;
+  }
+  .flow {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 24px;
+    margin: 0 0 28px;
+  }
+  .flow-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin: 0 0 6px;
+  }
+  .flow-num {
+    font-family: var(--font-mono);
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  .flow-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 19px;
+    margin: 0;
+  }
+  .flow-desc {
+    color: var(--ink-2);
+    margin: 0 0 20px;
+    font-size: 13px;
+  }
+
+  /* ---------- Upload drawer mock ---------- */
+  .upload-drawer-wrap {
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 20px;
+    max-width: 480px;
+  }
+  .drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .drawer-title {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 17px;
+  }
+  .drawer-close {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-size: 18px;
+    cursor: pointer;
+  }
+  .field {
+    margin: 0 0 14px;
+  }
+  .field label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .field input[type="text"], .field input[type="date"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .file-list {
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 8px;
+    background: var(--paper);
+    margin-bottom: 14px;
+  }
+  .file-row {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+  .file-row + .file-row { border-top: 1px solid var(--rule-2); }
+  .file-status { color: var(--muted); }
+
+  .auto-classify-row {
+    background: var(--accent-tint-3);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+  }
+  .auto-classify-row label {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .auto-classify-row input[type="checkbox"] {
+    margin-top: 2px;
+    accent-color: var(--accent);
+  }
+  .auto-classify-row .title {
+    font-weight: 500;
+    font-size: 13px;
+    display: block;
+  }
+  .auto-classify-row .hint {
+    font-size: 11px;
+    color: var(--muted);
+    display: block;
+    margin-top: 2px;
+  }
+  .auto-classify-row .new-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: white;
+    font-size: 9px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 8px;
+    margin-left: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  button.primary {
+    width: 100%;
+    padding: 10px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-family: inherit;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button.primary:hover { background: #ab6539; }
+
+  /* ---------- Timeline mock ---------- */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    margin-bottom: 14px;
+  }
+  .toolbar-spacer { flex: 1; }
+  .btn {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .btn:hover { background: var(--accent-tint-3); border-color: var(--accent-tint-2); }
+  .btn.accent {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .btn.accent:hover { background: #ab6539; }
+  .btn-group {
+    display: inline-flex;
+  }
+  .btn-group .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+  .btn-group .btn:last-child { border-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 6px 8px; }
+
+  .progress-bar-wrap {
+    flex: 1;
+    margin: 0 12px;
+    height: 6px;
+    background: var(--rule);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    background: var(--accent);
+    width: 47%;
+    transition: width 0.2s;
+  }
+  .progress-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .timeline {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 14px;
+    position: relative;
+  }
+  .timeline-ruler {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .lane {
+    position: relative;
+    height: 56px;
+    background: var(--bg);
+    border-radius: 4px;
+    border: 1px solid var(--rule-2);
+    overflow: hidden;
+  }
+  .lane + .lane { margin-top: 10px; }
+  .lane-label {
+    position: absolute;
+    top: 4px;
+    left: 8px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .section {
+    position: absolute;
+    top: 22px;
+    bottom: 6px;
+    background: var(--accent-tint-2);
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .section.auto {
+    border: 1.5px dashed var(--auto-color);
+    background: var(--auto-tint);
+    color: var(--ink-2);
+    font-style: italic;
+  }
+  .section.auto.tentative {
+    background: rgba(200, 156, 62, 0.08);
+    border-color: var(--warn);
+    border-style: dashed;
+  }
+  .section .chip {
+    background: rgba(255,255,255,0.7);
+    border-radius: 8px;
+    font-size: 9px;
+    padding: 1px 5px;
+    font-family: var(--font-mono);
+    font-style: normal;
+    font-weight: 500;
+    color: var(--ink-2);
+    flex-shrink: 0;
+  }
+  .section.auto .chip { background: rgba(255,255,255,0.8); }
+  .section.auto.tentative .chip { color: #8a6620; }
+
+  .section .ai-mark {
+    font-size: 10px;
+    color: var(--auto-color);
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  /* ---------- Popover mock ---------- */
+  .popover-stage {
+    position: relative;
+    padding: 30px;
+    background: var(--rule-2);
+    border-radius: 6px;
+    min-height: 240px;
+  }
+  .popover-anchor {
+    position: absolute;
+    top: 56px;
+    left: 40px;
+    background: var(--auto-tint);
+    border: 1.5px dashed var(--auto-color);
+    border-radius: 3px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--ink-2);
+    font-style: italic;
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .popover {
+    position: absolute;
+    top: 100px;
+    left: 40px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    padding: 12px;
+    min-width: 260px;
+  }
+  .popover-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule-2);
+  }
+  .popover-title {
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .popover-meta {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    margin-bottom: 12px;
+  }
+  .popover-meta-row { display: flex; justify-content: space-between; }
+  .popover-actions { display: flex; flex-direction: column; gap: 4px; }
+  .popover-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .popover-action:hover { background: var(--rule-2); }
+  .popover-action.primary {
+    background: var(--accent-tint);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .popover-action.primary:hover { background: var(--accent-tint-2); }
+  .popover-action .kbd {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .popover-action.danger { color: #b54040; }
+
+  /* ---------- Project list row mock ---------- */
+  .project-row {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+  .project-row + .project-row { margin-top: 0; }
+  .project-row.has-pending { border-left: 3px solid var(--auto-color); padding-left: 13px; }
+  .project-row .name { font-weight: 500; flex: 1; }
+  .project-row .meta { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-right: 12px; }
+  .pending-badge {
+    background: var(--auto-tint);
+    color: var(--auto-color);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 10px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .pending-badge .dot {
+    width: 5px; height: 5px; background: var(--auto-color); border-radius: 50%;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 24px;
+    background: var(--bg);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 0 0 24px;
+    font-size: 12px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .swatch {
+    width: 36px;
+    height: 18px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .swatch.manual { background: var(--accent-tint-2); border: 1px solid var(--accent); }
+  .swatch.auto-high { background: var(--auto-tint); border: 1.5px dashed var(--auto-color); }
+  .swatch.auto-tentative { background: rgba(200,156,62,0.08); border: 1.5px dashed var(--warn); }
+
+  .notes {
+    background: rgba(193, 116, 70, 0.04);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .notes strong { color: var(--ink); }
+  .notes ul { margin: 6px 0 0; padding-left: 20px; }
+  .notes li + li { margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Auto-section classification — UX mockup</h1>
+  <p class="lede">
+    Visual exploration of where the auto-classification feature lives in the UI.
+    Showing each flow inline. Drag your eyes top-to-bottom in order; the flows
+    follow the user's journey from upload → review.
+  </p>
+
+  <div class="legend">
+    <div class="legend-item"><div class="swatch manual"></div><span>Manual section (solid border, full color)</span></div>
+    <div class="legend-item"><div class="swatch auto-high"></div><span>Auto, confident (dashed)</span></div>
+    <div class="legend-item"><div class="swatch auto-tentative"></div><span>Auto, tentative (yellow dashed)</span></div>
+  </div>
+
+  <!-- ============================================ -->
+  <div class="flow">
+    <div class="flow-head">
+      <span class="flow-num">Flow 1 + 2</span>
+      <h2 class="flow-title">During upload — per-import checkbox</h2>
+    </div>
+    <p class="flow-desc">
+      The toggle lives in the UploadDrawer, not in global settings. Default
+      remembered per user via localStorage. Classification runs concurrently
+      with the upload (browser decodes the file, runs YAMNet + chroma in
+      parallel — done in &lt;15 s for a 90-min file).
+    </p>
+
+    <div class="upload-drawer-wrap">
+      <div class="drawer-header">
+        <span class="drawer-title">Upload to Paper Straw</span>
+        <button class="drawer-close">×</button>
+      </div>
+      <div class="field">
+        <label>Project name</label>
+        <input type="text" value="practice-2026-05-15">
+      </div>
+      <div class="field">
+        <label>Recorded on</label>
+        <input type="date" value="2026-05-15">
+      </div>
+      <div class="field">
+        <label>Files (3)</label>
+        <div class="file-list">
+          <div class="file-row"><span>A Guitar.wav</span><span class="file-status">33.1 MB</span></div>
+          <div class="file-row"><span>Bass.wav</span><span class="file-status">32.9 MB</span></div>
+          <div class="file-row"><span>Drums.wav</span><span class="file-status">32.9 MB</span></div>
+        </div>
+      </div>
+
+      <div class="auto-classify-row">
+        <label>
+          <input type="checkbox" checked>
+          <span>
+            <span class="title">Auto-section this practice <span class="new-badge">New</span></span>
+            <span class="hint">Detect songs, chatter, and tuning automatically. Runs in your browser during upload.</span>
+          </span>
+        </label>
+      </div>
+
+      <button class="primary">Save to Paper Straw</button>
+    </div>
+
+    <div class="notes">
+      <strong>Notes / open Qs:</strong>
+      <ul>
+        <li>Default checked or unchecked? My recommendation: unchecked the first time (experimental); the user's choice is remembered for next upload.</li>
+        <li>If the browser doesn't support wasm, the row hides entirely.</li>
+        <li>If the user unchecks, the upload behaves exactly as today — no extra work.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <div class="flow">
+    <div class="flow-head">
+      <span class="flow-num">Flow 3</span>
+      <h2 class="flow-title">Project view — reviewing auto-sections</h2>
+    </div>
+    <p class="flow-desc">
+      After upload, the user lands on the project page. The timeline shows
+      detected sections. Auto sections have a dashed border, faded color, and
+      a confidence chip. Two confidence tiers: confident (slate) and tentative
+      (warm yellow).
+    </p>
+
+    <div class="toolbar">
+      <span class="progress-label"><strong>5 auto-section suggestions</strong></span>
+      <span class="toolbar-spacer"></span>
+      <button class="btn">Discard all auto</button>
+      <button class="btn accent">Accept all confident (3)</button>
+      <div class="btn-group">
+        <button class="btn">Re-classify</button>
+        <button class="btn">▾</button>
+      </div>
+    </div>
+
+    <div class="timeline">
+      <div class="timeline-ruler">
+        <span>0:00</span>
+        <span>1:00</span>
+        <span>2:00</span>
+        <span>3:00</span>
+        <span>4:00</span>
+      </div>
+      <div class="lane">
+        <span class="lane-label">Sections</span>
+        <!-- Auto silence / chatter at start -->
+        <div class="section auto" style="left: 0.5%; width: 12%;">
+          <span class="ai-mark">●</span>
+          Chatter
+          <span class="chip">auto</span>
+        </div>
+        <!-- Auto music with confident song match -->
+        <div class="section auto" style="left: 13%; width: 26%;">
+          <span class="ai-mark">●</span>
+          Wagon Wheel
+          <span class="chip">92%</span>
+        </div>
+        <!-- Manual section -->
+        <div class="section" style="left: 40%; width: 18%;">
+          Tuning break
+        </div>
+        <!-- Auto with tentative match -->
+        <div class="section auto tentative" style="left: 59%; width: 22%;">
+          <span class="ai-mark">●</span>
+          Tennessee Stud?
+          <span class="chip">low</span>
+        </div>
+        <!-- Auto music, no song match yet -->
+        <div class="section auto" style="left: 82%; width: 17%;">
+          <span class="ai-mark">●</span>
+          Music
+          <span class="chip">auto</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <strong>Visual decisions in this mock:</strong>
+      <ul>
+        <li><strong>Dashed border + slate color</strong> for auto, vs solid + accent-orange for manual.</li>
+        <li><strong>Italic label</strong> on auto sections to reinforce "not committed yet."</li>
+        <li><strong>Small ● dot</strong> in slate marks an auto section at a glance (visible even when zoomed out).</li>
+        <li><strong>Chip</strong> shows confidence as a percent when high, "low" or "auto" otherwise.</li>
+        <li><strong>Tentative variant</strong> (yellow dashed) for low-confidence matches. Distinct so the user knows to scrutinize harder.</li>
+        <li>Toolbar shows count and bulk actions only when there are auto sections present.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <div class="flow">
+    <div class="flow-head">
+      <span class="flow-num">Flow 4</span>
+      <h2 class="flow-title">Clicking an auto-section — accept / rename / discard</h2>
+    </div>
+    <p class="flow-desc">
+      Click an auto section to open the popover. Accept promotes it to a normal
+      manual section. Rename (or moving a boundary) also flips it to manual —
+      any deliberate touch counts as acceptance.
+    </p>
+
+    <div class="popover-stage">
+      <div class="popover-anchor">
+        <span class="ai-mark" style="color: var(--auto-color);">●</span>
+        Wagon Wheel
+        <span class="chip">92%</span>
+      </div>
+      <div class="popover">
+        <div class="popover-header">
+          <span class="popover-title">Wagon Wheel</span>
+          <span style="font-size: 10px; color: var(--auto-color); margin-left: auto;">●&nbsp;auto</span>
+        </div>
+        <div class="popover-meta">
+          <div class="popover-meta-row"><span>start</span><span>0:32.450</span></div>
+          <div class="popover-meta-row"><span>length</span><span>3:41</span></div>
+          <div class="popover-meta-row"><span>match confidence</span><span>92%</span></div>
+          <div class="popover-meta-row"><span>matched against</span><span>3 prior recordings</span></div>
+        </div>
+        <div class="popover-actions">
+          <div class="popover-action primary"><span>✓ Accept</span><span class="kbd">↵</span></div>
+          <div class="popover-action"><span>Rename...</span><span class="kbd">R</span></div>
+          <div class="popover-action"><span>Move boundary...</span><span class="kbd">M</span></div>
+          <div class="popover-action danger"><span>Discard</span><span class="kbd">⌫</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="notes">
+      <strong>Notes:</strong>
+      <ul>
+        <li>Hitting <span class="kbd" style="font-family:var(--font-mono);">↵</span> on a focused auto section accepts it — keyboard-fluent flow for users working through many at once.</li>
+        <li>"Matched against 3 prior recordings" — show what the matcher saw, so the user can sanity-check.</li>
+        <li>Popover for tentative auto sections looks identical except the "match confidence" line reads "32% (low)" in warm yellow.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <div class="flow">
+    <div class="flow-head">
+      <span class="flow-num">Flow 2 (alt)</span>
+      <h2 class="flow-title">Toolbar — during classification</h2>
+    </div>
+    <p class="flow-desc">
+      While YAMNet + chroma run in the browser (parallel to the upload), the
+      toolbar shows a non-blocking progress indicator. The user can keep using
+      the rest of the UI; if they navigate away, classification continues and
+      sections appear on return.
+    </p>
+
+    <div class="toolbar">
+      <span class="progress-label">Detecting sections…</span>
+      <div class="progress-bar-wrap"><div class="progress-bar"></div></div>
+      <span class="progress-label">47%</span>
+      <button class="btn">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <div class="flow">
+    <div class="flow-head">
+      <span class="flow-num">Flow 7</span>
+      <h2 class="flow-title">Project list — CLI-imported projects with pending auto-sections</h2>
+    </div>
+    <p class="flow-desc">
+      When the Tascam Model 12 importer runs auto-classification (the
+      <span class="kbd" style="font-family:var(--font-mono);">--auto-classify</span>
+      flag), the user wasn't in the web app at that moment. Next time they
+      open the band view, a slate badge tells them which projects have
+      suggestions waiting.
+    </p>
+
+    <div>
+      <div class="project-row has-pending">
+        <span class="name">practice-2026-05-15</span>
+        <span class="meta">12 stems · 1h 24min</span>
+        <span class="pending-badge"><span class="dot"></span>5 auto-sections to review</span>
+      </div>
+      <div class="project-row has-pending">
+        <span class="name">practice-2026-05-13</span>
+        <span class="meta">3 stems · 47min</span>
+        <span class="pending-badge"><span class="dot"></span>3 auto-sections to review</span>
+      </div>
+      <div class="project-row">
+        <span class="name">practice-2026-05-08</span>
+        <span class="meta">3 stems · 4min</span>
+      </div>
+      <div class="project-row">
+        <span class="name">Sun and Soil Hyde Street</span>
+        <span class="meta">15 stems · 3min</span>
+      </div>
+    </div>
+
+    <div class="notes">
+      <strong>Notes:</strong>
+      <ul>
+        <li>Slate left-border + pill badge so the row reads as "needs attention" without being aggressive.</li>
+        <li>Once the user reviews (accept or discard) all auto sections on a project, the badge disappears.</li>
+        <li>Same badge appears on web-imported projects with unreviewed auto sections — consistent meaning.</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="color: var(--muted); margin-top: 32px; font-size: 12px;">
+    Mockup at <code>scripts/poc/ui-mockup.html</code>. Open it in a browser to interact.
+  </p>
+</div>
+</body>
+</html>
