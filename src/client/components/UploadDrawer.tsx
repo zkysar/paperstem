@@ -19,11 +19,15 @@ type FileEntry = {
 
 type Props = {
   bandId: string;
+  // Name of the band the project will be saved to. Rendered on the submit
+  // button as "Save to {bandName}" — the commit-to-cloud moment names the
+  // recipient. Null while the parent is still resolving the active band; the
+  // submit button falls back to "Save" until it loads.
+  bandName: string | null;
   open: boolean;
   // Optional: pre-populate the file list and name field. Used by the
-  // "Save to band" flow that promotes a local-folder draft — the user
-  // already picked the folder upstream, so the drawer skips its own
-  // folder-picker UI and shows the files immediately.
+  // draft-promotion flow — the user already picked the folder upstream, so
+  // the drawer skips its own folder-picker UI and shows the files immediately.
   prefilledFiles?: File[];
   prefilledName?: string | null;
   onClose(): void;
@@ -105,6 +109,7 @@ function uploadStem(
 
 export function UploadDrawer({
   bandId,
+  bandName,
   open,
   prefilledFiles,
   prefilledName,
@@ -306,9 +311,7 @@ export function UploadDrawer({
     >
       <div className="upload-modal" onClick={(e) => e.stopPropagation()}>
         <div className="upload-modal-header">
-          <h2 id="upload-modal-title">
-            {hasPrefilledFiles ? 'Save to your band' : 'Upload project'}
-          </h2>
+          <h2 id="upload-modal-title">New project</h2>
           <button
             type="button"
             className="upload-modal-close"
@@ -419,7 +422,11 @@ export function UploadDrawer({
               onClick={() => void handleSubmit()}
               disabled={!canSubmit}
             >
-              {submitting ? 'Uploading…' : 'Upload'}
+              {submitting
+                ? 'Saving…'
+                : bandName
+                  ? <>Save to <span className="band-name-clip">{bandName}</span></>
+                  : 'Save'}
             </button>
           )}
         </div>
