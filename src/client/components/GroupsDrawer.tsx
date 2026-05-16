@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, LogOut, Pencil, Plus, UserPlus, X } from 'lucide-react';
 import type { BandMember, BandWithRole } from '../../shared/types';
 
@@ -37,14 +37,34 @@ export function GroupsDrawer({
   // (only one open at a time) would force users to recollapse before
   // comparing rosters, which is the main reason to open this drawer at all.
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  // Ref so the re-seed effect can read the latest currentGroupId without
+  // listing it in deps. Listing it would re-seed (and collapse other rows)
+  // any time the active group changed while the drawer was open — e.g. the
+  // user leaves the active group from inside the drawer.
+  const currentGroupIdRef = useRef(currentGroupId);
+  useEffect(() => {
+    currentGroupIdRef.current = currentGroupId;
+  }, [currentGroupId]);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    // Re-seed expanded set every time the drawer opens so closing + reopening
-    // returns to "active group expanded, others collapsed" instead of
-    // remembering whatever state the user left it in.
-    setExpanded(new Set(currentGroupId ? [currentGroupId] : []));
-  }, [open, currentGroupId]);
+    // Re-seed expanded set every time the drawer transitions to open so
+    // closing + reopening returns to "active group expanded, others
+    // collapsed" instead of remembering whatever state the user left it in.
+    setExpanded(new Set(currentGroupIdRef.current ? [currentGroupIdRef.current] : []));
+  }, [open]);
+
+  // Focus management: move focus into the dialog on open, restore it on
+  // close so keyboard users land back on whatever opened the drawer.
+  useEffect(() => {
+    if (!open) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    closeBtnRef.current?.focus();
+    return () => {
+      previouslyFocused?.focus?.();
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -78,6 +98,7 @@ export function GroupsDrawer({
         <div className="upload-modal-header">
           <h2 id="groups-drawer-title">Groups</h2>
           <button
+            ref={closeBtnRef}
             type="button"
             className="upload-modal-close"
             aria-label="Close"
@@ -94,7 +115,7 @@ export function GroupsDrawer({
             onClick={onCreateGroup}
           >
             <Plus size={14} strokeWidth={2} aria-hidden="true" />
-            Create a new group
+            New group
           </button>
 
           {groups.length === 0 ? (
@@ -203,6 +224,7 @@ function GroupRow({
       setRenameDraft('');
       setRenameError(null);
       setRemoveConfirmId(null);
+      setError(null);
     }
   }, [isExpanded]);
 
@@ -359,14 +381,12 @@ function GroupRow({
           <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
         )}
         <span className="groups-row-name">{group.name}</span>
-        {isActive && (
-          <span className="groups-row-active-pill" aria-label="active group">
-            active
-          </span>
-        )}
         <span className={`group-member-role group-member-role-${group.role}`}>
           {group.role}
         </span>
+        {isActive && (
+          <span className="groups-row-active-pill">active</span>
+        )}
       </button>
 
       {isExpanded && (
@@ -392,6 +412,11 @@ function GroupRow({
                   }
                 }}
                 onBlur={() => {
+                  // Don't exit rename mode while a PATCH is in flight. Setting
+                  // `disabled` on a focused input fires onBlur before the
+                  // request resolves, which would otherwise hide the input
+                  // (and any server-side error) before the user could react.
+                  if (renaming) return;
                   setRenameMode(false);
                   setRenameError(null);
                 }}

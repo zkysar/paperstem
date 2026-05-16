@@ -7,9 +7,10 @@ import type { BandWithRole } from '../../shared/types';
 type Props = {
   userEmail: string;
   userInitials: string;
-  // The user's groups (a.k.a. bands at the DB layer). The switcher only
-  // renders when there are 2+ groups; with one or zero the UI stays the same
-  // as before this feature landed.
+  // The user's groups (a.k.a. bands at the DB layer). The switcher renders
+  // whenever the user is in 1+ groups so the "+ New group" entry has a
+  // stable home; with zero groups the switcher is hidden and the empty
+  // state inside the main panel carries the create-group affordance.
   groups?: BandWithRole[];
   currentGroupId?: string | null;
   onSwitchGroup?: (id: string) => void;
@@ -34,7 +35,7 @@ type Props = {
   onOpenTokens(): void;
   // Optional so callers in tests don't need to wire this; absent =
   // the menu entry is hidden (legacy callers behave as before).
-  onOpenGroupSettings?: () => void;
+  onOpenGroups?: () => void;
   onDownloadAll(): void;
 };
 
@@ -44,7 +45,7 @@ export function AppHeader({
   annotationsOpen, hasProject, canRename, isWide, appVersion, appEnv, downloading,
   debugInfo,
   onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenameProject,
-  onOpenTokens, onOpenGroupSettings, onDownloadAll,
+  onOpenTokens, onOpenGroups, onDownloadAll,
 }: Props) {
   const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -85,11 +86,11 @@ export function AppHeader({
   }, [groupOpen]);
 
   const groupList = groups ?? [];
-  // Render the switcher whenever the user is in at least one group. With
-  // exactly 1 group the trigger is still useful — it surfaces "+ New group"
-  // as a stable affordance instead of forcing users to discover it through
-  // the avatar dropdown.
-  const showGroupSwitcher = groupList.length >= 1;
+  // Render the switcher whenever it would be useful. With 2+ groups that's
+  // always; with exactly 1 group, only if the menu can offer "+ New group"
+  // (otherwise the menu would be a single inert row with a fake chevron).
+  const showGroupSwitcher =
+    groupList.length > 1 || (groupList.length === 1 && !!onCreateGroup);
   const currentGroup =
     groupList.find((g) => g.id === currentGroupId) ?? groupList[0] ?? null;
   const hasMultipleGroups = groupList.length > 1;
@@ -307,11 +308,11 @@ export function AppHeader({
             >
               <KeyRound size={14} strokeWidth={2} aria-hidden="true" /> Import tokens
             </button>
-            {onOpenGroupSettings && (
+            {onOpenGroups && (
               <button
                 type="button"
                 role="menuitem"
-                onClick={() => { setAvatarOpen(false); onOpenGroupSettings(); }}
+                onClick={() => { setAvatarOpen(false); onOpenGroups(); }}
               >
                 <Users size={14} strokeWidth={2} aria-hidden="true" /> Groups
               </button>

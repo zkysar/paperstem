@@ -104,11 +104,17 @@ describe('GroupsDrawer', () => {
         {...noopProps}
       />,
     );
-    // Active group's body content (Members heading + members) is in the DOM.
     await screen.findByText('owner@example.com');
-    // Inactive group's body shouldn't be loaded yet — no Moon Tractor rename
-    // button visible.
-    expect(screen.queryByRole('button', { name: /Rename Moon Tractor/i })).toBeNull();
+    // Inactive row's disclosure button reports aria-expanded="false". (We
+    // can't gate on body content uniquely because both rows can contain
+    // similarly-named widgets; aria-expanded is the unambiguous signal.)
+    const headers = screen.getAllByRole('button', { expanded: false });
+    expect(headers.some((h) => h.textContent?.includes('Moon Tractor'))).toBe(true);
+    expect(
+      screen.getAllByRole('button', { expanded: true }).some((h) =>
+        h.textContent?.includes('Sun Toilet'),
+      ),
+    ).toBe(true);
   });
 
   it('clicking a collapsed row expands it and lazy-fetches members', async () => {
@@ -142,7 +148,7 @@ describe('GroupsDrawer', () => {
     await screen.findByText('tractor-owner@example.com');
   });
 
-  it('shows a "Create a new group" button that fires onCreateGroup', async () => {
+  it('shows a "New group" button that fires onCreateGroup', async () => {
     const onCreate = vi.fn();
     const user = userEvent.setup();
     render(
@@ -154,7 +160,7 @@ describe('GroupsDrawer', () => {
         onCreateGroup={onCreate}
       />,
     );
-    await user.click(screen.getByRole('button', { name: /Create a new group/i }));
+    await user.click(screen.getByRole('button', { name: /^New group$/i }));
     expect(onCreate).toHaveBeenCalledOnce();
   });
 
@@ -386,6 +392,255 @@ describe('GroupsDrawer', () => {
         {...noopProps}
       />,
     );
-    expect(screen.getByLabelText('active group')).not.toBeNull();
+    expect(screen.getByText('active')).not.toBeNull();
+  });
+
+  it('shows owner-cannot-leave error when the server returns 409', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`/api/bands/${memberGroup.id}`]: () =>
+        membersResponseFor(memberGroup.id, {
+          band: { id: 'b2', name: 'Moon Tractor', folder_id: 'f2', owner_user_id: 'u-self', created_at: 0 },
+          members: [{ id: 'u-self', email: 'self@example.com', display_name: null, role: 'owner' }],
+        }),
+      // Server demoted us to owner between page-load and click — leave is blocked.
+      [`DELETE /api/bands/${memberGroup.id}/members/me`]: () =>
+        new Response(
+          JSON.stringify({ error: 'owner_cannot_leave' }),
+          { status: 409, headers: { 'Content-Type': 'application/json' } },
+        ),
+    });
+    // Render with the row's role as 'member' so the Leave button is visible,
+    // but the server still rejects.
+    const onLeft = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[memberGroup]}
+        currentGroupId="b2"
+        {...noopProps}
+        onLeft={onLeft}
+      />,
+    );
+    await user.click(await screen.findByRole('button', { name: /Leave group/i }));
+    await user.click(screen.getByRole('button', { name: /Leave Moon Tractor/i }));
+    await screen.findByText(/owner of this group and can't leave it/i);
+    expect(onLeft).not.toHaveBeenCalled();
+  });
+
+  it('invite surfaces the "already_member" error inline', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`POST /api/bands/${ownerGroup.id}/members`]: () =>
+        new Response(
+          JSON.stringify({ error: 'already_member' }),
+          { status: 409, headers: { 'Content-Type': 'application/json' } },
+        ),
+    });
+    const user = userEvent.setup();
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[ownerGroup]}
+        currentGroupId="b1"
+        {...noopProps}
+      />,
+    );
+    const input = await screen.findByLabelText(/Invite email for Sun Toilet/i);
+    await user.type(input, 'dup@example.com');
+    await user.click(screen.getByRole('button', { name: /Send invite/i }));
+    await screen.findByText(/dup@example.com is already in this group/i);
+  });
+
+  it('invite surfaces the "bad_email" error inline', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`POST /api/bands/${ownerGroup.id}/members`]: () =>
+        new Response(
+          JSON.stringify({ error: 'bad_email' }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } },
+        ),
+    });
+    const user = userEvent.setup();
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[ownerGroup]}
+        currentGroupId="b1"
+        {...noopProps}
+      />,
+    );
+    const input = await screen.findByLabelText(/Invite email for Sun Toilet/i);
+    // Use a syntactically-valid email so the browser's type="email" check
+    // doesn't pre-empt submission; the server (mocked) returns bad_email.
+    await user.type(input, 'valid@example.com');
+    await user.click(screen.getByRole('button', { name: /Send invite/i }));
+    await screen.findByText(/doesn't look like a valid email/i);
+  });
+
+  it('invite shows a "delivery didn\'t succeed" hint when mailed:false', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`POST /api/bands/${ownerGroup.id}/members`]: () =>
+        new Response(
+          JSON.stringify({
+            member: {
+              id: 'new-user',
+              email: 'new@example.com',
+              display_name: null,
+              role: 'member',
+            },
+            mailed: false,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+    });
+    const user = userEvent.setup();
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[ownerGroup]}
+        currentGroupId="b1"
+        {...noopProps}
+      />,
+    );
+    const input = await screen.findByLabelText(/Invite email for Sun Toilet/i);
+    await user.type(input, 'new@example.com');
+    await user.click(screen.getByRole('button', { name: /Send invite/i }));
+    await screen.findByText(/Email delivery didn't succeed/i);
+  });
+
+  it('rename surfaces the "duplicate_name" error inline and does not fire onRenamed', async () => {
+    const onRenamed = vi.fn();
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`PATCH /api/bands/${ownerGroup.id}`]: () =>
+        new Response(
+          JSON.stringify({ error: 'duplicate_name' }),
+          { status: 409, headers: { 'Content-Type': 'application/json' } },
+        ),
+    });
+    const user = userEvent.setup();
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[ownerGroup]}
+        currentGroupId="b1"
+        {...noopProps}
+        onRenamed={onRenamed}
+      />,
+    );
+    await user.click(
+      await screen.findByRole('button', { name: /Rename Sun Toilet/i }),
+    );
+    const input = screen.getByLabelText('Group name');
+    await user.clear(input);
+    await user.type(input, 'Dup{Enter}');
+    await screen.findByText(/already own a group called "Dup"/i);
+    expect(onRenamed).not.toHaveBeenCalled();
+  });
+
+  it('rename Escape cancels without firing a PATCH', async () => {
+    const fetchSpy = vi.fn();
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: (url, init) => {
+        fetchSpy(url, init);
+        return membersResponseFor(ownerGroup.id);
+      },
+      [`PATCH /api/bands/${ownerGroup.id}`]: (url, init) => {
+        fetchSpy(url, init);
+        return new Response('{}', { status: 200 });
+      },
+    });
+    const user = userEvent.setup();
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[ownerGroup]}
+        currentGroupId="b1"
+        {...noopProps}
+      />,
+    );
+    await user.click(
+      await screen.findByRole('button', { name: /Rename Sun Toilet/i }),
+    );
+    const input = screen.getByLabelText('Group name');
+    await user.clear(input);
+    await user.type(input, 'Half-typed{Escape}');
+    // The PATCH should not have fired — only the initial GET.
+    const patchCalls = fetchSpy.mock.calls.filter(
+      ([, init]) => (init as RequestInit | undefined)?.method === 'PATCH',
+    );
+    expect(patchCalls).toHaveLength(0);
+  });
+
+  it('leave Cancel returns the user to the Leave button without firing onLeft', async () => {
+    setupFetchMock({
+      [`/api/bands/${memberGroup.id}`]: () =>
+        membersResponseFor(memberGroup.id, {
+          band: { id: 'b2', name: 'Moon Tractor', folder_id: 'f2', owner_user_id: 'u-other', created_at: 0 },
+          members: [{ id: 'u-other', email: 'other@example.com', display_name: null, role: 'owner' }],
+        }),
+    });
+    const onLeft = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[memberGroup]}
+        currentGroupId="b2"
+        {...noopProps}
+        onLeft={onLeft}
+      />,
+    );
+    await user.click(await screen.findByRole('button', { name: /Leave group/i }));
+    // Confirm copy appears, then Cancel.
+    await screen.findByText(/You'll lose access to its projects/i);
+    await user.click(screen.getByRole('button', { name: /^Cancel$/ }));
+    // Back to the initial Leave button, no callback fired.
+    expect(screen.getByRole('button', { name: /Leave group/i })).not.toBeNull();
+    expect(onLeft).not.toHaveBeenCalled();
+  });
+
+  it('owner row never offers a × on the owner member (only on non-owners)', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+    });
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[ownerGroup]}
+        currentGroupId="b1"
+        {...noopProps}
+      />,
+    );
+    await screen.findByText('owner@example.com');
+    expect(screen.queryByRole('button', { name: /Remove owner@example.com/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /Remove self@example.com/i })).not.toBeNull();
+  });
+
+  it('clicking the scrim closes the drawer; clicking the body does not', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+    });
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[ownerGroup]}
+        currentGroupId="b1"
+        {...noopProps}
+        onClose={onClose}
+      />,
+    );
+    // Body click — must NOT close.
+    await user.click(screen.getByRole('heading', { name: 'Groups' }));
+    expect(onClose).not.toHaveBeenCalled();
+    // Scrim click — closes. The scrim is the outermost dialog div.
+    const scrim = screen.getByRole('dialog');
+    await user.click(scrim);
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });

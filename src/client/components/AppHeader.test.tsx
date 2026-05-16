@@ -296,6 +296,31 @@ describe('AppHeader group switcher', () => {
     expect(screen.getByText('Sun Toilet')).not.toBeNull();
   });
 
+  it('hides the switcher with 1 group when onCreateGroup is absent (no inert chevron)', () => {
+    render(<AppHeader {...baseProps} groups={[groups[0]!]} currentGroupId="b1" />);
+    expect(screen.queryByLabelText('Switch group')).toBeNull();
+  });
+
+  it('with 1 group and onCreateGroup, the menu has the current group + a "+ New group" entry', async () => {
+    const onCreate = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...baseProps}
+        groups={[groups[0]!]}
+        currentGroupId="b1"
+        onCreateGroup={onCreate}
+      />,
+    );
+    await user.click(screen.getByLabelText('Switch group'));
+    const items = screen.getAllByRole('menuitem');
+    // Current group + "+ New group" entry.
+    expect(items).toHaveLength(2);
+    expect(items[0]!.getAttribute('aria-current')).toBe('true');
+    await user.click(screen.getByRole('menuitem', { name: /New group/i }));
+    expect(onCreate).toHaveBeenCalledOnce();
+  });
+
   it('renders the current group name when there are 2+ groups', () => {
     render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
     expect(screen.getByLabelText('Switch group')).not.toBeNull();
@@ -351,7 +376,7 @@ describe('AppHeader group switcher', () => {
     expect(screen.getByText('Sun Toilet')).not.toBeNull();
   });
 
-  it('avatar menu shows "Groups" when onOpenGroupSettings is wired and fires it', async () => {
+  it('avatar menu shows "Groups" when onOpenGroups is wired and fires it', async () => {
     const onOpen = vi.fn();
     const user = userEvent.setup();
     render(
@@ -359,7 +384,7 @@ describe('AppHeader group switcher', () => {
         {...baseProps}
         groups={groups}
         currentGroupId="b1"
-        onOpenGroupSettings={onOpen}
+        onOpenGroups={onOpen}
       />,
     );
     await user.click(screen.getByLabelText('Account'));
@@ -368,7 +393,7 @@ describe('AppHeader group switcher', () => {
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it('avatar menu hides "Groups" when onOpenGroupSettings prop is absent', async () => {
+  it('avatar menu hides "Groups" when onOpenGroups prop is absent', async () => {
     const user = userEvent.setup();
     render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
     await user.click(screen.getByLabelText('Account'));
@@ -383,7 +408,7 @@ describe('AppHeader group switcher', () => {
         {...baseProps}
         groups={[]}
         currentGroupId={null}
-        onOpenGroupSettings={onOpen}
+        onOpenGroups={onOpen}
       />,
     );
     await user.click(screen.getByLabelText('Account'));

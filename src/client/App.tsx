@@ -1622,7 +1622,7 @@ function PaperstemApp({
         onSignOut={onLogout}
         onReportBug={() => openBugReport()}
         onOpenTokens={() => setTokensOpen(true)}
-        onOpenGroupSettings={() => setGroupSettingsOpen(true)}
+        onOpenGroups={() => setGroupSettingsOpen(true)}
         onCreateGroup={() => setCreateGroupOpen(true)}
         onDownloadAll={onDownloadAll}
         onRenameProject={(name) => {
