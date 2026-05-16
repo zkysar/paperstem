@@ -262,6 +262,147 @@ describe('GroupSettingsDrawer', () => {
     ).not.toBeNull();
   });
 
+  it('owner sees the invite form and can add a member', async () => {
+    let invitedBody: string | null = null;
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`POST /api/bands/${ownerGroup.id}/members`]: (_url, init) => {
+        invitedBody = typeof init?.body === 'string' ? init.body : null;
+        return new Response(
+          JSON.stringify({
+            member: {
+              id: 'u-fresh',
+              email: 'fresh@example.com',
+              display_name: null,
+              role: 'member',
+            },
+            mailed: true,
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } },
+        );
+      },
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={ownerGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByLabelText(/Invite email/i),
+      '  FRESH@example.com  ',
+    );
+    await user.click(screen.getByRole('button', { name: /Send invite/i }));
+    await screen.findByText(/Added/i);
+    expect(invitedBody).toBe(JSON.stringify({ email: 'fresh@example.com' }));
+    // Member list updates in-place — there's one in the success line and
+    // one in the row, so just assert that the row count grew.
+    expect(screen.getAllByText('fresh@example.com').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('non-owner does NOT see the invite form', async () => {
+    setupFetchMock({
+      [`/api/bands/${memberGroup.id}`]: () =>
+        membersResponseFor(memberGroup.id),
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={memberGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+      />,
+    );
+    await screen.findByText('owner@example.com');
+    expect(screen.queryByLabelText(/Invite email/i)).toBeNull();
+  });
+
+  it('surfaces already_member error from the invite endpoint', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`POST /api/bands/${ownerGroup.id}/members`]: () =>
+        new Response(JSON.stringify({ error: 'already_member' }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={ownerGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Invite email/i), 'dup@example.com');
+    await user.click(screen.getByRole('button', { name: /Send invite/i }));
+    await screen.findByText(/already in this group/i);
+  });
+
+  it('surfaces bad_email error inline', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`POST /api/bands/${ownerGroup.id}/members`]: () =>
+        new Response(JSON.stringify({ error: 'bad_email' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={ownerGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+      />,
+    );
+    const user = userEvent.setup();
+    // Use a syntactically-OK address (so the browser's type=email
+    // validation lets the form submit) and let the mock pretend the
+    // server rejected it with bad_email.
+    await user.type(
+      screen.getByLabelText(/Invite email/i),
+      'foo@example.com',
+    );
+    await user.click(screen.getByRole('button', { name: /Send invite/i }));
+    await screen.findByText(/valid email/i);
+  });
+
+  it('shows "no email was sent" hint when mailed is false', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`POST /api/bands/${ownerGroup.id}/members`]: () =>
+        new Response(
+          JSON.stringify({
+            member: {
+              id: 'u',
+              email: 'm@example.com',
+              display_name: null,
+              role: 'member',
+            },
+            mailed: false,
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } },
+        ),
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={ownerGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/Invite email/i), 'm@example.com');
+    await user.click(screen.getByRole('button', { name: /Send invite/i }));
+    await screen.findByText(/No email was sent/i);
+  });
+
   it('renders a no-group fallback when group is null', () => {
     render(
       <GroupSettingsDrawer

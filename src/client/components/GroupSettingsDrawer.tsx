@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LogOut, X } from 'lucide-react';
+import { LogOut, UserPlus, X } from 'lucide-react';
 import type { BandMember, BandWithRole } from '../../shared/types';
 
 type Props = {
@@ -26,6 +26,15 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  // The most recently-invited member's email. Surfacing a one-line confirm
+  // ("Invited foo@…") lets the owner verify the address before moving on.
+  const [lastInvited, setLastInvited] = useState<{
+    email: string;
+    mailed: boolean;
+  } | null>(null);
 
   // Reset transient state whenever the drawer closes or the group changes.
   useEffect(() => {
@@ -50,6 +59,9 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
     setMembers(null);
     setConfirmingLeave(false);
     setError(null);
+    setInviteEmail('');
+    setInviteError(null);
+    setLastInvited(null);
   }, [group?.id]);
 
   useEffect(() => {
@@ -75,6 +87,51 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
       cancelled = true;
     };
   }, [open, group?.id]);
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    if (!group) return;
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email) return;
+    setInviting(true);
+    setInviteError(null);
+    setLastInvited(null);
+    try {
+      const res = await fetch(
+        `/api/bands/${encodeURIComponent(group.id)}/members`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email }),
+        },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        const msg =
+          body.error === 'already_member'
+            ? `${email} is already in this group.`
+            : body.error === 'bad_email' || body.error === 'email_required'
+              ? "That doesn't look like a valid email."
+              : body.error === 'forbidden'
+                ? 'Only the owner can invite new members.'
+                : `HTTP ${res.status}`;
+        setInviteError(msg);
+        return;
+      }
+      const data = (await res.json()) as {
+        member: BandMember;
+        mailed: boolean;
+      };
+      setMembers((prev) => (prev ? [...prev, data.member] : [data.member]));
+      setInviteEmail('');
+      setLastInvited({ email: data.member.email, mailed: data.mailed });
+    } catch (e) {
+      setInviteError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setInviting(false);
+    }
+  }
 
   async function handleLeave() {
     if (!group) return;
@@ -109,6 +166,7 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
   if (!open) return null;
 
   const canLeave = group !== null && group.role !== 'owner';
+  const canInvite = group !== null && group.role === 'owner';
 
   return (
     <div
@@ -149,6 +207,44 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
               </p>
 
               {error && <div className="upload-error">{error}</div>}
+
+              {canInvite && (
+                <form
+                  className="group-settings-invite"
+                  onSubmit={(e) => void handleInvite(e)}
+                >
+                  <label className="upload-field">
+                    <span>Invite a new member</span>
+                    <input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="email@example.com"
+                      aria-label="Invite email"
+                      autoComplete="off"
+                    />
+                  </label>
+                  <button
+                    type="submit"
+                    className="group-settings-invite-btn"
+                    disabled={inviting || !inviteEmail.trim()}
+                  >
+                    <UserPlus size={14} strokeWidth={2} aria-hidden="true" />
+                    {inviting ? 'Inviting…' : 'Send invite'}
+                  </button>
+                  {inviteError && (
+                    <div className="upload-error">{inviteError}</div>
+                  )}
+                  {lastInvited && (
+                    <p className="group-settings-invite-success">
+                      Added <strong>{lastInvited.email}</strong>.
+                      {lastInvited.mailed
+                        ? ' A magic-link email is on the way.'
+                        : ' (No email was sent — share the sign-in link with them yourself.)'}
+                    </p>
+                  )}
+                </form>
+              )}
 
               <h3 className="group-settings-section">Members</h3>
               {members === null ? (

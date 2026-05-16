@@ -11,6 +11,9 @@ process.env.DATABASE_PATH = dbPath;
 process.env.PAPERSTEM_AUDIO_ROOT = audioRoot;
 process.env.GMAIL_USER = 'test@example.com';
 process.env.GMAIL_APP_PASSWORD = 'test-pass';
+// Stop the invite-member handler from actually trying to send mail in
+// tests — handler reads this env var each request.
+process.env.PAPERSTEM_SKIP_MAIL = '1';
 
 type DbModule = typeof import('./db.js');
 type BandsModule = typeof import('./bands.js');
@@ -34,6 +37,7 @@ beforeAll(async () => {
   app.get('/api/bands', bandsMod.handleListBands);
   app.post('/api/bands', bandsMod.handleCreateBand);
   app.get('/api/bands/:id', bandsMod.handleGetBand);
+  app.post('/api/bands/:id/members', bandsMod.handleInviteMember);
   app.delete('/api/bands/:id/members/me', bandsMod.handleLeaveBand);
 });
 
@@ -361,6 +365,196 @@ describe('POST /api/bands', () => {
       }),
     );
     expect(res.status).toBe(400);
+  });
+});
+
+describe('POST /api/bands/:id/members', () => {
+  it('requires authentication', async () => {
+    const res = await app.fetch(
+      new Request('http://x/api/bands/anything/members', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'someone@example.com' }),
+      }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 404 for a band the caller is not in (no existence leak)', async () => {
+    const owner = createUser('owner@example.com');
+    const stranger = createUser('stranger@example.com');
+    const bandId = createBand('Alpha', owner);
+
+    const sid = createSession(stranger);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ email: 'new@example.com' }),
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 when caller is a non-owner member', async () => {
+    const owner = createUser('owner@example.com');
+    const member = createUser('member@example.com');
+    const bandId = createBand('Alpha', owner);
+    addMember(bandId, member);
+
+    const sid = createSession(member);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ email: 'new@example.com' }),
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects missing or invalid email', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const sid = createSession(owner);
+    for (const body of [
+      { email: '' },
+      { email: 'not-an-email' },
+      { email: 'no-at-sign.example.com' },
+      {},
+    ]) {
+      const res = await app.fetch(
+        new Request(`http://x/api/bands/${bandId}/members`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: cookieHeader(sid),
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('creates a user row if the invitee does not exist and adds them as a member', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const sid = createSession(owner);
+    expect(dbMod.stmts.findUserByEmail.get('newbie@example.com')).toBeUndefined();
+
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ email: 'newbie@example.com' }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      member: { id: string; email: string; role: string };
+      mailed: boolean;
+    };
+    expect(body.member.email).toBe('newbie@example.com');
+    expect(body.member.role).toBe('member');
+    // No email goes out under PAPERSTEM_SKIP_MAIL=1.
+    expect(body.mailed).toBe(false);
+
+    const created = dbMod.stmts.findUserByEmail.get('newbie@example.com');
+    expect(created).not.toBeUndefined();
+    expect(
+      dbMod.stmts.findMembership.get(bandId, body.member.id),
+    ).not.toBeUndefined();
+  });
+
+  it('reuses the existing user row when the invitee already has an account', async () => {
+    const owner = createUser('owner@example.com');
+    const existing = createUser('existing@example.com');
+    const bandId = createBand('Alpha', owner);
+    const sid = createSession(owner);
+
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ email: 'existing@example.com' }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { member: { id: string } };
+    expect(body.member.id).toBe(existing);
+  });
+
+  it('lowercases the email before lookup/insert', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const sid = createSession(owner);
+
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ email: '  CaPs@Example.COM  ' }),
+      }),
+    );
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as { member: { email: string } };
+    expect(body.member.email).toBe('caps@example.com');
+  });
+
+  it('returns 409 when the invitee is already a member', async () => {
+    const owner = createUser('owner@example.com');
+    const existing = createUser('existing@example.com');
+    const bandId = createBand('Alpha', owner);
+    addMember(bandId, existing);
+    const sid = createSession(owner);
+
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ email: 'existing@example.com' }),
+      }),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe('already_member');
+  });
+
+  it('returns 409 when the invitee is the owner themself', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const sid = createSession(owner);
+
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ email: 'owner@example.com' }),
+      }),
+    );
+    expect(res.status).toBe(409);
   });
 });
 
