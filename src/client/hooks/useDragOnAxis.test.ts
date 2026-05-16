@@ -1,5 +1,5 @@
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useDragOnAxis } from './useDragOnAxis';
 
 function makePointerEvent(type: string, clientX: number): PointerEvent {
@@ -120,5 +120,138 @@ describe('useDragOnAxis', () => {
     });
     expect(onChange).not.toHaveBeenCalled();
     expect(onTap).toHaveBeenCalledWith({ id: 'x' }, 101);
+  });
+});
+
+describe('useDragOnAxis hold-to-arm', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('does not arm a drag until the hold timer fires', () => {
+    const onChange = vi.fn();
+    const { result } = renderHook(() => useDragOnAxis({ onChange }));
+    const target = document.createElement('div');
+    target.setPointerCapture = vi.fn();
+    target.releasePointerCapture = vi.fn();
+
+    act(() => {
+      result.current.handlePointerDown(
+        { ...makePointerEvent('pointerdown', 100), currentTarget: target } as any,
+        { id: 'x' },
+        { holdMs: 200 },
+      );
+    });
+    // Movement before the timer would have been a drag in immediate mode;
+    // here it should be silently no-op (movement-before-arm dooms the gesture).
+    act(() => {
+      window.dispatchEvent(makePointerEvent('pointermove', 130));
+      window.dispatchEvent(makePointerEvent('pointerup', 130));
+    });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('pointerup before the hold timer fires as a tap', () => {
+    const onChange = vi.fn();
+    const onTap = vi.fn();
+    const { result } = renderHook(() => useDragOnAxis({ onChange, onTap }));
+    const target = document.createElement('div');
+    target.setPointerCapture = vi.fn();
+    target.releasePointerCapture = vi.fn();
+
+    act(() => {
+      result.current.handlePointerDown(
+        { ...makePointerEvent('pointerdown', 100), currentTarget: target } as any,
+        { id: 'x' },
+        { holdMs: 200 },
+      );
+    });
+    act(() => {
+      vi.advanceTimersByTime(50);
+      window.dispatchEvent(makePointerEvent('pointerup', 100));
+    });
+    expect(onTap).toHaveBeenCalledWith({ id: 'x' }, 100);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('after the hold timer fires, any movement starts the drag', () => {
+    const onChange = vi.fn();
+    const onTap = vi.fn();
+    const { result } = renderHook(() => useDragOnAxis({ onChange, onTap }));
+    const target = document.createElement('div');
+    target.setPointerCapture = vi.fn();
+    target.releasePointerCapture = vi.fn();
+
+    act(() => {
+      result.current.handlePointerDown(
+        { ...makePointerEvent('pointerdown', 100), currentTarget: target } as any,
+        { id: 'x' },
+        { holdMs: 200 },
+      );
+    });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    act(() => {
+      window.dispatchEvent(makePointerEvent('pointermove', 105));
+      window.dispatchEvent(makePointerEvent('pointerup', 105));
+    });
+    expect(onTap).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenLastCalledWith({
+      phase: 'commit',
+      deltaPx: 5,
+      payload: { id: 'x' },
+    });
+  });
+
+  it('arming exposes the payload via armedPayload (for visual cue)', () => {
+    const onChange = vi.fn();
+    const { result } = renderHook(() => useDragOnAxis({ onChange }));
+    const target = document.createElement('div');
+    target.setPointerCapture = vi.fn();
+    target.releasePointerCapture = vi.fn();
+
+    act(() => {
+      result.current.handlePointerDown(
+        { ...makePointerEvent('pointerdown', 100), currentTarget: target } as any,
+        { id: 'x' },
+        { holdMs: 200 },
+      );
+    });
+    expect(result.current.armedPayload).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(result.current.armedPayload).toEqual({ id: 'x' });
+    act(() => {
+      window.dispatchEvent(makePointerEvent('pointerup', 100));
+    });
+    expect(result.current.armedPayload).toBeNull();
+  });
+
+  it('hold-then-release without movement is a silent no-op (no tap, no drag)', () => {
+    const onChange = vi.fn();
+    const onTap = vi.fn();
+    const { result } = renderHook(() => useDragOnAxis({ onChange, onTap }));
+    const target = document.createElement('div');
+    target.setPointerCapture = vi.fn();
+    target.releasePointerCapture = vi.fn();
+
+    act(() => {
+      result.current.handlePointerDown(
+        { ...makePointerEvent('pointerdown', 100), currentTarget: target } as any,
+        { id: 'x' },
+        { holdMs: 200 },
+      );
+    });
+    act(() => {
+      vi.advanceTimersByTime(200);
+      window.dispatchEvent(makePointerEvent('pointerup', 100));
+    });
+    expect(onTap).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

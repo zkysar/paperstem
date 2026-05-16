@@ -15,7 +15,7 @@ function markerTitle(a: Annotation): string {
     ? fmt(a.start_ms / 1000)
     : `${fmt(a.start_ms / 1000)} – ${fmt(a.end_ms / 1000)}`;
   const body = a.body.length > 120 ? a.body.slice(0, 117) + '…' : a.body;
-  return `Comment by ${who} at ${when}\n${body}\n\nClick to open.`;
+  return `Comment by ${who} at ${when}\n${body}\n\nClick to open. Hold to drag.`;
 }
 
 type Props = {
@@ -35,16 +35,27 @@ type Props = {
     id: string,
     input: { start_ms: number; end_ms: number | null },
   ): Promise<void>;
-  onSeekFromClientX?(clientX: number): void;
 };
 
 type DragPayload =
   | { kind: 'left'; id: string; baseStart: number; end: number | null; maxStart: number }
   | { kind: 'right'; id: string; start: number; baseEnd: number; minEnd: number; maxEnd: number }
-  | { kind: 'middle'; id: string; baseStart: number; baseEnd: number | null; minDelta: number; maxDelta: number };
+  | {
+      kind: 'middle';
+      id: string;
+      ann: Annotation;
+      baseStart: number;
+      baseEnd: number | null;
+      minDelta: number;
+      maxDelta: number;
+    };
 
 const MIN_REGION_MS = 100;
 const SNAP_MS = 10;
+// Long-press delay (ms) before the middle-drag arms. A quick click stays a
+// click → opens the comment popover; a deliberate hold floats the bar and
+// lets the user drag it. Edge grips are immediate-drag (no hold).
+const HOLD_MS = 200;
 
 function snap(v: number) { return Math.round(v / SNAP_MS) * SNAP_MS; }
 function clamp(v: number, lo: number, hi: number) { return Math.max(lo, Math.min(hi, v)); }
@@ -62,7 +73,6 @@ export function AnnotationMarkers({
   createMode,
   selfUserId,
   onPatchAnnotation,
-  onSeekFromClientX,
 }: Props) {
   const msPerPx = duration && waveWidthPx ? (duration * 1000) / waveWidthPx : 0;
   const durationMs = duration * 1000;
@@ -73,8 +83,8 @@ export function AnnotationMarkers({
 
   const drag = useDragOnAxis<DragPayload>({
     threshold: 3,
-    onTap: (payload, clientX) => {
-      if (payload.kind === 'middle') onSeekFromClientX?.(clientX);
+    onTap: (payload) => {
+      if (payload.kind === 'middle') onSelect(payload.ann);
     },
     onChange: ({ phase, deltaPx, payload }) => {
       if (msPerPx <= 0) return;
@@ -136,16 +146,23 @@ export function AnnotationMarkers({
 
   if (!markers.length) return null;
 
+  const armedId =
+    drag.armedPayload && drag.armedPayload.kind === 'middle'
+      ? drag.armedPayload.id
+      : null;
+
   return (
     <>
       <DragGuideline visible={guideline !== null} leftPx={guideline ?? 0} />
       {markers.map((m) => {
         const isHovered = hoveredId === m.ann.id;
+        const isArmed = armedId === m.ann.id;
         const editable = !!selfUserId && selfUserId === m.ann.user_id;
         const className =
           'annotation-marker ' +
           (m.isRegion ? 'region' : 'point') +
-          (isHovered ? ' hovered' : '');
+          (isHovered ? ' hovered' : '') +
+          (isArmed ? ' armed' : '');
         const style: React.CSSProperties = m.isRegion
           ? { left: `${m.left}px`, width: `${m.width}px`, backgroundColor: m.color }
           : { left: `${m.left}px`, backgroundColor: m.color };
@@ -158,54 +175,43 @@ export function AnnotationMarkers({
             style={style}
             title={markerTitle(m.ann)}
             aria-label={`Comment by ${authorLabel(m.ann)}`}
+            role="button"
+            tabIndex={0}
             onPointerEnter={() => { if (!createMode) onHover(m.ann.id); }}
             onPointerLeave={() => { onHover((cur) => (cur === m.ann.id ? null : cur)); }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelect(m.ann);
+              }
+            }}
             onPointerDown={(e) => {
               if (createMode) return;
-              if ((e.target as Element).closest('.annotation-grip, .annotation-tab')) return;
-              if (!editable || !onPatchAnnotation) {
-                drag.handlePointerDown(e, {
+              if ((e.target as Element).closest('.annotation-grip')) return;
+              const baseEnd = m.end_ms;
+              let minDelta = 0;
+              let maxDelta = 0;
+              if (editable && onPatchAnnotation) {
+                minDelta = -m.start_ms;
+                maxDelta = baseEnd === null
+                  ? durationMs - m.start_ms
+                  : durationMs - baseEnd;
+              }
+              drag.handlePointerDown(
+                e,
+                {
                   kind: 'middle',
                   id: m.ann.id,
+                  ann: m.ann,
                   baseStart: m.start_ms,
-                  baseEnd: m.end_ms,
-                  minDelta: 0,
-                  maxDelta: 0,
-                });
-                return;
-              }
-              const baseEnd = m.end_ms;
-              const minDelta = -m.start_ms;
-              const maxDelta = baseEnd === null
-                ? durationMs - m.start_ms
-                : durationMs - baseEnd;
-              drag.handlePointerDown(e, {
-                kind: 'middle',
-                id: m.ann.id,
-                baseStart: m.start_ms,
-                baseEnd,
-                minDelta,
-                maxDelta,
-              });
+                  baseEnd,
+                  minDelta,
+                  maxDelta,
+                },
+                { holdMs: HOLD_MS },
+              );
             }}
           >
-            <span
-              className="annotation-tab"
-              aria-label={`Open comment by ${authorLabel(m.ann)}`}
-              role="button"
-              tabIndex={0}
-              onPointerDown={(e) => {
-                e.stopPropagation();
-                if (createMode) return;
-                onSelect(m.ann);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSelect(m.ann);
-                }
-              }}
-            />
             {editable && m.isRegion && (
               <>
                 <span
