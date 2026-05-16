@@ -3,7 +3,7 @@ import type { User } from '../../shared/types';
 
 const key = import.meta.env.VITE_POSTHOG_KEY as string | undefined;
 const host =
-  (import.meta.env.VITE_POSTHOG_HOST as string | undefined) ??
+  (import.meta.env.VITE_POSTHOG_HOST as string | undefined) ||
   'https://us.i.posthog.com';
 
 let started = false;
