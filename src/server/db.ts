@@ -321,6 +321,19 @@ export type NotificationPrefsRow = {
 
 export type BandWithMuteRow = { id: string; name: string; muted: number };
 
+export type PublicLinkRow = {
+  token: string;
+  project_id: string;
+  created_by_user_id: string;
+  created_at: number;
+  revoked_at: number | null;
+  last_accessed_at: number | null;
+};
+
+export type PublicLinkJoinedRow = PublicLinkRow & {
+  created_by_email: string;
+};
+
 export type ProjectUnreadRow = { project_id: string; band_id: string };
 
 export const stmts = {
@@ -1014,6 +1027,33 @@ export const stmts = {
           OR EXISTS (SELECT 1 FROM annotation_reactions rx JOIN annotations a ON a.id = rx.annotation_id WHERE a.project_id = p.id AND a.user_id = @user_id AND rx.user_id != @user_id AND rx.created_at > COALESCE(pr.last_read_at, 0))
           OR EXISTS (SELECT 1 FROM annotation_reply_reactions rrx JOIN annotation_replies r ON r.id = rrx.reply_id JOIN annotations a ON a.id = r.annotation_id WHERE a.project_id = p.id AND r.user_id = @user_id AND rrx.user_id != @user_id AND rrx.created_at > COALESCE(pr.last_read_at, 0))
         )`,
+  ),
+
+  // --- public links ---
+  // Resolve a token to its row regardless of revocation status; handlers
+  // gate behaviour on revoked_at themselves so we can return a stable 410
+  // for revoked tokens and 404 for unknown ones.
+  findPublicLinkByToken: db.prepare<[string], PublicLinkRow>(
+    `SELECT * FROM public_links WHERE token = ?`,
+  ),
+  findPublicLinksForProject: db.prepare<[string], PublicLinkJoinedRow>(
+    `SELECT pl.*, u.email AS created_by_email
+       FROM public_links pl
+       LEFT JOIN users u ON u.id = pl.created_by_user_id
+      WHERE pl.project_id = ?
+      ORDER BY pl.created_at DESC`,
+  ),
+  insertPublicLink: db.prepare<[string, string, string, number]>(
+    `INSERT INTO public_links (token, project_id, created_by_user_id, created_at)
+     VALUES (?, ?, ?, ?)`,
+  ),
+  revokePublicLink: db.prepare<[number, string]>(
+    `UPDATE public_links SET revoked_at = ? WHERE token = ? AND revoked_at IS NULL`,
+  ),
+  touchPublicLinkAccess: db.prepare<[number, string, number]>(
+    `UPDATE public_links SET last_accessed_at = ?
+       WHERE token = ?
+         AND (last_accessed_at IS NULL OR last_accessed_at < ?)`,
   ),
 
   // --- notifications: bands with mute status (for settings dialog) ---
