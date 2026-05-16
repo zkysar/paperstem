@@ -13,8 +13,8 @@ import { readServerInfo } from './server-info.js';
 // a real bug, not a transient.
 const VIEWPORT_INNER_MAX_RATIO = 64;
 
-// The stage and the ruler are sized to the viewport — they should NEVER
-// exceed it by more than a token sub-pixel rounding margin.
+// The stage is sized to the viewport — its width should not exceed it by
+// more than a token sub-pixel rounding margin regardless of zoom level.
 const STAGE_MAX_RATIO = 1.5;
 
 export type LayoutBound = {
@@ -25,7 +25,12 @@ export type LayoutBound = {
 
 export const DEFAULT_LAYOUT_BOUNDS: LayoutBound[] = [
   { selector: '.stage', maxRatio: STAGE_MAX_RATIO },
-  { selector: '.ruler', maxRatio: STAGE_MAX_RATIO },
+  // .ruler and .viewport-inner are children of the zoomable inner content,
+  // so they legitimately scale linearly with hZoom (up to MAX_HZOOM=32).
+  // The PR #133 bug overshot that ceiling by orders of magnitude — we set
+  // the bound at 64× to keep a generous overshoot margin for anchored zoom
+  // and still catch the runaway case.
+  { selector: '.ruler', maxRatio: VIEWPORT_INNER_MAX_RATIO },
   { selector: '.viewport-inner', maxRatio: VIEWPORT_INNER_MAX_RATIO },
 ];
 

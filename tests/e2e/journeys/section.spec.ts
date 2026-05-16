@@ -29,10 +29,13 @@ test.describe('Journey: create a labelled section marker at the playhead', () =>
     // The popover closes once the submit promise resolves.
     await expect(popover).toBeHidden();
 
-    // A new section pill should show up in the section lane (or the
-    // collapsed ribbon, depending on layout density). Either lane shows
-    // the label text once the section is materialised.
-    await expect(page.getByText(label)).toBeVisible({ timeout: 5_000 });
+    // A new section pill should show up in the section lane. The label
+    // text also appears in ActiveSectionChip (above the ruler) and inside
+    // the section-pill button's enclosing text — getByText would match
+    // all three and fail strict mode. Anchor specifically on the lane's
+    // .section-pill-label span.
+    const pillLabel = page.locator('.section-pill-label', { hasText: label });
+    await expect(pillLabel).toBeVisible({ timeout: 5_000 });
 
     // Layout invariant — the section lane expands the timeline and is the
     // other major contributor to layout churn besides the zoom path.

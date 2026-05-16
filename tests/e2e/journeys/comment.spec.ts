@@ -27,10 +27,12 @@ test.describe('Journey: drop a comment at the playhead, see it in the drawer', (
     await expect(save).toBeEnabled();
     await save.click();
 
-    // The new card should land in the list; CommentList renders each card
-    // with data-testid="list-card-<annotation-id>". We don't know the id,
-    // so we match on body text instead.
-    await expect(drawer.getByText(body)).toBeVisible();
+    // The new card should land in the list. Anchor specifically on the
+    // .cl-body div inside the card — `getByText` would also match the
+    // card's <li> ancestor as a substring container, which is strict-mode
+    // ambiguous.
+    const cardBody = drawer.locator('.cl-body', { hasText: body });
+    await expect(cardBody).toBeVisible();
 
     // Drawer count chip ("· N") should now read at least 1.
     const countText = await drawer.locator('.cd-count').innerText();
