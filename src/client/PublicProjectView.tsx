@@ -6,6 +6,7 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import type {
   Annotation,
   AnnotationReply,
@@ -167,35 +168,33 @@ export function PublicProjectView({ token }: { token: string }) {
   );
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [signInBanner, setSignInBanner] = useState(false);
+  const [noAccessBanner, setNoAccessBanner] = useState(false);
+  const [signInPromptOpen, setSignInPromptOpen] = useState(false);
   // Tri-state set by the bootstrap effect — drives whether the header
   // shows "Sign in" (anonymous) or a "no access" treatment (signed-in
   // but not a band member). 'signed-in-member' is never observed here
   // because we redirect to /#p=<id> instantly when we see it.
   const [probe, setProbe] = useState<MembershipProbe>({ kind: 'anonymous' });
 
-  // Stash the current /p/<token> path + bounce to / for the magic-link
-  // flow. App.tsx reads the key after the session resolves and assigns
-  // location back. We do NOT bounce signed-in non-members — they're
-  // already authenticated, so the round trip would just put them back
-  // in the same state; we show them a "no access" cue instead.
+  // Show a confirmation modal before bouncing to the magic-link flow.
+  // Originally this navigated immediately — viewers found that jarring
+  // (a click on "star" silently sent them to a sign-in page). Now we
+  // pop a modal; the modal's primary button stashes the return path
+  // and assigns location. Signed-in non-members never get the modal —
+  // there's nowhere useful to navigate them, so we show a banner that
+  // explains the situation instead.
   const promptSignIn = useCallback(() => {
     if (probe.kind === 'signed-in-non-member') {
-      // Banner explains the situation; no navigation. The toolbar /
-      // drawer mutation buttons still fire this so the user gets the
-      // same feedback path everywhere.
-      setSignInBanner(true);
+      setNoAccessBanner(true);
       return;
     }
-    stashReturnPath(window.location.pathname);
-    setSignInBanner(true);
-    // requestAnimationFrame lets the banner paint before we leave the
-    // page. One frame is enough — the user's React tree commit fires in
-    // the same task; rAF schedules navigation after the next paint.
-    window.requestAnimationFrame(() => {
-      window.location.assign('/');
-    });
+    setSignInPromptOpen(true);
   }, [probe.kind]);
+
+  const confirmSignIn = useCallback(() => {
+    stashReturnPath(window.location.pathname);
+    window.location.assign('/');
+  }, []);
 
   // Bootstrap fetch: project metadata, then membership probe. If a
   // signed-in member, redirect immediately to /#p=<id>. Otherwise hold
@@ -416,12 +415,18 @@ export function PublicProjectView({ token }: { token: string }) {
 
   return (
     <div className="app-shell">
-      {signInBanner && (
+      {noAccessBanner && (
         <div className="public-signin-banner" role="status">
-          {probe.kind === 'signed-in-non-member'
-            ? "You're signed in but don't have access to this project. Ask the owner to add you to their group."
-            : "Signing you in… you'll come back here."}
+          You're signed in but don't have access to this project. Ask the
+          owner to add you to their group.
         </div>
+      )}
+      {signInPromptOpen && (
+        <SignInPrompt
+          projectTitle={detail.project.name}
+          onConfirm={confirmSignIn}
+          onCancel={() => setSignInPromptOpen(false)}
+        />
       )}
       <AppHeader
         userEmail=""
@@ -639,6 +644,68 @@ export function PublicProjectView({ token }: { token: string }) {
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
       />
+    </div>
+  );
+}
+
+function SignInPrompt({
+  projectTitle,
+  onConfirm,
+  onCancel,
+}: {
+  projectTitle: string;
+  onConfirm(): void;
+  onCancel(): void;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  return (
+    <div
+      className="upload-modal-scrim"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="public-signin-title"
+      onClick={onCancel}
+    >
+      <div className="upload-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="upload-modal-header">
+          <h2 id="public-signin-title">Sign in to interact</h2>
+          <button
+            type="button"
+            className="upload-modal-close"
+            aria-label="Close"
+            onClick={onCancel}
+          >
+            <X size={16} strokeWidth={2} aria-hidden="true" />
+          </button>
+        </div>
+        <div className="upload-modal-body">
+          <p className="upload-hint">
+            You're viewing <strong>{projectTitle}</strong> as a guest. Sign in
+            to comment, react, add sections, or star anything. You'll come
+            back to this page after signing in.
+          </p>
+          <div className="create-group-actions">
+            <button
+              type="button"
+              className="create-group-submit"
+              onClick={onConfirm}
+              autoFocus
+            >
+              Sign in
+            </button>
+            <button type="button" onClick={onCancel}>
+              Not now
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
