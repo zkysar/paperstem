@@ -797,10 +797,6 @@ export function Player({
               createMode={annotationCreateMode}
               selfUserId={selfUserId}
               onPatchAnnotation={onPatchAnnotation}
-              onSeekFromClientX={(clientX: number) => {
-                const t = xToTime(clientX);
-                player.seek(Math.max(0, Math.min(duration, t)));
-              }}
             />
             {previewSource && (
               <div

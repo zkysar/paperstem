@@ -42,6 +42,10 @@ type DragPayload = LeftEdgePayload | MiddlePayload;
 const NARROW_SEGMENT_PX = 8;
 const MIN_GAP_MS = 250;
 const SNAP_MS = 10;
+// Long-press delay (ms) before the section pill's middle-drag arms. A quick
+// click stays a click → seek + select; a deliberate hold floats the pill and
+// lets the user drag it. The left-edge grip is immediate-drag (no hold).
+const HOLD_MS = 200;
 
 function snap(v: number): number {
   return Math.round(v / SNAP_MS) * SNAP_MS;
@@ -234,6 +238,9 @@ export function SectionLane({
           <DragGuideline visible={guideline !== null} leftPx={guideline ?? 0} />
           {computed.map((c) => {
             const isActive = activeSectionId === c.section.id;
+            const isArmed =
+              drag.armedPayload?.kind === 'middle' &&
+              drag.armedPayload.sectionId === c.section.id;
             const showGrips = !!onPatchSection;
             return (
               <button
@@ -244,7 +251,8 @@ export function SectionLane({
                 className={
                   'section-pill' +
                   (isActive ? ' active' : '') +
-                  (draggingId === c.section.id ? ' dragging' : '')
+                  (draggingId === c.section.id ? ' dragging' : '') +
+                  (isArmed ? ' armed' : '')
                 }
                 style={{
                   left: `${c.leftPx}px`,
@@ -297,15 +305,19 @@ export function SectionLane({
                     maxDelta = durationMs - MIN_GAP_MS - baseStart;
                   }
 
-                  drag.handlePointerDown(e, {
-                    kind: 'middle',
-                    sectionId: c.section.id,
-                    nextId,
-                    baseStartMs: baseStart,
-                    baseNextStartMs: baseNextStart,
-                    minDelta,
-                    maxDelta,
-                  });
+                  drag.handlePointerDown(
+                    e,
+                    {
+                      kind: 'middle',
+                      sectionId: c.section.id,
+                      nextId,
+                      baseStartMs: baseStart,
+                      baseNextStartMs: baseNextStart,
+                      minDelta,
+                      maxDelta,
+                    },
+                    { holdMs: HOLD_MS },
+                  );
                 }}
               >
                 {showGrips && c.index > 0 && (

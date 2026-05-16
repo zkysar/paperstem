@@ -1244,6 +1244,10 @@ button.track-name:disabled { cursor: default; }
   .annotation-mode-banner,
   .annotation-mode-dot,
   .shortcuts-modal { animation: none; }
+  /* Keep the shadow as the "lifted" signal but drop the translate so users
+     who request reduced motion don't get the bar hopping when armed. */
+  .section-pill.armed,
+  .annotation-marker.armed { transform: none; }
 }
 
 .annotations-markers-toggle {
@@ -1338,12 +1342,14 @@ button.track-name:disabled { cursor: default; }
      colored line over the top of the first track-rail (visible because
      the ruler-rail-mask is only 22px tall). */
   box-sizing: border-box;
-  opacity: 0.3;
+  opacity: 0.55;
   border-top: 2px solid currentColor;
+  border-radius: 2px;
   cursor: pointer;
+  transition: opacity 80ms ease, transform 120ms ease, box-shadow 120ms ease;
 }
 .annotation-marker.region.hovered {
-  opacity: 0.5;
+  opacity: 0.8;
 }
 
 /* ===== AppHeader ===== */
@@ -3919,7 +3925,7 @@ body.env-non-prod[data-env="local"]::before {
      the edge against the lane background so neighbouring sections read
      as distinct even at very narrow widths. */
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
-  transition: opacity 80ms ease;
+  transition: opacity 80ms ease, transform 120ms ease, box-shadow 120ms ease;
 }
 .section-pill:hover,
 .section-pill:focus-visible {
@@ -4428,46 +4434,35 @@ body.env-non-prod[data-env="local"]::before {
   opacity: 0.8;
 }
 
-/* ---- Annotation open-tab ------------------------------------------- */
-.annotation-tab {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 8px;
-  background: currentColor;
-  opacity: 0.7;
-  cursor: pointer;
-  z-index: 7;
-}
-.annotation-marker.point .annotation-tab {
-  height: 10px;
-}
-.annotation-tab:hover {
-  opacity: 1;
-}
-
 /* ---- Drag-zone cursors --------------------------------------------- */
-/* The middle of section pills and annotation markers is the translate
-   zone. ew-resize on the edge grips overrides this on the 8px hot zones. */
-.section-pill {
-  cursor: grab;
+/* Sections and annotations both use click-to-open + hold-to-drag on the
+   body, so the resting cursor is the default pointer. ew-resize on the
+   edge grips overrides this on the 8px hot zones. The .armed class
+   (applied once the hold-to-drag long-press fires) swaps in grabbing.
+   `.dragging` (stamped on by SectionLane for the lifetime of the gesture)
+   covers the gap before arming — Chromium drops `:active` on a <button>
+   as soon as pointer capture moves outside, so we can't rely on it. */
+.annotation-marker.region,
+.annotation-marker.point {
+  cursor: pointer;
 }
-/* `:active` would normally suffice here (and does for the div-based
-   annotation marker and loop region), but Chromium drops `:active` on a
-   <button> as soon as the pointer leaves its bounding box, even while
-   pointer capture is in effect. The .dragging class is stamped on by
-   SectionLane for the lifetime of the gesture so the grabbing cursor
-   doesn't flicker mid-drag. */
-.section-pill:active,
 .section-pill.dragging {
   cursor: grabbing;
 }
-.annotation-marker.region,
-.annotation-marker.point {
-  cursor: grab;
-}
-.annotation-marker.region:active,
-.annotation-marker.point:active {
+
+/* ---- Armed / floating drag affordance ------------------------------- */
+/* When the long-press fires, the bar "lifts" — slight upward translation,
+   stronger shadow, full opacity, grabbing cursor. The transitions on the
+   base rules animate it in smoothly. */
+.section-pill.armed,
+.annotation-marker.armed {
   cursor: grabbing;
+  z-index: 12;
+  box-shadow:
+    0 6px 12px rgba(0, 0, 0, 0.25),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+}
+.annotation-marker.region.armed {
+  opacity: 0.95;
 }
