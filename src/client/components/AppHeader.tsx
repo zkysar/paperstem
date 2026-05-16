@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, Check, ChevronDown, Download, FolderOpen, KeyRound, Loader2, LogOut, MessageSquare, Plus, Users } from 'lucide-react';
+import { Bug, Check, ChevronDown, Download, FolderOpen, KeyRound, Loader2, LogIn, LogOut, MessageSquare, Plus, Users } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
 import type { BandWithRole } from '../../shared/types';
@@ -37,6 +37,21 @@ type Props = {
   // the menu entry is hidden (legacy callers behave as before).
   onOpenGroups?: () => void;
   onDownloadAll(): void;
+  /**
+   * Public-link / read-only mode. When set, the header strips project-
+   * picker affordances (no "Open a project" CTA, no switch-project caret,
+   * title is shown but not interactive), hides the group switcher, and
+   * replaces the authenticated avatar dropdown with a button that calls
+   * onSignIn. The existing onOpenPicker/onSignOut/onReportBug/onOpenTokens
+   * callbacks are not invoked while in this mode — callers can safely
+   * pass no-ops.
+   *
+   * `label` lets the caller adjust the button copy — public-link views
+   * use "Sign in" for anonymous viewers and "No access" for users who
+   * are signed in but not a member of the project's band (where signing
+   * in again would just loop them through the same state).
+   */
+  publicMode?: { onSignIn(): void; label?: string };
 };
 
 export function AppHeader({
@@ -45,7 +60,7 @@ export function AppHeader({
   annotationsOpen, hasProject, canRename, isWide, appVersion, appEnv, downloading,
   debugInfo,
   onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenameProject,
-  onOpenTokens, onOpenGroups, onDownloadAll,
+  onOpenTokens, onOpenGroups, onDownloadAll, publicMode,
 }: Props) {
   const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -89,8 +104,11 @@ export function AppHeader({
   // Render the switcher whenever it would be useful. With 2+ groups that's
   // always; with exactly 1 group, only if the menu can offer "+ New group"
   // (otherwise the menu would be a single inert row with a fake chevron).
+  // Hidden in public mode so anonymous viewers can't enumerate the link
+  // owner's band membership.
   const showGroupSwitcher =
-    groupList.length > 1 || (groupList.length === 1 && !!onCreateGroup);
+    !publicMode &&
+    (groupList.length > 1 || (groupList.length === 1 && !!onCreateGroup));
   const currentGroup =
     groupList.find((g) => g.id === currentGroupId) ?? groupList[0] ?? null;
   const hasMultipleGroups = groupList.length > 1;
@@ -107,7 +125,7 @@ export function AppHeader({
     setDraft(projectTitle ?? '');
   }
 
-  const titleEditable = hasProject && canRename && isWide;
+  const titleEditable = !publicMode && hasProject && canRename && isWide;
 
   return (
     <header className="app-header">
@@ -211,6 +229,10 @@ export function AppHeader({
                 }}
                 onBlur={commit}
               />
+            ) : publicMode ? (
+              <span className="ah-title-name" title={projectTitle ?? undefined}>
+                {projectTitle}
+              </span>
             ) : (
               <button
                 type="button"
@@ -227,18 +249,20 @@ export function AppHeader({
                 {projectTitle}
               </button>
             )}
-            <button
-              type="button"
-              className="ah-title-caret"
-              onClick={onOpenPicker}
-              aria-label="Switch project"
-              title="Switch to a different project"
-            >
-              <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
-            </button>
+            {!publicMode && (
+              <button
+                type="button"
+                className="ah-title-caret"
+                onClick={onOpenPicker}
+                aria-label="Switch project"
+                title="Switch to a different project"
+              >
+                <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
+              </button>
+            )}
           </span>
         </div>
-      ) : (
+      ) : publicMode ? null : (
         <button
           type="button"
           className="ah-open-cta"
@@ -279,6 +303,19 @@ export function AppHeader({
           <MessageSquare size={16} strokeWidth={2} aria-hidden="true" />
         </button>
       )}
+      {publicMode ? (
+        <button
+          type="button"
+          className="ah-signin-btn"
+          onClick={publicMode.onSignIn}
+          title={publicMode.label === 'No access'
+            ? "You're signed in but not a member of this project's group"
+            : 'Sign in to comment and edit'}
+        >
+          <LogIn size={14} strokeWidth={2} aria-hidden="true" />
+          <span>{publicMode.label ?? 'Sign in'}</span>
+        </button>
+      ) : (
       <div className="ah-avatar-wrap" ref={avatarRef}>
         <button
           type="button"
@@ -337,6 +374,7 @@ export function AppHeader({
           </div>
         )}
       </div>
+      )}
     </header>
   );
 }

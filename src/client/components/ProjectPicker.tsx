@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp, FolderOpen, MessageSquare, MoreVertical, Pencil, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, FolderOpen, HelpCircle, MessageSquare, MoreVertical, Pencil, Trash2, X } from 'lucide-react';
 import type { Project, TrashList } from '../data/types';
 import type { Song } from '../../shared/types';
 import { AUDIO_EXT } from '../lib/audio';
 import { colorForSong } from '../lib/colors';
-import { formatDurationMs, formatRelativeDate } from '../lib/format';
+import { formatDurationMs, formatPurgeIn, formatRelativeDate } from '../lib/format';
+
+// Mirror of PURGE_AFTER_SECONDS in src/server/trash.ts. Duplicated rather than
+// imported so the client bundle doesn't pull a server module.
+const TRASH_TTL_DAYS = 30;
 import { WaveformThumb } from './WaveformThumb';
 
 type SortKey = 'name' | 'updated' | 'duration' | 'stems' | 'comments';
@@ -39,7 +43,7 @@ type Props = {
   onRestoreStem(id: string): void;
 };
 
-export function FilePicker({
+export function ProjectPicker({
   open, loading, loadError, projects, activeProjectId, showUpload,
   bandSongs, songUsage, filterSongId, onSetFilterSongId,
   onClose, onSelect, onLoadFolder, onRetry,
@@ -99,12 +103,12 @@ export function FilePicker({
   return (
     <>
       <div
-        className="filepicker-scrim"
-        data-testid="filepicker-scrim"
+        className="projectpicker-scrim"
+        data-testid="projectpicker-scrim"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="filepicker" role="dialog" aria-modal="true" aria-label="Projects">
+      <div className="projectpicker" role="dialog" aria-modal="true" aria-label="Projects">
         <div className="fp-header">
           <h2 className="fp-title">Projects</h2>
           <input
@@ -223,7 +227,7 @@ export function FilePicker({
             onRestoreStem={onRestoreStem}
           />
         ) : (
-          <FilePickerBody
+          <ProjectPickerBody
             tab={tab} search={search}
             loading={loading} loadError={loadError}
             projects={filteredProjects} activeProjectId={activeProjectId}
@@ -288,7 +292,7 @@ export function FilePicker({
   );
 }
 
-function FilePickerBody({
+function ProjectPickerBody({
   search, projects, activeProjectId, loading, loadError, showUpload,
   onSelect, onNewProjectClick, onRetry, onRenameProject, onRequestDelete,
 }: {
@@ -668,11 +672,13 @@ function TrashBody({
   }
   return (
     <div className="fp-body">
+      <TrashPolicyNote />
       <div className="fp-row fp-row-trash fp-row-head" role="row">
         <span>Name</span>
         <span>Type</span>
         <span>Deleted by</span>
         <span>Status</span>
+        <span>Auto-clears</span>
         <span></span>
       </div>
       {trash.projects.map((p) => (
@@ -683,6 +689,7 @@ function TrashBody({
           <span className="fp-meta">
             {p.deleted_reason === 'drive_missing' ? 'File missing' : ''}
           </span>
+          <TrashPurgeCell deletedAt={p.deleted_at} />
           <button
             type="button"
             className="fp-restore-btn"
@@ -702,6 +709,7 @@ function TrashBody({
           <span className="fp-meta">
             {s.deleted_reason === 'drive_missing' ? 'File missing' : ''}
           </span>
+          <TrashPurgeCell deletedAt={s.deleted_at} />
           <button
             type="button"
             className="fp-restore-btn"
@@ -714,5 +722,36 @@ function TrashBody({
         </div>
       ))}
     </div>
+  );
+}
+
+function TrashPolicyNote() {
+  const policy =
+    `Items moved to trash are kept for ${TRASH_TTL_DAYS} days, then permanently deleted. ` +
+    `Restore an item before then to recover it. Items marked "File missing" can't be restored.`;
+  return (
+    <div className="fp-trash-policy" role="note">
+      <span>
+        Items in trash auto-clear after {TRASH_TTL_DAYS} days.
+      </span>
+      <span
+        className="fp-trash-policy-help"
+        tabIndex={0}
+        role="img"
+        aria-label={policy}
+        title={policy}
+      >
+        <HelpCircle size={14} strokeWidth={2} aria-hidden="true" />
+      </span>
+    </div>
+  );
+}
+
+function TrashPurgeCell({ deletedAt }: { deletedAt: number }) {
+  const { label, absolute } = formatPurgeIn(deletedAt, TRASH_TTL_DAYS);
+  return (
+    <span className="fp-meta" title={`Auto-clears on ${absolute}`}>
+      {label}
+    </span>
   );
 }

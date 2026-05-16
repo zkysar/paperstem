@@ -139,7 +139,7 @@ Single SQL query with three LEFT JOIN existence subqueries, indexed appropriatel
 
 **B. `renderBody(body, roster)`** — helper splitting on `@[uid]` tokens into text + `<MentionChip>` elements. Used in [CommentList](../../../src/client/components/CommentList.tsx), [CommentPopover](../../../src/client/components/CommentPopover.tsx), [CommentBottomSheet](../../../src/client/components/CommentBottomSheet.tsx), [ReplyThread](../../../src/client/components/ReplyThread.tsx). Former members render with a `.mention-chip--ex-member` class (muted color).
 
-**C. Per-project unread dot** in [FilePicker](../../../src/client/components/FilePicker.tsx) — dot shown when project id appears in `projectsWithUnread`. Source: new `useUnreadNotifications()` hook.
+**C. Per-project unread dot** in [ProjectPicker](../../../src/client/components/ProjectPicker.tsx) — dot shown when project id appears in `projectsWithUnread`. Source: new `useUnreadNotifications()` hook.
 
 **D. Per-comment "new" treatment** — visible on:
 - The ruler pin ([AnnotationMarkers](../../../src/client/components/AnnotationMarkers.tsx)): a small accent ring or dot on pins whose underlying annotation has `created_at > project.last_read_at`. Same for unread replies (apply to the parent pin if any descendant is new).

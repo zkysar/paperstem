@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LoginScreen } from './auth/LoginScreen';
 import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
+import { consumeReturnPath } from './lib/public-return';
 import { PENDING_SHARE_HASH_KEY, useShareLink } from './hooks/useShareLink';
 import { applyShareState } from './lib/apply-share-state';
 import {
@@ -28,7 +29,7 @@ import { CreateGroupDialog } from './components/CreateGroupDialog';
 import { GroupsDrawer } from './components/GroupsDrawer';
 import { TokensDrawer } from './components/TokensDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { FilePicker } from './components/FilePicker';
+import { ProjectPicker } from './components/ProjectPicker';
 import { Player } from './components/Player';
 import { SectionHintChip } from './components/SectionHintChip';
 import { ShortcutsOverlay } from './components/ShortcutsOverlay';
@@ -118,6 +119,19 @@ export default function App() {
         // sessionStorage may be unavailable — best-effort.
       }
     }
+  }, [loading, user]);
+
+  // Anonymous viewers of /p/<token> who hit "Sign in" land here after the
+  // magic-link round trip. PublicProjectView stashed the path in
+  // sessionStorage before redirecting; if we now have a session, bounce
+  // them back to /p/<token>. The public view will then re-check
+  // membership and forward to /#p=<id> if applicable.
+  // consumeReturnPath() also enforces the /p/ prefix so a corrupted
+  // sessionStorage value can't trigger an open redirect elsewhere.
+  useEffect(() => {
+    if (loading || !user) return;
+    const pending = consumeReturnPath();
+    if (pending) window.location.assign(pending);
   }, [loading, user]);
 
   if (loading) return null;
@@ -252,7 +266,7 @@ function PaperstemApp({
     anchorLeft: number;
     anchorTop: number;
   } | null>(null);
-  // Project filter driven by the FilePicker chip-rail.
+  // Project filter driven by the ProjectPicker chip-rail.
   const [filterSongId, setFilterSongId] = useState<string | null>(null);
   // Transient undo toast for destructive song operations (rename across N
   // practices, merge). Auto-clears after 6 seconds; the timer ref lets a
@@ -673,7 +687,7 @@ function PaperstemApp({
   );
 
   // Load the band's song catalog + usage map once per active band. These
-  // power the FilePicker chip-rail, the section popover's autocomplete,
+  // power the ProjectPicker chip-rail, the section popover's autocomplete,
   // and the "shared name" chain glyph in the section lane.
   const refreshBandSongs = useCallback(async () => {
     if (!activeBandId) {
@@ -1851,7 +1865,7 @@ function PaperstemApp({
           );
         })()}
       </div>
-      <FilePicker
+      <ProjectPicker
         open={pickerOpen}
         loading={projectsLoading}
         loadError={loadError}
@@ -1994,7 +2008,7 @@ function PaperstemApp({
         createPortal(
           <>
             <div
-              className="filepicker-scrim"
+              className="projectpicker-scrim"
               role="presentation"
               onClick={() => setSectionPopover(null)}
               aria-hidden="true"

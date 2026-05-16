@@ -10,7 +10,7 @@ A DAW-style stem player for sharing rough mixes with bandmates.
 
 ## UI
 
-A Google-Docs-style shell: an `AppHeader` (brand · ▦ files · project title · 💬 comments · avatar), a flat `AppToolbar` (transport · download · waveform-scale · annotation-create · marker visibility · master volume · time), and the song timeline below. The project list lives behind `⌘K` / the ▦ button as a `FilePicker` overlay rather than a persistent sidebar; comments open in a right-side push column.
+A Google-Docs-style shell: an `AppHeader` (brand · ▦ projects · project title · 💬 comments · avatar), a flat `AppToolbar` (transport · download · waveform-scale · annotation-create · marker visibility · master volume · time), and the song timeline below. The project list lives behind `⌘K` / the ▦ button as a `ProjectPicker` overlay rather than a persistent sidebar; comments open in a right-side push column.
 
 ## Architecture
 

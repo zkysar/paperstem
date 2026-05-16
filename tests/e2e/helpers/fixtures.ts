@@ -59,10 +59,10 @@ export class AppHarness {
 
   /** Visit the SPA at `/`. The session cookie is established via the dev
    *  auto-login path on first /api/me 401, so by the time `goto` returns
-   *  the user is authenticated and the FilePicker has opened. */
+   *  the user is authenticated and the ProjectPicker has opened. */
   async open(): Promise<void> {
     await this.page.goto(this.baseURL + '/');
-    // The FilePicker auto-opens when no project is active. Wait for it to
+    // The ProjectPicker auto-opens when no project is active. Wait for it to
     // be reachable; that doubles as the "auth resolved" signal because the
     // shell only renders after useSession returns user != null.
     await this.page
