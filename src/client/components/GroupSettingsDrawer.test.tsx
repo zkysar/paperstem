@@ -400,7 +400,7 @@ describe('GroupSettingsDrawer', () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Invite email/i), 'm@example.com');
     await user.click(screen.getByRole('button', { name: /Send invite/i }));
-    await screen.findByText(/No email was sent/i);
+    await screen.findByText(/Email delivery didn't succeed/i);
   });
 
   it('owner can rename the group; non-owners cannot', async () => {
@@ -489,6 +489,38 @@ describe('GroupSettingsDrawer', () => {
     await user.clear(input);
     await user.type(input, 'Twin{Enter}');
     await screen.findByText(/already own a group called "Twin"/i);
+    expect(onRenamed).not.toHaveBeenCalled();
+  });
+
+  it('rename blur cancels (no PATCH, no silent commit)', async () => {
+    const onRenamed = vi.fn();
+    const fetchSpy = vi.fn();
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`PATCH /api/bands/${ownerGroup.id}`]: () => {
+        fetchSpy();
+        return new Response('{}', { status: 200 });
+      },
+    });
+    render(
+      <div>
+        <GroupSettingsDrawer
+          open={true}
+          group={ownerGroup}
+          onClose={() => undefined}
+          onLeft={() => undefined}
+          onRenamed={onRenamed}
+        />
+        <button type="button" data-testid="elsewhere">elsewhere</button>
+      </div>,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText('Rename group'));
+    const input = screen.getByLabelText('Group name');
+    await user.clear(input);
+    await user.type(input, 'Changed');
+    await user.click(screen.getByTestId('elsewhere'));
+    expect(fetchSpy).not.toHaveBeenCalled();
     expect(onRenamed).not.toHaveBeenCalled();
   });
 

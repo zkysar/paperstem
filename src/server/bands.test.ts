@@ -226,6 +226,28 @@ describe('POST /api/bands', () => {
     }
   });
 
+  it('rejects names that would break the storage layer (slash, backslash, dot, control char)', async () => {
+    const u = createUser('u@example.com');
+    const sid = createSession(u);
+    for (const badName of ['AC/DC', 'foo\\bar', '.', '..', 'bell\x07', '/etc/passwd']) {
+      const res = await app.fetch(
+        new Request('http://x/api/bands', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: cookieHeader(sid),
+          },
+          body: JSON.stringify({ name: badName }),
+        }),
+      );
+      expect(res.status, `name=${JSON.stringify(badName)}`).toBe(400);
+      const body = (await res.json()) as { error: string };
+      // Either name_invalid (typical) or name_required (for "" after trim
+      // edge cases). Just assert it's a 400 with a known error code.
+      expect(['name_invalid', 'name_required']).toContain(body.error);
+    }
+  });
+
   it('rejects names longer than 80 chars', async () => {
     const u = createUser('u@example.com');
     const sid = createSession(u);

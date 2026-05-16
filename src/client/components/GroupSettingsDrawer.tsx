@@ -274,7 +274,31 @@ export function GroupSettingsDrawer({
     >
       <div className="upload-modal" onClick={(e) => e.stopPropagation()}>
         <div className="upload-modal-header">
-          {renameMode && canRename ? (
+          {/* Keep the h2 mounted in BOTH branches so the dialog's
+              aria-labelledby always resolves. In rename mode the h2 is
+              visually hidden and the editable input takes its visual slot. */}
+          <h2
+            id="group-settings-title"
+            className={renameMode ? 'sr-only' : undefined}
+          >
+            {group ? group.name : 'Group settings'}
+            {!renameMode && canRename && group && (
+              <button
+                type="button"
+                className="group-settings-rename-trigger"
+                aria-label="Rename group"
+                title="Rename group"
+                onClick={() => {
+                  setRenameDraft(group.name);
+                  setRenameError(null);
+                  setRenameMode(true);
+                }}
+              >
+                <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+              </button>
+            )}
+          </h2>
+          {renameMode && canRename && (
             <input
               className="group-settings-rename-input"
               aria-label="Group name"
@@ -293,27 +317,15 @@ export function GroupSettingsDrawer({
                   setRenameError(null);
                 }
               }}
-              onBlur={() => void handleRename()}
+              // Blur CANCELS — committing on blur silently swallows
+              // server errors (duplicate_name, name_invalid) if the
+              // user clicks the close X or scrim, because the modal
+              // unmounts before the PATCH resolves. Press Enter to save.
+              onBlur={() => {
+                setRenameMode(false);
+                setRenameError(null);
+              }}
             />
-          ) : (
-            <h2 id="group-settings-title">
-              {group ? group.name : 'Group settings'}
-              {canRename && group && (
-                <button
-                  type="button"
-                  className="group-settings-rename-trigger"
-                  aria-label="Rename group"
-                  title="Rename group"
-                  onClick={() => {
-                    setRenameDraft(group.name);
-                    setRenameError(null);
-                    setRenameMode(true);
-                  }}
-                >
-                  <Pencil size={14} strokeWidth={2} aria-hidden="true" />
-                </button>
-              )}
-            </h2>
           )}
           <button
             type="button"
@@ -375,7 +387,7 @@ export function GroupSettingsDrawer({
                       Added <strong>{lastInvited.email}</strong>.
                       {lastInvited.mailed
                         ? ' A magic-link email is on the way.'
-                        : ' (No email was sent — share the sign-in link with them yourself.)'}
+                        : " (Email delivery didn't succeed — they can still sign in at the regular login page.)"}
                     </p>
                   )}
                 </form>

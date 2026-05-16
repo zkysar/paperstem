@@ -1,6 +1,6 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import type { Context } from 'hono';
-import { stmts } from './db.js';
+import { db, stmts } from './db.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
 import { sendBandInvite } from './mailer.js';
 import { createFolder } from './storage.js';
@@ -12,6 +12,15 @@ import { createFolder } from './storage.js';
 const MAX_GROUP_NAME_LEN = 80;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAGIC_LINK_TTL_SECONDS = 15 * 60;
+// Mirrors the segment rules in storage.ts's sanitizeSegment, so a name
+// the user typed in the UI never reaches createFolder() only to throw an
+// opaque 500. Checked at the API boundary so we can return a clear
+// `name_invalid` instead.
+// eslint-disable-next-line no-control-regex
+const NAME_INVALID_RE = /[\\/\x00-\x1f\x7f]/;
+function nameInvalid(name: string): boolean {
+  return name === '.' || name === '..' || NAME_INVALID_RE.test(name);
+}
 
 export function handleListBands(
   c: Context<{ Variables: AuthVariables }>,
@@ -72,12 +81,7 @@ export async function handleCreateBand(
   if (name.length > MAX_GROUP_NAME_LEN) {
     return c.json({ error: 'name_too_long' }, 400);
   }
-
-  // A user can't own two bands with the same name — the canonical
-  // collision check matches what bin/onboard-band.ts uses, so behavior
-  // stays consistent across the CLI seeding flow and self-serve creation.
-  const duplicate = stmts.findBandByNameAndOwner.get(name, user.id);
-  if (duplicate) return c.json({ error: 'duplicate_name' }, 409);
+  if (nameInvalid(name)) return c.json({ error: 'name_invalid' }, 400);
 
   let folder: { id: string };
   try {
@@ -87,10 +91,22 @@ export async function handleCreateBand(
     return c.json({ error: 'storage_failed' }, 500);
   }
 
+  // Wrap the dup-check + inserts in a synchronous transaction so two
+  // concurrent POSTs from the same owner can't both pass the SELECT
+  // while the other request is still awaiting createFolder() above.
+  // better-sqlite3 transactions are synchronous, so the critical section
+  // can't yield. The folder created above may be orphaned on conflict;
+  // createFolder is idempotent (mkdir recursive) so a retry reuses it.
   const bandId = randomUUID();
   const createdAt = Math.floor(Date.now() / 1000);
-  stmts.insertBand.run(bandId, name, folder.id, user.id, createdAt);
-  stmts.insertMembership.run(bandId, user.id, 'owner', createdAt);
+  const result = db.transaction(() => {
+    const duplicate = stmts.findBandByNameAndOwner.get(name, user.id);
+    if (duplicate) return { conflict: true } as const;
+    stmts.insertBand.run(bandId, name, folder.id, user.id, createdAt);
+    stmts.insertMembership.run(bandId, user.id, 'owner', createdAt);
+    return { conflict: false } as const;
+  })();
+  if (result.conflict) return c.json({ error: 'duplicate_name' }, 409);
 
   return c.json(
     {
@@ -136,11 +152,22 @@ export async function handleInviteMember(
 
   // Upsert the invited user. Matches bin/onboard-band.ts's upsertUser
   // behavior so the CLI and the in-app invite stay symmetric.
+  // `users.email` is UNIQUE, so two concurrent invites with the same new
+  // email would race past `findUserByEmail` and one `insertUser` would
+  // throw SQLITE_CONSTRAINT. We catch and re-find so the loser of the
+  // race gets a 201 with the row the winner just inserted.
   const nowSec = Math.floor(Date.now() / 1000);
   let invitedUser = stmts.findUserByEmail.get(emailRaw);
   if (!invitedUser) {
     const newId = randomUUID();
-    stmts.insertUser.run(newId, emailRaw, null, nowSec);
+    try {
+      stmts.insertUser.run(newId, emailRaw, null, nowSec);
+    } catch (err) {
+      const code = (err as { code?: string }).code;
+      if (code !== 'SQLITE_CONSTRAINT_UNIQUE' && code !== 'SQLITE_CONSTRAINT') {
+        throw err;
+      }
+    }
     invitedUser = stmts.findUserByEmail.get(emailRaw);
     if (!invitedUser) return c.json({ error: 'storage_failed' }, 500);
   }
@@ -204,6 +231,7 @@ export async function handleRenameBand(
   if (name.length > MAX_GROUP_NAME_LEN) {
     return c.json({ error: 'name_too_long' }, 400);
   }
+  if (nameInvalid(name)) return c.json({ error: 'name_invalid' }, 400);
 
   // Same per-owner uniqueness rule as create: a user can't end up with two
   // bands of the same name. Allow no-op renames (same name → success).

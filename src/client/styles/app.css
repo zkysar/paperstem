@@ -1098,6 +1098,20 @@ button.track-name:disabled { cursor: default; }
 }
 .upload-hint { color: var(--muted); font-size: var(--fs-md); }
 
+/* Accessibility helper: visually hidden but still in the a11y tree so
+   aria-labelledby etc. continue to resolve. Used by GroupSettingsDrawer's
+   title element while the rename input is taking its visual slot. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .group-settings-rename-trigger {
   background: transparent;
   border: none;
