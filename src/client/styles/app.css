@@ -1859,7 +1859,8 @@ button.ah-title-name:disabled { cursor: default; }
   word-break: break-word;
   max-width: 320px;
 }
-.audio-suppressed-banner {
+.audio-suppressed-banner,
+.public-signin-banner {
   background: #fff4c2;
   color: #5a4a18;
   border-bottom: 1px solid #e6d57a;

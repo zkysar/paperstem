@@ -26,7 +26,9 @@ import {
   fetchPublicProject,
   fetchPublicReplies,
   fetchPublicSections,
+  probeMembership,
   publicAudioUrl,
+  type MembershipProbe,
   type PublicAnnotation,
   type PublicProjectDetail,
   type PublicReply,
@@ -41,7 +43,7 @@ import { useViewport } from './hooks/useViewport';
 import { buildUserColorMap, SELF_ANNOTATION_COLOR } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
 import { decodePeaks } from './lib/peaks';
-import { PUBLIC_RETURN_PATH_KEY } from './lib/public-return';
+import { stashReturnPath } from './lib/public-return';
 
 // The /p/<token> page reuses the same AppHeader / AppToolbar / Player /
 // CommentsDrawer / CommentsFab tree as the authenticated app. Every
@@ -166,51 +168,38 @@ export function PublicProjectView({ token }: { token: string }) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [signInBanner, setSignInBanner] = useState(false);
+  // Tri-state set by the bootstrap effect — drives whether the header
+  // shows "Sign in" (anonymous) or a "no access" treatment (signed-in
+  // but not a band member). 'signed-in-member' is never observed here
+  // because we redirect to /#p=<id> instantly when we see it.
+  const [probe, setProbe] = useState<MembershipProbe>({ kind: 'anonymous' });
 
-  // Anonymous viewers can still want to land back here after sign-in.
-  // We stash the path then send them to /. App.tsx reads this key after
-  // the session is established and replaces location.
+  // Stash the current /p/<token> path + bounce to / for the magic-link
+  // flow. App.tsx reads the key after the session resolves and assigns
+  // location back. We do NOT bounce signed-in non-members — they're
+  // already authenticated, so the round trip would just put them back
+  // in the same state; we show them a "no access" cue instead.
   const promptSignIn = useCallback(() => {
-    try {
-      sessionStorage.setItem(PUBLIC_RETURN_PATH_KEY, window.location.pathname);
-    } catch {
-      // sessionStorage can throw in some private-mode browsers; best-effort.
+    if (probe.kind === 'signed-in-non-member') {
+      // Banner explains the situation; no navigation. The toolbar /
+      // drawer mutation buttons still fire this so the user gets the
+      // same feedback path everywhere.
+      setSignInBanner(true);
+      return;
     }
-    // Show a one-tick banner first so the user understands why they're
-    // being moved. The setTimeout lets the banner paint before navigation.
+    stashReturnPath(window.location.pathname);
     setSignInBanner(true);
-    window.setTimeout(() => {
+    // requestAnimationFrame lets the banner paint before we leave the
+    // page. One frame is enough — the user's React tree commit fires in
+    // the same task; rAF schedules navigation after the next paint.
+    window.requestAnimationFrame(() => {
       window.location.assign('/');
-    }, 250);
-  }, []);
+    });
+  }, [probe.kind]);
 
-  // Track band membership for the link's project. If the visitor is
-  // already signed in AND a member, redirect them to the authenticated
-  // app — same project, but with full edit rights and no /p/<token>
-  // chrome.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const me = await fetch('/api/me', { credentials: 'include' });
-        if (cancelled) return;
-        if (!me.ok) return;
-        const body = (await me.json()) as { user?: { id: string } | null };
-        if (!body.user) return;
-        // Logged in. See if the public response carries a project_id we
-        // can dereference via the authenticated endpoint (200 ⇒ member).
-        // We do this AFTER state.kind === 'ready' below.
-      } catch {
-        /* ignore — anonymous fallback is fine */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Bootstrap fetch: project + annotations + sections in parallel. Once
-  // project metadata is in, try to resolve a member redirect.
+  // Bootstrap fetch: project metadata, then membership probe. If a
+  // signed-in member, redirect immediately to /#p=<id>. Otherwise hold
+  // the probe result so the header can render the right CTA.
   useEffect(() => {
     let cancelled = false;
     setState({ kind: 'loading' });
@@ -219,30 +208,15 @@ export function PublicProjectView({ token }: { token: string }) {
         const detail = await fetchPublicProject(token);
         if (cancelled) return;
 
-        // Membership-redirect probe: if signed-in AND a band member of
-        // this project's band, hand off to the authenticated app. The
-        // public endpoint won't accept the session, but /api/projects/:id
-        // will return 200 only for members.
-        try {
-          const me = await fetch('/api/me', { credentials: 'include' });
-          if (me.ok) {
-            const meBody = (await me.json()) as { user?: { id: string } | null };
-            if (meBody.user) {
-              const authed = await fetch(
-                `/api/projects/${encodeURIComponent(detail.project.id)}`,
-                { credentials: 'include' },
-              );
-              if (authed.ok) {
-                window.location.assign(
-                  `/#p=${encodeURIComponent(detail.project.id)}`,
-                );
-                return;
-              }
-            }
-          }
-        } catch {
-          /* anonymous fallback */
+        const membership = await probeMembership(detail.project.id);
+        if (cancelled) return;
+        if (membership.kind === 'signed-in-member') {
+          window.location.assign(
+            `/#p=${encodeURIComponent(detail.project.id)}`,
+          );
+          return;
         }
+        setProbe(membership);
 
         setState({ kind: 'ready', detail });
         const sources: StemSource[] = detail.stems.map((s) => ({
@@ -443,8 +417,10 @@ export function PublicProjectView({ token }: { token: string }) {
   return (
     <div className="app-shell">
       {signInBanner && (
-        <div className="audio-suppressed-banner" role="status">
-          Signing you in… you'll come back here.
+        <div className="public-signin-banner" role="status">
+          {probe.kind === 'signed-in-non-member'
+            ? "You're signed in but don't have access to this project. Ask the owner to add you to their group."
+            : "Signing you in… you'll come back here."}
         </div>
       )}
       <AppHeader
@@ -472,7 +448,16 @@ export function PublicProjectView({ token }: { token: string }) {
         onRenameProject={() => undefined}
         onOpenTokens={() => undefined}
         onDownloadAll={() => void onDownloadAll()}
-        publicMode={{ onSignIn: promptSignIn }}
+        publicMode={{
+          onSignIn: promptSignIn,
+          // Signed-in-non-member: relabel the action so we don't claim
+          // sign-in helps. Tapping it surfaces the same "no access"
+          // banner the toolbar prompts do.
+          label:
+            probe.kind === 'signed-in-non-member'
+              ? 'No access'
+              : 'Sign in',
+        }}
       />
       <AppToolbar
         hasProject={player.state.stems.length > 0}

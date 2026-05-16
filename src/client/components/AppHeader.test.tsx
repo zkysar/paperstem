@@ -461,9 +461,24 @@ describe('AppHeader group switcher', () => {
           publicMode={{ onSignIn: vi.fn() }}
         />,
       );
-      // The title text is present but it's a span, not a clickable
-      // button — confirming we don't expose project switching.
-      expect(screen.getByText('Project 2026-04-28').tagName).toBe('SPAN');
+      // Behavioural assertion: no button surfaces the project title (so
+      // clicks can't trigger project-switching). Survives the underlying
+      // tag changing from span→div etc.
+      expect(
+        screen.queryByRole('button', { name: 'Project 2026-04-28' }),
+      ).toBeNull();
+      expect(screen.getByText('Project 2026-04-28')).not.toBeNull();
+    });
+
+    it('uses the optional label override for signed-in non-members', () => {
+      render(
+        <AppHeader
+          {...baseProps}
+          publicMode={{ onSignIn: vi.fn(), label: 'No access' }}
+        />,
+      );
+      expect(screen.getByRole('button', { name: /No access/i })).not.toBeNull();
+      expect(screen.queryByRole('button', { name: /^Sign in$/i })).toBeNull();
     });
   });
 });

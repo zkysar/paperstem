@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LoginScreen } from './auth/LoginScreen';
 import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
-import { PUBLIC_RETURN_PATH_KEY } from './lib/public-return';
+import { consumeReturnPath } from './lib/public-return';
 import { PENDING_SHARE_HASH_KEY, useShareLink } from './hooks/useShareLink';
 import { applyShareState } from './lib/apply-share-state';
 import {
@@ -125,22 +125,12 @@ export default function App() {
   // sessionStorage before redirecting; if we now have a session, bounce
   // them back to /p/<token>. The public view will then re-check
   // membership and forward to /#p=<id> if applicable.
+  // consumeReturnPath() also enforces the /p/ prefix so a corrupted
+  // sessionStorage value can't trigger an open redirect elsewhere.
   useEffect(() => {
     if (loading || !user) return;
-    let pending: string | null = null;
-    try {
-      pending = sessionStorage.getItem(PUBLIC_RETURN_PATH_KEY);
-    } catch {
-      /* ignore */
-    }
-    if (pending && pending.startsWith('/p/')) {
-      try {
-        sessionStorage.removeItem(PUBLIC_RETURN_PATH_KEY);
-      } catch {
-        /* ignore */
-      }
-      window.location.assign(pending);
-    }
+    const pending = consumeReturnPath();
+    if (pending) window.location.assign(pending);
   }, [loading, user]);
 
   if (loading) return null;

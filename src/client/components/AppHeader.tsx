@@ -40,12 +40,17 @@ type Props = {
    * Public-link / read-only mode. When set, the header strips project-
    * picker affordances (no "Open a project" CTA, no switch-project caret,
    * title is shown but not interactive), hides the group switcher, and
-   * replaces the authenticated avatar dropdown with a "Sign in" button
-   * that calls onSignIn. The existing onOpenPicker/onSignOut/onReportBug/
-   * onOpenTokens callbacks are not invoked while in this mode — callers
-   * can safely pass no-ops.
+   * replaces the authenticated avatar dropdown with a button that calls
+   * onSignIn. The existing onOpenPicker/onSignOut/onReportBug/onOpenTokens
+   * callbacks are not invoked while in this mode — callers can safely
+   * pass no-ops.
+   *
+   * `label` lets the caller adjust the button copy — public-link views
+   * use "Sign in" for anonymous viewers and "No access" for users who
+   * are signed in but not a member of the project's band (where signing
+   * in again would just loop them through the same state).
    */
-  publicMode?: { onSignIn(): void };
+  publicMode?: { onSignIn(): void; label?: string };
 };
 
 export function AppHeader({
@@ -294,10 +299,12 @@ export function AppHeader({
           type="button"
           className="ah-signin-btn"
           onClick={publicMode.onSignIn}
-          title="Sign in to comment and edit"
+          title={publicMode.label === 'No access'
+            ? "You're signed in but not a member of this project's group"
+            : 'Sign in to comment and edit'}
         >
           <LogIn size={14} strokeWidth={2} aria-hidden="true" />
-          <span>Sign in</span>
+          <span>{publicMode.label ?? 'Sign in'}</span>
         </button>
       ) : (
       <div className="ah-avatar-wrap" ref={avatarRef}>
