@@ -1103,6 +1103,231 @@ button.track-name:disabled { cursor: default; }
   font-size: var(--fs-md);
 }
 .upload-hint { color: var(--muted); font-size: var(--fs-md); }
+
+/* Accessibility helper: visually hidden but still in the a11y tree so
+   aria-labelledby etc. continue to resolve. Used by GroupSettingsDrawer's
+   title element while the rename input is taking its visual slot. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.group-settings-rename-trigger {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.group-settings-rename-trigger:hover {
+  color: var(--ink);
+  background: var(--rule-2);
+}
+.group-settings-rename-input {
+  font: inherit;
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-lg);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 2px 6px;
+  min-width: 0;
+  flex: 1;
+}
+.group-member-remove-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.group-member-remove-btn:hover {
+  color: #8a3030;
+  background: rgba(193, 70, 70, 0.08);
+}
+.group-member-remove-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.group-member-remove-confirm button {
+  font-size: var(--fs-2xs);
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  cursor: pointer;
+}
+.group-member-remove-confirm-yes {
+  border-color: rgba(193, 70, 70, 0.4) !important;
+  color: #8a3030;
+}
+.group-member-remove-confirm-yes:hover {
+  background: rgba(193, 70, 70, 0.08) !important;
+}
+.group-settings-section {
+  margin: 18px 0 8px;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semi);
+}
+.group-settings-invite {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.group-settings-invite-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  color: var(--paper);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semi);
+  cursor: pointer;
+}
+.group-settings-invite-btn:disabled { opacity: 0.5; cursor: default; }
+.group-settings-invite-success {
+  margin: 0;
+  font-size: var(--fs-md);
+  color: var(--accent);
+}
+.group-member-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+.group-member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.group-member-email {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.group-member-role {
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--rule-2);
+  color: var(--muted);
+}
+.group-member-role-owner {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+.group-settings-leave {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+.group-settings-leave-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid rgba(193, 70, 70, 0.4);
+  color: #8a3030;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+.group-settings-leave-btn:hover { background: rgba(193, 70, 70, 0.08); }
+.group-settings-confirm {
+  background: rgba(193, 70, 70, 0.06);
+  border: 1px solid rgba(193, 70, 70, 0.24);
+  border-radius: 4px;
+  padding: 12px;
+}
+.group-settings-confirm p { margin: 0 0 10px; font-size: var(--fs-md); }
+.group-settings-confirm button { margin-right: 8px; }
+.group-settings-leave-confirm {
+  background: #8a3030;
+  color: var(--paper);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+.group-settings-leave-confirm:disabled { opacity: 0.6; cursor: default; }
+
+.create-group-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.create-group-submit {
+  background: var(--accent);
+  color: var(--paper);
+  border: none;
+  padding: 8px 14px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semi);
+  cursor: pointer;
+}
+.create-group-submit:disabled { opacity: 0.5; cursor: default; }
+
+.empty-state-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  background: var(--accent);
+  color: var(--paper);
+  border: none;
+  padding: 8px 14px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semi);
+  cursor: pointer;
+}
+.empty-state-cta:hover { filter: brightness(0.95); }
+
+.ah-group-menu-divider {
+  height: 1px;
+  background: var(--rule);
+  margin: 4px 0;
+}
+.ah-group-menu-create {
+  color: var(--accent);
+  font-weight: var(--fw-semi);
+}
 .upload-modal-footer {
   display: flex;
   justify-content: flex-end;
@@ -1378,6 +1603,56 @@ button.track-name:disabled { cursor: default; }
   margin: 0;
 }
 .ah-divider { width: 1px; height: 18px; background: var(--rule); }
+.ah-group-wrap { position: relative; }
+.ah-group-block { display: flex; flex-direction: column; line-height: 1.18; min-width: 0; }
+.ah-group-label {
+  font-size: var(--fs-2xs); color: var(--muted);
+  letter-spacing: 0.12em; text-transform: uppercase;
+}
+.ah-group-trigger {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: transparent; border: 0; padding: 0; margin: 0;
+  color: inherit; font: inherit;
+  cursor: pointer; min-width: 0;
+}
+.ah-group-name {
+  font-weight: var(--fw-semi);
+  font-size: var(--fs-md);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 180px;
+}
+.ah-group-trigger:hover .ah-group-name {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.ah-group-trigger > svg { color: var(--muted); flex: 0 0 auto; }
+.ah-group-menu {
+  position: absolute; top: 100%; left: 0;
+  margin-top: 6px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.10);
+  padding: 6px;
+  min-width: 220px;
+  z-index: 30;
+}
+.ah-group-menu button {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  text-align: left;
+  background: transparent; border: none;
+  padding: 6px 8px;
+  font: inherit; font-size: var(--fs-md);
+  color: var(--ink); border-radius: 4px;
+  cursor: pointer;
+}
+.ah-group-menu button > svg { flex: 0 0 14px; color: var(--accent); }
+.ah-group-menu-spacer { display: inline-block; width: 14px; flex: 0 0 14px; }
+.ah-group-menu-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ah-group-menu button:hover { background: var(--accent-tint); }
+.ah-group-menu button[aria-current="true"] { font-weight: var(--fw-semi); }
 .ah-title-block { display: flex; flex-direction: column; line-height: 1.18; min-width: 0; }
 .ah-title-label {
   font-size: var(--fs-2xs); color: var(--muted);
@@ -2056,6 +2331,15 @@ body.env-non-prod[data-env="local"]::before {
   .ah-brand { display: none; }
   .ah-divider { display: none; }
   .ah-title-label { display: none; }
+  .ah-group-label { display: none; }
+  .ah-group-name { max-width: 96px; }
+  /* The desktop divider between Group and Project is hidden here; add an
+     in-block trailing rule so the two names don't visually run together. */
+  .ah-group-block {
+    padding-right: 8px;
+    border-right: 1px solid var(--rule);
+    margin-right: 6px;
+  }
   .ah-meta { display: none; }
 }
 

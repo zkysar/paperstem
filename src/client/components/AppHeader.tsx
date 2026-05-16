@@ -1,11 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, ChevronDown, Download, FolderOpen, KeyRound, Loader2, LogOut, MessageSquare } from 'lucide-react';
+import { Bug, Check, ChevronDown, Download, FolderOpen, KeyRound, Loader2, LogOut, MessageSquare, Plus, Settings, Users } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
+import type { BandWithRole } from '../../shared/types';
 
 type Props = {
   userEmail: string;
   userInitials: string;
+  // The user's groups (a.k.a. bands at the DB layer). The switcher only
+  // renders when there are 2+ groups; with one or zero the UI stays the same
+  // as before this feature landed.
+  groups?: BandWithRole[];
+  currentGroupId?: string | null;
+  onSwitchGroup?: (id: string) => void;
+  // Optional: when provided, the switcher menu grows a "+ New group" entry.
+  onCreateGroup?: () => void;
   projectTitle: string | null;
   stemCount: number;
   duration: number;
@@ -23,19 +32,25 @@ type Props = {
   onReportBug(): void;
   onRenameProject(name: string): void;
   onOpenTokens(): void;
+  // Optional so callers in tests don't need to wire this; absent =
+  // the menu entry is hidden (legacy callers behave as before).
+  onOpenGroupSettings?: () => void;
   onDownloadAll(): void;
 };
 
 export function AppHeader({
-  userEmail, userInitials, projectTitle, stemCount, duration,
+  userEmail, userInitials, groups, currentGroupId, onSwitchGroup, onCreateGroup,
+  projectTitle, stemCount, duration,
   annotationsOpen, hasProject, canRename, isWide, appVersion, appEnv, downloading,
   debugInfo,
   onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenameProject,
-  onOpenTokens, onDownloadAll,
+  onOpenTokens, onOpenGroupSettings, onDownloadAll,
 }: Props) {
   const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
   const [avatarOpen, setAvatarOpen] = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
+  const [groupOpen, setGroupOpen] = useState(false);
+  const groupRef = useRef<HTMLDivElement>(null);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(projectTitle ?? '');
@@ -52,6 +67,27 @@ export function AppHeader({
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [avatarOpen]);
+
+  useEffect(() => {
+    if (!groupOpen) return;
+    function onDoc(e: MouseEvent) {
+      if (!groupRef.current?.contains(e.target as Node)) setGroupOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setGroupOpen(false);
+    }
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [groupOpen]);
+
+  const groupList = groups ?? [];
+  const showGroupSwitcher = groupList.length > 1;
+  const currentGroup =
+    groupList.find((g) => g.id === currentGroupId) ?? groupList[0] ?? null;
 
   function commit() {
     setEditing(false);
@@ -80,6 +116,71 @@ export function AppHeader({
         </span>
       )}
       <span className="ah-divider" />
+      {showGroupSwitcher && currentGroup && (
+        <>
+          <div className="ah-group-block ah-group-wrap" ref={groupRef}>
+            <span className="ah-group-label">Group</span>
+            <button
+              type="button"
+              className="ah-group-trigger"
+              onClick={() => setGroupOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={groupOpen}
+              aria-label="Switch group"
+              title={`Group: ${currentGroup.name} — click to switch`}
+            >
+              <Users size={14} strokeWidth={2} aria-hidden="true" />
+              <span className="ah-group-name">{currentGroup.name}</span>
+              <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
+            </button>
+            {groupOpen && (
+              <div className="ah-group-menu" role="menu">
+                {groupList.map((g) => {
+                  const active = g.id === currentGroup.id;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      role="menuitem"
+                      aria-current={active ? 'true' : undefined}
+                      onClick={() => {
+                        setGroupOpen(false);
+                        if (!active) onSwitchGroup?.(g.id);
+                      }}
+                    >
+                      {active
+                        ? <Check size={14} strokeWidth={2} aria-hidden="true" />
+                        : <span className="ah-group-menu-spacer" aria-hidden="true" />}
+                      <span className="ah-group-menu-name">{g.name}</span>
+                    </button>
+                  );
+                })}
+                {onCreateGroup && (
+                  <>
+                    <div
+                      className="ah-group-menu-divider"
+                      aria-hidden="true"
+                    />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="ah-group-menu-create"
+                      onClick={() => {
+                        setGroupOpen(false);
+                        onCreateGroup();
+                      }}
+                    >
+                      <Plus size={14} strokeWidth={2} aria-hidden="true" />
+                      <span className="ah-group-menu-name">New group</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          <span className="ah-divider" />
+        </>
+      )}
       {hasProject ? (
         <div className="ah-title-block">
           <span className="ah-title-label">Project</span>
@@ -164,7 +265,7 @@ export function AppHeader({
           className={'ah-iconbtn ah-hide-on-mobile' + (annotationsOpen ? ' active' : '')}
           onClick={onToggleAnnotations}
           aria-pressed={annotationsOpen}
-          title={annotationsOpen ? 'Close the comments panel' : 'Open the comments panel — notes left on the timeline by you and your bandmates'}
+          title={annotationsOpen ? 'Close the comments panel' : 'Open the comments panel — notes left on the timeline by you and other group members'}
           aria-label="Toggle comments"
         >
           <MessageSquare size={16} strokeWidth={2} aria-hidden="true" />
@@ -199,6 +300,15 @@ export function AppHeader({
             >
               <KeyRound size={14} strokeWidth={2} aria-hidden="true" /> Import tokens
             </button>
+            {onOpenGroupSettings && currentGroup && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => { setAvatarOpen(false); onOpenGroupSettings(); }}
+              >
+                <Settings size={14} strokeWidth={2} aria-hidden="true" /> Group settings
+              </button>
+            )}
             <button type="button" role="menuitem" onClick={onSignOut}>
               <LogOut size={14} strokeWidth={2} aria-hidden="true" /> Sign out
             </button>

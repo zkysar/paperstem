@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { BandWithRole } from '../../shared/types';
 
 type State = {
@@ -13,6 +13,9 @@ export function useBands(enabled: boolean) {
     loading: enabled,
     error: null,
   });
+  // Bumping this counter triggers the effect to refetch. Used after the
+  // user leaves a group so the active-band logic can move on.
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!enabled) {
@@ -40,7 +43,45 @@ export function useBands(enabled: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [enabled, refreshTick]);
 
-  return state;
+  const refresh = useCallback(() => {
+    setRefreshTick((n) => n + 1);
+  }, []);
+
+  // Optimistically remove a band from the local list. Used by the leave
+  // flow: drops the band before the server-side refresh lands, so the
+  // active-band fallback in App.tsx doesn't briefly re-elect the band the
+  // user just left and fire requests against a band they no longer belong
+  // to. The next real refresh will reconcile.
+  const dropLocally = useCallback((id: string) => {
+    setState((s) => ({ ...s, bands: s.bands.filter((b) => b.id !== id) }));
+  }, []);
+
+  // Optimistically add a band to the local list. Used by the create flow:
+  // pushes the new band locally so the parent's `bands.length === 0`
+  // branch lets go of the empty state immediately, without waiting for the
+  // server-side refresh to land.
+  const addLocally = useCallback((band: BandWithRole) => {
+    setState((s) =>
+      s.bands.some((b) => b.id === band.id)
+        ? s
+        : { ...s, bands: [...s.bands, band] },
+    );
+  }, []);
+
+  // Optimistically merge a partial band update into the local list. Used
+  // by the rename flow so the header chip and drawer title update
+  // immediately, before the bands refresh round-trip.
+  const updateLocally = useCallback(
+    (id: string, patch: Partial<BandWithRole>) => {
+      setState((s) => ({
+        ...s,
+        bands: s.bands.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+      }));
+    },
+    [],
+  );
+
+  return { ...state, refresh, dropLocally, addLocally, updateLocally };
 }

@@ -23,6 +23,8 @@ import {
   BugReportDrawer,
   type BugReportPrefill,
 } from './components/BugReportDrawer';
+import { CreateGroupDialog } from './components/CreateGroupDialog';
+import { GroupSettingsDrawer } from './components/GroupSettingsDrawer';
 import { TokensDrawer } from './components/TokensDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FilePicker } from './components/FilePicker';
@@ -172,8 +174,45 @@ function PaperstemApp({
     }
   }, []);
 
-  const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
-  const activeBand = bands[0] ?? null;
+  const {
+    bands,
+    loading: bandsLoading,
+    error: bandsError,
+    refresh: refreshBands,
+    dropLocally: dropBandLocally,
+    addLocally: addBandLocally,
+    updateLocally: updateBandLocally,
+  } = useBands(true);
+  // Namespaced by user.id so two users sharing a browser don't clobber each
+  // other's last-chosen group.
+  const currentGroupStorageKey = `paperstem.currentGroupId.${user.id}`;
+  const [currentGroupId, setCurrentGroupId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(currentGroupStorageKey);
+    } catch {
+      return null;
+    }
+  });
+  // Keep the stored id valid: if the user lost membership or never had one,
+  // fall back to the first band and persist that choice.
+  useEffect(() => {
+    if (!bands.length) return;
+    const valid =
+      currentGroupId !== null && bands.some((b) => b.id === currentGroupId);
+    if (!valid) {
+      const next = bands[0]!.id;
+      setCurrentGroupId(next);
+      try {
+        localStorage.setItem(currentGroupStorageKey, next);
+      } catch {
+        // ignore
+      }
+    }
+  }, [bands, currentGroupId, currentGroupStorageKey]);
+  const activeBand = useMemo(
+    () => bands.find((b) => b.id === currentGroupId) ?? bands[0] ?? null,
+    [bands, currentGroupId],
+  );
   const activeBandId = activeBand?.id ?? null;
   const repo = useMemo<ProjectsRepo | null>(
     () => (activeBandId ? new HttpProjectsRepo(activeBandId) : null),
@@ -246,6 +285,8 @@ function PaperstemApp({
   // doesn't persist as the user navigates.
   const [emphasizedCommentId, setEmphasizedCommentId] = useState<string | null>(null);
   const [tokensOpen, setTokensOpen] = useState(false);
+  const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
 
   const openBugReport = useCallback((prefill: BugReportPrefill | null = null) => {
     setBugReportPrefill(prefill);
@@ -292,6 +333,32 @@ function PaperstemApp({
     setPopoverAnchor(null);
     setSectionPopover(null);
   }, []);
+
+  // Tear down all project-scoped UI state. Used when crossing a project
+  // boundary in a context where no new project is being loaded immediately
+  // (group switch, leave group). loadProject() and deleteProject() have
+  // their own resets tuned to their own flows; this helper is for the
+  // "go back to no-project" transitions.
+  const resetProjectScopedUiState = useCallback(() => {
+    player.clear();
+    setActiveProjectId(null);
+    setDraftFiles([]);
+    setAnnotations([]);
+    setReplies(() => new Map());
+    setSections([]);
+    setActiveSectionId(null);
+    setSectionPopover(null);
+    setSectionCreateMode(false);
+    setAnnotationCreateMode(false);
+    setActiveCommentId(null);
+    setPopoverAnchor(null);
+    setPendingDraft(null);
+    setTrash(null);
+    setTrashError(null);
+    setLoadError(null);
+    setUploadOpen(false);
+    viewport.fitToWindow();
+  }, [player, viewport]);
 
   // Auto-open the picker once on mount when no project is active.
   useEffect(() => {
@@ -1467,10 +1534,38 @@ function PaperstemApp({
         </header>
         <div className="app">
           <main className="empty-state">
-            <p>You're not in any bands yet. Ask your band's owner to add you.</p>
-            {bandsError && <p className="error">Could not load bands ({bandsError}).</p>}
+            <p>
+              You're not in any groups yet. Create one to share projects, or
+              ask a group's owner to add you.
+            </p>
+            <button
+              type="button"
+              className="empty-state-cta"
+              onClick={() => setCreateGroupOpen(true)}
+            >
+              Create a group
+            </button>
+            {bandsError && <p className="error">Could not load groups ({bandsError}).</p>}
           </main>
         </div>
+        <CreateGroupDialog
+          open={createGroupOpen}
+          onClose={() => setCreateGroupOpen(false)}
+          onCreated={(group) => {
+            // Add the band to local state first so the empty-state branch
+            // releases immediately; persist the choice; then refresh so
+            // the server-side list catches up.
+            addBandLocally(group);
+            setCurrentGroupId(group.id);
+            try {
+              localStorage.setItem(currentGroupStorageKey, group.id);
+            } catch {
+              // ignore
+            }
+            setCreateGroupOpen(false);
+            refreshBands();
+          }}
+        />
       </>
     );
   }
@@ -1498,6 +1593,19 @@ function PaperstemApp({
       <AppHeader
         userEmail={user.email}
         userInitials={initialsFromEmail(user.email)}
+        groups={bands}
+        currentGroupId={activeBandId}
+        onSwitchGroup={(id) => {
+          if (id === activeBandId) return;
+          setCurrentGroupId(id);
+          try {
+            localStorage.setItem(currentGroupStorageKey, id);
+          } catch {
+            // ignore
+          }
+          // filterSongId is cleared by an effect on activeBandId change.
+          resetProjectScopedUiState();
+        }}
         projectTitle={player.state.title || null}
         stemCount={player.state.stems.length}
         duration={player.state.duration}
@@ -1514,6 +1622,8 @@ function PaperstemApp({
         onSignOut={onLogout}
         onReportBug={() => openBugReport()}
         onOpenTokens={() => setTokensOpen(true)}
+        onOpenGroupSettings={() => setGroupSettingsOpen(true)}
+        onCreateGroup={() => setCreateGroupOpen(true)}
         onDownloadAll={onDownloadAll}
         onRenameProject={(name) => {
           // In draft mode there's no server project yet — just update the
@@ -1825,6 +1935,51 @@ function PaperstemApp({
         onClose={() => setShareDialog(null)}
       />
       <TokensDrawer open={tokensOpen} onClose={() => setTokensOpen(false)} />
+      <GroupSettingsDrawer
+        open={groupSettingsOpen}
+        group={activeBand}
+        onClose={() => setGroupSettingsOpen(false)}
+        onLeft={(leftId) => {
+          // Drop the just-left group from the local bands list before the
+          // server-side refresh lands. This avoids a one-render race where
+          // the slice-1 fallback effect re-elects the just-left band as
+          // active (because it's still in `bands`) and fires group-scoped
+          // fetches against a band the user no longer belongs to.
+          setGroupSettingsOpen(false);
+          dropBandLocally(leftId);
+          try {
+            localStorage.removeItem(currentGroupStorageKey);
+          } catch {
+            // ignore
+          }
+          resetProjectScopedUiState();
+          refreshBands();
+        }}
+        onRenamed={(groupId, newName) => {
+          updateBandLocally(groupId, { name: newName });
+        }}
+      />
+      <CreateGroupDialog
+        open={createGroupOpen}
+        onClose={() => setCreateGroupOpen(false)}
+        onCreated={(group) => {
+          // Switch into the new group: add locally, clear project-scoped
+          // state, set as current, persist, refresh. Doing it eagerly
+          // (not just relying on the slice-1 fallback effect once refresh
+          // lands) avoids a flash where activeBand still points at the
+          // old group while the new bands list is in flight.
+          addBandLocally(group);
+          setCurrentGroupId(group.id);
+          try {
+            localStorage.setItem(currentGroupStorageKey, group.id);
+          } catch {
+            // ignore
+          }
+          setCreateGroupOpen(false);
+          resetProjectScopedUiState();
+          refreshBands();
+        }}
+      />
       {sectionPopover &&
         createPortal(
           <>

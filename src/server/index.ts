@@ -16,7 +16,15 @@ import {
   handleRevokeToken,
 } from './tokens.js';
 import { sessionMiddleware, type AuthVariables } from './auth/middleware.js';
-import { handleListBands, handleGetBand } from './bands.js';
+import {
+  handleListBands,
+  handleGetBand,
+  handleCreateBand,
+  handleInviteMember,
+  handleLeaveBand,
+  handleRemoveMember,
+  handleRenameBand,
+} from './bands.js';
 import {
   handleCreateProject,
   handleCreateStem,
@@ -106,7 +114,12 @@ app.get('/api/me/tokens', handleListTokens);
 app.post('/api/me/tokens', handleCreateToken);
 app.delete('/api/me/tokens/:id', handleRevokeToken);
 app.get('/api/bands', handleListBands);
+app.post('/api/bands', handleCreateBand);
 app.get('/api/bands/:id', handleGetBand);
+app.patch('/api/bands/:id', handleRenameBand);
+app.post('/api/bands/:id/members', handleInviteMember);
+app.delete('/api/bands/:id/members/me', handleLeaveBand);
+app.delete('/api/bands/:id/members/:userId', handleRemoveMember);
 app.get('/api/projects', handleListProjects);
 app.get('/api/projects/:id', handleGetProject);
 app.post('/api/projects', handleCreateProject);
