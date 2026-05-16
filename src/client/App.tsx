@@ -23,6 +23,7 @@ import {
   BugReportDrawer,
   type BugReportPrefill,
 } from './components/BugReportDrawer';
+import { GroupSettingsDrawer } from './components/GroupSettingsDrawer';
 import { TokensDrawer } from './components/TokensDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FilePicker } from './components/FilePicker';
@@ -172,7 +173,12 @@ function PaperstemApp({
     }
   }, []);
 
-  const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
+  const {
+    bands,
+    loading: bandsLoading,
+    error: bandsError,
+    refresh: refreshBands,
+  } = useBands(true);
   // Namespaced by user.id so two users sharing a browser don't clobber each
   // other's last-chosen group.
   const currentGroupStorageKey = `paperstem.currentGroupId.${user.id}`;
@@ -275,6 +281,7 @@ function PaperstemApp({
   // doesn't persist as the user navigates.
   const [emphasizedCommentId, setEmphasizedCommentId] = useState<string | null>(null);
   const [tokensOpen, setTokensOpen] = useState(false);
+  const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
 
   const openBugReport = useCallback((prefill: BugReportPrefill | null = null) => {
     setBugReportPrefill(prefill);
@@ -321,6 +328,32 @@ function PaperstemApp({
     setPopoverAnchor(null);
     setSectionPopover(null);
   }, []);
+
+  // Tear down all project-scoped UI state. Used when crossing a project
+  // boundary in a context where no new project is being loaded immediately
+  // (group switch, leave group). loadProject() and deleteProject() have
+  // their own resets tuned to their own flows; this helper is for the
+  // "go back to no-project" transitions.
+  const resetProjectScopedUiState = useCallback(() => {
+    player.clear();
+    setActiveProjectId(null);
+    setDraftFiles([]);
+    setAnnotations([]);
+    setReplies(() => new Map());
+    setSections([]);
+    setActiveSectionId(null);
+    setSectionPopover(null);
+    setSectionCreateMode(false);
+    setAnnotationCreateMode(false);
+    setActiveCommentId(null);
+    setPopoverAnchor(null);
+    setPendingDraft(null);
+    setTrash(null);
+    setTrashError(null);
+    setLoadError(null);
+    setUploadOpen(false);
+    viewport.fitToWindow();
+  }, [player, viewport]);
 
   // Auto-open the picker once on mount when no project is active.
   useEffect(() => {
@@ -1531,31 +1564,14 @@ function PaperstemApp({
         currentGroupId={activeBandId}
         onSwitchGroup={(id) => {
           if (id === activeBandId) return;
-          // Clear project-scoped UI state so the no-project shell doesn't
-          // briefly render comments/sections from the previous group. Mirrors
-          // the deleteProject reset and the loadProject reset.
-          player.clear();
           setCurrentGroupId(id);
           try {
             localStorage.setItem(currentGroupStorageKey, id);
           } catch {
             // ignore
           }
-          setActiveProjectId(null);
-          setDraftFiles([]);
-          setAnnotations([]);
-          setReplies(() => new Map());
-          setSections([]);
-          setActiveSectionId(null);
-          setSectionPopover(null);
-          setSectionCreateMode(false);
-          setAnnotationCreateMode(false);
-          setActiveCommentId(null);
-          setPopoverAnchor(null);
-          setPendingDraft(null);
-          setTrash(null);
-          setTrashError(null);
           // filterSongId is cleared by an effect on activeBandId change.
+          resetProjectScopedUiState();
         }}
         projectTitle={player.state.title || null}
         stemCount={player.state.stems.length}
@@ -1573,6 +1589,7 @@ function PaperstemApp({
         onSignOut={onLogout}
         onReportBug={() => openBugReport()}
         onOpenTokens={() => setTokensOpen(true)}
+        onOpenGroupSettings={() => setGroupSettingsOpen(true)}
         onDownloadAll={onDownloadAll}
         onRenameProject={(name) => {
           // In draft mode there's no server project yet — just update the
@@ -1884,6 +1901,26 @@ function PaperstemApp({
         onClose={() => setShareDialog(null)}
       />
       <TokensDrawer open={tokensOpen} onClose={() => setTokensOpen(false)} />
+      <GroupSettingsDrawer
+        open={groupSettingsOpen}
+        group={activeBand}
+        onClose={() => setGroupSettingsOpen(false)}
+        onLeft={() => {
+          // The user just left the active group. Drop the stored current-
+          // group id so the fallback effect picks bands[0] (or null) once
+          // the new list arrives. Tear down any project-scoped UI that
+          // referenced the band we just left.
+          setGroupSettingsOpen(false);
+          setCurrentGroupId(null);
+          try {
+            localStorage.removeItem(currentGroupStorageKey);
+          } catch {
+            // ignore
+          }
+          resetProjectScopedUiState();
+          refreshBands();
+        }}
+      />
       {sectionPopover &&
         createPortal(
           <>

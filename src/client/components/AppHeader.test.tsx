@@ -345,6 +345,30 @@ describe('AppHeader group switcher', () => {
     expect(screen.getByText('Sun Toilet')).not.toBeNull();
   });
 
+  it('avatar menu shows "Group settings" when onOpenGroupSettings is wired and a group is selected', async () => {
+    const onOpen = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...baseProps}
+        groups={groups}
+        currentGroupId="b1"
+        onOpenGroupSettings={onOpen}
+      />,
+    );
+    await user.click(screen.getByLabelText('Account'));
+    const item = screen.getByRole('menuitem', { name: /Group settings/i });
+    await user.click(item);
+    expect(onOpen).toHaveBeenCalledOnce();
+  });
+
+  it('avatar menu hides "Group settings" when onOpenGroupSettings prop is absent', async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
+    await user.click(screen.getByLabelText('Account'));
+    expect(screen.queryByRole('menuitem', { name: /Group settings/i })).toBeNull();
+  });
+
   it('Escape closes the open menu', async () => {
     const user = userEvent.setup();
     render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);

@@ -436,6 +436,9 @@ export const stmts = {
     `INSERT INTO memberships (band_id, user_id, role, created_at)
      VALUES (?, ?, ?, ?)`,
   ),
+  deleteMembership: db.prepare<[string, string]>(
+    `DELETE FROM memberships WHERE band_id = ? AND user_id = ?`,
+  ),
   findBandByNameAndOwner: db.prepare<[string, string], BandRow>(
     'SELECT * FROM bands WHERE name = ? AND owner_user_id = ?',
   ),

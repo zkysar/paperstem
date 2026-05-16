@@ -16,7 +16,7 @@ import {
   handleRevokeToken,
 } from './tokens.js';
 import { sessionMiddleware, type AuthVariables } from './auth/middleware.js';
-import { handleListBands, handleGetBand } from './bands.js';
+import { handleListBands, handleGetBand, handleLeaveBand } from './bands.js';
 import {
   handleCreateProject,
   handleCreateStem,
@@ -97,6 +97,7 @@ app.post('/api/me/tokens', handleCreateToken);
 app.delete('/api/me/tokens/:id', handleRevokeToken);
 app.get('/api/bands', handleListBands);
 app.get('/api/bands/:id', handleGetBand);
+app.delete('/api/bands/:id/members/me', handleLeaveBand);
 app.get('/api/projects', handleListProjects);
 app.get('/api/projects/:id', handleGetProject);
 app.post('/api/projects', handleCreateProject);

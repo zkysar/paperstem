@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, Check, ChevronDown, Download, KeyRound, Loader2, LogOut, MessageSquare, Users } from 'lucide-react';
+import { Bug, Check, ChevronDown, Download, KeyRound, Loader2, LogOut, MessageSquare, Settings, Users } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
 import type { BandWithRole } from '../../shared/types';
@@ -30,6 +30,9 @@ type Props = {
   onReportBug(): void;
   onRenameProject(name: string): void;
   onOpenTokens(): void;
+  // Optional so callers in tests don't need to wire this; absent =
+  // the menu entry is hidden (legacy callers behave as before).
+  onOpenGroupSettings?: () => void;
   onDownloadAll(): void;
 };
 
@@ -39,7 +42,7 @@ export function AppHeader({
   annotationsOpen, hasProject, canRename, isWide, appVersion, appEnv, downloading,
   debugInfo,
   onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenameProject,
-  onOpenTokens, onDownloadAll,
+  onOpenTokens, onOpenGroupSettings, onDownloadAll,
 }: Props) {
   const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -264,6 +267,15 @@ export function AppHeader({
             >
               <KeyRound size={14} strokeWidth={2} aria-hidden="true" /> Import tokens
             </button>
+            {onOpenGroupSettings && currentGroup && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => { setAvatarOpen(false); onOpenGroupSettings(); }}
+              >
+                <Settings size={14} strokeWidth={2} aria-hidden="true" /> Group settings
+              </button>
+            )}
             <button type="button" role="menuitem" onClick={onSignOut}>
               <LogOut size={14} strokeWidth={2} aria-hidden="true" /> Sign out
             </button>

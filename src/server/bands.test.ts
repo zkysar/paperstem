@@ -31,6 +31,7 @@ beforeAll(async () => {
   app.use('*', middlewareMod.sessionMiddleware);
   app.get('/api/bands', bandsMod.handleListBands);
   app.get('/api/bands/:id', bandsMod.handleGetBand);
+  app.delete('/api/bands/:id/members/me', bandsMod.handleLeaveBand);
 });
 
 afterAll(() => {
@@ -180,5 +181,97 @@ describe('GET /api/bands/:id', () => {
       (m) => m.email === 'owner@example.com',
     );
     expect(ownerEntry?.role).toBe('owner');
+  });
+});
+
+describe('DELETE /api/bands/:id/members/me', () => {
+  it('requires authentication', async () => {
+    const res = await app.fetch(
+      new Request('http://x/api/bands/anything/members/me', {
+        method: 'DELETE',
+      }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 404 when the user is not a member (no existence leak)', async () => {
+    const owner = createUser('owner@example.com');
+    const stranger = createUser('stranger@example.com');
+    const bandId = createBand('Alpha', owner);
+
+    const sid = createSession(stranger);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members/me`, {
+        method: 'DELETE',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 409 when the caller is the band owner', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+
+    const sid = createSession(owner);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members/me`, {
+        method: 'DELETE',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe('owner_cannot_leave');
+
+    // Owner is still in the band.
+    expect(
+      dbMod.stmts.findMembership.get(bandId, owner),
+    ).not.toBeUndefined();
+  });
+
+  it('removes the membership for a non-owner member', async () => {
+    const owner = createUser('owner@example.com');
+    const member = createUser('member@example.com');
+    const bandId = createBand('Alpha', owner);
+    addMember(bandId, member);
+
+    const sid = createSession(member);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members/me`, {
+        method: 'DELETE',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(200);
+
+    expect(dbMod.stmts.findMembership.get(bandId, member)).toBeUndefined();
+    // Owner is untouched.
+    expect(
+      dbMod.stmts.findMembership.get(bandId, owner),
+    ).not.toBeUndefined();
+  });
+
+  it('leaving twice in a row is idempotent (second call returns 404)', async () => {
+    const owner = createUser('owner@example.com');
+    const member = createUser('member@example.com');
+    const bandId = createBand('Alpha', owner);
+    addMember(bandId, member);
+
+    const sid = createSession(member);
+    const first = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members/me`, {
+        method: 'DELETE',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(first.status).toBe(200);
+    const second = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members/me`, {
+        method: 'DELETE',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(second.status).toBe(404);
   });
 });

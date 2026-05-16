@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { BandWithRole } from '../../shared/types';
 
 type State = {
@@ -13,6 +13,9 @@ export function useBands(enabled: boolean) {
     loading: enabled,
     error: null,
   });
+  // Bumping this counter triggers the effect to refetch. Used after the
+  // user leaves a group so the active-band logic can move on.
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!enabled) {
@@ -40,7 +43,11 @@ export function useBands(enabled: boolean) {
     return () => {
       cancelled = true;
     };
-  }, [enabled]);
+  }, [enabled, refreshTick]);
 
-  return state;
+  const refresh = useCallback(() => {
+    setRefreshTick((n) => n + 1);
+  }, []);
+
+  return { ...state, refresh };
 }

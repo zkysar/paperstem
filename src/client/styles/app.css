@@ -1097,6 +1097,84 @@ button.track-name:disabled { cursor: default; }
   font-size: var(--fs-md);
 }
 .upload-hint { color: var(--muted); font-size: var(--fs-md); }
+
+.group-settings-section {
+  margin: 18px 0 8px;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semi);
+}
+.group-member-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--rule);
+}
+.group-member-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.group-member-email {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.group-member-role {
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--rule-2);
+  color: var(--muted);
+}
+.group-member-role-owner {
+  background: var(--accent-tint);
+  color: var(--accent);
+}
+.group-settings-leave {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+.group-settings-leave-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid rgba(193, 70, 70, 0.4);
+  color: #8a3030;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+.group-settings-leave-btn:hover { background: rgba(193, 70, 70, 0.08); }
+.group-settings-confirm {
+  background: rgba(193, 70, 70, 0.06);
+  border: 1px solid rgba(193, 70, 70, 0.24);
+  border-radius: 4px;
+  padding: 12px;
+}
+.group-settings-confirm p { margin: 0 0 10px; font-size: var(--fs-md); }
+.group-settings-confirm button { margin-right: 8px; }
+.group-settings-leave-confirm {
+  background: #8a3030;
+  color: var(--paper);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+.group-settings-leave-confirm:disabled { opacity: 0.6; cursor: default; }
 .upload-modal-footer {
   display: flex;
   justify-content: flex-end;
