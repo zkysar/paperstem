@@ -89,7 +89,8 @@ jobs:
           flyctl deploy \
             --config fly.dev.toml \
             --remote-only \
-            --build-arg APP_VERSION="dev-${SHORT_SHA}"
+            --build-arg APP_VERSION="dev-${SHORT_SHA}" \
+            --build-arg VITE_POSTHOG_KEY="${{ secrets.POSTHOG_PROJECT_TOKEN }}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -108,6 +109,7 @@ jobs:
           flyctl deploy \
             --config fly.toml \
             --remote-only \
-            --build-arg APP_VERSION="${{ github.ref_name }}"
+            --build-arg APP_VERSION="${{ github.ref_name }}" \
+            --build-arg VITE_POSTHOG_KEY="${{ secrets.POSTHOG_PROJECT_TOKEN }}"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
