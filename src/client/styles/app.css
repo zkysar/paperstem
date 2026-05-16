@@ -552,12 +552,18 @@ button.track-name:disabled { cursor: default; }
 .pill.mute.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .pill.solo.on { background: var(--accent); color: var(--paper); border-color: var(--accent); }
 /* Pill sizing drops with track tier so M/S stay readable but don't overflow
-   the 22px-tall row at min tier. */
+   the 22px-tall row at min tier. The rail's own vertical padding tightens in
+   tandem (see .track.tier-min .track-rail below) so a 14px pill clears the
+   row's interior with room to spare. */
 .track.tier-min .pill {
-  min-height: 18px;
-  min-width: 18px;
-  padding: 2px 4px;
+  min-height: 14px;
+  min-width: 16px;
+  padding: 1px 3px;
   font-size: 10px;
+}
+.track.tier-min .track-rail {
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 .track.tier-mid .pill {
   min-height: 22px;
