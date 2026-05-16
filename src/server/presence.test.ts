@@ -47,3 +47,44 @@ describe('presence registry — addOrUpdate', () => {
     expect(snap.anonymousCount).toBe(1);
   });
 });
+
+describe('presence registry — removeConn', () => {
+  it('removes rows for a conn across all projects and returns affected projects sorted', () => {
+    const reg = createRegistry({ now: () => 1000 });
+    reg.addOrUpdate('conn-1', 'proj-A', { userId: 'u-1', displayName: 'A', state: 'active', isAnonymous: false });
+    reg.addOrUpdate('conn-1', 'proj-B', { userId: 'u-1', displayName: 'A', state: 'active', isAnonymous: false });
+    reg.addOrUpdate('conn-2', 'proj-A', { userId: 'u-2', displayName: 'B', state: 'active', isAnonymous: false });
+    const affected = reg.removeConn('conn-1');
+    expect(affected.sort()).toEqual(['proj-A', 'proj-B']);
+    expect(reg.snapshot('proj-A').rows).toHaveLength(1);
+    expect(reg.snapshot('proj-B').rows).toHaveLength(0);
+  });
+
+  it('removes empty project maps so subscribedProjects shrinks', () => {
+    const reg = createRegistry({ now: () => 1000 });
+    reg.addOrUpdate('conn-1', 'proj-A', { userId: 'u-1', displayName: 'A', state: 'active', isAnonymous: false });
+    reg.removeConn('conn-1');
+    expect(reg.subscribedProjects()).toEqual([]);
+  });
+});
+
+describe('presence registry — sweep', () => {
+  it('drops rows older than maxAgeMs and returns affected projects', () => {
+    let t = 1000;
+    const reg = createRegistry({ now: () => t });
+    reg.addOrUpdate('conn-1', 'proj-A', { userId: 'u-1', displayName: 'A', state: 'active', isAnonymous: false });
+    reg.addOrUpdate('conn-2', 'proj-A', { userId: 'u-2', displayName: 'B', state: 'active', isAnonymous: false });
+    t = 1000 + 35_000;
+    reg.addOrUpdate('conn-2', 'proj-A', { userId: 'u-2', displayName: 'B', state: 'active', isAnonymous: false });
+    // conn-1 hasn't beat in 35s; conn-2 just did.
+    const affected = reg.sweep(30_000);
+    expect(affected).toEqual(['proj-A']);
+    expect(reg.snapshot('proj-A').rows.map((r) => r.connId)).toEqual(['conn-2']);
+  });
+
+  it('returns empty array when nothing was swept', () => {
+    const reg = createRegistry({ now: () => 1000 });
+    reg.addOrUpdate('conn-1', 'proj-A', { userId: 'u-1', displayName: 'A', state: 'active', isAnonymous: false });
+    expect(reg.sweep(30_000)).toEqual([]);
+  });
+});

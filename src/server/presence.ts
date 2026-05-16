@@ -51,11 +51,30 @@ export function createRegistry(opts: Opts = {}): Registry {
     return [projectId];
   }
 
-  function removeConn(): string[] {
-    return [];
+  function removeConn(connId: string): string[] {
+    const affected: string[] = [];
+    for (const [projectId, m] of byProject) {
+      if (m.delete(connId)) {
+        affected.push(projectId);
+        if (m.size === 0) byProject.delete(projectId);
+      }
+    }
+    return affected;
   }
-  function sweep(): string[] {
-    return [];
+
+  function sweep(maxAgeMs: number): string[] {
+    const cutoff = now() - maxAgeMs;
+    const affected = new Set<string>();
+    for (const [projectId, m] of byProject) {
+      for (const [connId, row] of m) {
+        if (row.lastBeatAt < cutoff) {
+          m.delete(connId);
+          affected.add(projectId);
+        }
+      }
+      if (m.size === 0) byProject.delete(projectId);
+    }
+    return [...affected];
   }
   function subscribedProjects(): string[] {
     return [...byProject.keys()];
