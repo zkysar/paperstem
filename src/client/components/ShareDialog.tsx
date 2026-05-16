@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { Annotation } from '../../shared/types';
 import { buildShareUrl, type ShareState } from '../lib/share-url';
 import { fmt } from '../lib/format';
+import { PublicLinkSection } from './PublicLinkSection';
 
 /**
  * Modal for previewing and copying a share URL. Modelled on YouTube's
@@ -157,6 +158,8 @@ export function ShareDialog({ open, state, focusedAnnotation, onClose }: Props) 
           {error && (
             <p className="share-dialog-error" role="alert">{error}</p>
           )}
+
+          {state.projectId && <PublicLinkSection projectId={state.projectId} />}
         </div>
       </div>
     </div>

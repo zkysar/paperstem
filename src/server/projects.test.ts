@@ -420,6 +420,33 @@ describe('DELETE /api/projects/:id', () => {
   });
 });
 
+describe('DELETE /api/projects/:id — public-link cascade', () => {
+  it('auto-revokes live public links with reason=trash when project is trashed', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid } = insertProject(bandId, 'Alpha', owner, 'p1', '2026-05-01');
+    // Insert a live public link by hand (tests for handleCreatePublicLink
+    // live elsewhere; here we just want to drive the cascade).
+    const now = Math.floor(Date.now() / 1000);
+    dbMod.stmts.insertPublicLink.run('pls_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', pid, owner, now);
+    const sid = createSession(owner);
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/projects/${pid}`, {
+        method: 'DELETE',
+        headers: { Cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(200);
+
+    const row = dbMod.stmts.findPublicLinkByToken.get(
+      'pls_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    );
+    expect(row?.revoked_at).not.toBeNull();
+    expect(row?.revoked_reason).toBe('trash');
+  });
+});
+
 describe('POST /api/projects/:id/restore', () => {
   it('restores soft-deleted project (untrash is a no-op on local storage)', async () => {
     const owner = createUser('owner@example.com');
@@ -440,6 +467,53 @@ describe('POST /api/projects/:id/restore', () => {
     const row = dbMod.stmts.findProjectById.get(pid)!;
     expect(row).toBeDefined();
     expect(row.deleted_at).toBeNull();
+  });
+
+  it('re-activates trash-revoked links but leaves user-revoked links revoked', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid } = insertProject(bandId, 'Alpha', owner, 'p1', '2026-05-01');
+    const now = Math.floor(Date.now() / 1000);
+    dbMod.stmts.insertPublicLink.run(
+      'pls_userrevokedaaaaaaaaaaaaaaaaaa',
+      pid,
+      owner,
+      now,
+    );
+    dbMod.stmts.insertPublicLink.run(
+      'pls_trashrevokedaaaaaaaaaaaaaaaaa',
+      pid,
+      owner,
+      now,
+    );
+    // User revokes the first one explicitly.
+    dbMod.stmts.revokePublicLink.run(now, 'pls_userrevokedaaaaaaaaaaaaaaaaaa');
+    // Trash the project (auto-revokes the second with reason='trash').
+    dbMod.db.transaction(() => {
+      dbMod.stmts.softDeleteProject.run(now, owner, pid);
+      dbMod.stmts.trashRevokePublicLinksForProject.run(now, pid);
+    })();
+    const sid = createSession(owner);
+    const res = await app.fetch(
+      new Request(`http://localhost/api/projects/${pid}/restore`, {
+        method: 'POST',
+        headers: { Cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(200);
+
+    const userRow = dbMod.stmts.findPublicLinkByToken.get(
+      'pls_userrevokedaaaaaaaaaaaaaaaaaa',
+    );
+    const trashRow = dbMod.stmts.findPublicLinkByToken.get(
+      'pls_trashrevokedaaaaaaaaaaaaaaaaa',
+    );
+    // User-revoked link survives the round-trip.
+    expect(userRow?.revoked_at).not.toBeNull();
+    expect(userRow?.revoked_reason).toBe('user');
+    // Trash-revoked link is back.
+    expect(trashRow?.revoked_at).toBeNull();
+    expect(trashRow?.revoked_reason).toBeNull();
   });
 
   it('returns 409 for ghost rows (drive_missing)', async () => {

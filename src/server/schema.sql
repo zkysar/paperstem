@@ -234,6 +234,28 @@ CREATE TABLE IF NOT EXISTS band_mutes (
   PRIMARY KEY (user_id, band_id)
 );
 
+-- Per-project public-share links. A token resolves to exactly one project
+-- and grants strictly read-only access to that project (and its stems /
+-- annotations / sections) via /api/public/links/:token/*. There is no path
+-- from a public token to any other project, to the project browser, or to
+-- any write endpoint — handlers under /api/public never call requireUser
+-- and never trust a session cookie.
+CREATE TABLE IF NOT EXISTS public_links (
+  token             TEXT PRIMARY KEY,
+  project_id        TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  created_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at        INTEGER NOT NULL,
+  revoked_at        INTEGER,
+  -- 'user' (manual revoke from the admin UI) or 'trash' (auto-revoked
+  -- because the project was soft-deleted). The distinction matters at
+  -- restore time: only trash-revoked links re-activate when the project
+  -- comes back. NULL only when revoked_at is NULL.
+  revoked_reason    TEXT CHECK (revoked_reason IN ('user','trash')),
+  last_accessed_at  INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_public_links_project
+  ON public_links(project_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS pending_notifications (
   id              TEXT PRIMARY KEY,
   recipient_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
