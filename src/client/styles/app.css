@@ -4383,6 +4383,9 @@ body.env-non-prod[data-env="local"]::before {
   display: flex;
   align-items: center;
   gap: 4px;
+  /* `grab` signals the whole pill is draggable, mirroring the affordance
+     comment markers get from `cursor: pointer` + edge grips. `.armed` and
+     `.dragging` swap this to `grabbing` once the hold fires. */
   cursor: grab;
   text-align: left;
   overflow: hidden;
@@ -4832,7 +4835,9 @@ body.env-non-prod[data-env="local"]::before {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 8px;
+  /* Wider hit area than the visual bar so the ew-resize cursor is easy to
+     land on without overshooting into the pill body. */
+  width: 12px;
   background: transparent;
   cursor: ew-resize;
   z-index: 2;
@@ -4843,6 +4848,10 @@ body.env-non-prod[data-env="local"]::before {
 .section-pill.active .section-grip,
 .section-grip:active {
   opacity: 1;
+  /* Light wash over the hit area so the entire grippable zone lights up,
+     not just the thin handle bar. Mirrors how comment grips read at a
+     glance against the marker background. */
+  background: rgba(255, 255, 255, 0.18);
 }
 .section-grip-left {
   left: 0;
@@ -4853,17 +4862,19 @@ body.env-non-prod[data-env="local"]::before {
 .section-grip::after {
   content: '';
   position: absolute;
-  top: 4px;
-  bottom: 4px;
-  left: 3px;
-  width: 2px;
-  background: var(--ink, #333);
+  top: 3px;
+  bottom: 3px;
+  left: 4px;
+  width: 3px;
+  /* currentColor = the pill's text color (--paper, white) → high contrast
+     against the colored fill. Matches the comment-grip approach. */
+  background: currentColor;
   border-radius: 1px;
-  opacity: 0.5;
+  opacity: 0.85;
 }
 .section-grip-right::after {
   left: auto;
-  right: 3px;
+  right: 4px;
 }
 @media (pointer: coarse) {
   .section-grip {
