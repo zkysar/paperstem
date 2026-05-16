@@ -70,5 +70,18 @@ export function useBands(enabled: boolean) {
     );
   }, []);
 
-  return { ...state, refresh, dropLocally, addLocally };
+  // Optimistically merge a partial band update into the local list. Used
+  // by the rename flow so the header chip and drawer title update
+  // immediately, before the bands refresh round-trip.
+  const updateLocally = useCallback(
+    (id: string, patch: Partial<BandWithRole>) => {
+      setState((s) => ({
+        ...s,
+        bands: s.bands.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+      }));
+    },
+    [],
+  );
+
+  return { ...state, refresh, dropLocally, addLocally, updateLocally };
 }

@@ -181,6 +181,7 @@ function PaperstemApp({
     refresh: refreshBands,
     dropLocally: dropBandLocally,
     addLocally: addBandLocally,
+    updateLocally: updateBandLocally,
   } = useBands(true);
   // Namespaced by user.id so two users sharing a browser don't clobber each
   // other's last-chosen group.
@@ -1953,6 +1954,9 @@ function PaperstemApp({
           }
           resetProjectScopedUiState();
           refreshBands();
+        }}
+        onRenamed={(groupId, newName) => {
+          updateBandLocally(groupId, { name: newName });
         }}
       />
       <CreateGroupDialog

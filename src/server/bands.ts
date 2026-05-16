@@ -182,6 +182,84 @@ export async function handleInviteMember(
   );
 }
 
+export async function handleRenameBand(
+  c: Context<{ Variables: AuthVariables }>,
+): Promise<Response> {
+  const user = requireUser(c);
+  const bandId = c.req.param('id') ?? '';
+  if (!bandId) return c.json({ error: 'not_found' }, 404);
+
+  const membership = stmts.findMembership.get(bandId, user.id);
+  if (!membership) return c.json({ error: 'not_found' }, 404);
+  if (membership.role !== 'owner') return c.json({ error: 'forbidden' }, 403);
+
+  let body: { name?: unknown };
+  try {
+    body = (await c.req.json()) as { name?: unknown };
+  } catch {
+    return c.json({ error: 'bad_json' }, 400);
+  }
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!name) return c.json({ error: 'name_required' }, 400);
+  if (name.length > MAX_GROUP_NAME_LEN) {
+    return c.json({ error: 'name_too_long' }, 400);
+  }
+
+  // Same per-owner uniqueness rule as create: a user can't end up with two
+  // bands of the same name. Allow no-op renames (same name → success).
+  const band = stmts.findBandById.get(bandId);
+  if (!band) return c.json({ error: 'not_found' }, 404);
+  if (name !== band.name) {
+    const duplicate = stmts.findBandByNameAndOwner.get(name, user.id);
+    if (duplicate && duplicate.id !== bandId) {
+      return c.json({ error: 'duplicate_name' }, 409);
+    }
+    stmts.renameBand.run(name, bandId);
+  }
+
+  return c.json({
+    band: {
+      id: bandId,
+      name,
+      folder_id: band.folder_id,
+      owner_user_id: band.owner_user_id,
+      created_at: band.created_at,
+    },
+  });
+}
+
+export function handleRemoveMember(
+  c: Context<{ Variables: AuthVariables }>,
+): Response {
+  const user = requireUser(c);
+  const bandId = c.req.param('id') ?? '';
+  const targetUserId = c.req.param('userId') ?? '';
+  if (!bandId || !targetUserId) return c.json({ error: 'not_found' }, 404);
+
+  const caller = stmts.findMembership.get(bandId, user.id);
+  if (!caller) return c.json({ error: 'not_found' }, 404);
+  if (caller.role !== 'owner') return c.json({ error: 'forbidden' }, 403);
+
+  // Owner trying to remove themself: that's not "remove member", it's
+  // "delete group" (not implemented). Rejected explicitly so the action
+  // is never silently a self-leave.
+  if (targetUserId === user.id) {
+    return c.json({ error: 'owner_cannot_be_removed' }, 409);
+  }
+
+  const target = stmts.findMembership.get(bandId, targetUserId);
+  if (!target) return c.json({ error: 'not_found' }, 404);
+  // Defense in depth: even though the band has exactly one owner today,
+  // refuse to remove anyone with the owner role. Future-proofs against a
+  // promotion flow.
+  if (target.role === 'owner') {
+    return c.json({ error: 'owner_cannot_be_removed' }, 409);
+  }
+
+  stmts.deleteMembership.run(bandId, targetUserId);
+  return c.json({ ok: true });
+}
+
 export function handleLeaveBand(
   c: Context<{ Variables: AuthVariables }>,
 ): Response {

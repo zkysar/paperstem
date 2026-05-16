@@ -403,6 +403,190 @@ describe('GroupSettingsDrawer', () => {
     await screen.findByText(/No email was sent/i);
   });
 
+  it('owner can rename the group; non-owners cannot', async () => {
+    const onRenamed = vi.fn();
+    let patchBody: string | null = null;
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`PATCH /api/bands/${ownerGroup.id}`]: (_url, init) => {
+        patchBody = typeof init?.body === 'string' ? init.body : null;
+        return new Response(
+          JSON.stringify({
+            band: {
+              id: ownerGroup.id,
+              name: 'Sun Toilet Deluxe',
+              folder_id: 'f',
+              owner_user_id: 'u',
+              created_at: 0,
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      },
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={ownerGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+        onRenamed={onRenamed}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText('Rename group'));
+    const input = screen.getByLabelText('Group name');
+    await user.clear(input);
+    await user.type(input, 'Sun Toilet Deluxe{Enter}');
+    await waitFor(() =>
+      expect(onRenamed).toHaveBeenCalledWith(
+        ownerGroup.id,
+        'Sun Toilet Deluxe',
+      ),
+    );
+    expect(patchBody).toBe(JSON.stringify({ name: 'Sun Toilet Deluxe' }));
+  });
+
+  it('non-owner does not see the Rename pencil', async () => {
+    setupFetchMock({
+      [`/api/bands/${memberGroup.id}`]: () =>
+        membersResponseFor(memberGroup.id),
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={memberGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+      />,
+    );
+    await screen.findByText('owner@example.com');
+    expect(screen.queryByLabelText('Rename group')).toBeNull();
+  });
+
+  it('rename surfaces duplicate_name error and does NOT call onRenamed', async () => {
+    const onRenamed = vi.fn();
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`PATCH /api/bands/${ownerGroup.id}`]: () =>
+        new Response(JSON.stringify({ error: 'duplicate_name' }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={ownerGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+        onRenamed={onRenamed}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText('Rename group'));
+    const input = screen.getByLabelText('Group name');
+    await user.clear(input);
+    await user.type(input, 'Twin{Enter}');
+    await screen.findByText(/already own a group called "Twin"/i);
+    expect(onRenamed).not.toHaveBeenCalled();
+  });
+
+  it('rename Escape cancels without firing PATCH', async () => {
+    const onRenamed = vi.fn();
+    const fetchSpy = vi.fn();
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`PATCH /api/bands/${ownerGroup.id}`]: () => {
+        fetchSpy();
+        return new Response('{}', { status: 200 });
+      },
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={ownerGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+        onRenamed={onRenamed}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText('Rename group'));
+    const input = screen.getByLabelText('Group name');
+    await user.clear(input);
+    await user.type(input, 'Something{Escape}');
+    expect(onRenamed).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('owner sees a remove (×) button on non-owner rows but NOT on the owner row', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={ownerGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+      />,
+    );
+    await screen.findByText('self@example.com');
+    expect(screen.getByLabelText(/Remove self@example.com/i)).not.toBeNull();
+    expect(screen.queryByLabelText(/Remove owner@example.com/i)).toBeNull();
+  });
+
+  it('confirming the × call DELETEs and removes the row optimistically', async () => {
+    let deletedUrl: string | null = null;
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`DELETE /api/bands/${ownerGroup.id}/members/u-self`]: (url) => {
+        deletedUrl = url;
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      },
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={ownerGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+      />,
+    );
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByLabelText(/Remove self@example.com/i),
+    );
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(deletedUrl).toContain('/members/u-self'));
+    await waitFor(() =>
+      expect(screen.queryByText('self@example.com')).toBeNull(),
+    );
+  });
+
+  it('non-owner does not see remove × buttons', async () => {
+    setupFetchMock({
+      [`/api/bands/${memberGroup.id}`]: () =>
+        membersResponseFor(memberGroup.id),
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={memberGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+      />,
+    );
+    await screen.findByText('owner@example.com');
+    expect(
+      screen.queryByLabelText(/Remove self@example.com/i),
+    ).toBeNull();
+  });
+
   it('renders a no-group fallback when group is null', () => {
     render(
       <GroupSettingsDrawer

@@ -1098,6 +1098,65 @@ button.track-name:disabled { cursor: default; }
 }
 .upload-hint { color: var(--muted); font-size: var(--fs-md); }
 
+.group-settings-rename-trigger {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.group-settings-rename-trigger:hover {
+  color: var(--ink);
+  background: var(--rule-2);
+}
+.group-settings-rename-input {
+  font: inherit;
+  font-weight: var(--fw-bold);
+  font-size: var(--fs-lg);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 2px 6px;
+  min-width: 0;
+  flex: 1;
+}
+.group-member-remove-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.group-member-remove-btn:hover {
+  color: #8a3030;
+  background: rgba(193, 70, 70, 0.08);
+}
+.group-member-remove-confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.group-member-remove-confirm button {
+  font-size: var(--fs-2xs);
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  cursor: pointer;
+}
+.group-member-remove-confirm-yes {
+  border-color: rgba(193, 70, 70, 0.4) !important;
+  color: #8a3030;
+}
+.group-member-remove-confirm-yes:hover {
+  background: rgba(193, 70, 70, 0.08) !important;
+}
 .group-settings-section {
   margin: 18px 0 8px;
   font-size: var(--fs-md);

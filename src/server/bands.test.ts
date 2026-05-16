@@ -37,8 +37,13 @@ beforeAll(async () => {
   app.get('/api/bands', bandsMod.handleListBands);
   app.post('/api/bands', bandsMod.handleCreateBand);
   app.get('/api/bands/:id', bandsMod.handleGetBand);
+  app.patch('/api/bands/:id', bandsMod.handleRenameBand);
   app.post('/api/bands/:id/members', bandsMod.handleInviteMember);
   app.delete('/api/bands/:id/members/me', bandsMod.handleLeaveBand);
+  app.delete(
+    '/api/bands/:id/members/:userId',
+    bandsMod.handleRemoveMember,
+  );
 });
 
 afterAll(() => {
@@ -555,6 +560,208 @@ describe('POST /api/bands/:id/members', () => {
       }),
     );
     expect(res.status).toBe(409);
+  });
+});
+
+describe('PATCH /api/bands/:id', () => {
+  it('requires authentication', async () => {
+    const res = await app.fetch(
+      new Request('http://x/api/bands/anything', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'X' }),
+      }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('non-owner members get 403', async () => {
+    const owner = createUser('owner@example.com');
+    const member = createUser('member@example.com');
+    const bandId = createBand('Alpha', owner);
+    addMember(bandId, member);
+    const sid = createSession(member);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ name: 'Renamed' }),
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('non-members get 404 (no existence leak)', async () => {
+    const owner = createUser('owner@example.com');
+    const stranger = createUser('stranger@example.com');
+    const bandId = createBand('Alpha', owner);
+    const sid = createSession(stranger);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ name: 'Renamed' }),
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('renames the band when the owner submits a new name', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const sid = createSession(owner);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ name: '  Alpha 2  ' }),
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { band: { name: string } };
+    expect(body.band.name).toBe('Alpha 2');
+    expect(dbMod.stmts.findBandById.get(bandId)?.name).toBe('Alpha 2');
+  });
+
+  it('no-op rename (same name) returns 200 without errors', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const sid = createSession(owner);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ name: 'Alpha' }),
+      }),
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it('returns 409 when the new name collides with another owner-mine band', async () => {
+    const owner = createUser('owner@example.com');
+    const idA = createBand('Alpha', owner);
+    createBand('Beta', owner);
+    const sid = createSession(owner);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${idA}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ name: 'Beta' }),
+      }),
+    );
+    expect(res.status).toBe(409);
+  });
+
+  it('rejects blank or oversize names', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const sid = createSession(owner);
+    for (const body of [{ name: '' }, { name: '   ' }, { name: 'a'.repeat(81) }]) {
+      const res = await app.fetch(
+        new Request(`http://x/api/bands/${bandId}`, {
+          method: 'PATCH',
+          headers: {
+            'content-type': 'application/json',
+            cookie: cookieHeader(sid),
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+      expect(res.status).toBe(400);
+    }
+  });
+});
+
+describe('DELETE /api/bands/:id/members/:userId', () => {
+  it('requires authentication', async () => {
+    const res = await app.fetch(
+      new Request('http://x/api/bands/anything/members/someone', {
+        method: 'DELETE',
+      }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('non-owner members get 403', async () => {
+    const owner = createUser('owner@example.com');
+    const memberA = createUser('a@example.com');
+    const memberB = createUser('b@example.com');
+    const bandId = createBand('Alpha', owner);
+    addMember(bandId, memberA);
+    addMember(bandId, memberB);
+    const sid = createSession(memberA);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members/${memberB}`, {
+        method: 'DELETE',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('owner cannot remove themselves through this endpoint', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const sid = createSession(owner);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members/${owner}`, {
+        method: 'DELETE',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(409);
+    expect(
+      dbMod.stmts.findMembership.get(bandId, owner),
+    ).not.toBeUndefined();
+  });
+
+  it('owner can remove another member', async () => {
+    const owner = createUser('owner@example.com');
+    const member = createUser('member@example.com');
+    const bandId = createBand('Alpha', owner);
+    addMember(bandId, member);
+    const sid = createSession(owner);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members/${member}`, {
+        method: 'DELETE',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(dbMod.stmts.findMembership.get(bandId, member)).toBeUndefined();
+    // Owner unaffected.
+    expect(
+      dbMod.stmts.findMembership.get(bandId, owner),
+    ).not.toBeUndefined();
+  });
+
+  it('removing a non-member returns 404', async () => {
+    const owner = createUser('owner@example.com');
+    const ghost = createUser('ghost@example.com');
+    const bandId = createBand('Alpha', owner);
+    const sid = createSession(owner);
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members/${ghost}`, {
+        method: 'DELETE',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(404);
   });
 });
 

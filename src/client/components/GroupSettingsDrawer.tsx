@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LogOut, UserPlus, X } from 'lucide-react';
+import { LogOut, Pencil, UserPlus, X } from 'lucide-react';
 import type { BandMember, BandWithRole } from '../../shared/types';
 
 type Props = {
@@ -14,6 +14,10 @@ type Props = {
   // group fallback can pick a new one without flickering through the
   // just-left band.
   onLeft(leftGroupId: string): void;
+  // Called after a successful owner-side rename. The parent is expected
+  // to merge the new name into its local bands list so the header chip
+  // updates immediately.
+  onRenamed?(groupId: string, newName: string): void;
 };
 
 type GetBandResponse = {
@@ -21,7 +25,13 @@ type GetBandResponse = {
   members: BandMember[];
 };
 
-export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
+export function GroupSettingsDrawer({
+  open,
+  group,
+  onClose,
+  onLeft,
+  onRenamed,
+}: Props) {
   const [members, setMembers] = useState<BandMember[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
@@ -35,6 +45,16 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
     email: string;
     mailed: boolean;
   } | null>(null);
+  // Rename state — only used when the owner clicks the edit icon next to
+  // the group title.
+  const [renameMode, setRenameMode] = useState(false);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  // The id of the member the owner is in the middle of confirming a
+  // remove for. Null means no pending confirmation.
+  const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   // Reset transient state whenever the drawer closes or the group changes.
   useEffect(() => {
@@ -62,6 +82,10 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
     setInviteEmail('');
     setInviteError(null);
     setLastInvited(null);
+    setRenameMode(false);
+    setRenameDraft('');
+    setRenameError(null);
+    setRemoveConfirmId(null);
   }, [group?.id]);
 
   useEffect(() => {
@@ -87,6 +111,76 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
       cancelled = true;
     };
   }, [open, group?.id]);
+
+  async function handleRename() {
+    if (!group) return;
+    const next = renameDraft.trim();
+    if (!next || next === group.name) {
+      setRenameMode(false);
+      return;
+    }
+    setRenaming(true);
+    setRenameError(null);
+    try {
+      const res = await fetch(
+        `/api/bands/${encodeURIComponent(group.id)}`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ name: next }),
+        },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        const msg =
+          body.error === 'duplicate_name'
+            ? `You already own a group called "${next}".`
+            : body.error === 'name_too_long'
+              ? 'Group names are limited to 80 characters.'
+              : body.error === 'name_required'
+                ? 'A name is required.'
+                : `HTTP ${res.status}`;
+        setRenameError(msg);
+        return;
+      }
+      onRenamed?.(group.id, next);
+      setRenameMode(false);
+    } catch (e) {
+      setRenameError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRenaming(false);
+    }
+  }
+
+  async function handleRemoveMember(memberId: string) {
+    if (!group) return;
+    setRemoving(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/bands/${encodeURIComponent(group.id)}/members/${encodeURIComponent(memberId)}`,
+        { method: 'DELETE', credentials: 'include' },
+      );
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        const msg =
+          body.error === 'owner_cannot_be_removed'
+            ? "You can't remove the owner of a group."
+            : `HTTP ${res.status}`;
+        setError(msg);
+        return;
+      }
+      setMembers((prev) =>
+        prev ? prev.filter((m) => m.id !== memberId) : prev,
+      );
+      setRemoveConfirmId(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRemoving(false);
+    }
+  }
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -167,6 +261,8 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
 
   const canLeave = group !== null && group.role !== 'owner';
   const canInvite = group !== null && group.role === 'owner';
+  const canRename = group !== null && group.role === 'owner';
+  const canRemoveMembers = group !== null && group.role === 'owner';
 
   return (
     <div
@@ -178,9 +274,47 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
     >
       <div className="upload-modal" onClick={(e) => e.stopPropagation()}>
         <div className="upload-modal-header">
-          <h2 id="group-settings-title">
-            {group ? group.name : 'Group settings'}
-          </h2>
+          {renameMode && canRename ? (
+            <input
+              className="group-settings-rename-input"
+              aria-label="Group name"
+              value={renameDraft}
+              autoFocus
+              maxLength={80}
+              disabled={renaming}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void handleRename();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setRenameMode(false);
+                  setRenameError(null);
+                }
+              }}
+              onBlur={() => void handleRename()}
+            />
+          ) : (
+            <h2 id="group-settings-title">
+              {group ? group.name : 'Group settings'}
+              {canRename && group && (
+                <button
+                  type="button"
+                  className="group-settings-rename-trigger"
+                  aria-label="Rename group"
+                  title="Rename group"
+                  onClick={() => {
+                    setRenameDraft(group.name);
+                    setRenameError(null);
+                    setRenameMode(true);
+                  }}
+                >
+                  <Pencil size={14} strokeWidth={2} aria-hidden="true" />
+                </button>
+              )}
+            </h2>
+          )}
           <button
             type="button"
             className="upload-modal-close"
@@ -207,6 +341,7 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
               </p>
 
               {error && <div className="upload-error">{error}</div>}
+              {renameError && <div className="upload-error">{renameError}</div>}
 
               {canInvite && (
                 <form
@@ -253,21 +388,56 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
                 <p className="upload-hint">No members.</p>
               ) : (
                 <ul className="group-member-list">
-                  {members.map((m) => (
-                    <li key={m.id} className="group-member-row">
-                      <span
-                        className="group-member-email"
-                        title={m.email}
-                      >
-                        {m.email}
-                      </span>
-                      <span
-                        className={`group-member-role group-member-role-${m.role}`}
-                      >
-                        {m.role}
-                      </span>
-                    </li>
-                  ))}
+                  {members.map((m) => {
+                    const canRemoveThis =
+                      canRemoveMembers && m.role !== 'owner';
+                    const isConfirming = removeConfirmId === m.id;
+                    return (
+                      <li key={m.id} className="group-member-row">
+                        <span
+                          className="group-member-email"
+                          title={m.email}
+                        >
+                          {m.email}
+                        </span>
+                        <span
+                          className={`group-member-role group-member-role-${m.role}`}
+                        >
+                          {m.role}
+                        </span>
+                        {canRemoveThis && !isConfirming && (
+                          <button
+                            type="button"
+                            className="group-member-remove-btn"
+                            aria-label={`Remove ${m.email}`}
+                            title={`Remove ${m.email}`}
+                            onClick={() => setRemoveConfirmId(m.id)}
+                          >
+                            <X size={14} strokeWidth={2} aria-hidden="true" />
+                          </button>
+                        )}
+                        {canRemoveThis && isConfirming && (
+                          <span className="group-member-remove-confirm">
+                            <button
+                              type="button"
+                              className="group-member-remove-confirm-yes"
+                              disabled={removing}
+                              onClick={() => void handleRemoveMember(m.id)}
+                            >
+                              {removing ? 'Removing…' : 'Remove'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={removing}
+                              onClick={() => setRemoveConfirmId(null)}
+                            >
+                              Cancel
+                            </button>
+                          </span>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
 
