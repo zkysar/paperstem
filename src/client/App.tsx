@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LoginScreen } from './auth/LoginScreen';
 import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
+import { PUBLIC_RETURN_PATH_KEY } from './lib/public-return';
 import { PENDING_SHARE_HASH_KEY, useShareLink } from './hooks/useShareLink';
 import { applyShareState } from './lib/apply-share-state';
 import {
@@ -116,6 +117,29 @@ export default function App() {
       } catch {
         // sessionStorage may be unavailable — best-effort.
       }
+    }
+  }, [loading, user]);
+
+  // Anonymous viewers of /p/<token> who hit "Sign in" land here after the
+  // magic-link round trip. PublicProjectView stashed the path in
+  // sessionStorage before redirecting; if we now have a session, bounce
+  // them back to /p/<token>. The public view will then re-check
+  // membership and forward to /#p=<id> if applicable.
+  useEffect(() => {
+    if (loading || !user) return;
+    let pending: string | null = null;
+    try {
+      pending = sessionStorage.getItem(PUBLIC_RETURN_PATH_KEY);
+    } catch {
+      /* ignore */
+    }
+    if (pending && pending.startsWith('/p/')) {
+      try {
+        sessionStorage.removeItem(PUBLIC_RETURN_PATH_KEY);
+      } catch {
+        /* ignore */
+      }
+      window.location.assign(pending);
     }
   }, [loading, user]);
 
