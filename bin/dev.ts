@@ -20,8 +20,17 @@ function getFreePort(): Promise<number> {
   });
 }
 
-const apiPort = await getFreePort();
-const vitePort = await getFreePort();
+// Respect a caller-provided Vite port (e.g. Claude Preview MCP allocates a
+// port up front and expects the server to bind to it). PORT is the
+// conventional env var the preview/launcher tooling sets; PAPERSTEM_VITE_PORT
+// is the project-specific override. Fall back to a free OS-picked port
+// otherwise so multiple worktrees still run side-by-side.
+const envVitePort = Number(
+  process.env.PAPERSTEM_VITE_PORT || process.env.PORT || 0,
+);
+const envApiPort = Number(process.env.PAPERSTEM_API_PORT || 0);
+const apiPort = Number.isFinite(envApiPort) && envApiPort > 0 ? envApiPort : await getFreePort();
+const vitePort = Number.isFinite(envVitePort) && envVitePort > 0 ? envVitePort : await getFreePort();
 if (apiPort === vitePort) throw new Error('dev.ts: collision picking free ports');
 
 const audioRoot =

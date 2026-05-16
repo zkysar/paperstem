@@ -4426,17 +4426,52 @@ body.env-non-prod[data-env="local"]::before {
 .section-lane-wrap {
   position: relative;
 }
-/* Pills mode reserves the full lane height. Ribbon mode reserves only the
-   ribbon strip plus its transparent hit pad — hovering the ribbon causes
-   tracks below to shift by ~8px, which is small enough to feel deliberate. */
-.section-lane-wrap.expanded {
-  height: 22px;
-}
+/* Wrap is always the ribbon-strip height. Expanded mode floats the pill
+   lane as an absolute overlay on top of the first track instead of growing
+   the wrap, so tracks never reflow on hover. */
+.section-lane-wrap.expanded,
 .section-lane-wrap.collapsed {
   height: 14px;
 }
 .section-lane-wrap.disabled {
   pointer-events: none;
+}
+
+.section-lane-wrap.expanded .section-lane {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  box-shadow:
+    0 6px 14px -4px rgba(0, 0, 0, 0.18),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
+  border-radius: 0 0 4px 4px;
+}
+/* Rail mask must stay above the floating lane so pills never visually
+   bleed onto the track-name rail at the left. */
+.section-lane-wrap.expanded .section-rail-mask {
+  z-index: 6;
+}
+
+/* Cursor-anchored label chip shown when hovering a ribbon segment or pill.
+   Portaled to body and pointer-events: none so it never interferes with
+   the lane's own hover/leave bookkeeping. */
+.section-hover-chip {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  background: var(--ink, #222);
+  color: var(--paper, #fff);
+  font-family: var(--font-sans, inherit);
+  font-size: var(--fs-2xs);
+  padding: 4px 8px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Ribbon mode — 6px strip pinned to the top of the reserved 22px wrap.
