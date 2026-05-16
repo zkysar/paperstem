@@ -4365,6 +4365,11 @@ body.env-non-prod[data-env="local"]::before {
   left: auto;
   right: 3px;
 }
+@media (pointer: coarse) {
+  .section-grip {
+    display: none;
+  }
+}
 
 /* ---- Annotation grips ---------------------------------------------- */
 .annotation-grip {

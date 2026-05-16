@@ -237,6 +237,9 @@ export function SectionLane({
                 }}
                 onPointerDown={(e) => {
                   if (!onPatchSection) return;
+                  // Touch pointers conflict with scroll/seek and lack the
+                  // precision the grip affordance assumes — edit on desktop.
+                  if (e.pointerType === 'touch') return;
                   if ((e.target as Element).closest('.section-grip')) return;
                   const hasNext = c.index + 1 < computed.length;
                   // Middle drag translates self + next by the same delta so
@@ -278,6 +281,7 @@ export function SectionLane({
                     aria-hidden="true"
                     onPointerDown={(e) => {
                       e.stopPropagation();
+                      if (e.pointerType === 'touch') return;
                       drag.handlePointerDown(e, {
                         kind: 'left-edge',
                         sectionId: c.section.id,
