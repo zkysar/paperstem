@@ -46,23 +46,28 @@ function defaultProjectName(): string {
   return `project-${todayIso()}`;
 }
 
-async function computeStemPeaks(file: File): Promise<string | null> {
+type DecodedStem = { peaks: string | null; durationMs: number | null };
+
+async function decodeStemForUpload(file: File): Promise<DecodedStem> {
   const Ctor: typeof AudioContext | undefined =
     typeof window === 'undefined'
       ? undefined
       : window.AudioContext ||
         (window as unknown as { webkitAudioContext?: typeof AudioContext })
           .webkitAudioContext;
-  if (!Ctor) return null;
+  if (!Ctor) return { peaks: null, durationMs: null };
   let ctx: AudioContext | null = null;
   try {
     const buf = await file.arrayBuffer();
     ctx = new Ctor();
     const audio = await ctx.decodeAudioData(buf);
     const peaks = computePeaks(audio, PLAYER_PEAK_BINS, { normalize: false });
-    return encodePeaks(peaks);
+    return {
+      peaks: encodePeaks(peaks),
+      durationMs: Math.round(audio.duration * 1000),
+    };
   } catch {
-    return null;
+    return { peaks: null, durationMs: null };
   } finally {
     if (ctx) void ctx.close();
   }
@@ -72,13 +77,16 @@ function uploadStem(
   projectId: string,
   file: File,
   position: number,
-  peaks: string | null,
+  decoded: DecodedStem,
   onProgress: (frac: number) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const fd = new FormData();
     fd.append('position', String(position));
-    if (peaks) fd.append('peaks', peaks);
+    if (decoded.peaks) fd.append('peaks', decoded.peaks);
+    if (decoded.durationMs != null) {
+      fd.append('duration_ms', String(decoded.durationMs));
+    }
     fd.append('file', file, file.name);
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `/api/projects/${encodeURIComponent(projectId)}/stems`);
@@ -273,11 +281,11 @@ export function UploadDrawer({
       // — every subsequent player load skips the decode and renders instantly.
       // If decoding fails (unsupported codec, OOM), we fall back to the
       // original behavior where the player decodes on its own.
-      const peaks = await computeStemPeaks(toUpload);
+      const decoded = await decodeStemForUpload(toUpload);
 
       updateFile(i, { status: 'uploading', progress: 0, error: null });
       try {
-        await uploadStem(projectId, toUpload, i + 1, peaks, (frac) => {
+        await uploadStem(projectId, toUpload, i + 1, decoded, (frac) => {
           updateFile(i, { progress: frac });
         });
         updateFile(i, { status: 'done', progress: 1, error: null });

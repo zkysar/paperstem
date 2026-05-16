@@ -583,6 +583,65 @@ describe('POST /api/projects/:id/stems', () => {
     expect(data.stem.peaks).toBeNull();
   });
 
+  it('persists duration_ms field on upload', async () => {
+    const owner = createUser('owner@example.com');
+    const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);
+    const { id: projectId } = createProject(bandId, bandFolderId, owner);
+    const sid = createSession(owner);
+
+    const { contentType, body } = buildMultipart(
+      [{ name: 'duration_ms', value: '123456' }],
+      {
+        fieldName: 'file',
+        filename: 'guitar.mp3',
+        mime: 'audio/mpeg',
+        body: Buffer.from('synthetic'),
+      },
+    );
+    const res = await app.fetch(
+      new Request(`http://x/api/projects/${projectId}/stems`, {
+        method: 'POST',
+        headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
+        body,
+      }),
+    );
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { stem: { id: string; duration_ms: number | null } };
+    expect(data.stem.duration_ms).toBe(123456);
+
+    const stored = dbMod.stmts.findStemById.get(data.stem.id);
+    expect(stored?.duration_ms).toBe(123456);
+  });
+
+  it('ignores duration_ms when missing, non-finite, or out of range', async () => {
+    const owner = createUser('owner@example.com');
+    const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);
+    const { id: projectId } = createProject(bandId, bandFolderId, owner);
+    const sid = createSession(owner);
+
+    for (const bad of ['not-a-number', '-1', '0', String(25 * 60 * 60 * 1000)]) {
+      const { contentType, body } = buildMultipart(
+        [{ name: 'duration_ms', value: bad }],
+        {
+          fieldName: 'file',
+          filename: 'guitar.mp3',
+          mime: 'audio/mpeg',
+          body: Buffer.from('x'),
+        },
+      );
+      const res = await app.fetch(
+        new Request(`http://x/api/projects/${projectId}/stems`, {
+          method: 'POST',
+          headers: { 'content-type': contentType, cookie: cookieHeader(sid) },
+          body,
+        }),
+      );
+      expect(res.status).toBe(201);
+      const data = (await res.json()) as { stem: { duration_ms: number | null } };
+      expect(data.stem.duration_ms).toBeNull();
+    }
+  });
+
   it('PUT /api/stems/:id/peaks backfills peaks for an existing stem', async () => {
     const owner = createUser('owner@example.com');
     const { id: bandId, folderId: bandFolderId } = createBand('Alpha', owner);

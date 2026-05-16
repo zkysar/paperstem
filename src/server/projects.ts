@@ -337,6 +337,7 @@ type ParsedUpload = {
   body: ReadableStream<Uint8Array>;
   position: number | null;
   peaks: string | null;
+  durationMs: number | null;
   done: Promise<{ tooLarge: boolean }>;
 };
 
@@ -348,6 +349,7 @@ function parseStemMultipart(
     let fileSeen = false;
     let positionField: number | null = null;
     let peaksField: string | null = null;
+    let durationMsField: number | null = null;
     let resolved = false;
     const bb = busboy({
       headers: { 'content-type': contentType },
@@ -360,6 +362,13 @@ function parseStemMultipart(
         if (Number.isInteger(n) && n >= 0) positionField = n;
       } else if (name === 'peaks') {
         peaksField = validatePeaksString(value);
+      } else if (name === 'duration_ms') {
+        const n = Number(value);
+        if (Number.isFinite(n) && n > 0 && n < 24 * 60 * 60 * 1000) {
+          durationMsField = Math.round(n);
+        } else {
+          console.warn(`[projects] ignoring invalid duration_ms field: ${JSON.stringify(value)}`);
+        }
       }
     });
 
@@ -399,6 +408,7 @@ function parseStemMultipart(
         body: Readable.toWeb(fileStream) as ReadableStream<Uint8Array>,
         position: positionField,
         peaks: peaksField,
+        durationMs: durationMsField,
         done: finished,
       });
     });
@@ -500,13 +510,14 @@ export async function handleCreateStem(
   const peaks = parsed.peaks;
 
   const stemId = randomUUID();
+  const durationMs = parsed.durationMs;
   stmts.insertStem.run(
     stemId,
     projectId,
     stemName,
     position,
     uploaded.id,
-    null,
+    durationMs,
     uploaded.size,
     peaks,
   );
@@ -518,7 +529,7 @@ export async function handleCreateStem(
         project_id: projectId,
         name: stemName,
         position,
-        duration_ms: null,
+        duration_ms: durationMs,
         size_bytes: uploaded.size,
         peaks,
       },
