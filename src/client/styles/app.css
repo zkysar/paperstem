@@ -2079,6 +2079,13 @@ body.env-non-prod[data-env="local"]::before {
   .ah-title-label { display: none; }
   .ah-group-label { display: none; }
   .ah-group-name { max-width: 96px; }
+  /* The desktop divider between Group and Project is hidden here; add an
+     in-block trailing rule so the two names don't visually run together. */
+  .ah-group-block {
+    padding-right: 8px;
+    border-right: 1px solid var(--rule);
+    margin-right: 6px;
+  }
   .ah-meta { display: none; }
 }
 

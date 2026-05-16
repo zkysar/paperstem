@@ -173,9 +173,12 @@ function PaperstemApp({
   }, []);
 
   const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
+  // Namespaced by user.id so two users sharing a browser don't clobber each
+  // other's last-chosen group.
+  const currentGroupStorageKey = `paperstem.currentGroupId.${user.id}`;
   const [currentGroupId, setCurrentGroupId] = useState<string | null>(() => {
     try {
-      return localStorage.getItem('paperstem.currentGroupId');
+      return localStorage.getItem(currentGroupStorageKey);
     } catch {
       return null;
     }
@@ -190,12 +193,12 @@ function PaperstemApp({
       const next = bands[0]!.id;
       setCurrentGroupId(next);
       try {
-        localStorage.setItem('paperstem.currentGroupId', next);
+        localStorage.setItem(currentGroupStorageKey, next);
       } catch {
         // ignore
       }
     }
-  }, [bands, currentGroupId]);
+  }, [bands, currentGroupId, currentGroupStorageKey]);
   const activeBand = useMemo(
     () => bands.find((b) => b.id === currentGroupId) ?? bands[0] ?? null,
     [bands, currentGroupId],
@@ -1528,15 +1531,31 @@ function PaperstemApp({
         currentGroupId={activeBandId}
         onSwitchGroup={(id) => {
           if (id === activeBandId) return;
+          // Clear project-scoped UI state so the no-project shell doesn't
+          // briefly render comments/sections from the previous group. Mirrors
+          // the deleteProject reset and the loadProject reset.
+          player.clear();
           setCurrentGroupId(id);
           try {
-            localStorage.setItem('paperstem.currentGroupId', id);
+            localStorage.setItem(currentGroupStorageKey, id);
           } catch {
             // ignore
           }
           setActiveProjectId(null);
           setDraftFiles([]);
-          setFilterSongId(null);
+          setAnnotations([]);
+          setReplies(() => new Map());
+          setSections([]);
+          setActiveSectionId(null);
+          setSectionPopover(null);
+          setSectionCreateMode(false);
+          setAnnotationCreateMode(false);
+          setActiveCommentId(null);
+          setPopoverAnchor(null);
+          setPendingDraft(null);
+          setTrash(null);
+          setTrashError(null);
+          // filterSongId is cleared by an effect on activeBandId change.
         }}
         projectTitle={player.state.title || null}
         stemCount={player.state.stems.length}

@@ -345,6 +345,15 @@ describe('AppHeader group switcher', () => {
     expect(screen.getByText('Sun Toilet')).not.toBeNull();
   });
 
+  it('Escape closes the open menu', async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
+    await user.click(screen.getByLabelText('Switch group'));
+    expect(screen.queryAllByRole('menuitem')).toHaveLength(2);
+    await user.keyboard('{Escape}');
+    expect(screen.queryAllByRole('menuitem')).toHaveLength(0);
+  });
+
   it('clicking outside closes the open menu', async () => {
     const user = userEvent.setup();
     render(
