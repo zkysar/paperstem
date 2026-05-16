@@ -2087,11 +2087,33 @@ body.env-non-prod[data-env="local"]::before {
   /* Row is a flex/grid container, not a button — Task 9 nests button + link */
   cursor: default;
 }
-/* Trash view has its own column shape (Name / Type / Deleted by / Status / Action),
-   so override the file-list template instead of inheriting empty trailing columns. */
+/* Trash view has its own column shape (Name / Type / Deleted by / Status /
+   Auto-clears / Action), so override the file-list template instead of
+   inheriting empty trailing columns. */
 .fp-row.fp-row-trash {
-  grid-template-columns: minmax(0, 1fr) 110px 220px 130px auto;
+  grid-template-columns: minmax(0, 1fr) 110px 200px 130px 110px auto;
   grid-template-areas: none;
+}
+.fp-trash-policy {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  border-bottom: 1px solid var(--rule-2);
+  background: var(--rule-2);
+}
+.fp-trash-policy-help {
+  display: inline-flex;
+  align-items: center;
+  color: var(--muted);
+  cursor: help;
+  border-radius: 50%;
+}
+.fp-trash-policy-help:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .fp-restore-btn {
   justify-self: end;

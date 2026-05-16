@@ -48,6 +48,27 @@ export function formatRelativeDate(epochMs: number, now: number = Date.now()): s
   return new Intl.DateTimeFormat(undefined, opts).format(d);
 }
 
+// "Auto-clears" countdown for a trashed item. `deletedAtSec` is the soft-delete
+// timestamp in seconds; `ttlDays` mirrors PURGE_AFTER_SECONDS in trash.ts.
+// Returns a short relative label ("in 28 days") plus the absolute purge date so
+// callers can stash it in a `title` for hover. `label` is "any time now" once
+// the cutoff has passed but the purge sweep hasn't run yet.
+export function formatPurgeIn(
+  deletedAtSec: number,
+  ttlDays: number,
+  nowMs: number = Date.now(),
+): { label: string; absolute: string } {
+  const purgeMs = (deletedAtSec + ttlDays * 24 * 60 * 60) * 1000;
+  const absolute = new Intl.DateTimeFormat(undefined, {
+    day: 'numeric', month: 'short', year: 'numeric',
+  }).format(new Date(purgeMs));
+  const remainingMs = purgeMs - nowMs;
+  if (remainingMs <= 0) return { label: 'any time now', absolute };
+  const days = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+  if (days === 1) return { label: 'in <1 day', absolute };
+  return { label: `in ${days} days`, absolute };
+}
+
 export function longestStemIdx(durations: number[]): number {
   let idx = 0;
   let best = -Infinity;
