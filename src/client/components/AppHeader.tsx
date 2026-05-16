@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, ChevronDown, Download, KeyRound, Loader2, LogOut, MessageSquare } from 'lucide-react';
+import { Bug, ChevronDown, Download, FolderOpen, KeyRound, Loader2, LogOut, MessageSquare } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
 
@@ -80,55 +80,66 @@ export function AppHeader({
         </span>
       )}
       <span className="ah-divider" />
-      <div className="ah-title-block">
-        <span className="ah-title-label">Project</span>
-        <span className="ah-title-row">
-          {editing && titleEditable ? (
-            <input
-              className="ah-title-input"
-              aria-label="Rename project"
-              value={draft}
-              autoFocus
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  commit();
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  cancel();
-                }
-              }}
-              onBlur={commit}
-            />
-          ) : (
+      {hasProject ? (
+        <div className="ah-title-block">
+          <span className="ah-title-label">Project</span>
+          <span className="ah-title-row">
+            {editing && titleEditable ? (
+              <input
+                className="ah-title-input"
+                aria-label="Rename project"
+                value={draft}
+                autoFocus
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commit();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancel();
+                  }
+                }}
+                onBlur={commit}
+              />
+            ) : (
+              <button
+                type="button"
+                className={'ah-title-name' + (titleEditable ? ' ah-title-name-editable' : '')}
+                onClick={() => {
+                  if (titleEditable) {
+                    setEditing(true);
+                  } else {
+                    onOpenPicker();
+                  }
+                }}
+                title={titleEditable ? 'Click to rename' : 'Switch project'}
+              >
+                {projectTitle}
+              </button>
+            )}
             <button
               type="button"
-              className={'ah-title-name' + (titleEditable ? ' ah-title-name-editable' : '')}
-              onClick={() => {
-                if (titleEditable) {
-                  setEditing(true);
-                } else if (hasProject) {
-                  onOpenPicker();
-                }
-              }}
-              disabled={!hasProject}
-              title={titleEditable ? 'Click to rename' : 'Switch project'}
+              className="ah-title-caret"
+              onClick={onOpenPicker}
+              aria-label="Switch project"
+              title="Switch to a different project"
             >
-              {projectTitle ?? 'No project'}
+              <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
             </button>
-          )}
-          <button
-            type="button"
-            className="ah-title-caret"
-            onClick={onOpenPicker}
-            aria-label="Switch project"
-            title="Switch to a different project"
-          >
-            <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
-          </button>
-        </span>
-      </div>
+          </span>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="ah-open-cta"
+          onClick={onOpenPicker}
+          title="Open a project"
+        >
+          <FolderOpen size={14} strokeWidth={2} aria-hidden="true" />
+          Open a project
+        </button>
+      )}
       <span className="ah-spacer" />
       {hasProject && (
         <span className="ah-meta">

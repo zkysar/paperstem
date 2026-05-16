@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Link2 } from 'lucide-react';
 import type { Section } from '../../shared/types';
 import { FREE_TEXT_SECTION_COLOR, colorForSong } from '../lib/colors';
@@ -42,6 +42,10 @@ type DragPayload = LeftEdgePayload | MiddlePayload;
 const NARROW_SEGMENT_PX = 8;
 const MIN_GAP_MS = 250;
 const SNAP_MS = 10;
+// Long-press delay (ms) before the section pill's middle-drag arms. A quick
+// click stays a click → seek + select; a deliberate hold floats the pill and
+// lets the user drag it. The left-edge grip is immediate-drag (no hold).
+const HOLD_MS = 200;
 
 function snap(v: number): number {
   return Math.round(v / SNAP_MS) * SNAP_MS;
@@ -72,6 +76,24 @@ export function SectionLane({
     () => new Map(),
   );
   const [guideline, setGuideline] = useState<number | null>(null);
+  // Tracks the pill the user is currently pressing so we can stamp it with a
+  // `.dragging` class. Annotation markers and loop regions rely on the CSS
+  // `:active` pseudo-class to swap their cursor to `grabbing`, but a section
+  // pill is a <button>, and Chromium drops `:active` on a button as soon as
+  // the pointer leaves the element's bounding box — even while pointer
+  // capture is active — so during a drag the cursor flickers back to `grab`.
+  // Explicit state keeps the grabbing cursor on for the whole gesture.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!draggingId) return;
+    const clear = () => setDraggingId(null);
+    window.addEventListener('pointerup', clear);
+    window.addEventListener('pointercancel', clear);
+    return () => {
+      window.removeEventListener('pointerup', clear);
+      window.removeEventListener('pointercancel', clear);
+    };
+  }, [draggingId]);
 
   const msPerPx = duration && waveWidthPx ? (duration * 1000) / waveWidthPx : 0;
 
@@ -216,6 +238,9 @@ export function SectionLane({
           <DragGuideline visible={guideline !== null} leftPx={guideline ?? 0} />
           {computed.map((c) => {
             const isActive = activeSectionId === c.section.id;
+            const isArmed =
+              drag.armedPayload?.kind === 'middle' &&
+              drag.armedPayload.sectionId === c.section.id;
             const showGrips = !!onPatchSection;
             return (
               <button
@@ -223,7 +248,12 @@ export function SectionLane({
                 key={c.section.id}
                 data-testid={`section-${c.section.id}`}
                 data-section-id={c.section.id}
-                className={'section-pill' + (isActive ? ' active' : '')}
+                className={
+                  'section-pill' +
+                  (isActive ? ' active' : '') +
+                  (draggingId === c.section.id ? ' dragging' : '') +
+                  (isArmed ? ' armed' : '')
+                }
                 style={{
                   left: `${c.leftPx}px`,
                   width: `${c.widthPx}px`,
@@ -243,7 +273,11 @@ export function SectionLane({
                 }}
                 onPointerDown={(e) => {
                   if (!onPatchSection) return;
+                  // Touch pointers conflict with scroll/seek and lack the
+                  // precision the grip affordance assumes — edit on desktop.
+                  if (e.pointerType === 'touch') return;
                   if ((e.target as Element).closest('.section-grip')) return;
+                  setDraggingId(c.section.id);
                   const hasNext = c.index + 1 < computed.length;
                   const baseStart = effective(c.section);
                   const baseNextStart = c.nextStartMs;
@@ -271,15 +305,19 @@ export function SectionLane({
                     maxDelta = durationMs - MIN_GAP_MS - baseStart;
                   }
 
-                  drag.handlePointerDown(e, {
-                    kind: 'middle',
-                    sectionId: c.section.id,
-                    nextId,
-                    baseStartMs: baseStart,
-                    baseNextStartMs: baseNextStart,
-                    minDelta,
-                    maxDelta,
-                  });
+                  drag.handlePointerDown(
+                    e,
+                    {
+                      kind: 'middle',
+                      sectionId: c.section.id,
+                      nextId,
+                      baseStartMs: baseStart,
+                      baseNextStartMs: baseNextStart,
+                      minDelta,
+                      maxDelta,
+                    },
+                    { holdMs: HOLD_MS },
+                  );
                 }}
               >
                 {showGrips && c.index > 0 && (
@@ -288,6 +326,8 @@ export function SectionLane({
                     aria-hidden="true"
                     onPointerDown={(e) => {
                       e.stopPropagation();
+                      if (e.pointerType === 'touch') return;
+                      setDraggingId(c.section.id);
                       drag.handlePointerDown(e, {
                         kind: 'left-edge',
                         sectionId: c.section.id,

@@ -1244,6 +1244,10 @@ button.track-name:disabled { cursor: default; }
   .annotation-mode-banner,
   .annotation-mode-dot,
   .shortcuts-modal { animation: none; }
+  /* Keep the shadow as the "lifted" signal but drop the translate so users
+     who request reduced motion don't get the bar hopping when armed. */
+  .section-pill.armed,
+  .annotation-marker.armed { transform: none; }
 }
 
 .annotations-markers-toggle {
@@ -1338,12 +1342,14 @@ button.track-name:disabled { cursor: default; }
      colored line over the top of the first track-rail (visible because
      the ruler-rail-mask is only 22px tall). */
   box-sizing: border-box;
-  opacity: 0.3;
+  opacity: 0.55;
   border-top: 2px solid currentColor;
+  border-radius: 2px;
   cursor: pointer;
+  transition: opacity 80ms ease, transform 120ms ease, box-shadow 120ms ease;
 }
 .annotation-marker.region.hovered {
-  opacity: 0.5;
+  opacity: 0.8;
 }
 
 /* ===== AppHeader ===== */
@@ -1418,6 +1424,23 @@ button.ah-title-name:disabled { cursor: default; }
   cursor: pointer;
 }
 .ah-title-caret:hover { color: var(--ink); }
+.ah-open-cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-weight: var(--fw-semi);
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  cursor: pointer;
+}
+.ah-open-cta:hover { background: var(--rule); }
+.ah-open-cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .ah-spacer { flex: 1; }
 .ah-meta {
   color: var(--muted);
@@ -4089,6 +4112,10 @@ body.env-non-prod[data-env="local"]::before {
   margin-bottom: -22px;
 }
 .player.rail-collapsed .section-rail-mask { display: none; }
+/* In ribbon mode the wrap is 14px tall; the absolutely-positioned ribbon
+   means the mask's margin-bottom cancellation is moot, but the mask's own
+   height still needs to shrink so it doesn't paint into the track below. */
+.section-lane-wrap.collapsed .section-rail-mask { height: 14px; }
 
 .section-pill {
   position: absolute;
@@ -4112,7 +4139,7 @@ body.env-non-prod[data-env="local"]::before {
      the edge against the lane background so neighbouring sections read
      as distinct even at very narrow widths. */
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
-  transition: opacity 80ms ease;
+  transition: opacity 80ms ease, transform 120ms ease, box-shadow 120ms ease;
 }
 .section-pill:hover,
 .section-pill:focus-visible {
@@ -4141,9 +4168,15 @@ body.env-non-prod[data-env="local"]::before {
    wrapper itself adds no padding. */
 .section-lane-wrap {
   position: relative;
-  /* Reserve the expanded lane height in both modes so hover-to-expand
-     doesn't reflow the tracks below. Matches .section-lane height. */
+}
+/* Pills mode reserves the full lane height. Ribbon mode reserves only the
+   ribbon strip plus its transparent hit pad — hovering the ribbon causes
+   tracks below to shift by ~8px, which is small enough to feel deliberate. */
+.section-lane-wrap.expanded {
   height: 22px;
+}
+.section-lane-wrap.collapsed {
+  height: 14px;
 }
 .section-lane-wrap.disabled {
   pointer-events: none;
@@ -4579,6 +4612,11 @@ body.env-non-prod[data-env="local"]::before {
   left: auto;
   right: 3px;
 }
+@media (pointer: coarse) {
+  .section-grip {
+    display: none;
+  }
+}
 
 /* ---- Annotation grips ---------------------------------------------- */
 .annotation-grip {
@@ -4610,39 +4648,35 @@ body.env-non-prod[data-env="local"]::before {
   opacity: 0.8;
 }
 
-/* ---- Annotation open-tab ------------------------------------------- */
-.annotation-tab {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 8px;
-  background: currentColor;
-  opacity: 0.7;
-  cursor: pointer;
-  z-index: 7;
-}
-.annotation-marker.point .annotation-tab {
-  height: 10px;
-}
-.annotation-tab:hover {
-  opacity: 1;
-}
-
 /* ---- Drag-zone cursors --------------------------------------------- */
-/* The middle of section pills and annotation markers is the translate
-   zone. ew-resize on the edge grips overrides this on the 8px hot zones. */
-.section-pill {
-  cursor: grab;
-}
-.section-pill:active {
-  cursor: grabbing;
-}
+/* Sections and annotations both use click-to-open + hold-to-drag on the
+   body, so the resting cursor is the default pointer. ew-resize on the
+   edge grips overrides this on the 8px hot zones. The .armed class
+   (applied once the hold-to-drag long-press fires) swaps in grabbing.
+   `.dragging` (stamped on by SectionLane for the lifetime of the gesture)
+   covers the gap before arming — Chromium drops `:active` on a <button>
+   as soon as pointer capture moves outside, so we can't rely on it. */
 .annotation-marker.region,
 .annotation-marker.point {
-  cursor: grab;
+  cursor: pointer;
 }
-.annotation-marker.region:active,
-.annotation-marker.point:active {
+.section-pill.dragging {
   cursor: grabbing;
+}
+
+/* ---- Armed / floating drag affordance ------------------------------- */
+/* When the long-press fires, the bar "lifts" — slight upward translation,
+   stronger shadow, full opacity, grabbing cursor. The transitions on the
+   base rules animate it in smoothly. */
+.section-pill.armed,
+.annotation-marker.armed {
+  cursor: grabbing;
+  z-index: 12;
+  box-shadow:
+    0 6px 12px rgba(0, 0, 0, 0.25),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+}
+.annotation-marker.region.armed {
+  opacity: 0.95;
 }

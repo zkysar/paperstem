@@ -1,15 +1,17 @@
 # Testing
 
-Conventions for adding unit tests to Paperstem. The repo uses vitest with two projects: a `client` project running under happy-dom for React tests, and a `server` project running under node for everything else. See `vitest.config.ts`.
+Conventions for adding unit tests to Paperstem. The repo uses vitest with two projects: a `client` project running under happy-dom for React tests, and a `server` project running under node for everything else. See `vitest.config.ts`. End-to-end browser coverage uses Playwright; see [End-to-end tests](#end-to-end-tests-playwright) below.
 
 ## Running tests
 
-- `npx vitest run` — full suite.
+- `npx vitest run` — full unit suite.
 - `npx vitest run <path>` — single file or pattern.
 - `npx vitest` — watch mode.
 - `npm test` — alias for `vitest run`.
+- `npm run test:e2e` — Playwright journeys (spawns dev server, drives a real Chromium).
+- `npm run test:e2e:headed` — same, with a visible browser window for debugging.
 
-The pre-push hook (`scripts/git-hooks/pre-push`) runs `npm run build` and `vitest` before any push; failures block the push.
+The pre-push hook (`scripts/git-hooks/pre-push`) runs `npm run build` and `vitest` before any push; failures block the push. **E2E does not run pre-push** (it spawns a real server and Chromium — too slow for the hook). CI runs E2E on every PR; treat a green CI as the e2e signal, and run `npm run test:e2e` locally before opening a PR when you've touched playback, layout, or any modal/overlay.
 
 ## Project split
 
@@ -1036,3 +1038,73 @@ See [Server import](#server-import) for the full orchestration test harness, inc
 
 - **Do not test the CLI argument parsing inline with the business logic.** Scripts that expose a `run*` function separate argument parsing (top-level `if (import.meta.main)` block or `parseArgs`) from the importable function. Test the importable function directly; argument-parsing wiring is typically too thin to need its own tests.
 - **Do not spawn a subprocess when a direct function call is available.** Subprocess tests are slower, harder to debug, and cannot use `vi.fn()` spies. If the script is new, design it to export an importable entry point from the start.
+
+## End-to-end tests (Playwright)
+
+Vitest covers unit behaviour: a hook with a fake DOM, a route handler with a fake DB. End-to-end coverage exists for the class of bug those harnesses can't catch — real browser layout, real user gestures, real long tasks. Examples of what e2e is for:
+
+- **Runaway layout** — the May 2026 freeze in PR #133 was a feedback loop between `.viewport-inner`'s explicit pixel width and the outer grid column. Vitest couldn't see it because happy-dom doesn't run real CSS grid sizing. The `zoom.spec.ts` journey catches it by measuring `.stage`, `.ruler`, and `.viewport-inner` after every zoom step and asserting they stay within `MAX_HZOOM × 2` of the viewport width.
+- **Render storms** — a useEffect re-firing on every render shows up as a Long Task (>50ms blocking) the user sees as jank. `expectNoLongTask(label, fn)` wraps an interaction and asserts no entries cross the 100ms bar.
+- **Modal leaks** — a stuck `position: fixed` overlay that no longer responds to Escape is the kind of thing a unit test of one component will never see. The `overlays.spec.ts` journey opens every modal and asserts none remain visible after a global Escape.
+- **Console errors / unhandled rejections** — every journey runs under a fixture that records `console.error`, page errors, and unhandled promise rejections; any of them fails the test. Uncaught errors are the #1 source of silent prod regressions on this app.
+
+### Where tests live
+
+- Spec files: `tests/e2e/journeys/*.spec.ts`. One file per user journey. Don't put isolated assertions here — see "When to add a new journey" below.
+- Fixtures and helpers: `tests/e2e/helpers/fixtures.ts`. The `test` export wraps Playwright's base with the `app` harness, console capture, and the `consoleIssues` invariant.
+- Global setup/teardown: `tests/e2e/global-setup.ts` and `tests/e2e/global-teardown.ts`. Setup spawns `npx tsx bin/dev.ts` against a fresh tmpdir (clean DB + audio root + dev auto-login), parses the printed `UI: http://localhost:NNN`, waits for `/api/me` to respond, and writes the URL to `node_modules/.tmp/paperstem-e2e-server.json` for the fixture to read. Teardown sends `SIGTERM` to the process group so vite + tsx watch both exit. **The harness is the only place that knows how to start the server — never spawn Vite or Hono inline inside a spec.**
+- Config: `playwright.config.ts` at the repo root. Chromium only, single worker, fullyParallel off (every journey runs against the same seeded server).
+
+### How a journey should be shaped
+
+Each spec runs a multi-step sequence a real user would do in one sitting: sign in, pick a project, do the thing, see the result. Inside the journey, weave in invariants — short calls to `app.expectLayoutBounded()`, `app.expectNoLongTask(label, fn)`, or implicit `consoleIssues` capture — at the points where regressions historically showed up. The primary assertion is the user's goal ("the comment exists in the drawer"); the invariants are the safety net.
+
+What this looks like in practice (lifted from `comment.spec.ts`):
+
+```typescript
+await app.open();                  // dev auto-login → file picker open
+await app.openSampleProject();     // seeded project loads, stems decoded
+await page.keyboard.press('c');    // C creates a draft annotation at playhead
+const drawer = page.getByRole('dialog', { name: 'All comments' });
+await drawer.getByPlaceholder('Write a note…').fill('e2e: this riff…');
+await drawer.getByRole('button', { name: /^Save/ }).click();
+await expect(drawer.getByText('e2e: this riff…')).toBeVisible();  // primary
+await app.expectLayoutBounded();                                  // invariant
+```
+
+### When to add a new journey
+
+Add one when:
+
+- You're fixing a regression that **only manifested in a real browser** (layout, focus, modal, long task, audio playback timing). The e2e journey is the repro you'd hand someone else — once the bug is fixed, the spec becomes the guard.
+- You're shipping a **new user journey** that crosses 3+ components and at least one round-trip to the server (loading a project, posting a comment, creating a section, etc.). Vitest covers each component in isolation; e2e covers the seam.
+- A **larger feature** lands a substantial new user-visible workflow. **E2E coverage is required for large features that change cross-component behaviour** (anything you'd describe as "a flow" rather than "a fix"). Smaller features and bug fixes still benefit but aren't required — pick the highest-value journey the feature enables and add it.
+
+Don't add one when:
+
+- You're testing a single component in isolation — that belongs in vitest.
+- The behaviour you're checking is pure logic over inputs — vitest, fast and deterministic.
+- You're tempted to add "one more assertion" to an unrelated journey because it's already running. Either it belongs in an existing journey's natural arc, or it's a different journey. Don't bolt orthogonal assertions onto an existing spec.
+
+### When to add a new selector or test-id
+
+Prefer ARIA-derived queries (`getByRole`, `getByLabel`, `getByPlaceholder`) over `data-testid`. They double as accessibility coverage. Reach for `data-testid` only when:
+
+1. The element has no role and no accessible label, AND
+2. Multiple instances exist (so text/role can't disambiguate), AND
+3. The test id is the natural API of the component (`section-<id>`, `fp-row-<id>`, etc.)
+
+If you need a new test-id, add it in the same PR as the spec. Check it in. Don't ship a spec that queries `.some-class` as a workaround.
+
+### Debugging flakes
+
+A flaky journey is worse than no journey — it trains the team to ignore CI. Steps before re-opening the PR:
+
+1. **Reproduce locally with the trace**: `npm run test:e2e -- --trace on tests/e2e/journeys/<name>.spec.ts`. Open the HTML report (`npx playwright show-report`) and walk the timeline; flakes almost always show up as a "wait" that resolved by chance.
+2. **Replace the racy wait with an observable one**: `expect.poll(() => …)` on the actual signal beats `page.waitForTimeout(...)` every time. If a `waitForTimeout` is the only thing that "fixes" it, the wait is wrong, not the duration.
+3. **Shorten the journey**: if a single spec walks through 8 user steps to set up the assertion, split off the unrelated steps into a separate journey or assume the seeded state. Long journeys flake at the rate of the product of each step's flake rate.
+4. If you cannot stabilise within ~30 minutes of effort, **delete the journey** rather than ship it. Open a follow-up issue with the trace attached. Quiet coverage beats flaky coverage.
+
+### Updating the seed fixture
+
+The dev launcher seeds a "Sample project" with three MP3 stems on first start (`src/server/auth/dev-seed.ts`, assets at `assets/dev-seed/`). All journeys load that project. If you need a different fixture shape — more stems, sections, annotations — extend `seedDevBandIfNeeded` rather than spawning a setup script per spec; keeping seed logic in one place means every journey lands in a state any developer can also reach via `npm run dev`.
