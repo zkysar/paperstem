@@ -16,6 +16,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "add-user": "tsx bin/add-user.ts",
     "onboard-band": "scripts/onboard-band.sh",
     "seed-project": "scripts/seed-project.sh",
@@ -44,6 +46,7 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/better-sqlite3": "^7.6.12",
