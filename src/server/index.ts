@@ -90,6 +90,7 @@ import { handleVersion } from './version.js';
 import { handleBugReport } from './bug-report.js';
 import { startScheduler } from './jobs/scheduler.js';
 import { registerStatic } from './static.js';
+import { registerPresenceWs } from './presence-ws.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const callbackHtmlTemplate = readFileSync(
@@ -195,9 +196,12 @@ if (isDevLoginEnabled()) {
   });
 }
 
-serve({ fetch: app.fetch, port }, (info) => {
+const { injectWebSocket } = registerPresenceWs(app);
+
+const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`paperstem server listening on http://localhost:${info.port}`);
 });
+injectWebSocket(server as any);
 
 if (!process.env.PAPERSTEM_DISABLE_SCHEDULER) {
   startScheduler();
