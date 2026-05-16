@@ -102,9 +102,54 @@ export function registerPresenceWs(app: Hono<{ Variables: AuthVariables }>) {
         onOpen(_evt, ws) {
           conns.set(ctx.connId, { ws, ctx });
         },
-        onMessage() {
-          // Subscribe + beat land in Task 5. Reference vars to satisfy lint:
-          void registry; void canAccessProject; void linkToken; void snapshotFor; void broadcast;
+        onMessage(evt, ws) {
+          let msg: unknown;
+          try {
+            msg = JSON.parse(typeof evt.data === 'string' ? evt.data : '');
+          } catch {
+            return;
+          }
+          if (!msg || typeof msg !== 'object') return;
+          const m = msg as Record<string, unknown>;
+
+          if (m.type === 'subscribe') {
+            const requested = Array.isArray(m.projectIds)
+              ? m.projectIds.filter((x): x is string => typeof x === 'string')
+              : [];
+            const allowed = new Set<string>();
+            for (const projectId of requested) {
+              if (canAccessProject(projectId, { userId: ctx.userId, linkToken })) {
+                allowed.add(projectId);
+              }
+            }
+            const removed: string[] = [];
+            for (const old of ctx.subscribed) {
+              if (!allowed.has(old)) {
+                const affected = registry.removeConnFromProject(ctx.connId, old);
+                if (affected.length) removed.push(old);
+              }
+            }
+            ctx.subscribed = allowed;
+            for (const p of removed) broadcast(p);
+            for (const projectId of allowed) {
+              ws.send(JSON.stringify(snapshotFor(projectId, ctx.isAnonymous)));
+            }
+            return;
+          }
+
+          if (m.type === 'beat') {
+            const projectId = typeof m.projectId === 'string' ? m.projectId : null;
+            const state = m.state === 'idle' ? 'idle' : 'active';
+            if (!projectId || !ctx.subscribed.has(projectId)) return;
+            registry.addOrUpdate(ctx.connId, projectId, {
+              userId: ctx.userId,
+              displayName: ctx.displayName,
+              state,
+              isAnonymous: ctx.isAnonymous,
+            });
+            broadcast(projectId);
+            return;
+          }
         },
         onClose() {
           conns.delete(ctx.connId);

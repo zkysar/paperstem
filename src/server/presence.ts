@@ -17,6 +17,7 @@ type Input = Omit<PresenceRow, 'connId' | 'lastBeatAt'>;
 export type Registry = {
   addOrUpdate(connId: string, projectId: string, input: Input): string[];
   removeConn(connId: string): string[];
+  removeConnFromProject(connId: string, projectId: string): string[];
   sweep(maxAgeMs: number): string[];
   snapshot(projectId: string): Snapshot;
   subscribedProjects(): string[];
@@ -62,6 +63,13 @@ export function createRegistry(opts: Opts = {}): Registry {
     return affected;
   }
 
+  function removeConnFromProject(connId: string, projectId: string): string[] {
+    const m = byProject.get(projectId);
+    if (!m || !m.delete(connId)) return [];
+    if (m.size === 0) byProject.delete(projectId);
+    return [projectId];
+  }
+
   function sweep(maxAgeMs: number): string[] {
     const cutoff = now() - maxAgeMs;
     const affected = new Set<string>();
@@ -80,5 +88,5 @@ export function createRegistry(opts: Opts = {}): Registry {
     return [...byProject.keys()];
   }
 
-  return { addOrUpdate, removeConn, sweep, snapshot, subscribedProjects };
+  return { addOrUpdate, removeConn, removeConnFromProject, sweep, snapshot, subscribedProjects };
 }

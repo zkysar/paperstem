@@ -88,3 +88,27 @@ describe('presence registry — sweep', () => {
     expect(reg.sweep(30_000)).toEqual([]);
   });
 });
+
+describe('presence registry — removeConnFromProject', () => {
+  it('removes a single (conn, project) pair without touching other projects', () => {
+    const reg = createRegistry({ now: () => 1000 });
+    reg.addOrUpdate('conn-1', 'proj-A', { userId: 'u-1', displayName: 'A', state: 'active', isAnonymous: false });
+    reg.addOrUpdate('conn-1', 'proj-B', { userId: 'u-1', displayName: 'A', state: 'active', isAnonymous: false });
+    const affected = reg.removeConnFromProject('conn-1', 'proj-A');
+    expect(affected).toEqual(['proj-A']);
+    expect(reg.snapshot('proj-A').rows).toHaveLength(0);
+    expect(reg.snapshot('proj-B').rows).toHaveLength(1);
+  });
+
+  it('returns empty array when the (conn, project) pair did not exist', () => {
+    const reg = createRegistry({ now: () => 1000 });
+    expect(reg.removeConnFromProject('conn-x', 'proj-Z')).toEqual([]);
+  });
+
+  it('cleans up empty project maps after removal', () => {
+    const reg = createRegistry({ now: () => 1000 });
+    reg.addOrUpdate('conn-1', 'proj-A', { userId: 'u-1', displayName: 'A', state: 'active', isAnonymous: false });
+    reg.removeConnFromProject('conn-1', 'proj-A');
+    expect(reg.subscribedProjects()).toEqual([]);
+  });
+});
