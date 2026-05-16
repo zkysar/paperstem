@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS annotation_reply_reactions (
 DROP INDEX IF EXISTS idx_annotation_reply_reactions_reply;
 
 -- Band-scoped song catalog backing the section chapter-lane and the
--- FilePicker chip-rail filter. Name is unique within a band on a normalised
+-- ProjectPicker chip-rail filter. Name is unique within a band on a normalised
 -- (lower(trim(.))) key so the combobox at section-creation transparently
 -- dedups "Heart Sounds" / "heart sounds" / "  Heart Sounds " into a single
 -- row. The original casing the user typed survives in `name`; `name_norm`
