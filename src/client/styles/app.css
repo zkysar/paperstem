@@ -3875,6 +3875,10 @@ body.env-non-prod[data-env="local"]::before {
   margin-bottom: -22px;
 }
 .player.rail-collapsed .section-rail-mask { display: none; }
+/* In ribbon mode the wrap is 14px tall; the absolutely-positioned ribbon
+   means the mask's margin-bottom cancellation is moot, but the mask's own
+   height still needs to shrink so it doesn't paint into the track below. */
+.section-lane-wrap.collapsed .section-rail-mask { height: 14px; }
 
 .section-pill {
   position: absolute;
@@ -3927,9 +3931,15 @@ body.env-non-prod[data-env="local"]::before {
    wrapper itself adds no padding. */
 .section-lane-wrap {
   position: relative;
-  /* Reserve the expanded lane height in both modes so hover-to-expand
-     doesn't reflow the tracks below. Matches .section-lane height. */
+}
+/* Pills mode reserves the full lane height. Ribbon mode reserves only the
+   ribbon strip plus its transparent hit pad — hovering the ribbon causes
+   tracks below to shift by ~8px, which is small enough to feel deliberate. */
+.section-lane-wrap.expanded {
   height: 22px;
+}
+.section-lane-wrap.collapsed {
+  height: 14px;
 }
 .section-lane-wrap.disabled {
   pointer-events: none;

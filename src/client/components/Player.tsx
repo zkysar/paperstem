@@ -144,8 +144,7 @@ export function Player({
   const laneExpanded =
     laneHovered ||
     (isMobile && laneTappedOpen) ||
-    sectionCreateMode ||
-    activeSectionId !== null;
+    sectionCreateMode;
 
   useEffect(() => {
     if (!laneTappedOpen) return;
