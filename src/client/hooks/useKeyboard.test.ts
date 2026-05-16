@@ -512,3 +512,79 @@ describe('useKeyboard WASD navigation', () => {
   });
 });
 
+describe('useKeyboard arrow-key seek', () => {
+  function playerAt(currentTime: number, duration = 120) {
+    const p = stubPlayer();
+    p.currentTime = currentTime;
+    p.state.duration = duration;
+    return p;
+  }
+
+  it('ArrowRight nudges 0.1s forward', () => {
+    const player = playerAt(10);
+    renderHook(() => useKeyboard({ ...defaultOpts(), player }));
+    fireEvent.keyDown(document, { key: 'ArrowRight' });
+    expect(player.seek).toHaveBeenCalledWith(10.1);
+  });
+
+  it('ArrowLeft nudges 0.1s back', () => {
+    const player = playerAt(10);
+    renderHook(() => useKeyboard({ ...defaultOpts(), player }));
+    fireEvent.keyDown(document, { key: 'ArrowLeft' });
+    expect(player.seek).toHaveBeenCalledWith(expect.closeTo(9.9, 5));
+  });
+
+  it('Alt+ArrowRight shifts 1s forward', () => {
+    const player = playerAt(10);
+    renderHook(() => useKeyboard({ ...defaultOpts(), player }));
+    fireEvent.keyDown(document, { key: 'ArrowRight', altKey: true });
+    expect(player.seek).toHaveBeenCalledWith(11);
+  });
+
+  it('Shift+ArrowLeft jumps 5s back', () => {
+    const player = playerAt(10);
+    renderHook(() => useKeyboard({ ...defaultOpts(), player }));
+    fireEvent.keyDown(document, { key: 'ArrowLeft', shiftKey: true });
+    expect(player.seek).toHaveBeenCalledWith(5);
+  });
+
+  it('clamps to 0 at the start', () => {
+    const player = playerAt(0.05);
+    renderHook(() => useKeyboard({ ...defaultOpts(), player }));
+    fireEvent.keyDown(document, { key: 'ArrowLeft' });
+    expect(player.seek).toHaveBeenCalledWith(0);
+  });
+
+  it('clamps to duration at the end', () => {
+    const player = playerAt(119.95, 120);
+    renderHook(() => useKeyboard({ ...defaultOpts(), player }));
+    fireEvent.keyDown(document, { key: 'ArrowRight', shiftKey: true });
+    expect(player.seek).toHaveBeenCalledWith(120);
+  });
+
+  it('does nothing when duration is 0 (no song loaded)', () => {
+    const player = playerAt(0, 0);
+    renderHook(() => useKeyboard({ ...defaultOpts(), player }));
+    fireEvent.keyDown(document, { key: 'ArrowRight' });
+    expect(player.seek).not.toHaveBeenCalled();
+  });
+
+  it('ignores Cmd+Arrow (reserved for OS text nav)', () => {
+    const player = playerAt(10);
+    renderHook(() => useKeyboard({ ...defaultOpts(), player }));
+    fireEvent.keyDown(document, { key: 'ArrowRight', metaKey: true });
+    expect(player.seek).not.toHaveBeenCalled();
+  });
+
+  it('does not seek when focus is in a text input', () => {
+    const player = playerAt(10);
+    renderHook(() => useKeyboard({ ...defaultOpts(), player }));
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    expect(player.seek).not.toHaveBeenCalled();
+    document.body.removeChild(input);
+  });
+});
+
