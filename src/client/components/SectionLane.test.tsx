@@ -348,7 +348,7 @@ describe('SectionLane', () => {
       expect(onPatchSection).toHaveBeenCalledTimes(1);
     });
 
-    it('a dragged pill does not also fire its click — no dialog should open after a drag', () => {
+    it('committing a middle drag opens the popover at the dropped position but does not seek', () => {
       const onPatchSection = vi.fn(async () => {});
       const onSelect = vi.fn();
       const onSeek = vi.fn();
@@ -375,10 +375,20 @@ describe('SectionLane', () => {
       vi.advanceTimersByTime(200);
       fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
       fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
+      // wasDragRef is true after a drag, so the trailing native click is
+      // suppressed by the consumer's onClick guard.
       fireEvent.click(pill, { clientX: 540 });
 
-      expect(onPatchSection).toHaveBeenCalled();
-      expect(onSelect).not.toHaveBeenCalled();
+      expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 36000 });
+      // Section popover should open at the dropped position with the
+      // already-updated start_ms so the dialog reflects where the pill
+      // now sits — mirrors how comments stay editable after a drag.
+      expect(onSelect).toHaveBeenCalledTimes(1);
+      expect(onSelect.mock.calls[0][0]).toMatchObject({
+        id: 's2',
+        start_ms: 36000,
+      });
+      // Drag is for editing, not playback — the playhead shouldn't jump.
       expect(onSeek).not.toHaveBeenCalled();
     });
 
