@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { identifyUser, resetAnalytics } from '../lib/analytics';
 import type { User } from '../../shared/types';
 
 type State = {
@@ -43,12 +44,17 @@ export function useSession() {
       method: 'POST',
       credentials: 'include',
     }).catch(() => {});
+    resetAnalytics();
     setState({ user: null, loading: false });
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (state.user) identifyUser(state.user);
+  }, [state.user]);
 
   return { user: state.user, loading: state.loading, refresh, logout };
 }

@@ -1,6 +1,6 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SectionLane } from './SectionLane';
 import type { Section } from '../../shared/types';
 
@@ -284,89 +284,195 @@ describe('SectionLane', () => {
     expect(onTapToExpand).not.toHaveBeenCalled();
   });
 
-  it('middle drag of a section translates self + next by same delta', async () => {
-    const onPatchSection = vi.fn(async () => {});
-    const sections = [
-      section({ id: 's1', start_ms: 0 }),
-      section({ id: 's2', start_ms: 30000 }),
-      section({ id: 's3', start_ms: 90000 }),
-    ];
-    render(
-      <SectionLane
-        {...baseProps}
-        sections={sections}
-        onPatchSection={onPatchSection}
-        activeSectionId="s2"
-      />,
-    );
-    const pill = screen.getByTestId('section-s2');
-    (pill as any).setPointerCapture = vi.fn();
-    (pill as any).releasePointerCapture = vi.fn();
+  describe('middle drag (hold-to-arm)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
 
-    fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
-    fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
-    fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
+    it('translates self + next by same delta after the hold timer fires', () => {
+      const onPatchSection = vi.fn(async () => {});
+      const sections = [
+        section({ id: 's1', start_ms: 0 }),
+        section({ id: 's2', start_ms: 30000 }),
+        section({ id: 's3', start_ms: 90000 }),
+      ];
+      render(
+        <SectionLane
+          {...baseProps}
+          sections={sections}
+          onPatchSection={onPatchSection}
+          activeSectionId="s2"
+        />,
+      );
+      const pill = screen.getByTestId('section-s2');
+      (pill as any).setPointerCapture = vi.fn();
+      (pill as any).releasePointerCapture = vi.fn();
 
-    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 36000 });
-    expect(onPatchSection).toHaveBeenCalledWith('s3', { start_ms: 96000 });
-  });
+      fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+      vi.advanceTimersByTime(200);
+      fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+      fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
 
-  it('middle drag of the last section is a no-op — there is no next start to translate, so resizing would be the only outcome', async () => {
-    const onPatchSection = vi.fn(async () => {});
-    const sections = [
-      section({ id: 's1', start_ms: 0 }),
-      section({ id: 's2', start_ms: 60000 }),
-    ];
-    render(
-      <SectionLane
-        {...baseProps}
-        sections={sections}
-        onPatchSection={onPatchSection}
-        activeSectionId="s2"
-      />,
-    );
-    const pill = screen.getByTestId('section-s2');
-    (pill as any).setPointerCapture = vi.fn();
-    (pill as any).releasePointerCapture = vi.fn();
+      expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 36000 });
+      expect(onPatchSection).toHaveBeenCalledWith('s3', { start_ms: 96000 });
+    });
 
-    fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
-    fireEvent.pointerMove(window, { clientX: 510, pointerId: 1 });
-    fireEvent.pointerUp(window, { clientX: 510, pointerId: 1 });
+    it('middle drag of the last section shifts its start_ms only', () => {
+      const onPatchSection = vi.fn(async () => {});
+      const sections = [
+        section({ id: 's1', start_ms: 0 }),
+        section({ id: 's2', start_ms: 60000 }),
+      ];
+      render(
+        <SectionLane
+          {...baseProps}
+          sections={sections}
+          onPatchSection={onPatchSection}
+          activeSectionId="s2"
+        />,
+      );
+      const pill = screen.getByTestId('section-s2');
+      (pill as any).setPointerCapture = vi.fn();
+      (pill as any).releasePointerCapture = vi.fn();
 
-    expect(onPatchSection).not.toHaveBeenCalled();
-  });
+      fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+      vi.advanceTimersByTime(200);
+      fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+      fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
 
-  it('a dragged pill does not also fire its click — no dialog should open after a drag', () => {
-    const onPatchSection = vi.fn(async () => {});
-    const onSelect = vi.fn();
-    const onSeek = vi.fn();
-    const sections = [
-      section({ id: 's1', start_ms: 0 }),
-      section({ id: 's2', start_ms: 30000 }),
-      section({ id: 's3', start_ms: 90000 }),
-    ];
-    render(
-      <SectionLane
-        {...baseProps}
-        sections={sections}
-        onPatchSection={onPatchSection}
-        onSelect={onSelect}
-        onSeek={onSeek}
-        activeSectionId="s2"
-      />,
-    );
-    const pill = screen.getByTestId('section-s2');
-    (pill as any).setPointerCapture = vi.fn();
-    (pill as any).releasePointerCapture = vi.fn();
+      // 40px * 150ms/px = 6000ms; new start = 60000 + 6000 = 66000.
+      expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 66000 });
+      expect(onPatchSection).toHaveBeenCalledTimes(1);
+    });
 
-    fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
-    fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
-    fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
-    fireEvent.click(pill, { clientX: 540 });
+    it('a dragged pill does not also fire its click — no dialog should open after a drag', () => {
+      const onPatchSection = vi.fn(async () => {});
+      const onSelect = vi.fn();
+      const onSeek = vi.fn();
+      const sections = [
+        section({ id: 's1', start_ms: 0 }),
+        section({ id: 's2', start_ms: 30000 }),
+        section({ id: 's3', start_ms: 90000 }),
+      ];
+      render(
+        <SectionLane
+          {...baseProps}
+          sections={sections}
+          onPatchSection={onPatchSection}
+          onSelect={onSelect}
+          onSeek={onSeek}
+          activeSectionId="s2"
+        />,
+      );
+      const pill = screen.getByTestId('section-s2');
+      (pill as any).setPointerCapture = vi.fn();
+      (pill as any).releasePointerCapture = vi.fn();
 
-    expect(onPatchSection).toHaveBeenCalled();
-    expect(onSelect).not.toHaveBeenCalled();
-    expect(onSeek).not.toHaveBeenCalled();
+      fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+      vi.advanceTimersByTime(200);
+      fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+      fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
+      fireEvent.click(pill, { clientX: 540 });
+
+      expect(onPatchSection).toHaveBeenCalled();
+      expect(onSelect).not.toHaveBeenCalled();
+      expect(onSeek).not.toHaveBeenCalled();
+    });
+
+    it('movement before the hold timer fires does not start a drag', () => {
+      const onPatchSection = vi.fn(async () => {});
+      const sections = [
+        section({ id: 's1', start_ms: 0 }),
+        section({ id: 's2', start_ms: 30000 }),
+        section({ id: 's3', start_ms: 90000 }),
+      ];
+      render(
+        <SectionLane
+          {...baseProps}
+          sections={sections}
+          onPatchSection={onPatchSection}
+          activeSectionId="s2"
+        />,
+      );
+      const pill = screen.getByTestId('section-s2');
+      (pill as any).setPointerCapture = vi.fn();
+      (pill as any).releasePointerCapture = vi.fn();
+
+      fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+      // Move past threshold before timer — should doom the gesture.
+      fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+      fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
+
+      expect(onPatchSection).not.toHaveBeenCalled();
+    });
+
+    it('hold-then-release without moving still seeks + selects (no dead gesture)', () => {
+      const onPatchSection = vi.fn(async () => {});
+      const onSelect = vi.fn();
+      const onSeek = vi.fn();
+      const sections = [
+        section({ id: 's1', start_ms: 0 }),
+        section({ id: 's2', start_ms: 30000 }),
+        section({ id: 's3', start_ms: 90000 }),
+      ];
+      render(
+        <SectionLane
+          {...baseProps}
+          sections={sections}
+          onPatchSection={onPatchSection}
+          onSelect={onSelect}
+          onSeek={onSeek}
+          activeSectionId="s2"
+        />,
+      );
+      const pill = screen.getByTestId('section-s2');
+      (pill as any).setPointerCapture = vi.fn();
+      (pill as any).releasePointerCapture = vi.fn();
+
+      fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      fireEvent.pointerUp(window, { clientX: 500, pointerId: 1 });
+      // After armed-no-move release, the native click that follows pointerup
+      // should still fire — wasDragRef stays false in this case.
+      fireEvent.click(pill, { clientX: 500 });
+
+      expect(onPatchSection).not.toHaveBeenCalled();
+      expect(onSeek).toHaveBeenCalled();
+      expect(onSelect).toHaveBeenCalled();
+    });
+
+    it('once armed via hold, the pill receives the "armed" class', () => {
+      const sections = [
+        section({ id: 's1', start_ms: 0 }),
+        section({ id: 's2', start_ms: 30000 }),
+        section({ id: 's3', start_ms: 90000 }),
+      ];
+      render(
+        <SectionLane
+          {...baseProps}
+          sections={sections}
+          onPatchSection={vi.fn(async () => {})}
+          activeSectionId="s2"
+        />,
+      );
+      const pill = screen.getByTestId('section-s2');
+      (pill as any).setPointerCapture = vi.fn();
+      (pill as any).releasePointerCapture = vi.fn();
+
+      expect(pill.classList.contains('armed')).toBe(false);
+      fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(pill.classList.contains('armed')).toBe(true);
+      fireEvent.pointerUp(window, { clientX: 500, pointerId: 1 });
+      expect(pill.classList.contains('armed')).toBe(false);
+    });
   });
 
   it('clicking a pill below the drag threshold still seeks and selects', () => {
@@ -445,6 +551,68 @@ describe('SectionLane', () => {
     fireEvent.pointerUp(window, { clientX: 503, pointerId: 1 });
 
     expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 1010 });
+  });
+
+  it('mouseLeave on the wrap during a drag does not fire onHoverChange(false) — the pill must stay mounted for the drag to land', () => {
+    const onHoverChange = vi.fn();
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 30000 }),
+      section({ id: 's3', start_ms: 90000 }),
+    ];
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        onHoverChange={onHoverChange}
+        activeSectionId="s2"
+      />,
+    );
+    const pill = screen.getByTestId('section-s2');
+    (pill as any).setPointerCapture = vi.fn();
+    (pill as any).releasePointerCapture = vi.fn();
+    const wrap = container.querySelector<HTMLElement>('.section-lane-wrap')!;
+
+    fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+    // Simulate the cursor drifting vertically out of the 22px wrap mid-drag.
+    fireEvent.mouseLeave(wrap);
+    expect(onHoverChange).not.toHaveBeenCalledWith(false);
+
+    fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
+    // After the drag ends, mouseLeave should again collapse the lane.
+    fireEvent.mouseLeave(wrap);
+    expect(onHoverChange).toHaveBeenCalledWith(false);
+  });
+
+  it('stamps the section pill with the .dragging class for the lifetime of a middle-drag so the grabbing cursor does not depend on :active', () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+      section({ id: 's3', start_ms: 90000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const pill = screen.getByTestId('section-s2');
+    (pill as any).setPointerCapture = vi.fn();
+    (pill as any).releasePointerCapture = vi.fn();
+
+    expect(pill.classList.contains('dragging')).toBe(false);
+    fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+    expect(pill.classList.contains('dragging')).toBe(true);
+    fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+    expect(pill.classList.contains('dragging')).toBe(true);
+    fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
+    expect(pill.classList.contains('dragging')).toBe(false);
   });
 
   it('Escape during section drag cancels the patch', async () => {

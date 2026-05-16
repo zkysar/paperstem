@@ -64,6 +64,7 @@ Audio lives on the local filesystem under `$PAPERSTEM_AUDIO_ROOT`. In production
 - `npx vitest run` — all 93+ tests, ~3s.
 - `npx tsc --noEmit` — typecheck.
 - For UI changes, refresh http://localhost:<vite-port> and exercise the feature. Don't claim a UI fix is done without loading it in a browser.
+- `npm run test:e2e` — Playwright journeys (spawns the dev server, drives Chromium, ~30s). **Required for large UI features** that introduce a new cross-component flow; **recommended** for any change touching playback timing, zoom/layout, or modals/drawers — historically those are where vitest-only coverage misses real-browser regressions (see PR #133). CI runs it on every PR; see [docs/testing.md § End-to-end tests](docs/testing.md#end-to-end-tests-playwright) for how to add a new journey.
 
 ### Showing the user work-in-progress
 

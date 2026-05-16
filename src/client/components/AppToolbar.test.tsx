@@ -59,9 +59,13 @@ describe('AppToolbar', () => {
     expect(screen.queryByLabelText('Download all stems')).toBeNull();
   });
 
-  it('disables ＋ when canCreateAnnotations is false', () => {
+  it('hides ＋ when canCreateAnnotations is false', () => {
+    // Disabled-but-focusable buttons are a confusing a11y state — the
+    // public-link view mounts the toolbar with no create permissions, so
+    // we drop the button from the tab order entirely rather than rendering
+    // it disabled.
     render(<AppToolbar {...baseProps} canCreateAnnotations={false} />);
-    expect((screen.getByLabelText('Add comment') as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByLabelText('Add comment')).toBeNull();
   });
 
   it('renders rail-toggle inside the overflow menu when showRailToggle is true', async () => {

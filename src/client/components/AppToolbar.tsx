@@ -56,9 +56,11 @@ type Props = {
   /**
    * Opens the share dialog seeded with the current player + UI state. The
    * dialog itself shows toggles for each piece of bundled state and owns
-   * the clipboard write.
+   * the clipboard write. Optional: the public-link viewer mounts the
+   * toolbar without sharing UI, so the button hides entirely rather than
+   * sitting disabled.
    */
-  onShare(): void;
+  onShare?: () => void;
 };
 
 export function AppToolbar(props: Props) {
@@ -111,38 +113,44 @@ export function AppToolbar(props: Props) {
 
       <span className="atb-divider" />
 
-      <div className="atb-share-wrap">
-        <button type="button" className="atb-btn"
-          aria-label="Share link"
-          title="Share link — pick what to include (time, loop, mix, view, comment) before copying"
-          disabled={!hasProject}
-          onClick={onShare}>
-          <Share2 size={16} strokeWidth={2} aria-hidden="true" />
-        </button>
-      </div>
-      <span className="atb-divider" />
+      {onShare && (
+        <>
+          <div className="atb-share-wrap">
+            <button type="button" className="atb-btn"
+              aria-label="Share link"
+              title="Share link — pick what to include (time, loop, mix, view, comment) before copying"
+              disabled={!hasProject}
+              onClick={onShare}>
+              <Share2 size={16} strokeWidth={2} aria-hidden="true" />
+            </button>
+          </div>
+          <span className="atb-divider" />
+        </>
+      )}
 
-      <button type="button"
-        className={'atb-btn' + (annotationCreateMode ? ' annotate-on' : '')}
-        aria-label="Add comment"
-        aria-pressed={annotationCreateMode}
-        disabled={!canCreateAnnotations}
-        title={annotationCreateMode
-          ? 'Cancel comment mode'
-          : 'Add comment — click the timeline for a point, drag for a region'}
-        onClick={onToggleAnnotationCreate}><MessageSquarePlus size={16} strokeWidth={2} aria-hidden="true" /></button>
+      {canCreateAnnotations && (
+        <button type="button"
+          className={'atb-btn' + (annotationCreateMode ? ' annotate-on' : '')}
+          aria-label="Add comment"
+          aria-pressed={annotationCreateMode}
+          title={annotationCreateMode
+            ? 'Cancel comment mode'
+            : 'Add comment — click the timeline for a point, drag for a region'}
+          onClick={onToggleAnnotationCreate}><MessageSquarePlus size={16} strokeWidth={2} aria-hidden="true" /></button>
+      )}
 
-      <button type="button"
-        className={'atb-btn' + (sectionCreateMode ? ' annotate-on' : '')}
-        aria-label="Add section"
-        aria-pressed={sectionCreateMode}
-        disabled={!canCreateSections}
-        title={sectionCreateMode
-          ? 'Cancel section mode (M)'
-          : 'Add section — click the timeline to mark where a song begins (M)'}
-        onClick={onToggleSectionCreate}><Bookmark size={16} strokeWidth={2} aria-hidden="true" /></button>
+      {canCreateSections && (
+        <button type="button"
+          className={'atb-btn' + (sectionCreateMode ? ' annotate-on' : '')}
+          aria-label="Add section"
+          aria-pressed={sectionCreateMode}
+          title={sectionCreateMode
+            ? 'Cancel section mode (M)'
+            : 'Add section — click the timeline to mark where a song begins (M)'}
+          onClick={onToggleSectionCreate}><Bookmark size={16} strokeWidth={2} aria-hidden="true" /></button>
+      )}
 
-      <span className="atb-divider" />
+      {(canCreateAnnotations || canCreateSections) && <span className="atb-divider" />}
 
       {isWide ? (
         <div className="toolbar-group">

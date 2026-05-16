@@ -3,33 +3,66 @@
 A DAW-style stem player for sharing rough mixes with bandmates.
 
 **Production:** https://paperstem.fly.dev (login required)
+**Staging:** https://paperstem-dev.fly.dev (auto-deployed from `main`)
+
+<!-- TODO: replace with a real screenshot once captured locally. -->
+![Paperstem player](assets/screenshots/hero.png)
 
 ## UI
 
-A Google-Docs-style shell: an `AppHeader` (brand · ▦ files · project title · 💬 comments · avatar), a flat `AppToolbar` (transport · download · waveform-scale · annotation-create · marker visibility · master volume · time), and the song timeline below. The project list lives behind `⌘K` / the ▦ button as a `FilePicker` overlay rather than a persistent sidebar; comments open in a right-side push column. See `~/projects/plans/2026-05-07-paperstem-ui-redesign.md` for the full design.
+A Google-Docs-style shell: an `AppHeader` (brand · ▦ files · project title · 💬 comments · avatar), a flat `AppToolbar` (transport · download · waveform-scale · annotation-create · marker visibility · master volume · time), and the song timeline below. The project list lives behind `⌘K` / the ▦ button as a `FilePicker` overlay rather than a persistent sidebar; comments open in a right-side push column.
 
 ## Architecture
 
 - **Frontend**: Vite + React + TypeScript + WaveSurfer (`src/client/`)
-- **Backend**: Hono on Node, SQLite-on-volume (`src/server/`)
-- **Audio**: stems live on a Fly volume under `$PAPERSTEM_AUDIO_ROOT`; the server streams them via a Range-supported `/api/audio/:id` proxy
-- **Auth**: magic link via Gmail SMTP, `__Host-` session cookie, 30-day expiry
+- **Backend**: Hono on Node, SQLite (`src/server/`); DB path is `./dev.sqlite` by default, overridable via `DATABASE_PATH`
+- **Audio**: stems live on the local filesystem under `$PAPERSTEM_AUDIO_ROOT` (a Fly volume in production, `./audio-dev` in dev); the server streams them via a Range-supported `/api/audio/:id` proxy
+- **Auth**: magic link via Gmail SMTP, `__Host-` session cookie, 30-day expiry; sessions are DB-backed so they survive restarts
 - **Backups**: daily per-project annotation snapshot, weekly per-band SQLite dump (8-week retention) — both on the Fly volume
-- **Hosting**: a single always-on Fly.io machine in `sjc`, ~$3/mo
-
-See `~/projects/plans/2026-05-04-paperstem-deployment-design.md` for the full design.
+- **Hosting**: two always-on Fly.io machines in `sjc` (`paperstem` for prod, `paperstem-dev` for staging), ~$3/mo each
 
 ## Local development
 
 ```bash
-# Two terminals:
-npm run dev          # Vite on :5173
-npm run dev:server   # Hono on :8787 (pulls Gmail secrets from Keychain)
+npm run dev
 ```
 
-Vite proxies `/api/*` and `/auth/*` to the Hono server. Visit http://localhost:5173.
+That's it. The launcher (`bin/dev.ts`) picks two free ports from the OS, wires them through env, and spawns both the API server and Vite. Each invocation gets fresh random ports, so multiple worktrees can run side-by-side. The first lines of output are:
 
-You'll need a user row to log in: `npm run add-user -- --email you@example.com`.
+```
+  paperstem dev
+    UI:  http://localhost:58679
+    API: http://localhost:58678
+    Dev login (dev@paperstem.local): http://localhost:58679/api/auth/dev-login
+```
+
+Open the UI URL. By default the client auto-follows the dev-login URL on first load, so you're logged in as `dev@paperstem.local` with no magic link, no `add-user` step, no manual curl. To log in as someone else, set `PAPERSTEM_DEV_AUTO_LOGIN=other@example.com`; to disable, set it to empty.
+
+`scripts/with-secrets.sh` runs in front of the launcher and pulls `GMAIL_*` from macOS Keychain so secrets never live in env files or shell history. Placeholder values work fine unless you actually need to send a magic link.
+
+`npm run dev:client` and `npm run dev:server` are available for running one process in isolation.
+
+### Sharing state across worktrees
+
+A worktree uses its own empty `./dev.sqlite` by default. Point at the main checkout's DB to share users/sessions/projects:
+
+```bash
+DATABASE_PATH=/path/to/main/paperstem/dev.sqlite npm run dev
+```
+
+## Verifying changes
+
+- `npx vitest run` — full unit suite, ~3s
+- `npx tsc --noEmit` — typecheck
+- `npm run test:e2e` — Playwright journeys (spawns the dev server, drives Chromium, ~30s); required for cross-component UI changes, recommended for anything touching playback timing, zoom, or modals
+
+See [docs/testing.md](docs/testing.md) for how to add a new test in the right harness.
+
+A pre-push hook at `scripts/git-hooks/pre-push` runs `npm run build` and `vitest` before any push and blocks if either fails (matches CI). It also refuses direct pushes to `main`. New checkouts must opt in once:
+
+```bash
+git config core.hooksPath scripts/git-hooks
+```
 
 ## Production tooling
 
@@ -111,19 +144,36 @@ On your laptop:
 
 ### Permissions
 
-The importer creates projects via `POST /api/projects`, which is currently restricted to the **band owner**. Non-owner members can't use the importer against a band they don't own — the API returns 403. If you're not the owner of the `band_id` in your config, ask the owner to mint a token for you and stash it locally, or relax the route to any member (`src/server/projects.ts:239`).
+The importer creates projects via `POST /api/projects`, which is currently restricted to the **band owner**. Non-owner members can't use the importer against a band they don't own — the API returns 403. If you're not the owner of the `band_id` in your config, ask the owner to mint a token for you and stash it locally, or relax the route in `src/server/projects.ts`.
 
 ### Reclaiming SD card space
 
 By default, the importer never deletes files from the card. To enable automatic deletion after a successful import, set `"delete_after_import": true` in the config — that waits 30 days before deletion so you have time to spot a bad upload and `rm` the `.paperstem-imported` marker to re-import. Pass an integer to override the grace period in days, or `0` to delete on the next tick.
 
-## Deploying
+## Shipping changes
+
+All changes land through a GitHub PR — `main` has branch protection and the pre-push hook refuses direct pushes.
 
 ```bash
-flyctl deploy --app paperstem
+git push -u origin <branch>
+gh pr create
+gh pr merge --auto --squash --delete-branch
 ```
 
-The Fly machine builds the Docker image remotely on linux/amd64. Secrets (`GMAIL_USER`, `GMAIL_APP_PASSWORD`, `SESSION_COOKIE_SECRET`) are set via `flyctl secrets set`.
+GitHub merges and deletes the branch as soon as CI passes.
+
+## Deploying
+
+Deployment is fully automated by [.github/workflows/ci.yml](.github/workflows/ci.yml):
+
+| App | Config | Trigger |
+|---|---|---|
+| `paperstem-dev` (https://paperstem-dev.fly.dev) | [fly.dev.toml](fly.dev.toml) | every push to `main` |
+| `paperstem` (https://paperstem.fly.dev) | [fly.toml](fly.toml) | tag push matching `v*` (e.g. `git tag v1.2.3 && git push origin v1.2.3`) |
+
+Both use the same [Dockerfile](Dockerfile). The `APP_VERSION` build arg is baked in as an env var; the server returns it from `/api/version` and the client renders it in the avatar dropdown. Dev builds get `dev-<short-sha>`, prod builds get the tag name (`v1.2.3`).
+
+Secrets (`GMAIL_USER`, `GMAIL_APP_PASSWORD`, `SESSION_COOKIE_SECRET`, optional `BUG_REPORT_TO`) are set per-app via `flyctl secrets set`.
 
 ## History
 

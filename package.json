@@ -16,6 +16,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "add-user": "tsx bin/add-user.ts",
     "onboard-band": "scripts/onboard-band.sh",
     "seed-project": "scripts/seed-project.sh",
@@ -33,6 +35,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^1.14.0",
     "nodemailer": "^6.9.16",
+    "posthog-js": "^1.373.5",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "wavesurfer.js": "^7.10.5"
@@ -44,6 +47,7 @@
     }
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
     "@types/better-sqlite3": "^7.6.12",

@@ -240,10 +240,15 @@ describe('AppHeader inline rename', () => {
     await waitFor(() => expect(onRename).toHaveBeenCalledWith('Keyboard name'));
   });
 
-  it('rename trigger is disabled when no project is loaded', () => {
-    render(<AppHeader {...baseProps} hasProject={false} />);
-    const trigger = screen.getByRole('button', { name: 'Project 2026-04-28' });
-    expect((trigger as HTMLButtonElement).disabled).toBe(true);
+  it('renders an "Open a project" CTA instead of a title when no project is loaded', async () => {
+    const onOpen = vi.fn();
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} hasProject={false} projectTitle={null} onOpenPicker={onOpen} />);
+    expect(screen.queryByRole('button', { name: 'Project 2026-04-28' })).toBeNull();
+    expect(screen.queryByLabelText('Switch project')).toBeNull();
+    const cta = screen.getByRole('button', { name: /Open a project/i });
+    await user.click(cta);
+    expect(onOpen).toHaveBeenCalledOnce();
   });
 
   it('on mobile, clicking the project title opens the picker (no inline rename)', async () => {

@@ -10,9 +10,16 @@ export type AuditAction =
   | 'annotation.hard_delete'
   | 'song.rename'
   | 'song.merge'
-  | 'song.delete';
+  | 'song.delete'
+  | 'public_link.create'
+  | 'public_link.revoke';
 
-export type AuditResourceType = 'project' | 'stem' | 'annotation' | 'song';
+export type AuditResourceType =
+  | 'project'
+  | 'stem'
+  | 'annotation'
+  | 'song'
+  | 'public_link';
 
 export type AuditActor = {
   id: string;

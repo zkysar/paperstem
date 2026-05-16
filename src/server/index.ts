@@ -74,6 +74,16 @@ import {
   handleListSongUsage,
   handlePatchSection,
 } from './sections.js';
+import {
+  handleCreatePublicLink,
+  handleGetPublicAudio,
+  handleGetPublicProject,
+  handleListPublicAnnotations,
+  handleListPublicLinks,
+  handleListPublicReplies,
+  handleListPublicSections,
+  handleRevokePublicLink,
+} from './public-links.js';
 import { handleSnapshotsHealth } from './health.js';
 import { handleVersion } from './version.js';
 import { handleBugReport } from './bug-report.js';
@@ -145,6 +155,21 @@ app.get('/api/projects/:id/sections', handleListSections);
 app.post('/api/projects/:id/sections', handleCreateSection);
 app.patch('/api/sections/:id', handlePatchSection);
 app.delete('/api/sections/:id', handleDeleteSection);
+app.get('/api/projects/:id/public-links', handleListPublicLinks);
+app.post('/api/projects/:id/public-links', handleCreatePublicLink);
+app.delete('/api/public-links/:token', handleRevokePublicLink);
+// The /api/public/* subtree is intentionally read-only and unauthenticated.
+// Handlers never consult the session cookie — auth is the URL token itself,
+// which resolves to exactly one project (no enumeration, no project list,
+// no band info beyond name, no write paths).
+app.get('/api/public/links/:token', handleGetPublicProject);
+app.get('/api/public/links/:token/audio/:stem_id', handleGetPublicAudio);
+app.get('/api/public/links/:token/annotations', handleListPublicAnnotations);
+app.get(
+  '/api/public/links/:token/annotations/:annotationId/replies',
+  handleListPublicReplies,
+);
+app.get('/api/public/links/:token/sections', handleListPublicSections);
 app.get('/api/health/snapshots', handleSnapshotsHealth);
 app.get('/api/version', handleVersion);
 app.post('/api/bug-report', handleBugReport);
