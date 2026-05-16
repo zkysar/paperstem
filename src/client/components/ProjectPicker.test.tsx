@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
-import { FilePicker } from './FilePicker';
+import { ProjectPicker } from './ProjectPicker';
 import type { Project, TrashList } from '../data/types';
 
 const projects: Project[] = []; // empty for now
@@ -29,22 +29,22 @@ const baseProps = {
   onRestoreStem: vi.fn(),
 };
 
-describe('FilePicker', () => {
+describe('ProjectPicker', () => {
   it('renders title and close button when open', () => {
-    render(<FilePicker {...baseProps} />);
+    render(<ProjectPicker {...baseProps} />);
     expect(screen.getByText('Projects')).not.toBeNull();
     expect(screen.getByLabelText('Close picker')).not.toBeNull();
   });
 
   it('renders nothing when open is false', () => {
-    render(<FilePicker {...baseProps} open={false} />);
+    render(<ProjectPicker {...baseProps} open={false} />);
     expect(screen.queryByText('Projects')).toBeNull();
   });
 
   it('clicking ✕ calls onClose', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
-    render(<FilePicker {...baseProps} onClose={onClose} />);
+    render(<ProjectPicker {...baseProps} onClose={onClose} />);
     await user.click(screen.getByLabelText('Close picker'));
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -52,14 +52,14 @@ describe('FilePicker', () => {
   it('clicking the scrim calls onClose', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
-    render(<FilePicker {...baseProps} onClose={onClose} />);
-    await user.click(screen.getByTestId('filepicker-scrim'));
+    render(<ProjectPicker {...baseProps} onClose={onClose} />);
+    await user.click(screen.getByTestId('projectpicker-scrim'));
     expect(onClose).toHaveBeenCalledOnce();
   });
 
   it('Esc calls onClose', () => {
     const onClose = vi.fn();
-    render(<FilePicker {...baseProps} onClose={onClose} />);
+    render(<ProjectPicker {...baseProps} onClose={onClose} />);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -71,14 +71,14 @@ describe('FilePicker', () => {
   ];
 
   it('renders one row per project', () => {
-    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
     expect(screen.getByText('Project 2026-04-28')).not.toBeNull();
     expect(screen.getByText('Project 2026-04-21')).not.toBeNull();
     expect(screen.getByText('Project 2026-03-31')).not.toBeNull();
   });
 
   it('default sort puts the most recently updated project first', () => {
-    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
     const titles = screen
       .getAllByTestId(/^fp-row-/)
       .map((el) => el.textContent ?? '');
@@ -89,7 +89,7 @@ describe('FilePicker', () => {
 
   it('clicking a sort header reorders rows by that column', async () => {
     const user = userEvent.setup();
-    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
     // Click "Comments" — first click is desc, so p2 (5 comments) leads.
     await user.click(screen.getByRole('button', { name: /^Comments/ }));
     let titles = screen
@@ -105,7 +105,7 @@ describe('FilePicker', () => {
   });
 
   it('renders duration and comment count from project fields', () => {
-    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
     // 272_000 ms = 4:32
     expect(screen.getByText('4:32')).not.toBeNull();
     // 5 comments on p2 — the row's accessible label exposes the count.
@@ -117,7 +117,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onLoadTrash = vi.fn();
     render(
-      <FilePicker
+      <ProjectPicker
         {...baseProps}
         projects={fixtureProjects}
         trash={null}
@@ -136,7 +136,7 @@ describe('FilePicker', () => {
 
   it('filters by search query (title)', async () => {
     const user = userEvent.setup();
-    render(<FilePicker {...baseProps} projects={fixtureProjects} />);
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
     await user.type(screen.getByPlaceholderText('Search projects'), '04-28');
     expect(screen.getByText('Project 2026-04-28')).not.toBeNull();
     expect(screen.queryByText('Project 2026-04-21')).toBeNull();
@@ -145,33 +145,33 @@ describe('FilePicker', () => {
   it('clicking a row calls onSelect with project id', async () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();
-    render(<FilePicker {...baseProps} projects={fixtureProjects} onSelect={onSelect} />);
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} onSelect={onSelect} />);
     await user.click(screen.getByText('Project 2026-04-28'));
     expect(onSelect).toHaveBeenCalledWith('p1');
   });
 
   it('marks active row with active class', () => {
-    render(<FilePicker {...baseProps} projects={fixtureProjects} activeProjectId="p2" />);
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} activeProjectId="p2" />);
     const row = screen.getByTestId('fp-row-p2');
     expect(row.className).toContain('active');
   });
 
   it('shows loading skeleton when loading is true', () => {
-    render(<FilePicker {...baseProps} loading={true} />);
+    render(<ProjectPicker {...baseProps} loading={true} />);
     expect(screen.getAllByTestId('fp-row-skeleton').length).toBeGreaterThan(0);
   });
 
   it('shows error and Retry when loadError is set', async () => {
     const onRetry = vi.fn();
     const user = userEvent.setup();
-    render(<FilePicker {...baseProps} loadError="network down" onRetry={onRetry} />);
+    render(<ProjectPicker {...baseProps} loadError="network down" onRetry={onRetry} />);
     expect(screen.getByText(/network down/)).not.toBeNull();
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
   it('shows empty-state with New project button (when allowed)', () => {
-    render(<FilePicker {...baseProps} projects={[]} showUpload={true} />);
+    render(<ProjectPicker {...baseProps} projects={[]} showUpload={true} />);
     expect(screen.getByText(/No projects yet/)).not.toBeNull();
     // The new entry-point label (header + bottom + empty state all read
     // "New project" — we just assert the empty-state action exists).
@@ -181,7 +181,7 @@ describe('FilePicker', () => {
   });
 
   it('hides New project in empty state when showUpload is false', () => {
-    render(<FilePicker {...baseProps} projects={[]} showUpload={false} />);
+    render(<ProjectPicker {...baseProps} projects={[]} showUpload={false} />);
     expect(screen.getByText(/No projects yet/)).not.toBeNull();
     // Header, bottom, and empty-state buttons all gate on showUpload — none
     // of them should appear when the user can't create projects.
@@ -191,14 +191,14 @@ describe('FilePicker', () => {
   });
 
   it('does not render the Local-folder tab', () => {
-    render(<FilePicker {...baseProps} />);
+    render(<ProjectPicker {...baseProps} />);
     // The picker's tabs are now Recent | All | Trash only.
     expect(screen.queryByRole('tab', { name: /Local folder/i })).toBeNull();
   });
 
   it('clicking + New project opens the folder picker', async () => {
     const user = userEvent.setup();
-    render(<FilePicker {...baseProps} projects={[]} showUpload={true} />);
+    render(<ProjectPicker {...baseProps} projects={[]} showUpload={true} />);
     // The header button triggers a click on the hidden file input — we can't
     // easily intercept the OS dialog, but we can verify the input exists and
     // the click handler is wired by spying on its click method.
@@ -220,7 +220,7 @@ describe('FilePicker', () => {
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
-      <FilePicker {...baseProps} projects={rows} onRenameProject={onRename} />,
+      <ProjectPicker {...baseProps} projects={rows} onRenameProject={onRename} />,
     );
     await user.click(screen.getByLabelText(/rename Alpha/i));
     const input = screen.getByRole('textbox', { name: /rename project/i });
@@ -236,7 +236,7 @@ describe('FilePicker', () => {
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
-      <FilePicker {...baseProps} projects={rows} onRenameProject={onRename} />,
+      <ProjectPicker {...baseProps} projects={rows} onRenameProject={onRename} />,
     );
     await user.click(screen.getByLabelText(/rename Alpha/i));
     const input = screen.getByRole('textbox', { name: /rename project/i });
@@ -251,7 +251,7 @@ describe('FilePicker', () => {
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
-      <FilePicker {...baseProps} projects={rows} onSelect={onSelect} />,
+      <ProjectPicker {...baseProps} projects={rows} onSelect={onSelect} />,
     );
     await user.click(screen.getByLabelText(/rename Alpha/i));
     expect(onSelect).not.toHaveBeenCalled();
@@ -264,7 +264,7 @@ describe('FilePicker', () => {
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
-      <FilePicker {...baseProps} projects={rows} onDeleteProject={onDelete} />,
+      <ProjectPicker {...baseProps} projects={rows} onDeleteProject={onDelete} />,
     );
     await user.click(screen.getByRole('button', { name: /move alpha to trash/i }));
     expect(screen.getByText(/move .*alpha.* to trash/i)).not.toBeNull();
@@ -279,7 +279,7 @@ describe('FilePicker', () => {
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
-      <FilePicker {...baseProps} projects={rows} onDeleteProject={onDelete} />,
+      <ProjectPicker {...baseProps} projects={rows} onDeleteProject={onDelete} />,
     );
     await user.click(screen.getByRole('button', { name: /move alpha to trash/i }));
     await user.click(screen.getByRole('button', { name: /^cancel$/i }));
@@ -301,7 +301,7 @@ describe('FilePicker', () => {
       }],
     };
     render(
-      <FilePicker
+      <ProjectPicker
         {...baseProps}
         trash={trash}
         onRestoreProject={onRestoreProject}
@@ -327,7 +327,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onLoadTrash = vi.fn();
     render(
-      <FilePicker {...baseProps} trash={null} onLoadTrash={onLoadTrash} />,
+      <ProjectPicker {...baseProps} trash={null} onLoadTrash={onLoadTrash} />,
     );
 
     await user.click(screen.getByRole('tab', { name: /trash/i }));
@@ -342,7 +342,7 @@ describe('FilePicker', () => {
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null, updatedAt: 0, totalDurationMs: null, commentCount: 0 },
     ];
     render(
-      <FilePicker
+      <ProjectPicker
         {...baseProps}
         projects={rows}
         onClose={onClose}
@@ -367,7 +367,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onLoadTrash = vi.fn();
     render(
-      <FilePicker
+      <ProjectPicker
         {...baseProps}
         trash={null}
         trashError="network down"
@@ -385,7 +385,7 @@ describe('FilePicker', () => {
 
   it('renders one song chip per band song with use_count > 0', () => {
     render(
-      <FilePicker
+      <ProjectPicker
         {...baseProps}
         bandSongs={[
           { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 4 },
@@ -404,7 +404,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onSetFilterSongId = vi.fn();
     render(
-      <FilePicker
+      <ProjectPicker
         {...baseProps}
         bandSongs={[
           { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 4 },
@@ -420,7 +420,7 @@ describe('FilePicker', () => {
     const user = userEvent.setup();
     const onSetFilterSongId = vi.fn();
     render(
-      <FilePicker
+      <ProjectPicker
         {...baseProps}
         filterSongId="s-1"
         bandSongs={[
@@ -440,7 +440,7 @@ describe('FilePicker', () => {
       { id: 'p3', title: 'Charlie', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
     ];
     render(
-      <FilePicker
+      <ProjectPicker
         {...baseProps}
         projects={rows}
         filterSongId="s-1"
@@ -461,7 +461,7 @@ describe('FilePicker', () => {
 
   it('"Clear filter" link appears when a chip is active', () => {
     render(
-      <FilePicker
+      <ProjectPicker
         {...baseProps}
         filterSongId="s-1"
         bandSongs={[

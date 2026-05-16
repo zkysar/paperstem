@@ -39,7 +39,7 @@ type Props = {
   onRestoreStem(id: string): void;
 };
 
-export function FilePicker({
+export function ProjectPicker({
   open, loading, loadError, projects, activeProjectId, showUpload,
   bandSongs, songUsage, filterSongId, onSetFilterSongId,
   onClose, onSelect, onLoadFolder, onRetry,
@@ -99,12 +99,12 @@ export function FilePicker({
   return (
     <>
       <div
-        className="filepicker-scrim"
-        data-testid="filepicker-scrim"
+        className="projectpicker-scrim"
+        data-testid="projectpicker-scrim"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="filepicker" role="dialog" aria-modal="true" aria-label="Projects">
+      <div className="projectpicker" role="dialog" aria-modal="true" aria-label="Projects">
         <div className="fp-header">
           <h2 className="fp-title">Projects</h2>
           <input
@@ -223,7 +223,7 @@ export function FilePicker({
             onRestoreStem={onRestoreStem}
           />
         ) : (
-          <FilePickerBody
+          <ProjectPickerBody
             tab={tab} search={search}
             loading={loading} loadError={loadError}
             projects={filteredProjects} activeProjectId={activeProjectId}
@@ -288,7 +288,7 @@ export function FilePicker({
   );
 }
 
-function FilePickerBody({
+function ProjectPickerBody({
   search, projects, activeProjectId, loading, loadError, showUpload,
   onSelect, onNewProjectClick, onRetry, onRenameProject, onRequestDelete,
 }: {
