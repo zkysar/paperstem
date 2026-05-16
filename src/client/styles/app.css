@@ -1747,6 +1747,21 @@ button.ah-title-name:disabled { cursor: default; }
   font-weight: var(--fw-semi); font-size: var(--fs-2xs);
   border: none; cursor: pointer;
 }
+.ah-signin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: var(--accent);
+  color: var(--paper);
+  font-weight: var(--fw-semi);
+  font-size: var(--fs-sm);
+  border: none;
+  cursor: pointer;
+}
+.ah-signin-btn:hover { filter: brightness(0.95); }
 .atb-overflow-wrap {
   position: relative;
   display: inline-flex;
@@ -1844,7 +1859,8 @@ button.ah-title-name:disabled { cursor: default; }
   word-break: break-word;
   max-width: 320px;
 }
-.audio-suppressed-banner {
+.audio-suppressed-banner,
+.public-signin-banner {
   background: #fff4c2;
   color: #5a4a18;
   border-bottom: 1px solid #e6d57a;
@@ -3909,174 +3925,6 @@ body.env-non-prod[data-env="local"]::before {
 }
 .share-dialog-create-public:hover { filter: brightness(0.95); }
 .share-dialog-create-public[disabled] { opacity: 0.5; cursor: default; }
-
-/* --- Public project view (the /p/<token> page) -----------------------
- * Deliberately reuses the main player CSS so the audio area looks the
- * same; only the chrome (header, comments rail) gets its own styles to
- * make it clear at a glance the viewer is on a read-only page. */
-.public-view-shell {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  min-height: 0;
-  background: var(--bg);
-  color: var(--fg);
-}
-.public-view-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--rule-2);
-}
-.public-view-brand {
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: var(--fg);
-  text-decoration: none;
-}
-.public-view-titleblock {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.public-view-title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.public-view-band {
-  font-size: var(--fs-sm);
-  color: var(--muted);
-}
-.public-view-spacer { flex: 1 1 auto; }
-.public-view-readonly-pill {
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--accent);
-  font-size: var(--fs-sm);
-  font-weight: 600;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.public-view-body {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 0;
-  flex: 1 1 auto;
-  min-height: 0;
-}
-@media (max-width: 900px) {
-  .public-view-body { grid-template-columns: 1fr; }
-}
-.public-view-empty {
-  padding: 32px;
-  text-align: center;
-  color: var(--muted);
-}
-.public-view-comments {
-  border-left: 1px solid var(--rule-2);
-  overflow-y: auto;
-  padding: 12px;
-}
-.public-view-comments > header {
-  font-weight: 600;
-  font-size: var(--fs-sm);
-  margin-bottom: 10px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.public-view-comments ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.public-view-comment {
-  padding: 10px;
-  border: 1px solid var(--rule-2);
-  border-radius: 8px;
-  background: var(--bg);
-}
-.public-view-comment.is-active {
-  border-color: var(--accent);
-}
-.public-view-comment-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  background: none;
-  border: 0;
-  padding: 0;
-  width: 100%;
-  cursor: pointer;
-  color: inherit;
-  font: inherit;
-}
-.public-view-comment-author {
-  font-weight: 600;
-  font-size: var(--fs-sm);
-}
-.public-view-comment-time {
-  font-size: var(--fs-xs);
-  color: var(--muted);
-}
-.public-view-comment-body {
-  margin: 6px 0 0;
-  font-size: var(--fs-sm);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.public-view-comment-loop {
-  margin-top: 6px;
-  padding: 2px 6px;
-  font-size: var(--fs-xs);
-  background: none;
-  border: 1px solid var(--rule-2);
-  border-radius: 4px;
-  cursor: pointer;
-  color: var(--muted);
-}
-.public-view-comment-reactions {
-  display: flex;
-  gap: 4px;
-  margin-top: 6px;
-}
-.public-view-reaction-chip {
-  font-size: var(--fs-xs);
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: var(--rule-2);
-}
-.public-view-comment-replies {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--rule-2);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.public-view-reply {
-  font-size: var(--fs-sm);
-}
-.public-view-reply-author {
-  font-weight: 600;
-}
-.public-view-reply-body {
-  margin: 2px 0 0;
-  white-space: pre-wrap;
-}
-.public-view-comments-empty {
-  color: var(--muted);
-  font-size: var(--fs-sm);
-}
 
 /* Sustained-emphasis pulse for a comment that arrived via a share link's
  * `fc=` param. Distinct from normal selection so the recipient registers

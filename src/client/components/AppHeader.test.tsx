@@ -420,4 +420,65 @@ describe('AppHeader group switcher', () => {
     await user.click(screen.getByTestId('outside'));
     expect(screen.queryByRole('menuitem')).toBeNull();
   });
+
+  describe('publicMode (the /p/<token> page)', () => {
+    it('replaces the avatar with a Sign in button that calls onSignIn', async () => {
+      const onSignIn = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <AppHeader
+          {...baseProps}
+          publicMode={{ onSignIn }}
+        />,
+      );
+      expect(screen.queryByLabelText('Account')).toBeNull();
+      const btn = screen.getByRole('button', { name: /Sign in/i });
+      await user.click(btn);
+      expect(onSignIn).toHaveBeenCalledOnce();
+    });
+
+    it('hides the switch-project caret and the group switcher', () => {
+      const groups = [
+        { id: 'b1', name: 'Sun Toilet', folder_id: '', owner_user_id: 'u1', created_at: 0, role: 'owner' as const },
+        { id: 'b2', name: 'Moon Floor', folder_id: '', owner_user_id: 'u1', created_at: 0, role: 'owner' as const },
+      ];
+      render(
+        <AppHeader
+          {...baseProps}
+          groups={groups}
+          currentGroupId="b1"
+          publicMode={{ onSignIn: vi.fn() }}
+        />,
+      );
+      expect(screen.queryByLabelText('Switch project')).toBeNull();
+      expect(screen.queryByLabelText('Switch group')).toBeNull();
+    });
+
+    it('renders the title as a non-interactive label (not a button)', () => {
+      render(
+        <AppHeader
+          {...baseProps}
+          publicMode={{ onSignIn: vi.fn() }}
+        />,
+      );
+      // Behavioural assertion: no button surfaces the project title (so
+      // clicks can't trigger project-switching). Survives the underlying
+      // tag changing from span→div etc.
+      expect(
+        screen.queryByRole('button', { name: 'Project 2026-04-28' }),
+      ).toBeNull();
+      expect(screen.getByText('Project 2026-04-28')).not.toBeNull();
+    });
+
+    it('uses the optional label override for signed-in non-members', () => {
+      render(
+        <AppHeader
+          {...baseProps}
+          publicMode={{ onSignIn: vi.fn(), label: 'No access' }}
+        />,
+      );
+      expect(screen.getByRole('button', { name: /No access/i })).not.toBeNull();
+      expect(screen.queryByRole('button', { name: /^Sign in$/i })).toBeNull();
+    });
+  });
 });

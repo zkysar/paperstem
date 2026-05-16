@@ -5,7 +5,7 @@ import {
   listProjectPublicLinks,
   revokePublicLink,
   type PublicLinkSummary,
-} from '../data/public-repo';
+} from '../data/public-links-admin';
 
 type Props = { projectId: string };
 

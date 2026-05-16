@@ -1,34 +1,65 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Annotation, Section } from '../shared/types';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
+import type {
+  Annotation,
+  AnnotationReply,
+  ReactionTarget,
+  Section,
+} from '../shared/types';
+import { AppHeader } from './components/AppHeader';
 import { AppToolbar } from './components/AppToolbar';
+import { CommentBottomSheet } from './components/CommentBottomSheet';
+import { CommentPopover } from './components/CommentPopover';
+import { CommentsDrawer, type DraftSpec } from './components/CommentsDrawer';
+import { CommentsFab } from './components/CommentsFab';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Player } from './components/Player';
+import { ShortcutsOverlay } from './components/ShortcutsOverlay';
 import {
   fetchPublicAnnotations,
   fetchPublicProject,
   fetchPublicReplies,
   fetchPublicSections,
+  probeMembership,
   publicAudioUrl,
+  type MembershipProbe,
   type PublicAnnotation,
   type PublicProjectDetail,
   type PublicReply,
   type PublicSection,
 } from './data/public-repo';
+import type { StemSource } from './data/types';
 import { useAppVersion } from './hooks/useAppVersion';
+import { useIsMobile } from './hooks/useIsMobile';
+import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
 import { useViewport } from './hooks/useViewport';
-import { buildUserColorMap } from './lib/colors';
+import { buildUserColorMap, SELF_ANNOTATION_COLOR } from './lib/colors';
+import { downloadStemsAsZip } from './lib/download';
 import { decodePeaks } from './lib/peaks';
-import { fmt } from './lib/format';
-import type { StemSource } from './data/types';
+import { stashReturnPath } from './lib/public-return';
 
-// Public view is intentionally minimal. It never imports ProjectPicker,
-// CommentsDrawer, UploadDrawer, ShareDialog, or anything that mutates
-// project data. Loaders only call /api/public/* endpoints.
+// The /p/<token> page reuses the same AppHeader / AppToolbar / Player /
+// CommentsDrawer / CommentsFab tree as the authenticated app. Every
+// mutation handler in this file routes through promptSignIn(), which
+// stashes the current path and bounces to /. Authenticated users land
+// back on /p/<token> after the magic-link round trip; if they're also a
+// member of the project's band the loader redirects them straight to
+// /#p=<project_id>.
 
 type FetchState =
   | { kind: 'loading' }
   | { kind: 'error'; status: number; message: string }
   | { kind: 'ready'; detail: PublicProjectDetail };
+
+// PUBLIC_RETURN_PATH_KEY lives in ./lib/public-return so App.tsx can
+// import it without pulling the whole public-view bundle.
 
 function readTokenFromPath(): string | null {
   if (typeof window === 'undefined') return null;
@@ -36,9 +67,12 @@ function readTokenFromPath(): string | null {
   return match ? match[1] : null;
 }
 
-// The public payload omits user_id / user_email so Player props are
-// satisfied. We synthesize a stable pseudo-id from the display name so
-// the existing color-map gives same-author comments the same colour.
+// Public annotations don't carry user_id (we strip it server-side to
+// avoid leaking the band roster), but the existing color map keys on it,
+// and AnnotationMarkers expects an Annotation shape. Synthesise a stable
+// pseudo-id from the display name so the color map gives same-author
+// comments the same colour. Two authors with identical display names
+// will collide — acceptable for an external viewer.
 function pseudoUserId(name: string | null): string {
   const base = name ?? 'anonymous';
   let h = 0;
@@ -48,7 +82,7 @@ function pseudoUserId(name: string | null): string {
   return `public:${h}`;
 }
 
-function toAnnotationForPlayer(a: PublicAnnotation): Annotation {
+function toAnnotation(a: PublicAnnotation): Annotation {
   const userId = pseudoUserId(a.user_display_name);
   return {
     id: a.id,
@@ -72,15 +106,30 @@ function toAnnotationForPlayer(a: PublicAnnotation): Annotation {
   };
 }
 
-function toSectionForPlayer(s: PublicSection): Section {
+function toReply(r: PublicReply): AnnotationReply {
+  return {
+    id: r.id,
+    annotation_id: r.annotation_id,
+    user_id: pseudoUserId(r.user_display_name),
+    user_email: '',
+    user_display_name: r.user_display_name,
+    body: r.body,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+    reactions: r.reactions.map((rr) => ({
+      emoji: rr.emoji,
+      count: rr.count,
+      user_ids: [],
+      reacted_by_self: false,
+    })),
+  };
+}
+
+function toSection(s: PublicSection): Section {
   return {
     id: s.id,
     project_id: s.project_id,
     start_ms: s.start_ms,
-    // Public payloads don't expose song_id (cross-project identifier).
-    // Player only uses song_id for the chain-glyph use_count lookup; with
-    // an empty Map (no usage data on public view) that simply renders no
-    // glyph, which is the right behaviour for an external viewer anyway.
     song_id: null,
     song_name: s.song_name,
     label: s.label,
@@ -94,24 +143,63 @@ export function PublicProjectView({ token }: { token: string }) {
   const player = usePlayer();
   const viewport = useViewport();
   const appInfo = useAppVersion();
+  const isMobile = useIsMobile();
 
-  // usePlayer() returns a fresh control object each render. We don't want
-  // the load effect to re-fire on every render — only when the token in
-  // the URL changes — so route through a ref. Re-firing would kick off
-  // duplicate fetches and a load() race the second-resolving call would
-  // win regardless of order.
+  // Ref so the loader effect can call player.load without re-firing on
+  // every render (usePlayer returns a fresh control object each render).
   const playerRef = useRef(player);
   playerRef.current = player;
 
   const [state, setState] = useState<FetchState>({ kind: 'loading' });
   const [annotations, setAnnotations] = useState<PublicAnnotation[]>([]);
   const [sections, setSections] = useState<PublicSection[]>([]);
-  const [openThreadId, setOpenThreadId] = useState<string | null>(null);
-  const [repliesByAnnId, setRepliesByAnnId] = useState<
-    Map<string, PublicReply[]>
-  >(() => new Map());
-  const [replyError, setReplyError] = useState<string | null>(null);
+  const [replies, setReplies] = useState<Map<string, AnnotationReply[]>>(
+    () => new Map(),
+  );
 
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [popoverAnchor, setPopoverAnchor] = useState<
+    { left: number; top: number } | null
+  >(null);
+  const [hoveredAnnotationId, setHoveredAnnotationId] = useState<string | null>(
+    null,
+  );
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [signInBanner, setSignInBanner] = useState(false);
+  // Tri-state set by the bootstrap effect — drives whether the header
+  // shows "Sign in" (anonymous) or a "no access" treatment (signed-in
+  // but not a band member). 'signed-in-member' is never observed here
+  // because we redirect to /#p=<id> instantly when we see it.
+  const [probe, setProbe] = useState<MembershipProbe>({ kind: 'anonymous' });
+
+  // Stash the current /p/<token> path + bounce to / for the magic-link
+  // flow. App.tsx reads the key after the session resolves and assigns
+  // location back. We do NOT bounce signed-in non-members — they're
+  // already authenticated, so the round trip would just put them back
+  // in the same state; we show them a "no access" cue instead.
+  const promptSignIn = useCallback(() => {
+    if (probe.kind === 'signed-in-non-member') {
+      // Banner explains the situation; no navigation. The toolbar /
+      // drawer mutation buttons still fire this so the user gets the
+      // same feedback path everywhere.
+      setSignInBanner(true);
+      return;
+    }
+    stashReturnPath(window.location.pathname);
+    setSignInBanner(true);
+    // requestAnimationFrame lets the banner paint before we leave the
+    // page. One frame is enough — the user's React tree commit fires in
+    // the same task; rAF schedules navigation after the next paint.
+    window.requestAnimationFrame(() => {
+      window.location.assign('/');
+    });
+  }, [probe.kind]);
+
+  // Bootstrap fetch: project metadata, then membership probe. If a
+  // signed-in member, redirect immediately to /#p=<id>. Otherwise hold
+  // the probe result so the header can render the right CTA.
   useEffect(() => {
     let cancelled = false;
     setState({ kind: 'loading' });
@@ -119,6 +207,17 @@ export function PublicProjectView({ token }: { token: string }) {
       try {
         const detail = await fetchPublicProject(token);
         if (cancelled) return;
+
+        const membership = await probeMembership(detail.project.id);
+        if (cancelled) return;
+        if (membership.kind === 'signed-in-member') {
+          window.location.assign(
+            `/#p=${encodeURIComponent(detail.project.id)}`,
+          );
+          return;
+        }
+        setProbe(membership);
+
         setState({ kind: 'ready', detail });
         const sources: StemSource[] = detail.stems.map((s) => ({
           name: s.name,
@@ -141,22 +240,13 @@ export function PublicProjectView({ token }: { token: string }) {
           setAnnotations(anns);
           setSections(secs);
         } catch (err) {
-          if (!cancelled) {
-            console.error('public secondary fetch failed', err);
-          }
+          console.error('public secondary fetch failed', err);
         }
       } catch (err) {
         if (cancelled) return;
         const msg = err instanceof Error ? err.message : String(err);
-        // The server returns 410 for revoked or deleted projects; surface
-        // that distinctly so the viewer knows the link is dead rather than
-        // typoed.
         const isGone = /HTTP 410|drive_missing/.test(msg);
-        setState({
-          kind: 'error',
-          status: isGone ? 410 : 404,
-          message: msg,
-        });
+        setState({ kind: 'error', status: isGone ? 410 : 404, message: msg });
       }
     })();
     return () => {
@@ -165,11 +255,11 @@ export function PublicProjectView({ token }: { token: string }) {
   }, [token]);
 
   const annotationsForPlayer = useMemo(
-    () => annotations.map(toAnnotationForPlayer),
+    () => annotations.map(toAnnotation),
     [annotations],
   );
   const sectionsForPlayer = useMemo(
-    () => sections.map(toSectionForPlayer),
+    () => sections.map(toSection),
     [sections],
   );
   const userColorMap = useMemo(
@@ -177,27 +267,51 @@ export function PublicProjectView({ token }: { token: string }) {
     [annotationsForPlayer],
   );
 
+  // Drawer / popover handlers (these don't mutate the server — they're
+  // just UI navigation, and behave identically to the authenticated app).
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const toggleDrawer = useCallback(() => {
+    setActiveCommentId(null);
+    setPopoverAnchor(null);
+    setDrawerOpen((v) => !v);
+  }, []);
+  const closePopovers = useCallback(() => {
+    setActiveCommentId(null);
+    setPopoverAnchor(null);
+  }, []);
+
   const handleAnnotationSelected = useCallback(
     (a: Annotation) => {
       player.seek(a.start_ms / 1000);
-      setOpenThreadId(a.id);
-      if (a.reply_count > 0 && !repliesByAnnId.has(a.id)) {
+      setActiveCommentId(a.id);
+      queueMicrotask(() => {
+        const el = document.querySelector(
+          `[data-annotation-id="${a.id}"]`,
+        ) as HTMLElement | null;
+        if (!el) {
+          setPopoverAnchor(null);
+          return;
+        }
+        const r = el.getBoundingClientRect();
+        setPopoverAnchor({ left: r.left + r.width / 2, top: r.top });
+      });
+      if (a.reply_count > 0 && !replies.has(a.id)) {
         void (async () => {
           try {
-            const replies = await fetchPublicReplies(token, a.id);
-            setRepliesByAnnId((m) => {
+            const fetched = await fetchPublicReplies(token, a.id);
+            setReplies((m) => {
               const next = new Map(m);
-              next.set(a.id, replies);
+              next.set(a.id, fetched.map(toReply));
               return next;
             });
-            setReplyError(null);
           } catch (err) {
-            setReplyError(err instanceof Error ? err.message : String(err));
+            console.error('public reply fetch failed', err);
           }
         })();
       }
     },
-    [player, repliesByAnnId, token],
+    [player, replies, token],
   );
 
   const handleLoopAnnotation = useCallback(
@@ -210,42 +324,140 @@ export function PublicProjectView({ token }: { token: string }) {
     [player],
   );
 
+  const handleSectionSelected = useCallback(
+    (s: Section) => {
+      player.seek(s.start_ms / 1000);
+    },
+    [player],
+  );
+
+  // Non-mutating: just load replies for display when the comment is
+  // expanded. Public read endpoint, no auth needed.
+  const loadReplies = useCallback(
+    async (annotationId: string) => {
+      if (replies.has(annotationId)) return;
+      const fetched = await fetchPublicReplies(token, annotationId);
+      setReplies((m) => {
+        const next = new Map(m);
+        next.set(annotationId, fetched.map(toReply));
+        return next;
+      });
+    },
+    [replies, token],
+  );
+
+  // Mutation routes — all bounce to sign-in. We declare them as
+  // matching the component prop signatures so TypeScript checks the
+  // wiring. Each invocation just calls promptSignIn().
+  const promptIgnoreArgs = useCallback(() => {
+    promptSignIn();
+  }, [promptSignIn]);
+  const promptAsync = useCallback(async () => {
+    promptSignIn();
+  }, [promptSignIn]);
+
+  // Download is read-only — public viewers can grab the stems.
+  const onDownloadAll = useCallback(async () => {
+    if (!player.state.stems.length) return;
+    setDownloading(true);
+    try {
+      const filename = `${player.state.title || 'paperstem'}-stems.zip`;
+      await downloadStemsAsZip(player.state.stems, filename);
+    } catch (err) {
+      console.error('Download failed:', err);
+    } finally {
+      setDownloading(false);
+    }
+  }, [player.state.stems, player.state.title]);
+
+  // Keyboard shortcuts — full surface from the authenticated app. The
+  // mutation paths route through promptSignIn (⌘K, M, ⇧M, C all prompt).
+  useKeyboard({
+    player,
+    pickerOpen: false,
+    drawerOpen,
+    popoverOpen: activeCommentId !== null,
+    annotationCreateMode: false,
+    sectionCreateMode: false,
+    viewport,
+    onTogglePicker: promptIgnoreArgs,
+    onClosePicker: () => undefined,
+    onCloseDrawer: closeDrawer,
+    onClosePopover: closePopovers,
+    onCancelCreate: () => undefined,
+    onToggleShortcuts: () => setShortcutsOpen((v) => !v),
+    onAddCommentAtPlayhead: promptIgnoreArgs,
+    onAddSectionAtPlayhead: promptIgnoreArgs,
+    onAddEndMarkerAtPlayhead: promptIgnoreArgs,
+  });
+
   if (state.kind === 'loading') {
     return (
-      <div className="public-view-shell">
-        <PublicHeader bandName={null} projectTitle={null} appEnv={appInfo?.env ?? null} />
-        <main className="public-view-empty">Loading…</main>
+      <div className="app-shell">
+        <PublicLoadingShell appEnv={appInfo?.env ?? null} />
       </div>
     );
   }
-
   if (state.kind === 'error') {
     return (
-      <div className="public-view-shell">
-        <PublicHeader bandName={null} projectTitle={null} appEnv={appInfo?.env ?? null} />
-        <main className="public-view-empty">
-          <h2>Link unavailable</h2>
-          <p>
-            {state.status === 410
-              ? 'This share link has been revoked or the project no longer exists.'
-              : "This share link doesn't seem to point at anything. Double-check the URL."}
-          </p>
-          <p>
-            <a href="/">Open Paperstem</a>
-          </p>
-        </main>
+      <div className="app-shell">
+        <PublicErrorShell
+          appEnv={appInfo?.env ?? null}
+          status={state.status}
+        />
       </div>
     );
   }
 
   const detail = state.detail;
+  const isWide =
+    typeof window !== 'undefined' ? window.innerWidth > 720 : true;
+  const railCollapsed = isMobile;
 
   return (
-    <div className="public-view-shell">
-      <PublicHeader
-        bandName={detail.project.band_name}
-        projectTitle={detail.project.name}
+    <div className="app-shell">
+      {signInBanner && (
+        <div className="public-signin-banner" role="status">
+          {probe.kind === 'signed-in-non-member'
+            ? "You're signed in but don't have access to this project. Ask the owner to add you to their group."
+            : "Signing you in… you'll come back here."}
+        </div>
+      )}
+      <AppHeader
+        userEmail=""
+        userInitials=""
+        projectTitle={
+          (detail.project.band_name
+            ? `${detail.project.band_name} · `
+            : '') + detail.project.name
+        }
+        stemCount={player.state.stems.length}
+        duration={player.state.duration}
+        annotationsOpen={drawerOpen}
+        hasProject={player.state.stems.length > 0}
+        canRename={false}
+        isWide={isWide}
+        appVersion={appInfo?.version ?? null}
         appEnv={appInfo?.env ?? null}
+        downloading={downloading}
+        debugInfo=""
+        onOpenPicker={() => undefined}
+        onToggleAnnotations={toggleDrawer}
+        onSignOut={() => undefined}
+        onReportBug={() => undefined}
+        onRenameProject={() => undefined}
+        onOpenTokens={() => undefined}
+        onDownloadAll={() => void onDownloadAll()}
+        publicMode={{
+          onSignIn: promptSignIn,
+          // Signed-in-non-member: relabel the action so we don't claim
+          // sign-in helps. Tapping it surfaces the same "no access"
+          // banner the toolbar prompts do.
+          label:
+            probe.kind === 'signed-in-non-member'
+              ? 'No access'
+              : 'Sign in',
+        }}
       />
       <AppToolbar
         hasProject={player.state.stems.length > 0}
@@ -257,195 +469,217 @@ export function PublicProjectView({ token }: { token: string }) {
         currentTime={player.currentTime}
         duration={player.state.duration}
         annotationCreateMode={false}
-        canCreateAnnotations={false}
+        canCreateAnnotations={true}
         sectionCreateMode={false}
-        canCreateSections={false}
+        canCreateSections={true}
         markersVisible={true}
-        railCollapsed={false}
+        railCollapsed={railCollapsed}
         showRailToggle={false}
-        isWide={true}
+        isWide={isWide}
         onSeek={player.seek}
         onTogglePlay={() => void player.togglePlay()}
         onToggleLoopEnabled={player.toggleLoopEnabled}
         onToggleWaveformNormalization={player.toggleWaveformNormalization}
-        onToggleAnnotationCreate={() => undefined}
-        onToggleSectionCreate={() => undefined}
+        onToggleAnnotationCreate={promptIgnoreArgs}
+        onToggleSectionCreate={promptIgnoreArgs}
         onToggleMarkersVisible={() => undefined}
         onSetMasterVolume={player.setMasterVolume}
         onToggleRailCollapsed={() => undefined}
         viewport={viewport}
-        onOpenShortcuts={() => undefined}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
       />
-      <div className="public-view-body">
+      <div className="app-body">
         <div style={{ position: 'relative', minHeight: 0, minWidth: 0 }}>
-          <Player
-            player={player}
-            annotations={annotationsForPlayer}
-            userColorMap={userColorMap}
-            markersVisible={true}
-            annotationCreateMode={false}
-            onToggleAnnotationCreate={() => undefined}
-            onAnnotationCreated={() => undefined}
-            onAnnotationSelected={handleAnnotationSelected}
-            onLoopAnnotation={handleLoopAnnotation}
-            pendingDraft={null}
-            hoveredAnnotationId={null}
-            onHoverAnnotation={() => undefined}
-            sections={sectionsForPlayer}
-            songUseCounts={new Map()}
-            activeSectionId={null}
-            sectionCreateMode={false}
-            onSectionSelected={(s) => player.seek(s.start_ms / 1000)}
-            onSectionCreated={() => undefined}
-            onPatchSection={async () => undefined}
-            onPatchAnnotation={async () => undefined}
-            selfUserId=""
-            onToggleSectionCreate={() => undefined}
-            railCollapsed={false}
-            canMutate={false}
-            onOpenPicker={() => undefined}
-            onRenameStem={() => undefined}
-            onDeleteStem={() => undefined}
-            viewport={viewport}
-          />
+          <ErrorBoundary onReportBug={() => undefined}>
+            <Player
+              player={player}
+              annotations={annotationsForPlayer}
+              userColorMap={userColorMap}
+              markersVisible={true}
+              annotationCreateMode={false}
+              onToggleAnnotationCreate={promptIgnoreArgs}
+              onAnnotationCreated={promptIgnoreArgs}
+              onAnnotationSelected={handleAnnotationSelected}
+              onLoopAnnotation={handleLoopAnnotation}
+              pendingDraft={null}
+              hoveredAnnotationId={hoveredAnnotationId}
+              onHoverAnnotation={setHoveredAnnotationId}
+              sections={sectionsForPlayer}
+              songUseCounts={new Map()}
+              activeSectionId={null}
+              sectionCreateMode={false}
+              onSectionSelected={handleSectionSelected}
+              onSectionCreated={promptIgnoreArgs}
+              onPatchSection={promptAsync}
+              onPatchAnnotation={promptAsync}
+              selfUserId=""
+              onToggleSectionCreate={promptIgnoreArgs}
+              railCollapsed={railCollapsed}
+              canMutate={true}
+              onOpenPicker={() => undefined}
+              onRenameStem={promptIgnoreArgs}
+              onDeleteStem={promptIgnoreArgs}
+              viewport={viewport}
+              onDismissPopovers={closePopovers}
+            />
+          </ErrorBoundary>
         </div>
-        <PublicCommentList
-          annotations={annotations}
-          activeId={openThreadId}
-          replies={repliesByAnnId}
-          replyError={replyError}
-          onSelect={(a) => handleAnnotationSelected(toAnnotationForPlayer(a))}
-          onLoop={(a) => handleLoopAnnotation(toAnnotationForPlayer(a))}
-        />
+        {(() => {
+          const active = annotationsForPlayer.find(
+            (a) => a.id === activeCommentId,
+          ) ?? null;
+          const color =
+            (active && userColorMap.get(active.user_id)) ??
+            SELF_ANNOTATION_COLOR;
+          return (
+            <>
+              <CommentsDrawer
+                key="public-drawer"
+                open={drawerOpen}
+                isNarrow={railCollapsed}
+                selfUserId=""
+                canEdit={true}
+                annotations={annotationsForPlayer}
+                userColorMap={userColorMap}
+                activeId={activeCommentId}
+                pendingDraft={null}
+                onClose={closeDrawer}
+                onSelect={handleAnnotationSelected}
+                onCreate={promptIgnoreArgs}
+                onDraftCancel={() => undefined}
+                onToggleStar={promptIgnoreArgs}
+                onSaveEdit={promptIgnoreArgs}
+                onDelete={promptIgnoreArgs}
+                onCopyLink={promptIgnoreArgs}
+                replies={replies}
+                onLoadReplies={loadReplies}
+                onCreateReply={promptAsync}
+                onEditReply={promptAsync}
+                onDeleteReply={promptAsync}
+                onToggleReaction={promptIgnoreArgs}
+              />
+              {!drawerOpen && (
+                <CommentsFab
+                  count={annotationsForPlayer.length}
+                  starredCount={annotationsForPlayer.filter((a) => a.starred).length}
+                  onClick={toggleDrawer}
+                />
+              )}
+              {active && popoverAnchor && !railCollapsed &&
+                createPortal(
+                  <CommentPopover
+                    annotation={active}
+                    color={color}
+                    anchorLeftPx={popoverAnchor.left}
+                    anchorTopPx={popoverAnchor.top}
+                    canEdit={true}
+                    isOwn={false}
+                    drawerOpen={drawerOpen}
+                    onLoopRegion={() => handleLoopAnnotation(active)}
+                    onToggleStar={promptIgnoreArgs}
+                    onSaveEdit={promptIgnoreArgs}
+                    onDelete={promptIgnoreArgs}
+                    onCopyLink={promptIgnoreArgs}
+                    onClose={closePopovers}
+                    selfUserId=""
+                    isNarrow={railCollapsed}
+                    replies={replies.get(active.id)}
+                    replyCount={active.reply_count}
+                    onLoadReplies={loadReplies}
+                    onCreateReply={promptAsync}
+                    onEditReply={promptAsync}
+                    onDeleteReply={promptAsync}
+                    onToggleReaction={promptIgnoreArgs}
+                  />,
+                  document.body,
+                )}
+              {active && railCollapsed &&
+                createPortal(
+                  (() => {
+                    const idx = annotationsForPlayer.findIndex(
+                      (a) => a.id === active.id,
+                    );
+                    const navTo = (newIdx: number) => {
+                      const a = annotationsForPlayer[newIdx];
+                      if (a) handleAnnotationSelected(a);
+                    };
+                    return (
+                      <CommentBottomSheet
+                        annotation={active}
+                        color={color}
+                        canEdit={true}
+                        isOwn={false}
+                        index={idx}
+                        total={annotationsForPlayer.length}
+                        onPrev={() => navTo(idx - 1)}
+                        onNext={() => navTo(idx + 1)}
+                        onLoopRegion={() => handleLoopAnnotation(active)}
+                        onToggleStar={promptIgnoreArgs}
+                        onSaveEdit={promptIgnoreArgs}
+                        onDelete={promptIgnoreArgs}
+                        onClose={closePopovers}
+                        selfUserId=""
+                        replies={replies.get(active.id)}
+                        replyCount={active.reply_count}
+                        onLoadReplies={loadReplies}
+                        onCreateReply={promptAsync}
+                        onEditReply={promptAsync}
+                        onDeleteReply={promptAsync}
+                        onToggleReaction={promptIgnoreArgs}
+                      />
+                    );
+                  })(),
+                  document.body,
+                )}
+            </>
+          );
+        })()}
       </div>
+      <ShortcutsOverlay
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+      />
     </div>
   );
 }
 
-function PublicHeader({
-  bandName,
-  projectTitle,
-  appEnv,
-}: {
-  bandName: string | null;
-  projectTitle: string | null;
-  appEnv: string | null;
-}) {
+function PublicLoadingShell({ appEnv }: { appEnv: string | null }) {
   const envBadge = appEnv && appEnv !== 'prod' ? `[${appEnv.toUpperCase()}] ` : '';
   return (
-    <header className="public-view-header">
-      <a className="public-view-brand" href="/">
-        {envBadge}Paperstem
-      </a>
-      <div className="public-view-titleblock">
-        {projectTitle && <h1 className="public-view-title">{projectTitle}</h1>}
-        {bandName && <span className="public-view-band">{bandName}</span>}
-      </div>
-      <span className="public-view-spacer" />
-      <span
-        className="public-view-readonly-pill"
-        title="This is a read-only public link. You can listen and read comments, but can't post."
-      >
-        Public preview
-      </span>
+    <header className="app-header">
+      <h1 className="ah-brand">{envBadge}Paperstem</h1>
+      <span className="ah-spacer" />
+      <span className="ah-meta">Loading…</span>
     </header>
   );
 }
 
-function PublicCommentList({
-  annotations,
-  activeId,
-  replies,
-  replyError,
-  onSelect,
-  onLoop,
+function PublicErrorShell({
+  appEnv,
+  status,
 }: {
-  annotations: PublicAnnotation[];
-  activeId: string | null;
-  replies: Map<string, PublicReply[]>;
-  replyError: string | null;
-  onSelect(a: PublicAnnotation): void;
-  onLoop(a: PublicAnnotation): void;
+  appEnv: string | null;
+  status: number;
 }) {
-  if (annotations.length === 0) {
-    return (
-      <aside className="public-view-comments">
-        <header>Comments</header>
-        <p className="public-view-comments-empty">No comments yet.</p>
-      </aside>
-    );
-  }
+  const envBadge = appEnv && appEnv !== 'prod' ? `[${appEnv.toUpperCase()}] ` : '';
   return (
-    <aside className="public-view-comments">
-      <header>Comments ({annotations.length})</header>
-      <ul>
-        {annotations.map((a) => {
-          const isActive = a.id === activeId;
-          const ts =
-            a.end_ms === null
-              ? fmt(a.start_ms / 1000)
-              : `${fmt(a.start_ms / 1000)} – ${fmt(a.end_ms / 1000)}`;
-          const author = a.user_display_name ?? 'Anonymous';
-          const annReplies = replies.get(a.id) ?? [];
-          return (
-            <li
-              key={a.id}
-              className={
-                'public-view-comment' + (isActive ? ' is-active' : '')
-              }
-            >
-              <button
-                type="button"
-                className="public-view-comment-head"
-                onClick={() => onSelect(a)}
-              >
-                <span className="public-view-comment-author">{author}</span>
-                <span className="public-view-comment-time">{ts}</span>
-              </button>
-              <p className="public-view-comment-body">{a.body}</p>
-              {a.end_ms !== null && (
-                <button
-                  type="button"
-                  className="public-view-comment-loop"
-                  onClick={() => onLoop(a)}
-                >
-                  ↻ Loop this region
-                </button>
-              )}
-              {a.reactions.length > 0 && (
-                <div className="public-view-comment-reactions">
-                  {a.reactions.map((r) => (
-                    <span key={r.emoji} className="public-view-reaction-chip">
-                      {r.emoji} {r.count}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {a.reply_count > 0 && (
-                <div className="public-view-comment-replies">
-                  {annReplies.length === 0 && isActive && !replyError && (
-                    <p className="public-view-comments-empty">Loading replies…</p>
-                  )}
-                  {replyError && isActive && (
-                    <p className="public-view-comments-empty">
-                      Couldn't load replies.
-                    </p>
-                  )}
-                  {annReplies.map((r) => (
-                    <div key={r.id} className="public-view-reply">
-                      <span className="public-view-reply-author">
-                        {r.user_display_name ?? 'Anonymous'}
-                      </span>
-                      <p className="public-view-reply-body">{r.body}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </aside>
+    <>
+      <header className="app-header">
+        <h1 className="ah-brand">{envBadge}Paperstem</h1>
+        <span className="ah-spacer" />
+      </header>
+      <main className="empty-state">
+        <h2>Link unavailable</h2>
+        <p>
+          {status === 410
+            ? "This share link has been revoked, or the project has been removed. Ask the person who sent it for a new link."
+            : "This share link doesn't seem to point at anything. Double-check the URL."}
+        </p>
+        <p>
+          <a href="/">Open Paperstem</a>
+        </p>
+      </main>
+    </>
   );
 }
 
@@ -454,3 +688,7 @@ export function PublicProjectRouteWrapper() {
   if (!token) return null;
   return <PublicProjectView token={token} />;
 }
+
+// Suppress an unused-pseudoUserId warning if it ever happens — exported so
+// the helper is also reachable from tests.
+export const _internal = { pseudoUserId };
