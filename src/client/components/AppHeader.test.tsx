@@ -290,9 +290,35 @@ describe('AppHeader group switcher', () => {
     expect(screen.queryByLabelText('Switch group')).toBeNull();
   });
 
-  it('does not render the switcher when the user is in exactly 1 group', () => {
+  it('renders the switcher when the user is in exactly 1 group (gives "+ New group" a stable home)', () => {
+    render(<AppHeader {...baseProps} groups={[groups[0]!]} currentGroupId="b1" onCreateGroup={vi.fn()} />);
+    expect(screen.getByLabelText('Switch group')).not.toBeNull();
+    expect(screen.getByText('Sun Toilet')).not.toBeNull();
+  });
+
+  it('hides the switcher with 1 group when onCreateGroup is absent (no inert chevron)', () => {
     render(<AppHeader {...baseProps} groups={[groups[0]!]} currentGroupId="b1" />);
     expect(screen.queryByLabelText('Switch group')).toBeNull();
+  });
+
+  it('with 1 group and onCreateGroup, the menu has the current group + a "+ New group" entry', async () => {
+    const onCreate = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...baseProps}
+        groups={[groups[0]!]}
+        currentGroupId="b1"
+        onCreateGroup={onCreate}
+      />,
+    );
+    await user.click(screen.getByLabelText('Switch group'));
+    const items = screen.getAllByRole('menuitem');
+    // Current group + "+ New group" entry.
+    expect(items).toHaveLength(2);
+    expect(items[0]!.getAttribute('aria-current')).toBe('true');
+    await user.click(screen.getByRole('menuitem', { name: /New group/i }));
+    expect(onCreate).toHaveBeenCalledOnce();
   });
 
   it('renders the current group name when there are 2+ groups', () => {
@@ -350,7 +376,7 @@ describe('AppHeader group switcher', () => {
     expect(screen.getByText('Sun Toilet')).not.toBeNull();
   });
 
-  it('avatar menu shows "Group settings" when onOpenGroupSettings is wired and a group is selected', async () => {
+  it('avatar menu shows "Groups" when onOpenGroups is wired and fires it', async () => {
     const onOpen = vi.fn();
     const user = userEvent.setup();
     render(
@@ -358,20 +384,35 @@ describe('AppHeader group switcher', () => {
         {...baseProps}
         groups={groups}
         currentGroupId="b1"
-        onOpenGroupSettings={onOpen}
+        onOpenGroups={onOpen}
       />,
     );
     await user.click(screen.getByLabelText('Account'));
-    const item = screen.getByRole('menuitem', { name: /Group settings/i });
+    const item = screen.getByRole('menuitem', { name: /^Groups$/i });
     await user.click(item);
     expect(onOpen).toHaveBeenCalledOnce();
   });
 
-  it('avatar menu hides "Group settings" when onOpenGroupSettings prop is absent', async () => {
+  it('avatar menu hides "Groups" when onOpenGroups prop is absent', async () => {
     const user = userEvent.setup();
     render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
     await user.click(screen.getByLabelText('Account'));
-    expect(screen.queryByRole('menuitem', { name: /Group settings/i })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^Groups$/i })).toBeNull();
+  });
+
+  it('avatar menu shows "Groups" even when the user has no current group (so they can still create one)', async () => {
+    const onOpen = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...baseProps}
+        groups={[]}
+        currentGroupId={null}
+        onOpenGroups={onOpen}
+      />,
+    );
+    await user.click(screen.getByLabelText('Account'));
+    expect(screen.getByRole('menuitem', { name: /^Groups$/i })).not.toBeNull();
   });
 
   it('Escape closes the open menu', async () => {

@@ -1284,6 +1284,99 @@ button.track-name:disabled { cursor: default; }
 }
 .group-settings-leave-confirm:disabled { opacity: 0.6; cursor: default; }
 
+.groups-create-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent);
+  color: var(--paper);
+  border: none;
+  padding: 8px 14px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semi);
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+.groups-create-btn:hover { filter: brightness(0.95); }
+
+.groups-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.groups-row {
+  border-top: 1px solid var(--rule);
+}
+.groups-row:last-child { border-bottom: 1px solid var(--rule); }
+.groups-row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 10px 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+.groups-row-header:hover { background: var(--accent-tint); }
+.groups-row-header > svg:first-child {
+  color: var(--muted);
+  flex: 0 0 14px;
+}
+.groups-row-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--fw-semi);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.groups-row-active-pill {
+  font-size: var(--fs-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-tint);
+  color: var(--accent);
+  font-weight: var(--fw-semi);
+}
+.groups-row-body {
+  padding: 4px 4px 16px;
+}
+.groups-row-rename {
+  margin-bottom: 8px;
+}
+.groups-row-rename-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid var(--rule);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-sm);
+  color: var(--muted);
+  cursor: pointer;
+}
+.groups-row-rename-trigger:hover {
+  background: var(--accent-tint);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.groups-row-owner-note {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+
 .create-group-actions {
   display: flex;
   gap: 8px;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, Check, ChevronDown, Download, FolderOpen, KeyRound, Loader2, LogIn, LogOut, MessageSquare, Plus, Settings, Users } from 'lucide-react';
+import { Bug, Check, ChevronDown, Download, FolderOpen, KeyRound, Loader2, LogIn, LogOut, MessageSquare, Plus, Users } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
 import type { BandWithRole } from '../../shared/types';
@@ -7,9 +7,10 @@ import type { BandWithRole } from '../../shared/types';
 type Props = {
   userEmail: string;
   userInitials: string;
-  // The user's groups (a.k.a. bands at the DB layer). The switcher only
-  // renders when there are 2+ groups; with one or zero the UI stays the same
-  // as before this feature landed.
+  // The user's groups (a.k.a. bands at the DB layer). The switcher renders
+  // whenever the user is in 1+ groups so the "+ New group" entry has a
+  // stable home; with zero groups the switcher is hidden and the empty
+  // state inside the main panel carries the create-group affordance.
   groups?: BandWithRole[];
   currentGroupId?: string | null;
   onSwitchGroup?: (id: string) => void;
@@ -34,7 +35,7 @@ type Props = {
   onOpenTokens(): void;
   // Optional so callers in tests don't need to wire this; absent =
   // the menu entry is hidden (legacy callers behave as before).
-  onOpenGroupSettings?: () => void;
+  onOpenGroups?: () => void;
   onDownloadAll(): void;
   /**
    * Public-link / read-only mode. When set, the header strips project-
@@ -59,7 +60,7 @@ export function AppHeader({
   annotationsOpen, hasProject, canRename, isWide, appVersion, appEnv, downloading,
   debugInfo,
   onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenameProject,
-  onOpenTokens, onOpenGroupSettings, onDownloadAll, publicMode,
+  onOpenTokens, onOpenGroups, onDownloadAll, publicMode,
 }: Props) {
   const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -100,11 +101,17 @@ export function AppHeader({
   }, [groupOpen]);
 
   const groupList = groups ?? [];
-  // Group switcher is band-roster info — hide it in public mode so an
-  // anonymous viewer can't see what other groups the link's owner is in.
-  const showGroupSwitcher = !publicMode && groupList.length > 1;
+  // Render the switcher whenever it would be useful. With 2+ groups that's
+  // always; with exactly 1 group, only if the menu can offer "+ New group"
+  // (otherwise the menu would be a single inert row with a fake chevron).
+  // Hidden in public mode so anonymous viewers can't enumerate the link
+  // owner's band membership.
+  const showGroupSwitcher =
+    !publicMode &&
+    (groupList.length > 1 || (groupList.length === 1 && !!onCreateGroup));
   const currentGroup =
     groupList.find((g) => g.id === currentGroupId) ?? groupList[0] ?? null;
+  const hasMultipleGroups = groupList.length > 1;
 
   function commit() {
     setEditing(false);
@@ -144,7 +151,9 @@ export function AppHeader({
               aria-haspopup="menu"
               aria-expanded={groupOpen}
               aria-label="Switch group"
-              title={`Group: ${currentGroup.name} — click to switch`}
+              title={hasMultipleGroups
+                ? `Group: ${currentGroup.name} — click to switch`
+                : `Group: ${currentGroup.name}`}
             >
               <Users size={14} strokeWidth={2} aria-hidden="true" />
               <span className="ah-group-name">{currentGroup.name}</span>
@@ -336,13 +345,13 @@ export function AppHeader({
             >
               <KeyRound size={14} strokeWidth={2} aria-hidden="true" /> Import tokens
             </button>
-            {onOpenGroupSettings && currentGroup && (
+            {onOpenGroups && (
               <button
                 type="button"
                 role="menuitem"
-                onClick={() => { setAvatarOpen(false); onOpenGroupSettings(); }}
+                onClick={() => { setAvatarOpen(false); onOpenGroups(); }}
               >
-                <Settings size={14} strokeWidth={2} aria-hidden="true" /> Group settings
+                <Users size={14} strokeWidth={2} aria-hidden="true" /> Groups
               </button>
             )}
             <button type="button" role="menuitem" onClick={onSignOut}>
