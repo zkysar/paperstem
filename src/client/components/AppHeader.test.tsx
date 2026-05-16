@@ -273,3 +273,89 @@ describe('AppHeader inline rename', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 });
+
+describe('AppHeader group switcher', () => {
+  const groups = [
+    { id: 'b1', name: 'Sun Toilet', folder_id: 'f1', owner_user_id: 'u1', created_at: 0, role: 'owner' as const },
+    { id: 'b2', name: 'Moon Tractor', folder_id: 'f2', owner_user_id: 'u2', created_at: 0, role: 'member' as const },
+  ];
+
+  it('does not render the switcher when the user is in 0 groups', () => {
+    render(<AppHeader {...baseProps} groups={[]} currentGroupId={null} />);
+    expect(screen.queryByLabelText('Switch group')).toBeNull();
+  });
+
+  it('does not render the switcher when the user is in exactly 1 group', () => {
+    render(<AppHeader {...baseProps} groups={[groups[0]!]} currentGroupId="b1" />);
+    expect(screen.queryByLabelText('Switch group')).toBeNull();
+  });
+
+  it('renders the current group name when there are 2+ groups', () => {
+    render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
+    expect(screen.getByLabelText('Switch group')).not.toBeNull();
+    expect(screen.getByText('Sun Toilet')).not.toBeNull();
+  });
+
+  it('opens a menu listing every group, marking the current one with aria-current', async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
+    await user.click(screen.getByLabelText('Switch group'));
+    const items = screen.getAllByRole('menuitem');
+    expect(items).toHaveLength(2);
+    expect(items[0]!.getAttribute('aria-current')).toBe('true');
+    expect(items[1]!.getAttribute('aria-current')).toBeNull();
+  });
+
+  it('clicking a different group calls onSwitchGroup and closes the menu', async () => {
+    const onSwitch = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...baseProps}
+        groups={groups}
+        currentGroupId="b1"
+        onSwitchGroup={onSwitch}
+      />,
+    );
+    await user.click(screen.getByLabelText('Switch group'));
+    await user.click(screen.getByRole('menuitem', { name: /Moon Tractor/ }));
+    expect(onSwitch).toHaveBeenCalledWith('b2');
+    expect(screen.queryByRole('menuitem')).toBeNull();
+  });
+
+  it('clicking the current group does NOT call onSwitchGroup but still closes the menu', async () => {
+    const onSwitch = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...baseProps}
+        groups={groups}
+        currentGroupId="b1"
+        onSwitchGroup={onSwitch}
+      />,
+    );
+    await user.click(screen.getByLabelText('Switch group'));
+    await user.click(screen.getByRole('menuitem', { name: /Sun Toilet/ }));
+    expect(onSwitch).not.toHaveBeenCalled();
+    expect(screen.queryByRole('menuitem')).toBeNull();
+  });
+
+  it('falls back to the first group when currentGroupId does not match any', () => {
+    render(<AppHeader {...baseProps} groups={groups} currentGroupId="b-missing" />);
+    expect(screen.getByText('Sun Toilet')).not.toBeNull();
+  });
+
+  it('clicking outside closes the open menu', async () => {
+    const user = userEvent.setup();
+    render(
+      <div>
+        <AppHeader {...baseProps} groups={groups} currentGroupId="b1" />
+        <div data-testid="outside">outside</div>
+      </div>,
+    );
+    await user.click(screen.getByLabelText('Switch group'));
+    expect(screen.getByRole('menuitem', { name: /Sun Toilet/ })).not.toBeNull();
+    await user.click(screen.getByTestId('outside'));
+    expect(screen.queryByRole('menuitem')).toBeNull();
+  });
+});

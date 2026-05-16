@@ -173,7 +173,33 @@ function PaperstemApp({
   }, []);
 
   const { bands, loading: bandsLoading, error: bandsError } = useBands(true);
-  const activeBand = bands[0] ?? null;
+  const [currentGroupId, setCurrentGroupId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('paperstem.currentGroupId');
+    } catch {
+      return null;
+    }
+  });
+  // Keep the stored id valid: if the user lost membership or never had one,
+  // fall back to the first band and persist that choice.
+  useEffect(() => {
+    if (!bands.length) return;
+    const valid =
+      currentGroupId !== null && bands.some((b) => b.id === currentGroupId);
+    if (!valid) {
+      const next = bands[0]!.id;
+      setCurrentGroupId(next);
+      try {
+        localStorage.setItem('paperstem.currentGroupId', next);
+      } catch {
+        // ignore
+      }
+    }
+  }, [bands, currentGroupId]);
+  const activeBand = useMemo(
+    () => bands.find((b) => b.id === currentGroupId) ?? bands[0] ?? null,
+    [bands, currentGroupId],
+  );
   const activeBandId = activeBand?.id ?? null;
   const repo = useMemo<ProjectsRepo | null>(
     () => (activeBandId ? new HttpProjectsRepo(activeBandId) : null),
@@ -1467,8 +1493,8 @@ function PaperstemApp({
         </header>
         <div className="app">
           <main className="empty-state">
-            <p>You're not in any bands yet. Ask your band's owner to add you.</p>
-            {bandsError && <p className="error">Could not load bands ({bandsError}).</p>}
+            <p>You're not in any groups yet. Ask your group's owner to add you.</p>
+            {bandsError && <p className="error">Could not load groups ({bandsError}).</p>}
           </main>
         </div>
       </>
@@ -1498,6 +1524,20 @@ function PaperstemApp({
       <AppHeader
         userEmail={user.email}
         userInitials={initialsFromEmail(user.email)}
+        groups={bands}
+        currentGroupId={activeBandId}
+        onSwitchGroup={(id) => {
+          if (id === activeBandId) return;
+          setCurrentGroupId(id);
+          try {
+            localStorage.setItem('paperstem.currentGroupId', id);
+          } catch {
+            // ignore
+          }
+          setActiveProjectId(null);
+          setDraftFiles([]);
+          setFilterSongId(null);
+        }}
         projectTitle={player.state.title || null}
         stemCount={player.state.stems.length}
         duration={player.state.duration}
