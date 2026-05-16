@@ -484,6 +484,34 @@ describe('SectionLane', () => {
     expect(onHoverChange).toHaveBeenCalledWith(false);
   });
 
+  it('stamps the section pill with the .dragging class for the lifetime of a middle-drag so the grabbing cursor does not depend on :active', () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+      section({ id: 's3', start_ms: 90000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        activeSectionId="s2"
+      />,
+    );
+    const pill = screen.getByTestId('section-s2');
+    (pill as any).setPointerCapture = vi.fn();
+    (pill as any).releasePointerCapture = vi.fn();
+
+    expect(pill.classList.contains('dragging')).toBe(false);
+    fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+    expect(pill.classList.contains('dragging')).toBe(true);
+    fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+    expect(pill.classList.contains('dragging')).toBe(true);
+    fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
+    expect(pill.classList.contains('dragging')).toBe(false);
+  });
+
   it('Escape during section drag cancels the patch', async () => {
     const onPatchSection = vi.fn(async () => {});
     const sections = [

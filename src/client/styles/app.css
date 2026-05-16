@@ -4436,7 +4436,14 @@ body.env-non-prod[data-env="local"]::before {
 .section-pill {
   cursor: grab;
 }
-.section-pill:active {
+/* `:active` would normally suffice here (and does for the div-based
+   annotation marker and loop region), but Chromium drops `:active` on a
+   <button> as soon as the pointer leaves its bounding box, even while
+   pointer capture is in effect. The .dragging class is stamped on by
+   SectionLane for the lifetime of the gesture so the grabbing cursor
+   doesn't flicker mid-drag. */
+.section-pill:active,
+.section-pill.dragging {
   cursor: grabbing;
 }
 .annotation-marker.region,

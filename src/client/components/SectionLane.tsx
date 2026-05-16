@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { Link2 } from 'lucide-react';
 import type { Section } from '../../shared/types';
 import { FREE_TEXT_SECTION_COLOR, colorForSong } from '../lib/colors';
@@ -72,6 +72,24 @@ export function SectionLane({
     () => new Map(),
   );
   const [guideline, setGuideline] = useState<number | null>(null);
+  // Tracks the pill the user is currently pressing so we can stamp it with a
+  // `.dragging` class. Annotation markers and loop regions rely on the CSS
+  // `:active` pseudo-class to swap their cursor to `grabbing`, but a section
+  // pill is a <button>, and Chromium drops `:active` on a button as soon as
+  // the pointer leaves the element's bounding box — even while pointer
+  // capture is active — so during a drag the cursor flickers back to `grab`.
+  // Explicit state keeps the grabbing cursor on for the whole gesture.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!draggingId) return;
+    const clear = () => setDraggingId(null);
+    window.addEventListener('pointerup', clear);
+    window.addEventListener('pointercancel', clear);
+    return () => {
+      window.removeEventListener('pointerup', clear);
+      window.removeEventListener('pointercancel', clear);
+    };
+  }, [draggingId]);
 
   const msPerPx = duration && waveWidthPx ? (duration * 1000) / waveWidthPx : 0;
 
@@ -223,7 +241,11 @@ export function SectionLane({
                 key={c.section.id}
                 data-testid={`section-${c.section.id}`}
                 data-section-id={c.section.id}
-                className={'section-pill' + (isActive ? ' active' : '')}
+                className={
+                  'section-pill' +
+                  (isActive ? ' active' : '') +
+                  (draggingId === c.section.id ? ' dragging' : '')
+                }
                 style={{
                   left: `${c.leftPx}px`,
                   width: `${c.widthPx}px`,
@@ -247,6 +269,7 @@ export function SectionLane({
                   // precision the grip affordance assumes — edit on desktop.
                   if (e.pointerType === 'touch') return;
                   if ((e.target as Element).closest('.section-grip')) return;
+                  setDraggingId(c.section.id);
                   const hasNext = c.index + 1 < computed.length;
                   const baseStart = effective(c.section);
                   const baseNextStart = c.nextStartMs;
@@ -292,6 +315,7 @@ export function SectionLane({
                     onPointerDown={(e) => {
                       e.stopPropagation();
                       if (e.pointerType === 'touch') return;
+                      setDraggingId(c.section.id);
                       drag.handlePointerDown(e, {
                         kind: 'left-edge',
                         sectionId: c.section.id,
