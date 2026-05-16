@@ -178,6 +178,7 @@ function PaperstemApp({
     loading: bandsLoading,
     error: bandsError,
     refresh: refreshBands,
+    dropLocally: dropBandLocally,
   } = useBands(true);
   // Namespaced by user.id so two users sharing a browser don't clobber each
   // other's last-chosen group.
@@ -1905,13 +1906,14 @@ function PaperstemApp({
         open={groupSettingsOpen}
         group={activeBand}
         onClose={() => setGroupSettingsOpen(false)}
-        onLeft={() => {
-          // The user just left the active group. Drop the stored current-
-          // group id so the fallback effect picks bands[0] (or null) once
-          // the new list arrives. Tear down any project-scoped UI that
-          // referenced the band we just left.
+        onLeft={(leftId) => {
+          // Drop the just-left group from the local bands list before the
+          // server-side refresh lands. This avoids a one-render race where
+          // the slice-1 fallback effect re-elects the just-left band as
+          // active (because it's still in `bands`) and fires group-scoped
+          // fetches against a band the user no longer belongs to.
           setGroupSettingsOpen(false);
-          setCurrentGroupId(null);
+          dropBandLocally(leftId);
           try {
             localStorage.removeItem(currentGroupStorageKey);
           } catch {

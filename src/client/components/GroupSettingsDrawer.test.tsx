@@ -155,8 +155,8 @@ describe('GroupSettingsDrawer', () => {
     );
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: /Leave group/i }));
-    await user.click(screen.getByRole('button', { name: /Yes, leave/i }));
-    await waitFor(() => expect(onLeft).toHaveBeenCalledOnce());
+    await user.click(screen.getByRole('button', { name: /Leave Moon Tractor/i }));
+    await waitFor(() => expect(onLeft).toHaveBeenCalledWith(memberGroup.id));
   });
 
   it('Cancel from the confirmation returns to the Leave button without calling onLeft', async () => {
@@ -199,8 +199,8 @@ describe('GroupSettingsDrawer', () => {
     );
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: /Leave group/i }));
-    await user.click(screen.getByRole('button', { name: /Yes, leave/i }));
-    await screen.findByText(/Owners can't leave/i);
+    await user.click(screen.getByRole('button', { name: /Leave Moon Tractor/i }));
+    await screen.findByText(/owner of this group/i);
     expect(onLeft).not.toHaveBeenCalled();
   });
 
@@ -223,6 +223,43 @@ describe('GroupSettingsDrawer', () => {
     expect(onClose).not.toHaveBeenCalled();
     await user.click(screen.getByRole('dialog'));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('Escape closes the drawer', async () => {
+    const onClose = vi.fn();
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={ownerGroup}
+        onClose={onClose}
+        onLeft={() => undefined}
+      />,
+    );
+    await screen.findByText('owner@example.com');
+    const user = userEvent.setup();
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it('shows the "owners cannot leave" hint for owners and hides the Leave button', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+    });
+    render(
+      <GroupSettingsDrawer
+        open={true}
+        group={ownerGroup}
+        onClose={() => undefined}
+        onLeft={() => undefined}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /Leave group/i })).toBeNull();
+    expect(
+      screen.getByText(/Owners can't leave their own group/i),
+    ).not.toBeNull();
   });
 
   it('renders a no-group fallback when group is null', () => {

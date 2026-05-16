@@ -49,5 +49,14 @@ export function useBands(enabled: boolean) {
     setRefreshTick((n) => n + 1);
   }, []);
 
-  return { ...state, refresh };
+  // Optimistically remove a band from the local list. Used by the leave
+  // flow: drops the band before the server-side refresh lands, so the
+  // active-band fallback in App.tsx doesn't briefly re-elect the band the
+  // user just left and fire requests against a band they no longer belong
+  // to. The next real refresh will reconcile.
+  const dropLocally = useCallback((id: string) => {
+    setState((s) => ({ ...s, bands: s.bands.filter((b) => b.id !== id) }));
+  }, []);
+
+  return { ...state, refresh, dropLocally };
 }

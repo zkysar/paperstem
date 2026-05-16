@@ -10,9 +10,10 @@ type Props = {
   group: BandWithRole | null;
   onClose(): void;
   // Called after the user successfully leaves the group. The parent is
-  // expected to refresh its bands list so the active-group fallback can
-  // pick a new one.
-  onLeft(): void;
+  // expected to drop the group from its local bands list so the active-
+  // group fallback can pick a new one without flickering through the
+  // just-left band.
+  onLeft(leftGroupId: string): void;
 };
 
 type GetBandResponse = {
@@ -34,6 +35,17 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
       setLeaving(false);
     }
   }, [open]);
+
+  // Escape closes the modal. Matches the keyboard pattern users expect for
+  // dialogs; the scrim click already covers mouse users.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
   useEffect(() => {
     setMembers(null);
     setConfirmingLeave(false);
@@ -75,14 +87,18 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
       );
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
+        // Owners can't leave; the button is hidden for them, so this path
+        // is only hit if the role changed server-side between page load
+        // and click (rare). Don't promise a transfer-ownership flow that
+        // doesn't exist yet.
         const msg =
           body.error === 'owner_cannot_leave'
-            ? "Owners can't leave their own group. Transfer ownership first."
+            ? "You're the owner of this group and can't leave it."
             : `HTTP ${res.status}`;
         setError(msg);
         return;
       }
-      onLeft();
+      onLeft(group.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -123,7 +139,13 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
           {group && (
             <>
               <p className="upload-hint">
-                You're a {group.role} of <strong>{group.name}</strong>.
+                Your role in <strong>{group.name}</strong>: {group.role}.
+                {group.role === 'owner' && (
+                  <>
+                    {' '}
+                    Owners can't leave their own group.
+                  </>
+                )}
               </p>
 
               {error && <div className="upload-error">{error}</div>}
@@ -137,7 +159,12 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
                 <ul className="group-member-list">
                   {members.map((m) => (
                     <li key={m.id} className="group-member-row">
-                      <span className="group-member-email">{m.email}</span>
+                      <span
+                        className="group-member-email"
+                        title={m.email}
+                      >
+                        {m.email}
+                      </span>
                       <span
                         className={`group-member-role group-member-role-${m.role}`}
                       >
@@ -172,7 +199,7 @@ export function GroupSettingsDrawer({ open, group, onClose, onLeft }: Props) {
                         disabled={leaving}
                         onClick={() => void handleLeave()}
                       >
-                        {leaving ? 'Leaving…' : 'Yes, leave'}
+                        {leaving ? 'Leaving…' : `Leave ${group.name}`}
                       </button>
                       <button
                         type="button"
