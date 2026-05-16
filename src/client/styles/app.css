@@ -1431,6 +1431,10 @@ button.ah-title-name:disabled { cursor: default; }
   cursor: pointer;
 }
 .ah-open-cta:hover { background: var(--rule); }
+.ah-open-cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .ah-spacer { flex: 1; }
 .ah-meta {
   color: var(--muted);

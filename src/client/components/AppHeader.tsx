@@ -134,6 +134,7 @@ export function AppHeader({
           type="button"
           className="ah-open-cta"
           onClick={onOpenPicker}
+          title="Open a project"
         >
           <FolderOpen size={14} strokeWidth={2} aria-hidden="true" />
           Open a project
