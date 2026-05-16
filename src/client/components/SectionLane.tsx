@@ -187,7 +187,13 @@ export function SectionLane({
   return (
     <div
       className={wrapClassName}
-      onMouseLeave={() => onHoverChange(false)}
+      onMouseLeave={() => {
+        // A horizontal drag often drifts a few pixels vertically out of the
+        // 22px wrap. If we collapsed the lane on that mouseLeave the pill
+        // we're dragging would unmount mid-gesture and the drag would die.
+        if (drag.isActiveRef.current) return;
+        onHoverChange(false);
+      }}
       onPointerDown={(e) => {
         // Only count taps that land on an actual section element — tapping
         // empty space in the wrap shouldn't expand the lane.
@@ -239,27 +245,31 @@ export function SectionLane({
                   if (!onPatchSection) return;
                   if ((e.target as Element).closest('.section-grip')) return;
                   const hasNext = c.index + 1 < computed.length;
-                  // Middle drag translates self + next by the same delta so
-                  // the section keeps its width. The last section has no
-                  // next start to push, so translating would just resize it
-                  // — skip middle drag entirely and let the click fall
-                  // through to seek/select.
-                  if (!hasNext) return;
                   const baseStart = effective(c.section);
                   const baseNextStart = c.nextStartMs;
-                  const nextId = computed[c.index + 1].section.id;
+                  const nextId = hasNext ? computed[c.index + 1].section.id : null;
 
                   const minDelta = Math.max(
                     -baseStart,
                     c.prevStartMs + MIN_GAP_MS - baseStart,
                   );
 
+                  // For non-last sections, both self and next translate by
+                  // the same delta so width stays constant — max delta is
+                  // bounded by where the next section's next would collide.
+                  // For the last section, there is no next start to push,
+                  // so the section grows or shrinks against the song's end.
                   const durationMs = duration * 1000;
-                  const nextOfNextStart =
-                    c.index + 2 < computed.length
-                      ? effective(computed[c.index + 2].section)
-                      : durationMs;
-                  const maxDelta = nextOfNextStart - MIN_GAP_MS - baseNextStart;
+                  let maxDelta: number;
+                  if (hasNext) {
+                    const nextOfNextStart =
+                      c.index + 2 < computed.length
+                        ? effective(computed[c.index + 2].section)
+                        : durationMs;
+                    maxDelta = nextOfNextStart - MIN_GAP_MS - baseNextStart;
+                  } else {
+                    maxDelta = durationMs - MIN_GAP_MS - baseStart;
+                  }
 
                   drag.handlePointerDown(e, {
                     kind: 'middle',

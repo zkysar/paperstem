@@ -311,7 +311,7 @@ describe('SectionLane', () => {
     expect(onPatchSection).toHaveBeenCalledWith('s3', { start_ms: 96000 });
   });
 
-  it('middle drag of the last section is a no-op — there is no next start to translate, so resizing would be the only outcome', async () => {
+  it('middle drag of the last section shifts its start_ms (no next to translate, so it grows/shrinks against the song end)', async () => {
     const onPatchSection = vi.fn(async () => {});
     const sections = [
       section({ id: 's1', start_ms: 0 }),
@@ -330,10 +330,13 @@ describe('SectionLane', () => {
     (pill as any).releasePointerCapture = vi.fn();
 
     fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
-    fireEvent.pointerMove(window, { clientX: 510, pointerId: 1 });
-    fireEvent.pointerUp(window, { clientX: 510, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
 
-    expect(onPatchSection).not.toHaveBeenCalled();
+    // 40px * 150ms/px = 6000ms; new start = 60000 + 6000 = 66000.
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 66000 });
+    // Only s2 patched — there is no next section to translate.
+    expect(onPatchSection).toHaveBeenCalledTimes(1);
   });
 
   it('a dragged pill does not also fire its click — no dialog should open after a drag', () => {
@@ -445,6 +448,40 @@ describe('SectionLane', () => {
     fireEvent.pointerUp(window, { clientX: 503, pointerId: 1 });
 
     expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 1010 });
+  });
+
+  it('mouseLeave on the wrap during a drag does not fire onHoverChange(false) — the pill must stay mounted for the drag to land', () => {
+    const onHoverChange = vi.fn();
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 30000 }),
+      section({ id: 's3', start_ms: 90000 }),
+    ];
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+        onHoverChange={onHoverChange}
+        activeSectionId="s2"
+      />,
+    );
+    const pill = screen.getByTestId('section-s2');
+    (pill as any).setPointerCapture = vi.fn();
+    (pill as any).releasePointerCapture = vi.fn();
+    const wrap = container.querySelector<HTMLElement>('.section-lane-wrap')!;
+
+    fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+    // Simulate the cursor drifting vertically out of the 22px wrap mid-drag.
+    fireEvent.mouseLeave(wrap);
+    expect(onHoverChange).not.toHaveBeenCalledWith(false);
+
+    fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
+    // After the drag ends, mouseLeave should again collapse the lane.
+    fireEvent.mouseLeave(wrap);
+    expect(onHoverChange).toHaveBeenCalledWith(false);
   });
 
   it('Escape during section drag cancels the patch', async () => {
