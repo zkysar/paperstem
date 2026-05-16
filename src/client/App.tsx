@@ -24,7 +24,7 @@ import {
   type BugReportPrefill,
 } from './components/BugReportDrawer';
 import { CreateGroupDialog } from './components/CreateGroupDialog';
-import { GroupSettingsDrawer } from './components/GroupSettingsDrawer';
+import { GroupsDrawer } from './components/GroupsDrawer';
 import { TokensDrawer } from './components/TokensDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FilePicker } from './components/FilePicker';
@@ -1935,28 +1935,36 @@ function PaperstemApp({
         onClose={() => setShareDialog(null)}
       />
       <TokensDrawer open={tokensOpen} onClose={() => setTokensOpen(false)} />
-      <GroupSettingsDrawer
+      <GroupsDrawer
         open={groupSettingsOpen}
-        group={activeBand}
+        groups={bands}
+        currentGroupId={activeBandId}
         onClose={() => setGroupSettingsOpen(false)}
         onLeft={(leftId) => {
-          // Drop the just-left group from the local bands list before the
-          // server-side refresh lands. This avoids a one-render race where
-          // the slice-1 fallback effect re-elects the just-left band as
-          // active (because it's still in `bands`) and fires group-scoped
-          // fetches against a band the user no longer belongs to.
-          setGroupSettingsOpen(false);
+          // If the user left the active group, we need the same race-avoiding
+          // local drop the single-group drawer used to do: pull it out of
+          // `bands` eagerly so the fallback effect re-elects a different
+          // group before the server refresh lands. For non-active groups,
+          // we still want the local drop so the row disappears immediately;
+          // the active-group resets only kick in when relevant.
+          const wasActive = leftId === activeBandId;
           dropBandLocally(leftId);
-          try {
-            localStorage.removeItem(currentGroupStorageKey);
-          } catch {
-            // ignore
+          if (wasActive) {
+            try {
+              localStorage.removeItem(currentGroupStorageKey);
+            } catch {
+              // ignore
+            }
+            resetProjectScopedUiState();
           }
-          resetProjectScopedUiState();
           refreshBands();
         }}
         onRenamed={(groupId, newName) => {
           updateBandLocally(groupId, { name: newName });
+        }}
+        onCreateGroup={() => {
+          setGroupSettingsOpen(false);
+          setCreateGroupOpen(true);
         }}
       />
       <CreateGroupDialog

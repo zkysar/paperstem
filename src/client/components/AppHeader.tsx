@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, Check, ChevronDown, Download, FolderOpen, KeyRound, Loader2, LogOut, MessageSquare, Plus, Settings, Users } from 'lucide-react';
+import { Bug, Check, ChevronDown, Download, FolderOpen, KeyRound, Loader2, LogOut, MessageSquare, Plus, Users } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
 import type { BandWithRole } from '../../shared/types';
@@ -85,9 +85,14 @@ export function AppHeader({
   }, [groupOpen]);
 
   const groupList = groups ?? [];
-  const showGroupSwitcher = groupList.length > 1;
+  // Render the switcher whenever the user is in at least one group. With
+  // exactly 1 group the trigger is still useful — it surfaces "+ New group"
+  // as a stable affordance instead of forcing users to discover it through
+  // the avatar dropdown.
+  const showGroupSwitcher = groupList.length >= 1;
   const currentGroup =
     groupList.find((g) => g.id === currentGroupId) ?? groupList[0] ?? null;
+  const hasMultipleGroups = groupList.length > 1;
 
   function commit() {
     setEditing(false);
@@ -127,7 +132,9 @@ export function AppHeader({
               aria-haspopup="menu"
               aria-expanded={groupOpen}
               aria-label="Switch group"
-              title={`Group: ${currentGroup.name} — click to switch`}
+              title={hasMultipleGroups
+                ? `Group: ${currentGroup.name} — click to switch`
+                : `Group: ${currentGroup.name}`}
             >
               <Users size={14} strokeWidth={2} aria-hidden="true" />
               <span className="ah-group-name">{currentGroup.name}</span>
@@ -300,13 +307,13 @@ export function AppHeader({
             >
               <KeyRound size={14} strokeWidth={2} aria-hidden="true" /> Import tokens
             </button>
-            {onOpenGroupSettings && currentGroup && (
+            {onOpenGroupSettings && (
               <button
                 type="button"
                 role="menuitem"
                 onClick={() => { setAvatarOpen(false); onOpenGroupSettings(); }}
               >
-                <Settings size={14} strokeWidth={2} aria-hidden="true" /> Group settings
+                <Users size={14} strokeWidth={2} aria-hidden="true" /> Groups
               </button>
             )}
             <button type="button" role="menuitem" onClick={onSignOut}>
