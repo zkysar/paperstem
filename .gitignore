@@ -43,3 +43,8 @@ dist/client
 
 # Audio storage root (dev only)
 audio-dev/
+
+# Playwright E2E
+playwright-report/
+test-results/
+playwright/.cache/
