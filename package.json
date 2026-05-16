@@ -35,6 +35,7 @@
     "jszip": "^3.10.1",
     "lucide-react": "^1.14.0",
     "nodemailer": "^6.9.16",
+    "posthog-js": "^1.373.5",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "wavesurfer.js": "^7.10.5"
