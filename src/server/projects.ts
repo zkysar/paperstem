@@ -191,7 +191,14 @@ export async function handleDeleteProject(
   if (!membership) return c.json({ error: 'not_found' }, 404);
 
   const now = Math.floor(Date.now() / 1000);
-  stmts.softDeleteProject.run(now, user.id, id);
+  // Soft-delete + cascade-revoke live public links atomically. The
+  // matching restore path re-activates only trash-revoked links (not
+  // user-revoked ones) so an owner's explicit revoke survives a
+  // trash/restore round-trip.
+  db.transaction(() => {
+    stmts.softDeleteProject.run(now, user.id, id);
+    stmts.trashRevokePublicLinksForProject.run(now, id);
+  })();
 
   recordAudit({
     action: 'project.soft_delete',
@@ -228,7 +235,13 @@ export async function handleRestoreProject(
     return c.json({ error: 'drive_missing' }, 409);
   }
 
-  stmts.restoreProject.run(id);
+  // Mirror of the trash transaction: un-revoke the public links we
+  // auto-revoked when the project went into the trash. User-revoked
+  // links stay revoked.
+  db.transaction(() => {
+    stmts.restoreProject.run(id);
+    stmts.reactivatePublicLinksForTrashRestore.run(id);
+  })();
 
   try {
     await untrashItem(project.folder_id);

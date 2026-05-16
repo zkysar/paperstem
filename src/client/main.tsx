@@ -1,7 +1,5 @@
-import { StrictMode } from 'react';
+import { StrictMode, Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App';
-import { PublicProjectRouteWrapper } from './PublicProjectView';
 import { installClientErrorBuffer } from './lib/clientErrorBuffer';
 import './styles/app.css';
 
@@ -15,8 +13,23 @@ if (!root) throw new Error('No #root element');
 // CommentsDrawer, no auth hooks). Keeping the two trees disjoint at the
 // entry point is the simplest way to guarantee a public viewer can't
 // surface admin UI by toggling state.
+//
+// lazy() + Suspense splits the bundle: an anonymous viewer at /p/<token>
+// downloads only the public chunk, not the FilePicker / UploadDrawer /
+// BugReportDrawer / band-switcher code paths from App.
 const isPublicRoute = /^\/p\/[A-Za-z0-9_-]+\/?$/.test(window.location.pathname);
 
+const App = lazy(() => import('./App'));
+const PublicProjectRouteWrapper = lazy(() =>
+  import('./PublicProjectView').then((m) => ({
+    default: m.PublicProjectRouteWrapper,
+  })),
+);
+
 createRoot(root).render(
-  <StrictMode>{isPublicRoute ? <PublicProjectRouteWrapper /> : <App />}</StrictMode>,
+  <StrictMode>
+    <Suspense fallback={null}>
+      {isPublicRoute ? <PublicProjectRouteWrapper /> : <App />}
+    </Suspense>
+  </StrictMode>,
 );

@@ -52,6 +52,9 @@ for (const col of ['deleted_at', 'deleted_by', 'deleted_reason']) {
 if (tableExists('stems') && !columnExists('stems', 'peaks')) {
   db.exec('ALTER TABLE stems ADD COLUMN peaks TEXT');
 }
+if (tableExists('public_links') && !columnExists('public_links', 'revoked_reason')) {
+  db.exec('ALTER TABLE public_links ADD COLUMN revoked_reason TEXT');
+}
 if (tableExists('sessions')) {
   if (!columnExists('sessions', 'label')) {
     db.exec('ALTER TABLE sessions ADD COLUMN label TEXT');
@@ -327,6 +330,7 @@ export type PublicLinkRow = {
   created_by_user_id: string;
   created_at: number;
   revoked_at: number | null;
+  revoked_reason: 'user' | 'trash' | null;
   last_accessed_at: number | null;
 };
 
@@ -1048,7 +1052,22 @@ export const stmts = {
      VALUES (?, ?, ?, ?)`,
   ),
   revokePublicLink: db.prepare<[number, string]>(
-    `UPDATE public_links SET revoked_at = ? WHERE token = ? AND revoked_at IS NULL`,
+    `UPDATE public_links SET revoked_at = ?, revoked_reason = 'user'
+      WHERE token = ? AND revoked_at IS NULL`,
+  ),
+  // Called when a project is soft-deleted: every live link on it becomes
+  // unusable. Trash-revoke is the only kind of revoke that's reversible
+  // (via reactivatePublicLinksForTrashRestore) so it's tagged distinctly
+  // to avoid resurrecting an explicitly-user-revoked link on restore.
+  trashRevokePublicLinksForProject: db.prepare<[number, string]>(
+    `UPDATE public_links
+        SET revoked_at = ?, revoked_reason = 'trash'
+      WHERE project_id = ? AND revoked_at IS NULL`,
+  ),
+  reactivatePublicLinksForTrashRestore: db.prepare<[string]>(
+    `UPDATE public_links
+        SET revoked_at = NULL, revoked_reason = NULL
+      WHERE project_id = ? AND revoked_reason = 'trash'`,
   ),
   touchPublicLinkAccess: db.prepare<[number, string, number]>(
     `UPDATE public_links SET last_accessed_at = ?

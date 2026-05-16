@@ -3619,18 +3619,14 @@ body.env-non-prod[data-env="local"]::before {
 }
 .public-view-spacer { flex: 1 1 auto; }
 .public-view-readonly-pill {
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid var(--rule-2);
+  border: 1px solid var(--accent);
   font-size: var(--fs-sm);
-  color: var(--muted);
-}
-.public-view-signin {
-  font-size: var(--fs-sm);
+  font-weight: 600;
   color: var(--accent);
-  text-decoration: none;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
-.public-view-signin:hover { text-decoration: underline; }
 
 .public-view-body {
   display: grid;

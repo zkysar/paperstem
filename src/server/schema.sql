@@ -246,6 +246,11 @@ CREATE TABLE IF NOT EXISTS public_links (
   created_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at        INTEGER NOT NULL,
   revoked_at        INTEGER,
+  -- 'user' (manual revoke from the admin UI) or 'trash' (auto-revoked
+  -- because the project was soft-deleted). The distinction matters at
+  -- restore time: only trash-revoked links re-activate when the project
+  -- comes back. NULL only when revoked_at is NULL.
+  revoked_reason    TEXT CHECK (revoked_reason IN ('user','trash')),
   last_accessed_at  INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_public_links_project

@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -568,14 +568,369 @@ describe('GET /api/public/links/:token/sections', () => {
   });
 });
 
-describe('Public token never grants access to write endpoints', () => {
-  it('does not register a session — write endpoints stay 401 even with token in URL', async () => {
-    // This is implicit: the public handlers don't set cookies. To make it
-    // concrete we just verify that an unauthenticated client cannot create
-    // an annotation by hitting the normal POST route, regardless of any
-    // token they hold. (Routes for writes aren't even mounted on this app
-    // instance, but the production index.ts only mounts /api/public/* as
-    // GETs — so this is more of a doc test than a runtime one.)
-    expect(existsSync(audioRoot)).toBe(true);
+describe('Public read endpoints never set a session cookie', () => {
+  it('the bootstrap GET issues no Set-Cookie even if the token is valid', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid } = insertProject(bandId, 'Alpha', owner, 'p1');
+    const sid = createSession(owner);
+    const create = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        method: 'POST',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const { link } = (await create.json()) as { link: { token: string } };
+
+    const res = await app.fetch(
+      new Request(`http://x/api/public/links/${link.token}`),
+    );
+    expect(res.status).toBe(200);
+    // A cookie here would indicate the public path is touching the auth
+    // layer, which it must never do. Both header forms checked.
+    expect(res.headers.get('set-cookie')).toBeNull();
+    expect(res.headers.get('Set-Cookie')).toBeNull();
+  });
+});
+
+describe('GET /api/projects/:id/public-links (list, owner UI)', () => {
+  it('returns 401 unauthenticated', async () => {
+    const res = await app.fetch(
+      new Request(`http://x/api/projects/anything/public-links`),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 404 for non-members (no leak of project existence)', async () => {
+    const owner = createUser('owner@example.com');
+    const stranger = createUser('stranger@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid } = insertProject(bandId, 'Alpha', owner, 'p1');
+    const sid = createSession(stranger);
+    const res = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it('lists live and revoked links with correct per-link revocation state', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid } = insertProject(bandId, 'Alpha', owner, 'p1');
+    const sid = createSession(owner);
+    // Create two, revoke one.
+    const c1 = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        method: 'POST',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const { link: l1 } = (await c1.json()) as { link: { token: string } };
+    await app.fetch(
+      new Request(`http://x/api/public-links/${l1.token}`, {
+        method: 'DELETE',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const c2 = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        method: 'POST',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const { link: l2 } = (await c2.json()) as { link: { token: string } };
+
+    const res = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      links: { token: string; revoked_at: number | null }[];
+    };
+    expect(body.links.length).toBe(2);
+    // Don't assert ordering — created_at is integer-seconds so two creates
+    // in the same second tie. Look up each token explicitly.
+    const byToken = new Map(body.links.map((l) => [l.token, l]));
+    expect(byToken.get(l1.token)?.revoked_at).not.toBeNull();
+    expect(byToken.get(l2.token)?.revoked_at).toBeNull();
+  });
+
+  it('still lists links on a trashed project so the owner can audit them', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid } = insertProject(bandId, 'Alpha', owner, 'p1');
+    const sid = createSession(owner);
+    await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        method: 'POST',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    // Soft-delete the project.
+    dbMod.stmts.softDeleteProject.run(
+      Math.floor(Date.now() / 1000),
+      owner,
+      pid,
+    );
+
+    const res = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { links: unknown[] };
+    expect(body.links.length).toBe(1);
+  });
+});
+
+describe('Audit logging covers create AND revoke', () => {
+  it('writes a public_link.revoke row when an owner revokes a link', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid } = insertProject(bandId, 'Alpha', owner, 'p1');
+    const sid = createSession(owner);
+    const create = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        method: 'POST',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const { link } = (await create.json()) as { link: { token: string } };
+    await app.fetch(
+      new Request(`http://x/api/public-links/${link.token}`, {
+        method: 'DELETE',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const rows = dbMod.db
+      .prepare(
+        `SELECT action, resource_id, user_email
+           FROM audit_log WHERE action = 'public_link.revoke'`,
+      )
+      .all() as { action: string; resource_id: string; user_email: string }[];
+    expect(rows.length).toBe(1);
+    expect(rows[0].resource_id).toBe(link.token);
+    expect(rows[0].user_email).toBe('owner@example.com');
+  });
+
+  it('does not double-audit an idempotent re-revoke', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid } = insertProject(bandId, 'Alpha', owner, 'p1');
+    const sid = createSession(owner);
+    const create = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        method: 'POST',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const { link } = (await create.json()) as { link: { token: string } };
+    for (let i = 0; i < 3; i++) {
+      await app.fetch(
+        new Request(`http://x/api/public-links/${link.token}`, {
+          method: 'DELETE',
+          headers: { cookie: cookieHeader(sid) },
+        }),
+      );
+    }
+    const n = dbMod.db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM audit_log WHERE action = 'public_link.revoke'`,
+      )
+      .get() as { c: number };
+    expect(n.c).toBe(1);
+  });
+});
+
+describe('Trash policy on public links', () => {
+  it('auto-revokes live links with revoked_reason=trash when project is trashed', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid } = insertProject(bandId, 'Alpha', owner, 'p1');
+    const sid = createSession(owner);
+    const create = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        method: 'POST',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const { link } = (await create.json()) as { link: { token: string } };
+
+    // Simulate the trash transaction (the handler is in projects.ts, not
+    // mounted on this test app — call the statements directly).
+    const now = Math.floor(Date.now() / 1000);
+    dbMod.db.transaction(() => {
+      dbMod.stmts.softDeleteProject.run(now, owner, pid);
+      dbMod.stmts.trashRevokePublicLinksForProject.run(now, pid);
+    })();
+
+    const row = dbMod.stmts.findPublicLinkByToken.get(link.token);
+    expect(row?.revoked_at).not.toBeNull();
+    expect(row?.revoked_reason).toBe('trash');
+
+    // The public path now returns 410.
+    const res = await app.fetch(
+      new Request(`http://x/api/public/links/${link.token}`),
+    );
+    expect(res.status).toBe(410);
+  });
+
+  it('restore re-activates trash-revoked links but NOT user-revoked links', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid } = insertProject(bandId, 'Alpha', owner, 'p1');
+    const sid = createSession(owner);
+    // Two links: one user-revokes before trash, the other is live.
+    const c1 = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        method: 'POST',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const { link: userRevoked } = (await c1.json()) as {
+      link: { token: string };
+    };
+    await app.fetch(
+      new Request(`http://x/api/public-links/${userRevoked.token}`, {
+        method: 'DELETE',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const c2 = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        method: 'POST',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const { link: live } = (await c2.json()) as { link: { token: string } };
+
+    // Trash, then restore.
+    const now = Math.floor(Date.now() / 1000);
+    dbMod.db.transaction(() => {
+      dbMod.stmts.softDeleteProject.run(now, owner, pid);
+      dbMod.stmts.trashRevokePublicLinksForProject.run(now, pid);
+    })();
+    dbMod.db.transaction(() => {
+      dbMod.stmts.restoreProject.run(pid);
+      dbMod.stmts.reactivatePublicLinksForTrashRestore.run(pid);
+    })();
+
+    const userRow = dbMod.stmts.findPublicLinkByToken.get(userRevoked.token);
+    const liveRow = dbMod.stmts.findPublicLinkByToken.get(live.token);
+    expect(userRow?.revoked_at).not.toBeNull();
+    expect(userRow?.revoked_reason).toBe('user');
+    expect(liveRow?.revoked_at).toBeNull();
+    expect(liveRow?.revoked_reason).toBeNull();
+  });
+});
+
+describe('Public audio HTTP semantics', () => {
+  it('honors Range requests with 206 + Content-Range', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid, folderRel } = insertProject(bandId, 'Alpha', owner, 'p1');
+    const { id: stemId } = insertStem(
+      pid,
+      folderRel,
+      'drums',
+      0,
+      Buffer.from('0123456789abcdef'),
+    );
+    const sid = createSession(owner);
+    const create = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        method: 'POST',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const { link } = (await create.json()) as { link: { token: string } };
+
+    const res = await app.fetch(
+      new Request(
+        `http://x/api/public/links/${link.token}/audio/${encodeURIComponent(stemId)}`,
+        { headers: { range: 'bytes=4-9' } },
+      ),
+    );
+    expect(res.status).toBe(206);
+    expect(res.headers.get('content-range')).toBe('bytes 4-9/16');
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(Buffer.from(bytes).toString()).toBe('456789');
+  });
+
+  it('serves audio with Cache-Control: public so shared caches absorb hits', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid, folderRel } = insertProject(bandId, 'Alpha', owner, 'p1');
+    const { id: stemId } = insertStem(
+      pid,
+      folderRel,
+      'drums',
+      0,
+      Buffer.from('hello'),
+    );
+    const sid = createSession(owner);
+    const create = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        method: 'POST',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const { link } = (await create.json()) as { link: { token: string } };
+    const res = await app.fetch(
+      new Request(
+        `http://x/api/public/links/${link.token}/audio/${encodeURIComponent(stemId)}`,
+      ),
+    );
+    expect(res.headers.get('cache-control')).toContain('public');
+    expect(res.headers.get('cache-control')).not.toContain('private');
+  });
+});
+
+describe('Public annotations payload includes aggregated reactions', () => {
+  it('returns reactions with emoji + count, no user_ids leak', async () => {
+    const owner = createUser('owner@example.com');
+    const other = createUser('other@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: pid } = insertProject(bandId, 'Alpha', owner, 'p1');
+    const annId = insertAnnotation(pid, owner, 'rate me', 0);
+    // Two reactions on the same emoji.
+    dbMod.stmts.insertReaction.run(
+      annId,
+      owner,
+      '🔥',
+      Math.floor(Date.now() / 1000),
+    );
+    dbMod.stmts.insertReaction.run(
+      annId,
+      other,
+      '🔥',
+      Math.floor(Date.now() / 1000),
+    );
+
+    const sid = createSession(owner);
+    const create = await app.fetch(
+      new Request(`http://x/api/projects/${pid}/public-links`, {
+        method: 'POST',
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const { link } = (await create.json()) as { link: { token: string } };
+
+    const res = await app.fetch(
+      new Request(`http://x/api/public/links/${link.token}/annotations`),
+    );
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toMatch(/user_ids/);
+    expect(text).not.toMatch(/reacted_by_self/);
+    const body = JSON.parse(text) as {
+      annotations: { reactions: { emoji: string; count: number }[] }[];
+    };
+    expect(body.annotations[0].reactions).toEqual([{ emoji: '🔥', count: 2 }]);
   });
 });

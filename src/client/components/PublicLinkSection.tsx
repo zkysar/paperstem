@@ -38,6 +38,17 @@ export function PublicLinkSection({ projectId }: Props) {
   }, [refresh]);
 
   const onCreate = useCallback(async () => {
+    // Symmetric with revoke's confirm prompt. Creating a public link is the
+    // more dangerous direction (revoke is recoverable; "this link has been
+    // listened to by someone you didn't intend" isn't), so it deserves at
+    // least as much friction as taking it down.
+    if (
+      !window.confirm(
+        'Create a public link? Anyone with the URL can listen to this project without signing in.',
+      )
+    ) {
+      return;
+    }
     setBusyToken('__create__');
     setError(null);
     try {

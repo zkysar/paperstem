@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Annotation, Section } from '../shared/types';
 import { AppToolbar } from './components/AppToolbar';
 import { Player } from './components/Player';
@@ -95,6 +95,14 @@ export function PublicProjectView({ token }: { token: string }) {
   const viewport = useViewport();
   const appInfo = useAppVersion();
 
+  // usePlayer() returns a fresh control object each render. We don't want
+  // the load effect to re-fire on every render — only when the token in
+  // the URL changes — so route through a ref. Re-firing would kick off
+  // duplicate fetches and a load() race the second-resolving call would
+  // win regardless of order.
+  const playerRef = useRef(player);
+  playerRef.current = player;
+
   const [state, setState] = useState<FetchState>({ kind: 'loading' });
   const [annotations, setAnnotations] = useState<PublicAnnotation[]>([]);
   const [sections, setSections] = useState<PublicSection[]>([]);
@@ -118,7 +126,7 @@ export function PublicProjectView({ token }: { token: string }) {
           serverId: s.id,
           peaks: s.peaks ? decodePeaks(s.peaks) : null,
         }));
-        void player.load({
+        void playerRef.current.load({
           projectId: detail.project.id,
           title: detail.project.name,
           folderId: null,
@@ -154,7 +162,7 @@ export function PublicProjectView({ token }: { token: string }) {
     return () => {
       cancelled = true;
     };
-  }, [token, player]);
+  }, [token]);
 
   const annotationsForPlayer = useMemo(
     () => annotations.map(toAnnotationForPlayer),
@@ -267,7 +275,6 @@ export function PublicProjectView({ token }: { token: string }) {
         onToggleRailCollapsed={() => undefined}
         viewport={viewport}
         onOpenShortcuts={() => undefined}
-        onShare={undefined}
       />
       <div className="public-view-body">
         <div style={{ position: 'relative', minHeight: 0, minWidth: 0 }}>
@@ -335,12 +342,12 @@ function PublicHeader({
         {bandName && <span className="public-view-band">{bandName}</span>}
       </div>
       <span className="public-view-spacer" />
-      <span className="public-view-readonly-pill" title="Read-only public link">
-        Read-only
+      <span
+        className="public-view-readonly-pill"
+        title="This is a read-only public link. You can listen and read comments, but can't post."
+      >
+        Public preview
       </span>
-      <a className="public-view-signin" href="/">
-        Sign in
-      </a>
     </header>
   );
 }

@@ -175,7 +175,10 @@ export function handleListPublicLinks(
   const projectId = c.req.param('id') ?? '';
   if (!projectId) return c.json({ error: 'not_found' }, 404);
 
-  const project = stmts.findProjectById.get(projectId);
+  // findProjectAnyState (not findProjectById) so an owner can still see
+  // (and the public read path keeps 410ing) the links on a trashed
+  // project. The membership check still blocks non-members.
+  const project = stmts.findProjectAnyState.get(projectId);
   if (!project) return c.json({ error: 'not_found' }, 404);
   if (!stmts.findMembership.get(project.band_id, user.id)) {
     return c.json({ error: 'not_found' }, 404);
@@ -339,7 +342,11 @@ export async function handleGetPublicAudio(
     const v = upstream.headers.get(name);
     if (v) headers.set(name, v);
   }
-  headers.set('Cache-Control', 'private, max-age=31536000, immutable');
+  // public, not private — the route is unauthenticated by design, and we
+  // want shared caches (Fly's edge, downstream CDNs, corporate proxies)
+  // to absorb repeat hits. A revoked token's already-downloaded bytes
+  // continue to play from cache, but new requests get 410 from us.
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
   return new Response(upstream.body, { status: upstream.status, headers });
 }
 
