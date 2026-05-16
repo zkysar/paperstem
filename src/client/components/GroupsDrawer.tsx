@@ -440,8 +440,8 @@ function GroupRow({
             )
           )}
 
-          {error && <div className="upload-error">{error}</div>}
-          {renameError && <div className="upload-error">{renameError}</div>}
+          {error && <div className="upload-error" role="alert">{error}</div>}
+          {renameError && <div className="upload-error" role="alert">{renameError}</div>}
 
           {canInvite && (
             <form
@@ -468,7 +468,7 @@ function GroupRow({
                 {inviting ? 'Inviting…' : 'Send invite'}
               </button>
               {inviteError && (
-                <div className="upload-error">{inviteError}</div>
+                <div className="upload-error" role="alert">{inviteError}</div>
               )}
               {lastInvited && (
                 <p className="group-settings-invite-success">

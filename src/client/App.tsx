@@ -17,6 +17,7 @@ import { CommentsFab } from './components/CommentsFab';
 import { CommentPopover } from './components/CommentPopover';
 import { CommentBottomSheet } from './components/CommentBottomSheet';
 import { createPortal } from 'react-dom';
+import { Plus } from 'lucide-react';
 import { AppHeader } from './components/AppHeader';
 import { AppToolbar } from './components/AppToolbar';
 import {
@@ -1543,7 +1544,8 @@ function PaperstemApp({
               className="empty-state-cta"
               onClick={() => setCreateGroupOpen(true)}
             >
-              Create a group
+              <Plus size={14} strokeWidth={2} aria-hidden="true" />
+              New group
             </button>
             {bandsError && <p className="error">Could not load groups ({bandsError}).</p>}
           </main>
