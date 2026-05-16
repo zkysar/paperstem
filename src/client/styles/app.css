@@ -4290,7 +4290,7 @@ body.env-non-prod[data-env="local"]::before {
   display: flex;
   align-items: center;
   gap: 4px;
-  cursor: pointer;
+  cursor: grab;
   text-align: left;
   overflow: hidden;
   white-space: nowrap;
@@ -4358,7 +4358,7 @@ body.env-non-prod[data-env="local"]::before {
   height: 6px;
   border: none;
   padding: 0;
-  cursor: pointer;
+  cursor: grab;
   opacity: 0.9;
   transition: opacity 80ms ease;
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0);
@@ -4371,7 +4371,7 @@ body.env-non-prod[data-env="local"]::before {
   top: 6px;
   height: 8px;
   background: transparent;
-  cursor: pointer;
+  cursor: grab;
 }
 .section-ribbon-seg:hover {
   opacity: 1;
@@ -4809,16 +4809,17 @@ body.env-non-prod[data-env="local"]::before {
 }
 
 /* ---- Drag-zone cursors --------------------------------------------- */
-/* Sections and annotations both use click-to-open + hold-to-drag on the
-   body, so the resting cursor is the default pointer. ew-resize on the
+/* Sections and annotations both use click-to-open + drag-to-move on the
+   body. The resting cursor is `grab` so the surface visibly signals
+   draggability before the user commits to a gesture. ew-resize on the
    edge grips overrides this on the 8px hot zones. The .armed class
-   (applied once the hold-to-drag long-press fires) swaps in grabbing.
+   (applied once the drag threshold is crossed) swaps in grabbing.
    `.dragging` (stamped on by SectionLane for the lifetime of the gesture)
    covers the gap before arming — Chromium drops `:active` on a <button>
    as soon as pointer capture moves outside, so we can't rely on it. */
 .annotation-marker.region,
 .annotation-marker.point {
-  cursor: pointer;
+  cursor: grab;
 }
 .section-pill.dragging {
   cursor: grabbing;
