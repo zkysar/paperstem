@@ -31,6 +31,11 @@ export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
   // True if the most recent drag crossed the threshold. Consumers read this
   // in their click handler to suppress the click that follows pointerup.
   const wasDragRef = useRef(false);
+  // True between pointerdown and pointerup/cancel, regardless of whether the
+  // threshold was crossed. Consumers read this to suppress side effects on
+  // surrounding elements (e.g. a hover-driven collapse) that would otherwise
+  // unmount the drag target mid-gesture.
+  const isActiveRef = useRef(false);
 
   onChangeRef.current = opts.onChange;
   onTapRef.current = opts.onTap;
@@ -49,6 +54,7 @@ export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
       onTapRef.current(s.payload, s.lastX);
     }
     stateRef.current = null;
+    isActiveRef.current = false;
   }, []);
 
   const handlePointerDown = useCallback(
@@ -60,6 +66,7 @@ export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
         /* ignore */
       }
       wasDragRef.current = false;
+      isActiveRef.current = true;
       stateRef.current = {
         startX: e.clientX,
         lastX: e.clientX,
@@ -106,5 +113,5 @@ export function useDragOnAxis<P>(opts: UseDragOnAxisOpts<P>) {
     };
   }, [finish, threshold]);
 
-  return { handlePointerDown, wasDragRef };
+  return { handlePointerDown, wasDragRef, isActiveRef };
 }
