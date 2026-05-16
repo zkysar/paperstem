@@ -208,6 +208,34 @@ describe('AnnotationMarkers — hold-to-drag', () => {
     });
   });
 
+  it('hold-then-release without moving opens the popover (onSelect) — no dead gesture', () => {
+    const onSelect = vi.fn();
+    const onPatchAnnotation = vi.fn(async () => {});
+    render(
+      <AnnotationMarkers
+        {...baseProps}
+        annotations={[region]}
+        hoveredId="r1"
+        selfUserId="u1"
+        onSelect={onSelect}
+        onPatchAnnotation={onPatchAnnotation}
+      />,
+    );
+    const marker = screen.getByTestId('annotation-marker-r1');
+    (marker as any).setPointerCapture = vi.fn();
+    (marker as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(marker, { clientX: 200, pointerId: 1 });
+    act(() => {
+      vi.advanceTimersByTime(200);
+    });
+    // User held long enough to arm, but never moved before releasing.
+    fireEvent.pointerUp(window, { clientX: 200, pointerId: 1 });
+
+    expect(onPatchAnnotation).not.toHaveBeenCalled();
+    expect(onSelect).toHaveBeenCalledWith(region);
+  });
+
   it('a held middle-drag of a region marker adds the "armed" class to the marker', () => {
     render(
       <AnnotationMarkers

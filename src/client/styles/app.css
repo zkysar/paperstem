@@ -1244,6 +1244,10 @@ button.track-name:disabled { cursor: default; }
   .annotation-mode-banner,
   .annotation-mode-dot,
   .shortcuts-modal { animation: none; }
+  /* Keep the shadow as the "lifted" signal but drop the translate so users
+     who request reduced motion don't get the bar hopping when armed. */
+  .section-pill.armed,
+  .annotation-marker.armed { transform: none; }
 }
 
 .annotations-markers-toggle {

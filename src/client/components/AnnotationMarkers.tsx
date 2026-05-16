@@ -189,14 +189,13 @@ export function AnnotationMarkers({
               if (createMode) return;
               if ((e.target as Element).closest('.annotation-grip')) return;
               const baseEnd = m.end_ms;
-              let minDelta = 0;
-              let maxDelta = 0;
-              if (editable && onPatchAnnotation) {
-                minDelta = -m.start_ms;
-                maxDelta = baseEnd === null
+              const canDrag = editable && !!onPatchAnnotation;
+              const minDelta = canDrag ? -m.start_ms : 0;
+              const maxDelta = canDrag
+                ? baseEnd === null
                   ? durationMs - m.start_ms
-                  : durationMs - baseEnd;
-              }
+                  : durationMs - baseEnd
+                : 0;
               drag.handlePointerDown(
                 e,
                 {
@@ -208,7 +207,9 @@ export function AnnotationMarkers({
                   minDelta,
                   maxDelta,
                 },
-                { holdMs: HOLD_MS },
+                // Non-editable markers can't be dragged, so no hold is needed —
+                // a click resolves to onTap → onSelect immediately.
+                canDrag ? { holdMs: HOLD_MS } : undefined,
               );
             }}
           >

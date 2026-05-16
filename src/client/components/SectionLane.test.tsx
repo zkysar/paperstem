@@ -409,6 +409,43 @@ describe('SectionLane', () => {
       expect(onPatchSection).not.toHaveBeenCalled();
     });
 
+    it('hold-then-release without moving still seeks + selects (no dead gesture)', () => {
+      const onPatchSection = vi.fn(async () => {});
+      const onSelect = vi.fn();
+      const onSeek = vi.fn();
+      const sections = [
+        section({ id: 's1', start_ms: 0 }),
+        section({ id: 's2', start_ms: 30000 }),
+        section({ id: 's3', start_ms: 90000 }),
+      ];
+      render(
+        <SectionLane
+          {...baseProps}
+          sections={sections}
+          onPatchSection={onPatchSection}
+          onSelect={onSelect}
+          onSeek={onSeek}
+          activeSectionId="s2"
+        />,
+      );
+      const pill = screen.getByTestId('section-s2');
+      (pill as any).setPointerCapture = vi.fn();
+      (pill as any).releasePointerCapture = vi.fn();
+
+      fireEvent.pointerDown(pill, { clientX: 500, pointerId: 1 });
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      fireEvent.pointerUp(window, { clientX: 500, pointerId: 1 });
+      // After armed-no-move release, the native click that follows pointerup
+      // should still fire — wasDragRef stays false in this case.
+      fireEvent.click(pill, { clientX: 500 });
+
+      expect(onPatchSection).not.toHaveBeenCalled();
+      expect(onSeek).toHaveBeenCalled();
+      expect(onSelect).toHaveBeenCalled();
+    });
+
     it('once armed via hold, the pill receives the "armed" class', () => {
       const sections = [
         section({ id: 's1', start_ms: 0 }),
