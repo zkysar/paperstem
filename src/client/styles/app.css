@@ -4831,12 +4831,17 @@ body.env-non-prod[data-env="local"]::before {
 .section-pill.armed,
 .annotation-marker.armed {
   cursor: grabbing;
-  z-index: 12;
+  /* Above the ruler-row (z:4), rail-mask (z:9), and drag-preview (z:11);
+     a picked-up bar visually rises out of its band, so it needs to layer
+     on top of the timeline chrome it's drifting over. */
+  z-index: 15;
   box-shadow:
     0 6px 12px rgba(0, 0, 0, 0.25),
     inset 0 0 0 1px rgba(0, 0, 0, 0.2);
   transform: translateY(-2px);
 }
 .annotation-marker.region.armed {
-  opacity: 0.95;
+  /* Fully opaque while held so ruler labels and ticks don't bleed through
+     and make the bar read as if it's behind the ruler. */
+  opacity: 1;
 }
