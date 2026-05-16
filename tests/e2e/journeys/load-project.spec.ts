@@ -7,7 +7,7 @@ test.describe('Journey: load a seeded project and scrub the playhead', () => {
   }) => {
     // Dev auto-login is wired through useSession's 401→devLoginUrl retry;
     // by the time `open()` resolves the user is authenticated and the
-    // FilePicker is open with no project active. Asserting the picker is
+    // ProjectPicker is open with no project active. Asserting the picker is
     // visible doubles as a sanity check for the auth path.
     await app.open();
 

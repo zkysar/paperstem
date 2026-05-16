@@ -251,7 +251,7 @@ export function handleDeleteSection(
 }
 
 // GET /api/bands/:id/songs/usage — returns rows of { project_id, song_id }
-// for every (project, song) pair in the band. Used by the FilePicker
+// for every (project, song) pair in the band. Used by the ProjectPicker
 // chip-rail filter to compute "which projects contain Song X" client-side
 // without one fetch per chip-click.
 export function handleListSongUsage(

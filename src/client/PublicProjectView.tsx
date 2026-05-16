@@ -21,7 +21,7 @@ import { decodePeaks } from './lib/peaks';
 import { fmt } from './lib/format';
 import type { StemSource } from './data/types';
 
-// Public view is intentionally minimal. It never imports FilePicker,
+// Public view is intentionally minimal. It never imports ProjectPicker,
 // CommentsDrawer, UploadDrawer, ShareDialog, or anything that mutates
 // project data. Loaders only call /api/public/* endpoints.
 

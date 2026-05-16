@@ -1943,13 +1943,13 @@ body.env-non-prod[data-env="local"]::before {
   font-size: var(--fs-sm); color: var(--ink-2);
 }
 
-/* ===== FilePicker ===== */
-.filepicker-scrim {
+/* ===== ProjectPicker ===== */
+.projectpicker-scrim {
   position: fixed; inset: 0;
   background: rgba(42, 39, 35, 0.42);
   z-index: 40;
 }
-.filepicker {
+.projectpicker {
   position: fixed;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
@@ -2375,18 +2375,18 @@ body.env-non-prod[data-env="local"]::before {
   font-size: var(--fs-sm);
 }
 
-/* ===== FilePicker narrow =====
+/* ===== ProjectPicker narrow =====
    Mobile drops the table in favor of a card layout: 44px thumb on the left,
    two-line title+meta in the middle, kebab on the right. New columns added
    later are simply hidden on mobile and surface inside the meta string. */
 @media (max-width: 720px) {
-  .filepicker {
+  .projectpicker {
     top: 0; left: 0;
     transform: none;
     width: 100vw; height: 100vh; max-height: 100vh;
     border-radius: 0; border: none;
   }
-  .filepicker-scrim { display: none; }
+  .projectpicker-scrim { display: none; }
   .fp-header { flex-wrap: wrap; }
   .fp-header .fp-search { order: 99; flex: 1 1 100%; margin-top: 8px; }
   .fp-header .fp-upload-btn { display: none; }
@@ -3027,7 +3027,7 @@ body.env-non-prod[data-env="local"]::before {
   }
 }
 
-/* Inline SVG icons inside text-labeled buttons (Upload buttons in FilePicker) */
+/* Inline SVG icons inside text-labeled buttons (Upload buttons in ProjectPicker) */
 .fp-upload-btn,
 .fp-state-action,
 .fp-upload-bottom > button {
@@ -4772,7 +4772,7 @@ body.env-non-prod[data-env="local"]::before {
 }
 .song-toast-undo:hover { background: var(--paper); color: var(--ink); }
 
-/* ---- FilePicker song chip-rail ------------------------------------ */
+/* ---- ProjectPicker song chip-rail ------------------------------------ */
 
 .fp-song-rail {
   display: flex;

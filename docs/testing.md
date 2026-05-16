@@ -1062,7 +1062,7 @@ Each spec runs a multi-step sequence a real user would do in one sitting: sign i
 What this looks like in practice (lifted from `comment.spec.ts`):
 
 ```typescript
-await app.open();                  // dev auto-login → file picker open
+await app.open();                  // dev auto-login → project picker open
 await app.openSampleProject();     // seeded project loads, stems decoded
 await page.keyboard.press('c');    // C creates a draft annotation at playhead
 const drawer = page.getByRole('dialog', { name: 'All comments' });

@@ -128,7 +128,7 @@ describe('Player', () => {
     const user = userEvent.setup();
     const onOpenPicker = vi.fn();
     render(<Player {...defaultProps()} onOpenPicker={onOpenPicker} />);
-    await user.click(screen.getByRole('button', { name: /open the file picker/i }));
+    await user.click(screen.getByRole('button', { name: /open the project picker/i }));
     expect(onOpenPicker).toHaveBeenCalledOnce();
   });
 

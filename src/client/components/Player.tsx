@@ -717,7 +717,7 @@ export function Player({
                     className="empty-stage-cta"
                     onClick={onOpenPicker}
                   >
-                    {isMobile ? 'Open the file picker' : 'Open the file picker (⌘K)'}
+                    {isMobile ? 'Open the project picker' : 'Open the project picker (⌘K)'}
                   </button>
                 </div>
               )}

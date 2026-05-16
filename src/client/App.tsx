@@ -27,7 +27,7 @@ import { CreateGroupDialog } from './components/CreateGroupDialog';
 import { GroupSettingsDrawer } from './components/GroupSettingsDrawer';
 import { TokensDrawer } from './components/TokensDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { FilePicker } from './components/FilePicker';
+import { ProjectPicker } from './components/ProjectPicker';
 import { Player } from './components/Player';
 import { SectionHintChip } from './components/SectionHintChip';
 import { ShortcutsOverlay } from './components/ShortcutsOverlay';
@@ -251,7 +251,7 @@ function PaperstemApp({
     anchorLeft: number;
     anchorTop: number;
   } | null>(null);
-  // Project filter driven by the FilePicker chip-rail.
+  // Project filter driven by the ProjectPicker chip-rail.
   const [filterSongId, setFilterSongId] = useState<string | null>(null);
   // Transient undo toast for destructive song operations (rename across N
   // practices, merge). Auto-clears after 6 seconds; the timer ref lets a
@@ -672,7 +672,7 @@ function PaperstemApp({
   );
 
   // Load the band's song catalog + usage map once per active band. These
-  // power the FilePicker chip-rail, the section popover's autocomplete,
+  // power the ProjectPicker chip-rail, the section popover's autocomplete,
   // and the "shared name" chain glyph in the section lane.
   const refreshBandSongs = useCallback(async () => {
     if (!activeBandId) {
@@ -1849,7 +1849,7 @@ function PaperstemApp({
           );
         })()}
       </div>
-      <FilePicker
+      <ProjectPicker
         open={pickerOpen}
         loading={projectsLoading}
         loadError={loadError}
@@ -1984,7 +1984,7 @@ function PaperstemApp({
         createPortal(
           <>
             <div
-              className="filepicker-scrim"
+              className="projectpicker-scrim"
               role="presentation"
               onClick={() => setSectionPopover(null)}
               aria-hidden="true"

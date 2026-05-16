@@ -8,7 +8,7 @@ test.describe('Journey: open and close every overlay with no leaked modal state'
     await app.open();
     await app.openSampleProject();
 
-    // ---- File picker ----------------------------------------------------
+    // ---- Project picker -------------------------------------------------
     // The picker auto-closes after openSampleProject. Re-open via ⌘K.
     const ctrl = process.platform === 'darwin' ? 'Meta' : 'Control';
     await page.keyboard.press(`${ctrl}+k`);
