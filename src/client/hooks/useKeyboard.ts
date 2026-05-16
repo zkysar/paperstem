@@ -183,6 +183,20 @@ export function useKeyboard(opts: KeyboardOpts): void {
         } else {
           onAddSectionAtPlayhead();
         }
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        // Nudge the playhead. Three-tier ladder:
+        //   ← / →            0.1s  fine scrub
+        //   ⌥← / ⌥→          1s    medium
+        //   ⇧← / ⇧→          5s    coarse
+        // Cmd/Ctrl-arrow is intentionally unbound — reserved for OS text
+        // navigation in case focus ever lands on something arrow-aware.
+        if (e.metaKey || e.ctrlKey) return;
+        if (!state.duration) return;
+        const dir = e.key === 'ArrowLeft' ? -1 : 1;
+        const step = e.shiftKey ? 5 : e.altKey ? 1 : 0.1;
+        e.preventDefault();
+        const next = Math.max(0, Math.min(state.duration, player.currentTime + dir * step));
+        player.seek(next);
       } else if (
         e.key === 'w' || e.key === 'W' ||
         e.key === 'a' || e.key === 'A' ||

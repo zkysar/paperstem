@@ -69,6 +69,9 @@ export function ShortcutsOverlay({ open, onClose, forceMac }: Props) {
       title: 'Playback',
       items: [
         { keys: k(['Space']), label: 'Play / pause' },
+        { keys: k(['←', '→']), label: 'Nudge playhead 0.1s' },
+        { keys: <><kbd>{a}{plus}←</kbd><kbd>{a}{plus}→</kbd></>, label: 'Shift playhead 1s' },
+        { keys: <><kbd>{s}{plus}←</kbd><kbd>{s}{plus}→</kbd></>, label: 'Jump playhead 5s' },
         { keys: k(['L']), label: 'Toggle loop on/off (when loop is set)' },
         { keys: k(['Esc']), label: 'Clear loop / dismiss overlays' },
       ],
