@@ -347,6 +347,28 @@ export function SectionLane({
                     className="section-pill-chain"
                   />
                 )}
+                {showGrips && c.index < computed.length - 1 && (
+                  <span
+                    className="section-grip section-grip-right"
+                    aria-hidden="true"
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      if (e.pointerType === 'touch') return;
+                      // Stamp `.dragging` on the pill the user is touching,
+                      // not on the pill whose start_ms moves — the cursor
+                      // hovers over THIS pill's edge.
+                      setDraggingId(c.section.id);
+                      const next = computed[c.index + 1];
+                      drag.handlePointerDown(e, {
+                        kind: 'left-edge',
+                        sectionId: next.section.id,
+                        baseStartMs: effective(next.section),
+                        minStartMs: next.prevStartMs + MIN_GAP_MS,
+                        maxStartMs: next.nextStartMs - MIN_GAP_MS,
+                      });
+                    }}
+                  />
+                )}
               </button>
             );
           })}

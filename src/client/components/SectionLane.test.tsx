@@ -587,6 +587,123 @@ describe('SectionLane', () => {
     expect(onHoverChange).toHaveBeenCalledWith(false);
   });
 
+  it('renders a right-edge grip on every section except the last so both sides of a shared boundary have an ew-resize hit zone (matching comment-region grips)', () => {
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 30000 }),
+      section({ id: 's3', start_ms: 60000 }),
+    ];
+    const { container } = render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={vi.fn(async () => {})}
+      />,
+    );
+    // First section: right grip only (no predecessor to clamp against).
+    expect(
+      container.querySelector('[data-testid="section-s1"] .section-grip-left'),
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="section-s1"] .section-grip-right'),
+    ).not.toBeNull();
+    // Middle section: both grips.
+    expect(
+      container.querySelector('[data-testid="section-s2"] .section-grip-left'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="section-s2"] .section-grip-right'),
+    ).not.toBeNull();
+    // Last section: left grip only.
+    expect(
+      container.querySelector('[data-testid="section-s3"] .section-grip-left'),
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="section-s3"] .section-grip-right'),
+    ).toBeNull();
+  });
+
+  it('dragging the right grip of section A patches section B start (the shared boundary), and stamps A with .dragging since the cursor lives over A', () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+      section({ id: 's3', start_ms: 90000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+      />,
+    );
+    const pillA = screen.getByTestId('section-s1');
+    const rightGrip = document.querySelector(
+      '[data-testid="section-s1"] .section-grip-right',
+    )!;
+    (rightGrip as any).setPointerCapture = vi.fn();
+    (rightGrip as any).releasePointerCapture = vi.fn();
+
+    fireEvent.pointerDown(rightGrip, { clientX: 500, pointerId: 1 });
+    expect(pillA.classList.contains('dragging')).toBe(true);
+    // Drag right by 30px in a 800px-wide / 120s-long lane = +4500ms (snapped to 4500).
+    fireEvent.pointerMove(window, { clientX: 530, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 530, pointerId: 1 });
+
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 64500 });
+    expect(pillA.classList.contains('dragging')).toBe(false);
+  });
+
+  it('right-grip clamps against the next-next section (keeps the right-of-boundary section at least 250ms wide)', () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 10000 }),
+      section({ id: 's3', start_ms: 12000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+      />,
+    );
+    const rightGrip = document.querySelector(
+      '[data-testid="section-s1"] .section-grip-right',
+    )!;
+    (rightGrip as any).setPointerCapture = vi.fn();
+    (rightGrip as any).releasePointerCapture = vi.fn();
+    // Drag far to the right — should clamp at s3.start - 250ms = 11750.
+    fireEvent.pointerDown(rightGrip, { clientX: 0, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 5000, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 5000, pointerId: 1 });
+    expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 11750 });
+  });
+
+  it('right-grip is suppressed on touch pointers, same as the left grip', () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 30000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+      />,
+    );
+    const rightGrip = document.querySelector(
+      '[data-testid="section-s1"] .section-grip-right',
+    )!;
+    (rightGrip as any).setPointerCapture = vi.fn();
+    (rightGrip as any).releasePointerCapture = vi.fn();
+    fireEvent.pointerDown(rightGrip, { clientX: 500, pointerId: 1, pointerType: 'touch' });
+    fireEvent.pointerMove(window, { clientX: 540, pointerId: 1 });
+    fireEvent.pointerUp(window, { clientX: 540, pointerId: 1 });
+    expect(onPatchSection).not.toHaveBeenCalled();
+  });
+
   it('stamps the section pill with the .dragging class for the lifetime of a middle-drag so the grabbing cursor does not depend on :active', () => {
     const onPatchSection = vi.fn(async () => {});
     const sections = [
