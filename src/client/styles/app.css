@@ -1175,6 +1175,51 @@ button.track-name:disabled { cursor: default; }
   cursor: pointer;
 }
 .group-settings-leave-confirm:disabled { opacity: 0.6; cursor: default; }
+
+.create-group-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.create-group-submit {
+  background: var(--accent);
+  color: var(--paper);
+  border: none;
+  padding: 8px 14px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semi);
+  cursor: pointer;
+}
+.create-group-submit:disabled { opacity: 0.5; cursor: default; }
+
+.empty-state-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  background: var(--accent);
+  color: var(--paper);
+  border: none;
+  padding: 8px 14px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semi);
+  cursor: pointer;
+}
+.empty-state-cta:hover { filter: brightness(0.95); }
+
+.ah-group-menu-divider {
+  height: 1px;
+  background: var(--rule);
+  margin: 4px 0;
+}
+.ah-group-menu-create {
+  color: var(--accent);
+  font-weight: var(--fw-semi);
+}
 .upload-modal-footer {
   display: flex;
   justify-content: flex-end;

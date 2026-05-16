@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bug, Check, ChevronDown, Download, KeyRound, Loader2, LogOut, MessageSquare, Settings, Users } from 'lucide-react';
+import { Bug, Check, ChevronDown, Download, KeyRound, Loader2, LogOut, MessageSquare, Plus, Settings, Users } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
 import type { BandWithRole } from '../../shared/types';
@@ -13,6 +13,8 @@ type Props = {
   groups?: BandWithRole[];
   currentGroupId?: string | null;
   onSwitchGroup?: (id: string) => void;
+  // Optional: when provided, the switcher menu grows a "+ New group" entry.
+  onCreateGroup?: () => void;
   projectTitle: string | null;
   stemCount: number;
   duration: number;
@@ -37,7 +39,7 @@ type Props = {
 };
 
 export function AppHeader({
-  userEmail, userInitials, groups, currentGroupId, onSwitchGroup,
+  userEmail, userInitials, groups, currentGroupId, onSwitchGroup, onCreateGroup,
   projectTitle, stemCount, duration,
   annotationsOpen, hasProject, canRename, isWide, appVersion, appEnv, downloading,
   debugInfo,
@@ -153,6 +155,26 @@ export function AppHeader({
                     </button>
                   );
                 })}
+                {onCreateGroup && (
+                  <>
+                    <div
+                      className="ah-group-menu-divider"
+                      aria-hidden="true"
+                    />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="ah-group-menu-create"
+                      onClick={() => {
+                        setGroupOpen(false);
+                        onCreateGroup();
+                      }}
+                    >
+                      <Plus size={14} strokeWidth={2} aria-hidden="true" />
+                      <span className="ah-group-menu-name">New group</span>
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>

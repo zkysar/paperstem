@@ -23,6 +23,7 @@ import {
   BugReportDrawer,
   type BugReportPrefill,
 } from './components/BugReportDrawer';
+import { CreateGroupDialog } from './components/CreateGroupDialog';
 import { GroupSettingsDrawer } from './components/GroupSettingsDrawer';
 import { TokensDrawer } from './components/TokensDrawer';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -179,6 +180,7 @@ function PaperstemApp({
     error: bandsError,
     refresh: refreshBands,
     dropLocally: dropBandLocally,
+    addLocally: addBandLocally,
   } = useBands(true);
   // Namespaced by user.id so two users sharing a browser don't clobber each
   // other's last-chosen group.
@@ -283,6 +285,7 @@ function PaperstemApp({
   const [emphasizedCommentId, setEmphasizedCommentId] = useState<string | null>(null);
   const [tokensOpen, setTokensOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
 
   const openBugReport = useCallback((prefill: BugReportPrefill | null = null) => {
     setBugReportPrefill(prefill);
@@ -1530,10 +1533,38 @@ function PaperstemApp({
         </header>
         <div className="app">
           <main className="empty-state">
-            <p>You're not in any groups yet. Ask your group's owner to add you.</p>
+            <p>
+              You're not in any groups yet. Create one to share projects, or
+              ask a group's owner to add you.
+            </p>
+            <button
+              type="button"
+              className="empty-state-cta"
+              onClick={() => setCreateGroupOpen(true)}
+            >
+              Create a group
+            </button>
             {bandsError && <p className="error">Could not load groups ({bandsError}).</p>}
           </main>
         </div>
+        <CreateGroupDialog
+          open={createGroupOpen}
+          onClose={() => setCreateGroupOpen(false)}
+          onCreated={(group) => {
+            // Add the band to local state first so the empty-state branch
+            // releases immediately; persist the choice; then refresh so
+            // the server-side list catches up.
+            addBandLocally(group);
+            setCurrentGroupId(group.id);
+            try {
+              localStorage.setItem(currentGroupStorageKey, group.id);
+            } catch {
+              // ignore
+            }
+            setCreateGroupOpen(false);
+            refreshBands();
+          }}
+        />
       </>
     );
   }
@@ -1591,6 +1622,7 @@ function PaperstemApp({
         onReportBug={() => openBugReport()}
         onOpenTokens={() => setTokensOpen(true)}
         onOpenGroupSettings={() => setGroupSettingsOpen(true)}
+        onCreateGroup={() => setCreateGroupOpen(true)}
         onDownloadAll={onDownloadAll}
         onRenameProject={(name) => {
           // In draft mode there's no server project yet — just update the
@@ -1919,6 +1951,27 @@ function PaperstemApp({
           } catch {
             // ignore
           }
+          resetProjectScopedUiState();
+          refreshBands();
+        }}
+      />
+      <CreateGroupDialog
+        open={createGroupOpen}
+        onClose={() => setCreateGroupOpen(false)}
+        onCreated={(group) => {
+          // Switch into the new group: add locally, clear project-scoped
+          // state, set as current, persist, refresh. Doing it eagerly
+          // (not just relying on the slice-1 fallback effect once refresh
+          // lands) avoids a flash where activeBand still points at the
+          // old group while the new bands list is in flight.
+          addBandLocally(group);
+          setCurrentGroupId(group.id);
+          try {
+            localStorage.setItem(currentGroupStorageKey, group.id);
+          } catch {
+            // ignore
+          }
+          setCreateGroupOpen(false);
           resetProjectScopedUiState();
           refreshBands();
         }}

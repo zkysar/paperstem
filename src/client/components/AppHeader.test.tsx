@@ -378,6 +378,30 @@ describe('AppHeader group switcher', () => {
     expect(screen.queryAllByRole('menuitem')).toHaveLength(0);
   });
 
+  it('"+ New group" entry is hidden when onCreateGroup is absent', async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
+    await user.click(screen.getByLabelText('Switch group'));
+    expect(screen.queryByRole('menuitem', { name: /New group/i })).toBeNull();
+  });
+
+  it('"+ New group" appears when onCreateGroup is wired and triggers it', async () => {
+    const onCreate = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...baseProps}
+        groups={groups}
+        currentGroupId="b1"
+        onCreateGroup={onCreate}
+      />,
+    );
+    await user.click(screen.getByLabelText('Switch group'));
+    const item = screen.getByRole('menuitem', { name: /New group/i });
+    await user.click(item);
+    expect(onCreate).toHaveBeenCalledOnce();
+  });
+
   it('clicking outside closes the open menu', async () => {
     const user = userEvent.setup();
     render(

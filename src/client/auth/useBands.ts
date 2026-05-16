@@ -58,5 +58,17 @@ export function useBands(enabled: boolean) {
     setState((s) => ({ ...s, bands: s.bands.filter((b) => b.id !== id) }));
   }, []);
 
-  return { ...state, refresh, dropLocally };
+  // Optimistically add a band to the local list. Used by the create flow:
+  // pushes the new band locally so the parent's `bands.length === 0`
+  // branch lets go of the empty state immediately, without waiting for the
+  // server-side refresh to land.
+  const addLocally = useCallback((band: BandWithRole) => {
+    setState((s) =>
+      s.bands.some((b) => b.id === band.id)
+        ? s
+        : { ...s, bands: [...s.bands, band] },
+    );
+  }, []);
+
+  return { ...state, refresh, dropLocally, addLocally };
 }
