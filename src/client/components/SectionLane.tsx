@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link2 } from 'lucide-react';
 import type { Section } from '../../shared/types';
 import { FREE_TEXT_SECTION_COLOR, colorForSong } from '../lib/colors';
@@ -94,6 +95,47 @@ export function SectionLane({
       window.removeEventListener('pointercancel', clear);
     };
   }, [draggingId]);
+
+  // Cursor-anchored label chip. Mouse only — touch already has a tap-to-expand
+  // affordance and a chip floating under the finger would be obscured.
+  // Keyboard focus uses the same chip anchored to the element's bounding box,
+  // so sighted keyboard users can still surface labels (the old `title=`
+  // tooltip would have provided this but the custom chip replaced it).
+  const [hoverChip, setHoverChip] = useState<
+    { label: string; x: number; y: number } | null
+  >(null);
+  const showHoverChip = useCallback(
+    (e: React.PointerEvent, label: string) => {
+      if (e.pointerType !== 'mouse') return;
+      setHoverChip({ label, x: e.clientX, y: e.clientY });
+    },
+    [],
+  );
+  const showFocusChip = useCallback(
+    (e: React.FocusEvent<HTMLElement>, label: string) => {
+      const r = e.currentTarget.getBoundingClientRect();
+      setHoverChip({ label, x: r.left + r.width / 2, y: r.bottom });
+    },
+    [],
+  );
+  const clearHoverChip = useCallback(() => setHoverChip(null), []);
+  useEffect(() => {
+    if (draggingId) setHoverChip(null);
+  }, [draggingId]);
+  // Right-click and tab-away don't always emit pointerleave — clear the chip
+  // on the events that would otherwise strand it on screen.
+  useEffect(() => {
+    if (!hoverChip) return;
+    const onHidden = () => setHoverChip(null);
+    window.addEventListener('blur', onHidden);
+    window.addEventListener('contextmenu', onHidden);
+    document.addEventListener('visibilitychange', onHidden);
+    return () => {
+      window.removeEventListener('blur', onHidden);
+      window.removeEventListener('contextmenu', onHidden);
+      document.removeEventListener('visibilitychange', onHidden);
+    };
+  }, [hoverChip]);
 
   const msPerPx = duration && waveWidthPx ? (duration * 1000) / waveWidthPx : 0;
 
@@ -263,6 +305,11 @@ export function SectionLane({
               drag.armedPayload?.kind === 'middle' &&
               drag.armedPayload.sectionId === c.section.id;
             const showGrips = !!onPatchSection;
+            const fullLabel = c.section.song_name
+              ? c.shared
+                ? `${c.section.song_name} · used in ${songUseCounts.get(c.section.song_id ?? '') ?? 1} practices`
+                : c.section.song_name
+              : c.section.label ?? 'Untitled boundary';
             return (
               <button
                 type="button"
@@ -280,13 +327,12 @@ export function SectionLane({
                   width: `${c.widthPx}px`,
                   backgroundColor: c.fillColor,
                 }}
-                title={
-                  c.section.song_name
-                    ? c.shared
-                      ? `${c.section.song_name} · used in ${songUseCounts.get(c.section.song_id ?? '') ?? 1} practices`
-                      : c.section.song_name
-                    : c.section.label ?? 'Untitled boundary'
-                }
+                aria-label={fullLabel}
+                onPointerEnter={(e) => showHoverChip(e, fullLabel)}
+                onPointerMove={(e) => showHoverChip(e, fullLabel)}
+                onPointerLeave={clearHoverChip}
+                onFocus={(e) => showFocusChip(e, fullLabel)}
+                onBlur={clearHoverChip}
                 onClick={(e) => {
                   if (drag.wasDragRef.current) return;
                   if (!e.shiftKey) onSeek(c.section.start_ms / 1000);
@@ -416,18 +462,57 @@ export function SectionLane({
                   width: `${c.widthPx}px`,
                   backgroundColor: c.fillColor,
                 }}
-                title={c.label}
                 onClick={(e) => {
                   if (!e.shiftKey) onSeek(c.section.start_ms / 1000);
                   onSelect(c.section);
                 }}
                 onMouseEnter={() => onHoverChange(true)}
+                onPointerEnter={(e) => showHoverChip(e, c.label)}
+                onPointerMove={(e) => showHoverChip(e, c.label)}
+                onPointerLeave={clearHoverChip}
+                onFocus={(e) => showFocusChip(e, c.label)}
+                onBlur={clearHoverChip}
                 aria-label={c.label}
               />
             );
           })}
         </div>
       )}
+      {hoverChip &&
+        createPortal(
+          <SectionHoverChip
+            label={hoverChip.label}
+            x={hoverChip.x}
+            y={hoverChip.y}
+          />,
+          document.body,
+        )}
+    </div>
+  );
+}
+
+function SectionHoverChip({
+  label,
+  x,
+  y,
+}: {
+  label: string;
+  x: number;
+  y: number;
+}) {
+  // Clamp so the chip never spills past the right viewport edge. The chip is
+  // measured after first paint; pre-measurement we just offset from the cursor.
+  const CURSOR_OFFSET_X = 12;
+  const CURSOR_OFFSET_Y = 16;
+  const left = Math.min(x + CURSOR_OFFSET_X, window.innerWidth - 12);
+  const top = Math.min(y + CURSOR_OFFSET_Y, window.innerHeight - 12);
+  return (
+    <div
+      className="section-hover-chip"
+      role="tooltip"
+      style={{ left: `${left}px`, top: `${top}px` }}
+    >
+      {label}
     </div>
   );
 }
