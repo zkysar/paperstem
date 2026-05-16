@@ -558,8 +558,20 @@ export function Player({
   // annotation markers, and minimap. Z-index (5) places it above the
   // sticky rail (3), so the 1px line stays visible at t=0 even though
   // it overlaps the rail's right-edge box-shadow.
+  //
+  // The 1px line is painted in pixel column `left`. The wave column occupies
+  // visible columns [railWidth, railWidth + waveWidth − 1]; column
+  // `railWidth + waveWidth` is the first column past .viewport-inner's right
+  // edge, where .viewport's overflow-x: hidden clips it. Cap the right edge
+  // by one pixel so the line stays visible at t = duration (or when dragged
+  // all the way to the end). t = 0 maps to railWidth (already visible), so
+  // no left-edge cap is needed.
+  const maxPlayheadLeft = railWidth + Math.max(0, waveWidth - 1);
   const playheadLeft = duration
-    ? railWidth + (Math.min(currentTime, duration) / duration) * waveWidth
+    ? Math.min(
+        maxPlayheadLeft,
+        railWidth + (Math.min(currentTime, duration) / duration) * waveWidth,
+      )
     : 0;
   const loopLeft = loop && duration ? railWidth + (loop.start / duration) * waveWidth : 0;
   const loopWidth = loop && duration ? ((loop.end - loop.start) / duration) * waveWidth : 0;
@@ -825,8 +837,12 @@ export function Player({
               }
               leftPx={playheadLeft}
               clientXToLeftPx={(clientX) => {
+                if (!duration) return 0;
                 const t = xToTime(clientX);
-                return duration ? railWidth + (t / duration) * waveWidth : 0;
+                return Math.min(
+                  maxPlayheadLeft,
+                  railWidth + (t / duration) * waveWidth,
+                );
               }}
               clientXToTime={xToTime}
               onSeek={player.seek}
