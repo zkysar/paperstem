@@ -1418,6 +1418,19 @@ button.ah-title-name:disabled { cursor: default; }
   cursor: pointer;
 }
 .ah-title-caret:hover { color: var(--ink); }
+.ah-open-cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font: inherit;
+  font-weight: var(--fw-semi);
+  font-size: var(--fs-sm);
+  color: var(--ink);
+  cursor: pointer;
+}
+.ah-open-cta:hover { background: var(--rule); }
 .ah-spacer { flex: 1; }
 .ah-meta {
   color: var(--muted);
