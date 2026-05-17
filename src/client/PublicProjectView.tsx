@@ -544,6 +544,7 @@ export function PublicProjectView({ token }: { token: string }) {
                 isNarrow={railCollapsed}
                 selfUserId=""
                 canEdit={true}
+                canReact={false}
                 annotations={annotationsForPlayer}
                 userColorMap={userColorMap}
                 activeId={activeCommentId}
@@ -578,6 +579,7 @@ export function PublicProjectView({ token }: { token: string }) {
                     anchorLeftPx={popoverAnchor.left}
                     anchorTopPx={popoverAnchor.top}
                     canEdit={true}
+                    canReact={false}
                     isOwn={false}
                     drawerOpen={drawerOpen}
                     onLoopRegion={() => handleLoopAnnotation(active)}
@@ -613,6 +615,7 @@ export function PublicProjectView({ token }: { token: string }) {
                         annotation={active}
                         color={color}
                         canEdit={true}
+                        canReact={false}
                         isOwn={false}
                         index={idx}
                         total={annotationsForPlayer.length}

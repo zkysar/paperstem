@@ -8,6 +8,7 @@ type Props = {
   reply: AnnotationReply;
   selfUserId: string;
   canEdit: boolean;
+  canReact?: boolean;
   isNarrow: boolean;
   onEdit(replyId: string, body: string): Promise<void> | void;
   onDelete(replyId: string): Promise<void> | void;
@@ -23,6 +24,7 @@ export function ReplyCard({
   reply,
   selfUserId,
   canEdit,
+  canReact = true,
   isNarrow,
   onEdit,
   onDelete,
@@ -189,6 +191,7 @@ export function ReplyCard({
       <Reactions
         reactions={reply.reactions}
         isNarrow={isNarrow}
+        canReact={canReact}
         onToggle={(emoji) => onToggleReaction(reply.id, emoji)}
       />
     </div>

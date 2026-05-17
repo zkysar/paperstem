@@ -7,9 +7,18 @@ type Props = {
   reactions: Reaction[];
   isNarrow: boolean;
   onToggle(emoji: string): void;
+  // When false, the "+" picker affordance is hidden (public-link viewers
+  // can't open the emoji picker). Existing reaction pills stay visible
+  // so the count is readable; clicking them still calls onToggle.
+  canReact?: boolean;
 };
 
-export function Reactions({ reactions, isNarrow, onToggle }: Props) {
+export function Reactions({
+  reactions,
+  isNarrow,
+  onToggle,
+  canReact = true,
+}: Props) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const addRef = useRef<HTMLButtonElement>(null);
@@ -41,19 +50,21 @@ export function Reactions({ reactions, isNarrow, onToggle }: Props) {
           <span className="reaction-count">{r.count}</span>
         </button>
       ))}
-      <button
-        ref={addRef}
-        type="button"
-        className="reaction-add"
-        aria-label="Add reaction"
-        onClick={(e) => {
-          e.stopPropagation();
-          openPicker();
-        }}
-      >
-        <Plus size={12} strokeWidth={2} aria-hidden="true" />
-      </button>
-      {pickerOpen && (
+      {canReact && (
+        <button
+          ref={addRef}
+          type="button"
+          className="reaction-add"
+          aria-label="Add reaction"
+          onClick={(e) => {
+            e.stopPropagation();
+            openPicker();
+          }}
+        >
+          <Plus size={12} strokeWidth={2} aria-hidden="true" />
+        </button>
+      )}
+      {canReact && pickerOpen && (
         <EmojiPicker
           isNarrow={isNarrow}
           anchorRect={anchorRect}

@@ -17,6 +17,7 @@ type Props = {
   isNarrow: boolean;
   selfUserId: string;
   canEdit: boolean;
+  canReact?: boolean;
   annotations: Annotation[];
   userColorMap: Map<string, string>;
   activeId: string | null;
@@ -46,7 +47,7 @@ function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
 }
 
 export function CommentsDrawer({
-  open, isNarrow, selfUserId, canEdit,
+  open, isNarrow, selfUserId, canEdit, canReact = true,
   annotations, userColorMap, activeId, emphasizedId, pendingDraft,
   onClose, onSelect, onCreate, onDraftCancel,
   onToggleStar, onSaveEdit, onDelete, onCopyLink,
@@ -159,6 +160,7 @@ export function CommentsDrawer({
           emphasizedId={emphasizedId ?? null}
           userColorMap={userColorMap}
           canEdit={canEdit}
+          canReact={canReact}
           isNarrow={isNarrow}
           onSelect={onSelect}
           onToggleStar={onToggleStar}

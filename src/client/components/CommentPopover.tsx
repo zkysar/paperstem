@@ -23,6 +23,7 @@ type Props = {
   anchorLeftPx: number;
   anchorTopPx: number;
   canEdit: boolean;
+  canReact?: boolean;
   isOwn: boolean;
   drawerOpen?: boolean;
   /** True when this popover came from a share link arrival; adds a pulse. */
@@ -59,6 +60,7 @@ export function CommentPopover({
   anchorLeftPx,
   anchorTopPx,
   canEdit,
+  canReact = true,
   isOwn,
   drawerOpen = false,
   emphasize = false,
@@ -367,6 +369,7 @@ export function CommentPopover({
             <Reactions
               reactions={annotation.reactions}
               isNarrow={isNarrow}
+              canReact={canReact}
               onToggle={(emoji) =>
                 onToggleReaction({ kind: 'annotation', id: annotation.id }, emoji)
               }
@@ -378,6 +381,7 @@ export function CommentPopover({
               replies={replies}
               selfUserId={selfUserId}
               canEdit={canEdit}
+              canReact={canReact}
               isNarrow={isNarrow}
               onLoadReplies={onLoadReplies}
               onCreateReply={onCreateReply}
