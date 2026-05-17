@@ -48,6 +48,9 @@ for (const col of ['deleted_at', 'deleted_by', 'deleted_reason']) {
   if (tableExists('stems') && !columnExists('stems', col)) {
     db.exec(`ALTER TABLE stems ADD COLUMN ${col} ${type}`);
   }
+  if (tableExists('bands') && !columnExists('bands', col)) {
+    db.exec(`ALTER TABLE bands ADD COLUMN ${col} ${type}`);
+  }
 }
 if (tableExists('stems') && !columnExists('stems', 'peaks')) {
   db.exec('ALTER TABLE stems ADD COLUMN peaks TEXT');
@@ -108,6 +111,19 @@ export type BandRow = {
   created_at: number;
   last_snapshot_at: number | null;
   last_backup_at: number | null;
+  deleted_at: number | null;
+  deleted_by: string | null;
+  deleted_reason: string | null;
+};
+
+export type BandPurgePreviewRow = {
+  id: string;
+  name: string;
+  folder_id: string;
+  owner_user_id: string;
+  deleted_at: number;
+  deleted_by: string | null;
+  deleted_reason: string | null;
 };
 
 export type MembershipRow = {
@@ -403,10 +419,13 @@ export const stmts = {
          AND (last_used_at IS NULL OR last_used_at < ?)`,
   ),
   findBandById: db.prepare<[string], BandRow>(
+    'SELECT * FROM bands WHERE id = ? AND deleted_at IS NULL',
+  ),
+  findBandAnyState: db.prepare<[string], BandRow>(
     'SELECT * FROM bands WHERE id = ?',
   ),
   findAllBands: db.prepare<[], BandRow>(
-    'SELECT * FROM bands ORDER BY name',
+    'SELECT * FROM bands WHERE deleted_at IS NULL ORDER BY name',
   ),
   setBandLastSnapshotAt: db.prepare<[number, string]>(
     'UPDATE bands SET last_snapshot_at = ? WHERE id = ?',
@@ -418,14 +437,14 @@ export const stmts = {
     `SELECT b.*
        FROM bands b
        JOIN memberships m ON m.band_id = b.id
-      WHERE m.user_id = ? AND m.role = 'owner'
+      WHERE m.user_id = ? AND m.role = 'owner' AND b.deleted_at IS NULL
       ORDER BY b.name`,
   ),
   findBandsForUser: db.prepare<[string], BandRow & { role: 'owner' | 'member' }>(
     `SELECT b.*, m.role
        FROM bands b
        JOIN memberships m ON m.band_id = b.id
-      WHERE m.user_id = ?
+      WHERE m.user_id = ? AND b.deleted_at IS NULL
       ORDER BY b.name`,
   ),
   findMembershipsForBand: db.prepare<[string], BandMemberRow>(
@@ -456,11 +475,59 @@ export const stmts = {
   deleteMembership: db.prepare<[string, string]>(
     `DELETE FROM memberships WHERE band_id = ? AND user_id = ?`,
   ),
+  setBandOwner: db.prepare<[string, string]>(
+    `UPDATE bands SET owner_user_id = ? WHERE id = ? AND deleted_at IS NULL`,
+  ),
+  setMembershipRole: db.prepare<['owner' | 'member', string, string]>(
+    `UPDATE memberships SET role = ? WHERE band_id = ? AND user_id = ?`,
+  ),
   renameBand: db.prepare<[string, string]>(
-    `UPDATE bands SET name = ? WHERE id = ?`,
+    `UPDATE bands SET name = ? WHERE id = ? AND deleted_at IS NULL`,
   ),
   findBandByNameAndOwner: db.prepare<[string, string], BandRow>(
+    'SELECT * FROM bands WHERE name = ? AND owner_user_id = ? AND deleted_at IS NULL',
+  ),
+  // Used by the duplicate-name check at band create/rename: returns matching
+  // bands regardless of soft-delete state, so a user can't create a NEW band
+  // with the same name as a soft-deleted one whose audio folder (also named
+  // after the band) still exists under PAPERSTEM_AUDIO_ROOT. Without this,
+  // createFolder() — which is `mkdir -p` — would return the same folder_id,
+  // and the eventual purge sweep would trash the new band's audio.
+  findBandByNameAndOwnerAnyState: db.prepare<[string, string], BandRow>(
     'SELECT * FROM bands WHERE name = ? AND owner_user_id = ?',
+  ),
+  softDeleteBand: db.prepare<[number, string, string]>(
+    `UPDATE bands
+        SET deleted_at = ?, deleted_by = ?, deleted_reason = 'user'
+      WHERE id = ? AND deleted_at IS NULL`,
+  ),
+  // Cascade soft-delete: every live project in this band gets the same
+  // tombstone fields the per-project soft-delete sets, plus a distinct
+  // `deleted_reason` so we can tell them apart from user-initiated project
+  // deletes (matters for future restore logic; also matters for the audit
+  // story since these rows weren't explicitly trashed by the user).
+  softDeleteProjectsForBand: db.prepare<[number, string, string]>(
+    `UPDATE projects
+        SET deleted_at = ?, deleted_by = ?, deleted_reason = 'band_deleted'
+      WHERE band_id = ? AND deleted_at IS NULL`,
+  ),
+  // Revoke every live public link belonging to projects in this band, in
+  // one statement, so deleted-band audio stops being publicly streamable
+  // the moment the owner clicks Delete (not 30 days later at purge).
+  trashRevokePublicLinksForBand: db.prepare<[number, string]>(
+    `UPDATE public_links
+        SET revoked_at = ?, revoked_reason = 'trash'
+      WHERE revoked_at IS NULL
+        AND project_id IN (SELECT id FROM projects WHERE band_id = ?)`,
+  ),
+  findBandsToPurge: db.prepare<[number, number], BandPurgePreviewRow>(
+    `SELECT id, name, folder_id, owner_user_id, deleted_at, deleted_by, deleted_reason
+       FROM bands
+      WHERE deleted_at IS NOT NULL AND deleted_at < ?
+      LIMIT ?`,
+  ),
+  purgeBand: db.prepare<[string]>(
+    'DELETE FROM bands WHERE id = ? AND deleted_at IS NOT NULL',
   ),
   findProjectById: db.prepare<[string], ProjectRow>(
     'SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL',
@@ -1088,7 +1155,7 @@ export const stmts = {
             EXISTS(SELECT 1 FROM band_mutes bm WHERE bm.user_id = ? AND bm.band_id = b.id) AS muted
        FROM bands b
        JOIN memberships m ON m.band_id = b.id
-      WHERE m.user_id = ?
+      WHERE m.user_id = ? AND b.deleted_at IS NULL
       ORDER BY b.name`,
   ),
 };

@@ -56,6 +56,7 @@ function membersResponseFor(groupId: string, body?: object) {
 const noopProps = {
   onClose: () => undefined,
   onLeft: () => undefined,
+  onDeleted: () => undefined,
   onCreateGroup: () => undefined,
 };
 
@@ -230,7 +231,7 @@ describe('GroupsDrawer', () => {
     ).toBeNull();
   });
 
-  it('member row shows a Leave button; owner row shows the owner-cannot-leave hint', async () => {
+  it('solo-owner row shows the only-member hint and no Leave; member row shows Leave', async () => {
     setupFetchMock({
       [`/api/bands/${ownerGroup.id}`]: () =>
         membersResponseFor(ownerGroup.id, {
@@ -252,10 +253,149 @@ describe('GroupsDrawer', () => {
         {...noopProps}
       />,
     );
-    expect(screen.getByText(/Owners can't leave their own group/i)).not.toBeNull();
+    // Owner is the only member, so there's nobody to transfer ownership to:
+    // Leave is hidden and the hint nudges them toward Delete.
+    expect(
+      await screen.findByText(/only member/i),
+    ).not.toBeNull();
+    expect(
+      screen.queryByRole('button', { name: /Leave group/i }),
+    ).toBeNull();
+    expect(screen.getByRole('button', { name: /Delete group/i })).not.toBeNull();
 
     await user.click(screen.getByText('Moon Tractor'));
     await screen.findByRole('button', { name: /Leave group/i });
+    expect(
+      screen.queryAllByRole('button', { name: /Delete group/i }),
+    ).toHaveLength(1);
+  });
+
+  it('owner with other members sees Leave + transfer picker; Transfer & leave POSTs transferTo', async () => {
+    const leaveFn = vi.fn(
+      () =>
+        new Response('{"ok":true}', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    );
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () =>
+        membersResponseFor(ownerGroup.id, {
+          band: { id: 'b1', name: 'Sun Toilet', folder_id: 'f1', owner_user_id: 'u1', created_at: 0 },
+          members: [
+            { id: 'u1', email: 'owner@example.com', display_name: null, role: 'owner' },
+            { id: 'u2', email: 'second@example.com', display_name: null, role: 'member' },
+            { id: 'u3', email: 'third@example.com', display_name: null, role: 'member' },
+          ],
+        }),
+      [`DELETE /api/bands/${ownerGroup.id}/members/me`]: leaveFn,
+    });
+    const onLeft = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[ownerGroup]}
+        currentGroupId="b1"
+        {...noopProps}
+        onLeft={onLeft}
+      />,
+    );
+    // Wait for the members fetch so the picker options are populated.
+    await screen.findByText('second@example.com');
+    await user.click(screen.getByRole('button', { name: /Leave group/i }));
+    // Picker is pre-populated with the first non-owner member. Switch to
+    // the third member to prove the picker value is what gets sent.
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: /Transfer ownership to/i }),
+      'u3',
+    );
+    await user.click(
+      screen.getByRole('button', { name: /Transfer & leave/i }),
+    );
+    await waitFor(() => expect(onLeft).toHaveBeenCalledWith('b1'));
+    expect(leaveFn).toHaveBeenCalledTimes(1);
+    const [, init] = leaveFn.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ transferTo: 'u3' });
+  });
+
+  it('owner can delete a group through the two-step confirm', async () => {
+    const deleteFn = vi.fn(
+      () =>
+        new Response('{"ok":true}', {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    );
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`DELETE /api/bands/${ownerGroup.id}`]: deleteFn,
+    });
+    const onDeleted = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[ownerGroup]}
+        currentGroupId="b1"
+        {...noopProps}
+        onDeleted={onDeleted}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /Delete group/i }));
+    // First click only reveals the confirm — no fetch yet.
+    expect(deleteFn).not.toHaveBeenCalled();
+    await user.click(
+      screen.getByRole('button', { name: /Yes, delete Sun Toilet/i }),
+    );
+    await waitFor(() => expect(onDeleted).toHaveBeenCalledWith('b1'));
+    expect(deleteFn).toHaveBeenCalledTimes(1);
+  });
+
+  it('delete confirm Cancel returns to the resting state without firing DELETE', async () => {
+    const deleteFn = vi.fn();
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () => membersResponseFor(ownerGroup.id),
+      [`DELETE /api/bands/${ownerGroup.id}`]: deleteFn,
+    });
+    const user = userEvent.setup();
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[ownerGroup]}
+        currentGroupId="b1"
+        {...noopProps}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /Delete group/i }));
+    await user.click(screen.getByRole('button', { name: /^Cancel$/i }));
+    expect(deleteFn).not.toHaveBeenCalled();
+    // Delete button is back in the row, confirm gone.
+    expect(screen.getByRole('button', { name: /Delete group/i })).not.toBeNull();
+    expect(
+      screen.queryByRole('button', { name: /Yes, delete/i }),
+    ).toBeNull();
+  });
+
+  it('member row never shows a Delete group button', async () => {
+    setupFetchMock({
+      [`/api/bands/${memberGroup.id}`]: () =>
+        membersResponseFor(memberGroup.id, {
+          band: { id: 'b2', name: 'Moon Tractor', folder_id: 'f2', owner_user_id: 'u2', created_at: 0 },
+          members: [{ id: 'u-other', email: 'other@example.com', display_name: null, role: 'owner' }],
+        }),
+    });
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[memberGroup]}
+        currentGroupId="b2"
+        {...noopProps}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: /Delete group/i }),
+    ).toBeNull();
   });
 
   it('leaving a non-active group still calls onLeft with that id', async () => {
@@ -403,15 +543,16 @@ describe('GroupsDrawer', () => {
           band: { id: 'b2', name: 'Moon Tractor', folder_id: 'f2', owner_user_id: 'u-self', created_at: 0 },
           members: [{ id: 'u-self', email: 'self@example.com', display_name: null, role: 'owner' }],
         }),
-      // Server demoted us to owner between page-load and click — leave is blocked.
+      // Server promoted us to owner between page-load and click — the leave
+      // request comes in without a transferTo and gets rejected.
       [`DELETE /api/bands/${memberGroup.id}/members/me`]: () =>
         new Response(
-          JSON.stringify({ error: 'owner_cannot_leave' }),
+          JSON.stringify({ error: 'owner_must_transfer' }),
           { status: 409, headers: { 'Content-Type': 'application/json' } },
         ),
     });
-    // Render with the row's role as 'member' so the Leave button is visible,
-    // but the server still rejects.
+    // Render with the row's role as 'member' so the Leave button is visible
+    // and no transfer picker is rendered; the server still rejects.
     const onLeft = vi.fn();
     const user = userEvent.setup();
     render(
@@ -425,7 +566,7 @@ describe('GroupsDrawer', () => {
     );
     await user.click(await screen.findByRole('button', { name: /Leave group/i }));
     await user.click(screen.getByRole('button', { name: /Leave Moon Tractor/i }));
-    await screen.findByText(/owner of this group and can't leave it/i);
+    await screen.findByText(/transfer ownership to before leaving/i);
     expect(onLeft).not.toHaveBeenCalled();
   });
 

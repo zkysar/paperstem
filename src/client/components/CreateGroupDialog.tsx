@@ -56,6 +56,8 @@ export function CreateGroupDialog({ open, onClose, onCreated }: Props) {
         const msg =
           body.error === 'duplicate_name'
             ? `You already own a group called "${trimmed}". Pick a different name.`
+            : body.error === 'duplicate_name_pending_purge'
+              ? `You recently deleted a group called "${trimmed}". The name will free up after the 30-day purge — for now, pick a different one.`
             : body.error === 'name_too_long'
               ? 'Group names are limited to 80 characters.'
               : body.error === 'name_required'
