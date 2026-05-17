@@ -31,12 +31,12 @@ test.describe('Journey: create a labelled section marker at the playhead', () =>
 
     // The section lane renders the new section as either a `.section-pill`
     // (expanded view, shown when activeSectionId is set) or a
-    // `.section-ribbon-seg` (collapsed). Both expose the label via the
-    // `title` attribute; that's the most stable signal regardless of
-    // which view the lane settled into. We assert on title rather than
+    // `.section-ribbon-seg` (collapsed). Both expose the label via
+    // `aria-label`; that's the most stable signal regardless of which
+    // view the lane settled into. We assert on aria-label rather than
     // visible text because the collapsed ribbon doesn't render the label
     // as a text node.
-    const sectionEl = page.locator(`[title="${label}"]`);
+    const sectionEl = page.locator(`.section-pill[aria-label="${label}"], .section-ribbon-seg[aria-label="${label}"]`);
     await expect(sectionEl).toBeVisible({ timeout: 5_000 });
 
     // Layout invariant — the section lane expands the timeline and is the
