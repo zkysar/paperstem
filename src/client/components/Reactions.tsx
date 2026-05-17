@@ -7,9 +7,9 @@ type Props = {
   reactions: Reaction[];
   isNarrow: boolean;
   onToggle(emoji: string): void;
-  // When false, the "+" picker affordance is hidden (public-link viewers
-  // can't open the emoji picker). Existing reaction pills stay visible
-  // so the count is readable; clicking them still calls onToggle.
+  // When false, public-link viewers see reaction pills as static spans
+  // (emoji + count, no click). The "+" add-reaction button and emoji
+  // picker are also hidden — nothing is interactive.
   canReact?: boolean;
 };
 
@@ -30,26 +30,37 @@ export function Reactions({
 
   return (
     <div className="reactions-row">
-      {reactions.map((r) => (
-        <button
-          key={r.emoji}
-          type="button"
-          className={'reaction-pill' + (r.reacted_by_self ? ' self' : '')}
-          aria-pressed={r.reacted_by_self}
-          aria-label={
-            r.reacted_by_self
-              ? `Remove ${r.emoji} reaction`
-              : `React with ${r.emoji}`
-          }
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggle(r.emoji);
-          }}
-        >
-          <span aria-hidden="true">{r.emoji}</span>
-          <span className="reaction-count">{r.count}</span>
-        </button>
-      ))}
+      {reactions.map((r) =>
+        canReact ? (
+          <button
+            key={r.emoji}
+            type="button"
+            className={'reaction-pill' + (r.reacted_by_self ? ' self' : '')}
+            aria-pressed={r.reacted_by_self}
+            aria-label={
+              r.reacted_by_self
+                ? `Remove ${r.emoji} reaction`
+                : `React with ${r.emoji}`
+            }
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle(r.emoji);
+            }}
+          >
+            <span aria-hidden="true">{r.emoji}</span>
+            <span className="reaction-count">{r.count}</span>
+          </button>
+        ) : (
+          <span
+            key={r.emoji}
+            className="reaction-pill readonly"
+            aria-label={`${r.count} ${r.emoji} reactions`}
+          >
+            <span aria-hidden="true">{r.emoji}</span>
+            <span className="reaction-count">{r.count}</span>
+          </span>
+        ),
+      )}
       {canReact && (
         <button
           ref={addRef}
