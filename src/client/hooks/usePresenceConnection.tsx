@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'r
 import { createPresenceClient, type PresenceClient } from '../lib/presence-client';
 
 const Ctx = createContext<PresenceClient | null>(null);
+export const PresenceContext = Ctx;
 
 export function PresenceProvider({ children }: { children: ReactNode }) {
   const client = useMemo(() => createPresenceClient(), []);

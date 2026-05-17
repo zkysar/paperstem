@@ -1,5 +1,5 @@
 type State = 'active' | 'idle';
-type Opts = { now?: () => number; url?: string };
+type Opts = { now?: () => number; url?: string; linkToken?: string };
 
 export type PresenceRowDto = {
   userId: string | null;
@@ -60,7 +60,8 @@ export function createPresenceClient(opts: Opts = {}): PresenceClient {
   function defaultUrl(): string {
     if (typeof window === 'undefined') return '';
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${proto}//${window.location.host}/ws/presence`;
+    const base = `${proto}//${window.location.host}/ws/presence`;
+    return opts.linkToken ? `${base}?link=${encodeURIComponent(opts.linkToken)}` : base;
   }
 
   function send(obj: unknown) {
