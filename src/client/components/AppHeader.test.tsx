@@ -136,6 +136,57 @@ describe('AppHeader', () => {
     expect(btn.className).toContain('ah-hide-on-mobile');
   });
 
+  it('on mobile, avatar menu surfaces Download all stems and fires onDownloadAll', async () => {
+    const onDownload = vi.fn();
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} isWide={false} onDownloadAll={onDownload} />);
+    await user.click(screen.getByLabelText('Account'));
+    const item = screen.getByRole('menuitem', { name: /Download all stems/i });
+    await user.click(item);
+    expect(onDownload).toHaveBeenCalledOnce();
+  });
+
+  it('on mobile, the Download menu entry is disabled while a download is in flight', async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} isWide={false} downloading={true} />);
+    await user.click(screen.getByLabelText('Account'));
+    const item = screen.getByRole('menuitem', { name: /Downloading/i }) as HTMLButtonElement;
+    expect(item.disabled).toBe(true);
+  });
+
+  it('on mobile, avatar menu has a Comments toggle that fires onToggleAnnotations', async () => {
+    const onToggle = vi.fn();
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} isWide={false} onToggleAnnotations={onToggle} />);
+    await user.click(screen.getByLabelText('Account'));
+    const item = screen.getByRole('menuitem', { name: /Open comments/i });
+    await user.click(item);
+    expect(onToggle).toHaveBeenCalledOnce();
+  });
+
+  it('on mobile with the panel open, the Comments menu entry reads "Close comments"', async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} isWide={false} annotationsOpen={true} />);
+    await user.click(screen.getByLabelText('Account'));
+    expect(screen.getByRole('menuitem', { name: /Close comments/i })).not.toBeNull();
+  });
+
+  it('on desktop, the avatar menu does NOT surface Download or Comments items', async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} isWide={true} />);
+    await user.click(screen.getByLabelText('Account'));
+    expect(screen.queryByRole('menuitem', { name: /Download all stems/i })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /Open comments/i })).toBeNull();
+  });
+
+  it('on mobile with no project, avatar menu does NOT surface Download or Comments items', async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} isWide={false} hasProject={false} projectTitle={null} />);
+    await user.click(screen.getByLabelText('Account'));
+    expect(screen.queryByRole('menuitem', { name: /Download all stems/i })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /Open comments/i })).toBeNull();
+  });
+
   it('clicking outside the avatar menu closes it', async () => {
     const user = userEvent.setup();
     render(
@@ -444,6 +495,51 @@ describe('AppHeader group switcher', () => {
       />,
     );
     await user.click(screen.getByLabelText('Switch group'));
+    const item = screen.getByRole('menuitem', { name: /New group/i });
+    await user.click(item);
+    expect(onCreate).toHaveBeenCalledOnce();
+  });
+
+  it('on mobile, the header group switcher is hidden (gets the ah-hide-on-mobile class)', () => {
+    render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" isWide={false} />);
+    const headerSwitcher = screen.getByLabelText('Switch group').closest('.ah-group-block');
+    expect(headerSwitcher).not.toBeNull();
+    expect(headerSwitcher!.className).toContain('ah-hide-on-mobile');
+  });
+
+  it('on mobile, multi-group switching lives inside the avatar menu', async () => {
+    const onSwitch = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...baseProps}
+        groups={groups}
+        currentGroupId="b1"
+        onSwitchGroup={onSwitch}
+        isWide={false}
+      />,
+    );
+    await user.click(screen.getByLabelText('Account'));
+    // Both groups appear as menu items inside the avatar dropdown.
+    expect(screen.getByRole('menuitem', { name: /Sun Toilet/ })).not.toBeNull();
+    const moon = screen.getByRole('menuitem', { name: /Moon Tractor/ });
+    await user.click(moon);
+    expect(onSwitch).toHaveBeenCalledWith('b2');
+  });
+
+  it('on mobile, "+ New group" appears inside the avatar menu when onCreateGroup is wired', async () => {
+    const onCreate = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...baseProps}
+        groups={[groups[0]!]}
+        currentGroupId="b1"
+        onCreateGroup={onCreate}
+        isWide={false}
+      />,
+    );
+    await user.click(screen.getByLabelText('Account'));
     const item = screen.getByRole('menuitem', { name: /New group/i });
     await user.click(item);
     expect(onCreate).toHaveBeenCalledOnce();

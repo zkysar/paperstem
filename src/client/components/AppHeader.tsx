@@ -144,7 +144,7 @@ export function AppHeader({
       <span className="ah-divider" />
       {showGroupSwitcher && currentGroup && (
         <>
-          <div className="ah-group-block ah-group-wrap" ref={groupRef}>
+          <div className="ah-group-block ah-group-wrap ah-hide-on-mobile" ref={groupRef}>
             <span className="ah-group-label">Group</span>
             <button
               type="button"
@@ -283,7 +283,7 @@ export function AppHeader({
       )}
       <button
         type="button"
-        className="ah-iconbtn"
+        className="ah-iconbtn ah-hide-on-mobile"
         aria-label="Download all stems"
         disabled={!hasProject || downloading}
         onClick={onDownloadAll}
@@ -324,18 +324,89 @@ export function AppHeader({
       <div className="ah-avatar-wrap" ref={avatarRef}>
         <button
           type="button"
-          className="ah-avatar"
+          className={'ah-avatar' + (downloading ? ' ah-avatar-busy' : '')}
           onClick={() => setAvatarOpen((v) => !v)}
           aria-haspopup="menu"
           aria-expanded={avatarOpen}
           aria-label="Account"
-          title={`Account (${userEmail})`}
+          title={downloading
+            ? `Account (${userEmail}) — downloading stems…`
+            : `Account (${userEmail})`}
         >
           {userInitials}
         </button>
         {avatarOpen && (
           <div className="ah-avatar-menu" role="menu">
             <div className="ah-avatar-email">{userEmail}</div>
+            {!isWide && hasProject && (
+              <>
+                {showGroupSwitcher && currentGroup && (
+                  <>
+                    <div className="ah-avatar-menu-label" aria-hidden="true">Switch group</div>
+                    {groupList.map((g) => {
+                      const active = g.id === currentGroup.id;
+                      return (
+                        <button
+                          key={g.id}
+                          type="button"
+                          role="menuitem"
+                          aria-current={active ? 'true' : undefined}
+                          onClick={() => {
+                            setAvatarOpen(false);
+                            if (!active) onSwitchGroup?.(g.id);
+                          }}
+                        >
+                          {active
+                            ? <Check size={14} strokeWidth={2} aria-hidden="true" />
+                            : <span className="ah-group-menu-spacer" aria-hidden="true" />}
+                          <span className="ah-group-menu-name">{g.name}</span>
+                        </button>
+                      );
+                    })}
+                    {onCreateGroup && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        className="ah-group-menu-create"
+                        onClick={() => {
+                          setAvatarOpen(false);
+                          onCreateGroup();
+                        }}
+                      >
+                        <Plus size={14} strokeWidth={2} aria-hidden="true" />
+                        <span className="ah-group-menu-name">New group</span>
+                      </button>
+                    )}
+                    <div className="ah-avatar-menu-divider" role="separator" />
+                  </>
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  aria-pressed={annotationsOpen}
+                  onClick={() => { setAvatarOpen(false); onToggleAnnotations(); }}
+                >
+                  <MessageSquare size={14} strokeWidth={2} aria-hidden="true" />
+                  {annotationsOpen ? 'Close comments' : 'Open comments'}
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={downloading}
+                  onClick={() => {
+                    if (downloading) return;
+                    setAvatarOpen(false);
+                    onDownloadAll();
+                  }}
+                >
+                  {downloading
+                    ? <Loader2 size={14} strokeWidth={2} className="atb-spin" aria-hidden="true" />
+                    : <Download size={14} strokeWidth={2} aria-hidden="true" />}
+                  {downloading ? 'Downloading…' : 'Download all stems'}
+                </button>
+                <div className="ah-avatar-menu-divider" role="separator" />
+              </>
+            )}
             <button
               type="button"
               role="menuitem"

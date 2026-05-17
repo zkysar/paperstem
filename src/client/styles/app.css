@@ -1936,7 +1936,10 @@ button.ah-title-name:disabled { cursor: default; }
   border-radius: 6px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.10);
   padding: 6px;
-  min-width: 180px;
+  min-width: 220px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
   z-index: 30;
 }
 .ah-avatar-email {
@@ -1957,7 +1960,41 @@ button.ah-title-name:disabled { cursor: default; }
   cursor: pointer;
 }
 .ah-avatar-menu button > svg { flex: 0 0 14px; }
-.ah-avatar-menu button:hover { background: var(--accent-tint); }
+.ah-avatar-menu button:hover,
+.ah-avatar-menu button:focus-visible { background: var(--accent-tint); outline: none; }
+.ah-avatar-menu button:disabled { opacity: 0.55; cursor: default; }
+.ah-avatar-menu button:disabled:hover { background: transparent; }
+.ah-avatar-menu-label {
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 6px 8px 2px;
+}
+.ah-avatar-menu-divider {
+  height: 1px;
+  background: var(--rule);
+  margin: 4px 0;
+}
+.ah-avatar-menu button[aria-current="true"] { font-weight: var(--fw-semi); }
+.ah-avatar-menu button[aria-pressed="true"] { background: var(--accent-tint); }
+/* Subtle pulsing dot on the avatar while a stem download is in flight, so
+   users notice work tucked behind the avatar menu. */
+.ah-avatar-busy { position: relative; }
+.ah-avatar-busy::after {
+  content: '';
+  position: absolute;
+  top: -2px; right: -2px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--paper);
+  animation: ah-avatar-busy-pulse 1.2s ease-in-out infinite;
+}
+@keyframes ah-avatar-busy-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
 .ah-avatar-version {
   display: block;
   font-size: var(--fs-2xs);
@@ -2491,21 +2528,35 @@ body.env-non-prod[data-env="local"]::before {
   to { background-position: -200% 0; }
 }
 
-/* ===== AppHeader narrow ===== */
+/* ===== AppHeader narrow =====
+   The mobile header is intentionally lean: brand, dividers, group switcher,
+   stem/duration metadata, and the inline Download / Comments icon buttons
+   all disappear here. The center of the bar is just the project title (which
+   tap-opens the picker) and the right side keeps presence + the avatar
+   menu. Download / Comments / Switch-group move into the avatar dropdown via
+   the `!isWide` branch in AppHeader.tsx so they remain reachable in one tap
+   from the avatar. */
 @media (max-width: 720px) {
   .ah-brand { display: none; }
   .ah-divider { display: none; }
   .ah-title-label { display: none; }
-  .ah-group-label { display: none; }
-  .ah-group-name { max-width: 96px; }
-  /* The desktop divider between Group and Project is hidden here; add an
-     in-block trailing rule so the two names don't visually run together. */
-  .ah-group-block {
-    padding-right: 8px;
-    border-right: 1px solid var(--rule);
-    margin-right: 6px;
-  }
   .ah-meta { display: none; }
+  /* The title becomes the dominant element — give it room to breathe and
+     let the trailing caret hint that it's tappable. */
+  .ah-title-name {
+    font-size: var(--fs-lg);
+    max-width: 100%;
+  }
+  .ah-title-caret { padding: 2px 4px; }
+  /* The header icon-button hit areas are already widened above (the
+     min-width: 40px rule near .atb-overflow-wrap). The avatar menu items
+     are stacked vertically inside a dropdown that doesn't auto-hit-grow;
+     bump them here so they're thumb-sized on phones. */
+  .ah-avatar-menu button {
+    padding: 10px 10px;
+    min-height: 40px;
+  }
+  .ah-avatar-menu-label { padding: 8px 10px 4px; }
 }
 
 /* ===== AppToolbar master-volume popover (narrow) ===== */
