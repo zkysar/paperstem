@@ -520,7 +520,7 @@ export function PublicProjectView({ token }: { token: string }) {
               selfUserId=""
               onToggleSectionCreate={promptIgnoreArgs}
               railCollapsed={railCollapsed}
-              canMutate={true}
+              canMutate={false}
               onOpenPicker={() => undefined}
               onRenameStem={promptIgnoreArgs}
               onDeleteStem={promptIgnoreArgs}

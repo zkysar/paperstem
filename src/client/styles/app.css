@@ -4172,6 +4172,12 @@ body.env-non-prod[data-env="local"]::before {
 }
 
 .reaction-pill:hover { background: var(--rule-2); }
+.reaction-pill.readonly {
+  cursor: default;
+}
+.reaction-pill.readonly:hover {
+  background: var(--paper);
+}
 .reaction-count { font-weight: var(--fw-semi); font-size: var(--fs-xs); }
 
 .reaction-add {

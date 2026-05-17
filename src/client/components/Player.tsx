@@ -716,7 +716,7 @@ export function Player({
                 expanded={laneExpanded}
                 interactionDisabled={annotationCreateMode}
                 onSelect={onSectionSelected}
-                onPatchSection={onPatchSection}
+                onPatchSection={canMutate ? onPatchSection : undefined}
                 onSeek={player.seek}
                 onHoverChange={setLaneHovered}
                 onTapToExpand={() => setLaneTappedOpen(true)}
