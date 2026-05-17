@@ -29,6 +29,7 @@ type Props = {
   emphasizedId?: string | null;
   userColorMap: Map<string, string>;
   canEdit: boolean;
+  canReact?: boolean;
   isNarrow: boolean;
   onSelect(annotation: Annotation): void;
   onToggleStar(annotation: Annotation): void;
@@ -70,6 +71,7 @@ export function CommentList({
   emphasizedId,
   userColorMap,
   canEdit,
+  canReact = true,
   isNarrow,
   onSelect,
   onToggleStar,
@@ -326,6 +328,7 @@ export function CommentList({
                       <Reactions
                         reactions={a.reactions}
                         isNarrow={isNarrow}
+                        canReact={canReact}
                         onToggle={(emoji) =>
                           onToggleReaction({ kind: 'annotation', id: a.id }, emoji)
                         }
@@ -336,6 +339,7 @@ export function CommentList({
                         replies={replies.get(a.id)}
                         selfUserId={selfUserId}
                         canEdit={canEdit}
+                        canReact={canReact}
                         isNarrow={isNarrow}
                         onLoadReplies={onLoadReplies}
                         onCreateReply={onCreateReply}

@@ -14,6 +14,7 @@ type Props = {
   annotation: Annotation;
   color: string;
   canEdit: boolean;
+  canReact?: boolean;
   isOwn: boolean;
   index: number;
   total: number;
@@ -40,7 +41,7 @@ function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
 }
 
 export function CommentBottomSheet({
-  annotation, color, canEdit, isOwn, index, total,
+  annotation, color, canEdit, canReact = true, isOwn, index, total,
   onPrev, onNext, onLoopRegion, onToggleStar, onSaveEdit, onDelete, onClose,
   selfUserId, replies, replyCount,
   onLoadReplies, onCreateReply, onEditReply, onDeleteReply, onToggleReaction,
@@ -187,6 +188,7 @@ export function CommentBottomSheet({
       <Reactions
         reactions={annotation.reactions}
         isNarrow={true}
+        canReact={canReact}
         onToggle={(emoji) =>
           onToggleReaction({ kind: 'annotation', id: annotation.id }, emoji)
         }
@@ -198,6 +200,7 @@ export function CommentBottomSheet({
         replies={replies}
         selfUserId={selfUserId}
         canEdit={canEdit}
+        canReact={canReact}
         isNarrow={true}
         onLoadReplies={onLoadReplies}
         onCreateReply={onCreateReply}

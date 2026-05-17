@@ -10,6 +10,7 @@ type Props = {
   replies: AnnotationReply[] | undefined;
   selfUserId: string;
   canEdit: boolean;
+  canReact?: boolean;
   isNarrow: boolean;
   onLoadReplies(annotationId: string): Promise<void> | void;
   onCreateReply(annotationId: string, body: string): Promise<void> | void;
@@ -29,6 +30,7 @@ export function ReplyThread({
   replies,
   selfUserId,
   canEdit,
+  canReact = true,
   isNarrow,
   onLoadReplies,
   onCreateReply,
@@ -158,6 +160,7 @@ export function ReplyThread({
               reply={r}
               selfUserId={selfUserId}
               canEdit={canEdit}
+              canReact={canReact}
               isNarrow={isNarrow}
               onEdit={onEditReply}
               onDelete={(id) => onDeleteReply(annotationId, id)}
