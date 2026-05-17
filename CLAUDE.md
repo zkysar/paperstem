@@ -4,7 +4,7 @@ Notes for Claude — kept terse. Read [README.md](README.md) for product context
 
 ## Architecture in one paragraph
 
-Two-process app. **Hono server** ([src/server/](src/server/)) on default port `8787` serves the API and, in prod, the built client. Storage: **SQLite** at `./dev.sqlite` (path overridable via `DATABASE_PATH`), audio under `$PAPERSTEM_AUDIO_ROOT` (a Fly volume in production, a local folder in dev). **Vite + React** ([src/client/](src/client/)) on default port `5173`, proxies `/api/*` and `/auth/callback` to the API. Magic-link auth → DB-backed sessions in a cookie. Tests: `vitest`, split into client + server projects.
+Two-process app. **Hono server** ([src/server/](src/server/)) on default port `8787` serves the API and, in prod, the built client. Storage: **SQLite** at `./dev.sqlite` (path overridable via `DATABASE_PATH`), audio under `$PAPERSTEM_AUDIO_ROOT` (a Fly volume in production, a local folder in dev). **Vite + React** ([src/client/](src/client/)) on default port `5173`, proxies `/api/*` and `/auth/callback` to the API. Magic-link auth → DB-backed sessions in a cookie. Tests: `vitest`, split into client + server projects. A `/ws/presence` WebSocket endpoint (via `@hono/node-ws`) carries Google-Docs-style project presence with an in-memory registry — no DB writes; see [docs/superpowers/specs/2026-05-16-project-presence-design.md](docs/superpowers/specs/2026-05-16-project-presence-design.md).
 
 ## Running locally
 

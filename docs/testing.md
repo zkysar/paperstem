@@ -38,6 +38,7 @@ Prefer inline literals or small helper builders over fixture files. The repo cur
 - [Server jobs](#server-jobs)
 - [Server import](#server-import)
 - [Server auth](#server-auth)
+- [WebSocket handlers](#websocket-handlers)
 - [Client components](#client-components)
 - [Client hooks](#client-hooks)
 - [Client libs](#client-libs)
@@ -766,6 +767,10 @@ afterEach(() => {
 
 - For the injectable-clock pure-function pattern used in `rate-limit.test.ts`, see [Server libs](#server-libs).
 - For the full route-handler harness (env prelude, dynamic imports, `beforeAll`, `reset()`, helper factories) that `dev-login.test.ts` uses, see [Server route handlers](#server-route-handlers).
+
+### WebSocket handlers
+
+**Canonical example:** `src/server/presence-ws.test.ts`. It spins up an in-process Hono app with `@hono/node-ws`, listens on an ephemeral port (via `serve({ port: 0, ... })` and `injectWebSocket`), and drives the endpoint with the real `ws` client library. Use this pattern for any future WS route: a `beforeAll` that constructs the app + injects WS + binds port 0, a small `openWs()` helper that returns a connected `ws` client, and a `nextMessage()` Promise wrapper.
 
 ### Client components
 
