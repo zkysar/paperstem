@@ -35,8 +35,12 @@ CREATE TABLE IF NOT EXISTS bands (
   owner_user_id      TEXT NOT NULL REFERENCES users(id),
   created_at         INTEGER NOT NULL,
   last_snapshot_at   INTEGER,
-  last_backup_at     INTEGER
+  last_backup_at     INTEGER,
+  deleted_at         INTEGER,
+  deleted_by         TEXT REFERENCES users(id),
+  deleted_reason     TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_bands_purge ON bands(deleted_at) WHERE deleted_at IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS memberships (
   band_id     TEXT NOT NULL REFERENCES bands(id) ON DELETE CASCADE,

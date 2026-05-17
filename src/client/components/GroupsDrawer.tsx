@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronRight, LogOut, Pencil, Plus, UserPlus, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, LogOut, Pencil, Plus, Trash2, UserPlus, X } from 'lucide-react';
 import type { BandMember, BandWithRole } from '../../shared/types';
 
 type Props = {
@@ -16,6 +16,8 @@ type Props = {
   onClose(): void;
   // Bubbled up from a row: the user just left a group.
   onLeft(leftGroupId: string): void;
+  // Bubbled up from a row: an owner just deleted their group.
+  onDeleted(deletedGroupId: string): void;
   // Bubbled up from a row: an owner just renamed their group.
   onRenamed?(groupId: string, newName: string): void;
   // Opens the parent's create-group dialog. Lives at the parent so the
@@ -29,6 +31,7 @@ export function GroupsDrawer({
   currentGroupId,
   onClose,
   onLeft,
+  onDeleted,
   onRenamed,
   onCreateGroup,
 }: Props) {
@@ -132,6 +135,7 @@ export function GroupsDrawer({
                   isExpanded={expanded.has(g.id)}
                   onToggle={() => toggle(g.id)}
                   onLeft={onLeft}
+                  onDeleted={onDeleted}
                   onRenamed={onRenamed}
                 />
               ))}
@@ -149,6 +153,7 @@ type GroupRowProps = {
   isExpanded: boolean;
   onToggle(): void;
   onLeft(groupId: string): void;
+  onDeleted(groupId: string): void;
   onRenamed?(groupId: string, newName: string): void;
 };
 
@@ -163,12 +168,16 @@ function GroupRow({
   isExpanded,
   onToggle,
   onLeft,
+  onDeleted,
   onRenamed,
 }: GroupRowProps) {
   const [members, setMembers] = useState<BandMember[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
+  const [transferTo, setTransferTo] = useState<string>('');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
@@ -217,6 +226,8 @@ function GroupRow({
   useEffect(() => {
     if (!isExpanded) {
       setConfirmingLeave(false);
+      setTransferTo('');
+      setConfirmingDelete(false);
       setInviteEmail('');
       setInviteError(null);
       setLastInvited(null);
@@ -248,6 +259,8 @@ function GroupRow({
         const msg =
           body.error === 'duplicate_name'
             ? `You already own a group called "${next}".`
+            : body.error === 'duplicate_name_pending_purge'
+              ? `You recently deleted a group called "${next}". The name will free up after the 30-day purge.`
             : body.error === 'name_too_long'
               ? 'Group names are limited to 80 characters.'
               : body.error === 'name_required'
@@ -340,17 +353,33 @@ function GroupRow({
   async function handleLeave() {
     setLeaving(true);
     setError(null);
+    // Owners must pick a member to transfer ownership to before leaving.
+    // The picker is required when the role is 'owner'; the server enforces
+    // the same rule, so a stale picker state can only ever produce a 409.
+    const isOwner = group.role === 'owner';
     try {
+      const init: RequestInit = {
+        method: 'DELETE',
+        credentials: 'include',
+      };
+      if (isOwner) {
+        init.headers = { 'content-type': 'application/json' };
+        init.body = JSON.stringify({ transferTo });
+      }
       const res = await fetch(
         `/api/bands/${encodeURIComponent(group.id)}/members/me`,
-        { method: 'DELETE', credentials: 'include' },
+        init,
       );
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         const msg =
-          body.error === 'owner_cannot_leave'
-            ? "You're the owner of this group and can't leave it."
-            : `HTTP ${res.status}`;
+          body.error === 'owner_must_transfer'
+            ? 'Pick a member to transfer ownership to before leaving.'
+            : body.error === 'transfer_target_not_a_member'
+              ? 'That person is no longer in this group — pick someone else.'
+              : body.error === 'cannot_transfer_to_self'
+                ? "You can't transfer ownership to yourself."
+                : `HTTP ${res.status}`;
         setError(msg);
         return;
       }
@@ -362,10 +391,45 @@ function GroupRow({
     }
   }
 
-  const canLeave = group.role !== 'owner';
-  const canInvite = group.role === 'owner';
-  const canRename = group.role === 'owner';
-  const canRemoveMembers = group.role === 'owner';
+  async function handleDelete() {
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/bands/${encodeURIComponent(group.id)}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        const msg =
+          body.error === 'forbidden'
+            ? 'Only the owner can delete a group.'
+            : `HTTP ${res.status}`;
+        setError(msg);
+        return;
+      }
+      onDeleted(group.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  // Members can always leave. Owners can leave only after picking another
+  // member to take the keys — so leave is available to an owner iff there's
+  // at least one other member to receive ownership. The set of transfer
+  // candidates is the loaded members list minus the owner themself.
+  const transferCandidates =
+    members?.filter((m) => m.role !== 'owner') ?? [];
+  const isOwner = group.role === 'owner';
+  const ownerHasTransferCandidates =
+    members === null || transferCandidates.length > 0;
+  const canLeave = !isOwner || ownerHasTransferCandidates;
+  const canDelete = isOwner;
+  const canInvite = isOwner;
+  const canRename = isOwner;
+  const canRemoveMembers = isOwner;
 
   return (
     <li className={'groups-row' + (isActive ? ' groups-row-active' : '')}>
@@ -543,24 +607,62 @@ function GroupRow({
                 <button
                   type="button"
                   className="group-settings-leave-btn"
-                  onClick={() => setConfirmingLeave(true)}
+                  onClick={() => {
+                    setConfirmingLeave(true);
+                    // Pre-select the first candidate so the picker isn't
+                    // empty by default for owners. Members ignore this.
+                    if (isOwner && transferCandidates[0]) {
+                      setTransferTo(transferCandidates[0].id);
+                    }
+                  }}
                 >
                   <LogOut size={14} strokeWidth={2} aria-hidden="true" />
                   Leave group
                 </button>
               ) : (
                 <div className="group-settings-confirm">
-                  <p>
-                    Leave <strong>{group.name}</strong>? You'll lose access to
-                    its projects and comments. The owner can re-add you later.
-                  </p>
+                  {isOwner ? (
+                    <>
+                      <p>
+                        Hand <strong>{group.name}</strong> to someone else and
+                        leave. You'll lose access to the group's projects and
+                        comments. The new owner gets full control, including
+                        the ability to invite and remove members.
+                      </p>
+                      <label className="upload-field">
+                        <span>Transfer ownership to</span>
+                        <select
+                          aria-label="Transfer ownership to"
+                          value={transferTo}
+                          disabled={leaving}
+                          onChange={(e) => setTransferTo(e.target.value)}
+                        >
+                          {transferCandidates.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.email}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </>
+                  ) : (
+                    <p>
+                      Leave <strong>{group.name}</strong>? You'll lose access
+                      to its projects and comments. The owner can re-add you
+                      later.
+                    </p>
+                  )}
                   <button
                     type="button"
                     className="group-settings-leave-confirm"
-                    disabled={leaving}
+                    disabled={leaving || (isOwner && !transferTo)}
                     onClick={() => void handleLeave()}
                   >
-                    {leaving ? 'Leaving…' : `Leave ${group.name}`}
+                    {leaving
+                      ? 'Leaving…'
+                      : isOwner
+                        ? `Transfer & leave`
+                        : `Leave ${group.name}`}
                   </button>
                   <button
                     type="button"
@@ -574,10 +676,50 @@ function GroupRow({
             </div>
           )}
 
-          {!canLeave && (
-            <p className="upload-hint groups-row-owner-note">
-              You're the owner. Owners can't leave their own group.
-            </p>
+          {canDelete && (
+            <div className="group-settings-delete">
+              {!confirmingDelete ? (
+                <>
+                  <p className="upload-hint groups-row-owner-note">
+                    {ownerHasTransferCandidates
+                      ? "You're the owner. Deleting removes the group for everyone — to leave without taking the group down, transfer ownership above."
+                      : "You're the only member. Invite someone above and transfer ownership to them, or delete the group."}
+                  </p>
+                  <button
+                    type="button"
+                    className="group-settings-delete-btn"
+                    onClick={() => setConfirmingDelete(true)}
+                  >
+                    <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+                    Delete group
+                  </button>
+                </>
+              ) : (
+                <div className="group-settings-confirm">
+                  <p>
+                    Delete <strong>{group.name}</strong>? The group will
+                    disappear for every member, and its projects, stems, and
+                    comments will go with it. Audio is purged after 30 days
+                    and the group can't be restored from the app.
+                  </p>
+                  <button
+                    type="button"
+                    className="group-settings-delete-confirm"
+                    disabled={deleting}
+                    onClick={() => void handleDelete()}
+                  >
+                    {deleting ? 'Deleting…' : `Yes, delete ${group.name}`}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deleting}
+                    onClick={() => setConfirmingDelete(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

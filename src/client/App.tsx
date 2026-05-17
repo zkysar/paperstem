@@ -1975,6 +1975,23 @@ function PaperstemApp({
           }
           refreshBands();
         }}
+        onDeleted={(deletedId) => {
+          // Same race-avoiding cleanup as the leave path: the deleting user
+          // is the owner, so they're also leaving (the band is now soft-
+          // deleted and disappears from /api/bands for everyone, including
+          // them).
+          const wasActive = deletedId === activeBandId;
+          dropBandLocally(deletedId);
+          if (wasActive) {
+            try {
+              localStorage.removeItem(currentGroupStorageKey);
+            } catch {
+              // ignore
+            }
+            resetProjectScopedUiState();
+          }
+          refreshBands();
+        }}
         onRenamed={(groupId, newName) => {
           updateBandLocally(groupId, { name: newName });
         }}

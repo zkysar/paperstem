@@ -20,6 +20,7 @@ import {
   handleListBands,
   handleGetBand,
   handleCreateBand,
+  handleDeleteBand,
   handleInviteMember,
   handleLeaveBand,
   handleRemoveMember,
@@ -117,6 +118,7 @@ app.get('/api/bands', handleListBands);
 app.post('/api/bands', handleCreateBand);
 app.get('/api/bands/:id', handleGetBand);
 app.patch('/api/bands/:id', handleRenameBand);
+app.delete('/api/bands/:id', handleDeleteBand);
 app.post('/api/bands/:id/members', handleInviteMember);
 app.delete('/api/bands/:id/members/me', handleLeaveBand);
 app.delete('/api/bands/:id/members/:userId', handleRemoveMember);

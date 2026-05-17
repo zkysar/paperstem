@@ -1284,6 +1284,38 @@ button.track-name:disabled { cursor: default; }
 }
 .group-settings-leave-confirm:disabled { opacity: 0.6; cursor: default; }
 
+.group-settings-delete {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+.group-settings-delete .groups-row-owner-note { margin: 0 0 8px; }
+.group-settings-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid rgba(193, 70, 70, 0.4);
+  color: #8a3030;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+.group-settings-delete-btn:hover { background: rgba(193, 70, 70, 0.08); }
+.group-settings-delete-confirm {
+  background: #8a3030;
+  color: var(--paper);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+.group-settings-delete-confirm:disabled { opacity: 0.6; cursor: default; }
+
 .groups-create-btn {
   align-self: flex-start;
   display: inline-flex;

@@ -12,14 +12,18 @@ export type AuditAction =
   | 'song.merge'
   | 'song.delete'
   | 'public_link.create'
-  | 'public_link.revoke';
+  | 'public_link.revoke'
+  | 'band.soft_delete'
+  | 'band.purge'
+  | 'band.transfer_ownership';
 
 export type AuditResourceType =
   | 'project'
   | 'stem'
   | 'annotation'
   | 'song'
-  | 'public_link';
+  | 'public_link'
+  | 'band';
 
 export type AuditActor = {
   id: string;
