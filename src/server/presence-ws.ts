@@ -1,4 +1,4 @@
-import type { Hono } from 'hono';
+import type { Hono, MiddlewareHandler } from 'hono';
 import { createNodeWebSocket } from '@hono/node-ws';
 import { stmts } from './db.js';
 import type { AuthVariables } from './auth/middleware.js';
@@ -33,6 +33,28 @@ type ConnCtx = {
   isAnonymous: boolean;
   subscribed: Set<string>;
 };
+
+// Reject the upgrade with a real HTTP status before @hono/node-ws takes over.
+// Returning a Response from middleware stops the chain, so the WS client sees
+// a clean 401 instead of the 500 you'd get from throwing inside the upgrade
+// handler.
+const requirePresenceAuth: MiddlewareHandler<{ Variables: AuthVariables }> =
+  async (c, next) => {
+    const user = c.get('user');
+    const linkToken = c.req.query('link') ?? null;
+    if (!user && !linkToken) {
+      return c.text('unauthenticated', 401);
+    }
+    if (!user) {
+      const row = stmts.findPublicLinkByToken.get(linkToken!) as
+        | { revoked_at: number | null }
+        | undefined;
+      if (!row || row.revoked_at) {
+        return c.text('invalid link', 401);
+      }
+    }
+    return next();
+  };
 
 export function registerPresenceWs(app: Hono<{ Variables: AuthVariables }>) {
   const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
@@ -73,22 +95,12 @@ export function registerPresenceWs(app: Hono<{ Variables: AuthVariables }>) {
 
   app.get(
     '/ws/presence',
+    requirePresenceAuth,
     upgradeWebSocket((c) => {
+      // Auth is already validated by requirePresenceAuth — middleware would
+      // have returned 401 before this handler ran.
       const user = c.get('user');
       const linkToken = c.req.query('link') ?? null;
-      // Anonymous viewers must present a token; without either we reject.
-      if (!user && !linkToken) {
-        // upgradeWebSocket has no clean reject path; throwing causes 500 +
-        // refusal of upgrade, which is fine for an unauthenticated client.
-        throw new Error('unauthenticated');
-      }
-      // For anonymous, verify the token resolves before accepting the upgrade.
-      if (!user) {
-        const row = stmts.findPublicLinkByToken.get(linkToken!) as
-          | { revoked_at: number | null }
-          | undefined;
-        if (!row || row.revoked_at) throw new Error('invalid link');
-      }
 
       const ctx: ConnCtx = {
         connId: crypto.randomUUID(),

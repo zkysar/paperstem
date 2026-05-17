@@ -154,4 +154,14 @@ describe('/ws/presence', () => {
     await closeWs(wsE);
     await closeWs(wsA);
   });
+
+  it('rejects unauthenticated upgrades with 401 (not 500)', async () => {
+    const ws = new WebSocket(`ws://localhost:${port}/ws/presence`);
+    const err = await new Promise<Error & { message: string }>((resolve) => {
+      ws.once('error', (e) => resolve(e as Error & { message: string }));
+    });
+    // The `ws` client surfaces the server's response code in the error message
+    // — e.g. "Unexpected server response: 401". Match the code, not the text.
+    expect(err.message).toContain('401');
+  });
 });
