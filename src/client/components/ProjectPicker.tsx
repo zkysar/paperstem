@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { PresenceAvatars } from './PresenceAvatars';
 import { ChevronDown, ChevronUp, FolderOpen, HelpCircle, MessageSquare, MoreVertical, Pencil, Trash2, X } from 'lucide-react';
 import type { Project, TrashList } from '../data/types';
 import type { Song } from '../../shared/types';
@@ -355,6 +356,7 @@ function ProjectPickerBody({
             <span className="fp-cell-duration fp-skel fp-skel-meta" />
             <span className="fp-cell-stems fp-skel fp-skel-meta" />
             <span className="fp-cell-comments fp-skel fp-skel-meta" />
+            <span className="fp-cell-presence fp-skel fp-skel-meta" />
             <span className="fp-cell-actions" />
           </div>
         ))}
@@ -394,6 +396,7 @@ function ProjectPickerBody({
         <SortHeader className="fp-cell-duration" label="Length" sortKey="duration" sort={sort} onClick={toggleSort} />
         <SortHeader className="fp-cell-stems" label="Stems" sortKey="stems" sort={sort} onClick={toggleSort} />
         <SortHeader className="fp-cell-comments" label="Comments" sortKey="comments" sort={sort} onClick={toggleSort} />
+        <span className="fp-cell-presence" />
         <span className="fp-cell-actions" />
       </div>
       {rows.map((p) => (
@@ -540,6 +543,9 @@ function ProjectRow({
           <span className="fp-cell-meta fp-meta">{metaLine}</span>
         </button>
       )}
+      <span className="fp-cell-presence">
+        <PresenceAvatars projectId={p.id} />
+      </span>
       <span className="fp-cell-actions fp-row-end">
         {!isEditing && (
           <>

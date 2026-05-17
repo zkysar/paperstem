@@ -40,7 +40,10 @@ import { useAppVersion } from './hooks/useAppVersion';
 import { useIsMobile } from './hooks/useIsMobile';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
+import { usePresence } from './hooks/usePresence';
+import { PresenceContext } from './hooks/usePresenceConnection';
 import { useViewport } from './hooks/useViewport';
+import { createPresenceClient } from './lib/presence-client';
 import { buildUserColorMap, SELF_ANNOTATION_COLOR } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
 import { decodePeaks } from './lib/peaks';
@@ -175,6 +178,15 @@ export function PublicProjectView({ token }: { token: string }) {
   // but not a band member). 'signed-in-member' is never observed here
   // because we redirect to /#p=<id> instantly when we see it.
   const [probe, setProbe] = useState<MembershipProbe>({ kind: 'anonymous' });
+
+  const presenceClient = useMemo(
+    () => createPresenceClient({ linkToken: token }),
+    [token],
+  );
+  useEffect(() => {
+    presenceClient.connect();
+    return () => { presenceClient.disconnect(); };
+  }, [presenceClient]);
 
   // Show a confirmation modal before bouncing to the magic-link flow.
   // Originally this navigated immediately — viewers found that jarring
@@ -414,6 +426,8 @@ export function PublicProjectView({ token }: { token: string }) {
   const railCollapsed = isMobile;
 
   return (
+    <PresenceContext.Provider value={presenceClient}>
+      <PublicPresenceSubscriber projectId={detail.project.id} />
     <div className="app-shell">
       {noAccessBanner && (
         <div className="public-signin-banner" role="status">
@@ -648,6 +662,7 @@ export function PublicProjectView({ token }: { token: string }) {
         onClose={() => setShortcutsOpen(false)}
       />
     </div>
+    </PresenceContext.Provider>
   );
 }
 
@@ -711,6 +726,11 @@ function SignInPrompt({
       </div>
     </div>
   );
+}
+
+function PublicPresenceSubscriber({ projectId }: { projectId: string }) {
+  void usePresence([projectId]);
+  return null;
 }
 
 function PublicLoadingShell({ appEnv }: { appEnv: string | null }) {

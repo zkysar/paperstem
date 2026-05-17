@@ -24,6 +24,7 @@ const baseProps = {
   onRenameProject: vi.fn(),
   onOpenTokens: vi.fn(),
   onDownloadAll: vi.fn(),
+  currentProjectId: null,
 };
 
 describe('AppHeader', () => {

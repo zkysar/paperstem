@@ -1,6 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('../hooks/usePresence', () => ({
+  usePresence: () => ({}),
+}));
+
 import { ProjectPicker } from './ProjectPicker';
 import type { Project, TrashList } from '../data/types';
 

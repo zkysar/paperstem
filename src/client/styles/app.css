@@ -2192,8 +2192,8 @@ body.env-non-prod[data-env="local"]::before {
      whether the row has the action buttons (data rows) or is empty
      (header / skeleton rows). With auto, the column collapses to 0 in
      the header and the fixed columns visibly shift. */
-  grid-template-columns: minmax(0, 1fr) 110px 110px 70px 56px 80px 64px;
-  grid-template-areas: "name thumb date duration stems comments actions";
+  grid-template-columns: minmax(0, 1fr) 110px 110px 70px 56px 80px 96px 64px;
+  grid-template-areas: "name thumb date duration stems comments presence actions";
   column-gap: 12px;
   align-items: center;
   padding: 9px 16px;
@@ -2214,6 +2214,7 @@ body.env-non-prod[data-env="local"]::before {
   justify-content: flex-end;
   gap: 4px;
 }
+.fp-cell-presence { grid-area: presence; display: flex; align-items: center; justify-content: flex-end; min-width: 96px; }
 .fp-cell-actions  { grid-area: actions; }
 /* The compact one-line meta string is the mobile-only fallback for the
    numeric/date columns. */
@@ -2571,7 +2572,8 @@ body.env-non-prod[data-env="local"]::before {
   .fp-cell-date,
   .fp-cell-duration,
   .fp-cell-stems,
-  .fp-cell-comments { display: none; }
+  .fp-cell-comments,
+  .fp-cell-presence { display: none; }
   .fp-cell-meta {
     display: block;
     align-self: start;
@@ -5023,4 +5025,52 @@ body.env-non-prod[data-env="local"]::before {
   /* Fully opaque while held so ruler labels and ticks don't bleed through
      and make the bar read as if it's behind the ruler. */
   opacity: 1;
+}
+
+/* Presence indicators (Google-Docs-style avatars on projects). */
+.presence-avatars {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+.presence-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  margin-left: -6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  user-select: none;
+}
+.presence-avatar:first-child { margin-left: 0; }
+.presence-avatar-idle {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+.presence-overflow {
+  margin-left: 4px;
+  padding: 0 6px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--surface-elevated, #f0f0f0);
+  color: var(--text-secondary, #444);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+}
+.presence-anon {
+  margin-left: 4px;
+  padding: 0 6px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--surface-elevated, #f0f0f0);
+  color: var(--text-secondary, #444);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }

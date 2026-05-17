@@ -1106,6 +1106,11 @@ export const stmts = {
         )`,
   ),
 
+  // --- presence ---
+  findProjectMembership: db.prepare<[string, string], { band_id: string }>(
+    `SELECT m.band_id FROM memberships m JOIN projects p ON p.band_id = m.band_id WHERE p.id = ? AND m.user_id = ?`,
+  ),
+
   // --- public links ---
   // Resolve a token to its row regardless of revocation status; handlers
   // gate behaviour on revoked_at themselves so we can return a stable 410
