@@ -18,7 +18,8 @@ export function handleDevLogin(c: Context): Response {
     return c.json({ error: 'not_found' }, 404);
   }
 
-  const email = process.env.PAPERSTEM_DEV_AUTO_LOGIN!.trim().toLowerCase();
+  const emailOverride = c.req.query('email')?.trim().toLowerCase() ?? '';
+  const email = emailOverride || process.env.PAPERSTEM_DEV_AUTO_LOGIN!.trim().toLowerCase();
   const nowSec = Math.floor(Date.now() / 1000);
 
   let user = stmts.findUserByEmail.get(email);

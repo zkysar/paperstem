@@ -117,6 +117,7 @@ export default defineConfig({
     proxy: {
       '/api': `http://localhost:${process.env.PAPERSTEM_API_PORT ?? 8787}`,
       '/auth/callback': `http://localhost:${process.env.PAPERSTEM_API_PORT ?? 8787}`,
+      '/ws': { target: `ws://localhost:${process.env.PAPERSTEM_API_PORT ?? 8787}`, ws: true },
     },
   },
   test: {
