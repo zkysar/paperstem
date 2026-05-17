@@ -20,6 +20,7 @@ import { CommentBottomSheet } from './components/CommentBottomSheet';
 import { createPortal } from 'react-dom';
 import { Plus } from 'lucide-react';
 import { AppHeader } from './components/AppHeader';
+import { PresenceProvider } from './hooks/usePresenceConnection';
 import { AppToolbar } from './components/AppToolbar';
 import {
   BugReportDrawer,
@@ -1587,6 +1588,7 @@ function PaperstemApp({
   }
 
   return (
+    <PresenceProvider>
     <div className="app-shell">
       {arrival && (
         <ShareArrivalBanner
@@ -1641,6 +1643,7 @@ function PaperstemApp({
         onOpenGroups={() => setGroupSettingsOpen(true)}
         onCreateGroup={() => setCreateGroupOpen(true)}
         onDownloadAll={onDownloadAll}
+        currentProjectId={activeProjectId}
         onRenameProject={(name) => {
           // In draft mode there's no server project yet — just update the
           // player title. The new title becomes the default upload name on
@@ -2063,5 +2066,6 @@ function PaperstemApp({
           document.body,
         )}
     </div>
+    </PresenceProvider>
   );
 }

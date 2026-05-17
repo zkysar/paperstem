@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { PresenceAvatars } from './PresenceAvatars';
 import { Bug, Check, ChevronDown, Download, FolderOpen, KeyRound, Loader2, LogIn, LogOut, MessageSquare, Plus, Users } from 'lucide-react';
 import { fmt } from '../lib/format';
 import { githubUrlForVersion } from '../../shared/version';
@@ -37,6 +38,7 @@ type Props = {
   // the menu entry is hidden (legacy callers behave as before).
   onOpenGroups?: () => void;
   onDownloadAll(): void;
+  currentProjectId: string | null;
   /**
    * Public-link / read-only mode. When set, the header strips project-
    * picker affordances (no "Open a project" CTA, no switch-project caret,
@@ -60,7 +62,7 @@ export function AppHeader({
   annotationsOpen, hasProject, canRename, isWide, appVersion, appEnv, downloading,
   debugInfo,
   onOpenPicker, onToggleAnnotations, onSignOut, onReportBug, onRenameProject,
-  onOpenTokens, onOpenGroups, onDownloadAll, publicMode,
+  onOpenTokens, onOpenGroups, onDownloadAll, currentProjectId, publicMode,
 }: Props) {
   const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -303,6 +305,9 @@ export function AppHeader({
           <MessageSquare size={16} strokeWidth={2} aria-hidden="true" />
         </button>
       )}
+      {hasProject && currentProjectId && !publicMode ? (
+        <PresenceAvatars projectId={currentProjectId} />
+      ) : null}
       {publicMode ? (
         <button
           type="button"

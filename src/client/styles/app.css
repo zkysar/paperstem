@@ -2192,8 +2192,8 @@ body.env-non-prod[data-env="local"]::before {
      whether the row has the action buttons (data rows) or is empty
      (header / skeleton rows). With auto, the column collapses to 0 in
      the header and the fixed columns visibly shift. */
-  grid-template-columns: minmax(0, 1fr) 110px 110px 70px 56px 80px 64px;
-  grid-template-areas: "name thumb date duration stems comments actions";
+  grid-template-columns: minmax(0, 1fr) 110px 110px 70px 56px 80px 96px 64px;
+  grid-template-areas: "name thumb date duration stems comments presence actions";
   column-gap: 12px;
   align-items: center;
   padding: 9px 16px;
@@ -2214,6 +2214,7 @@ body.env-non-prod[data-env="local"]::before {
   justify-content: flex-end;
   gap: 4px;
 }
+.fp-cell-presence { grid-area: presence; display: flex; align-items: center; justify-content: flex-end; min-width: 96px; }
 .fp-cell-actions  { grid-area: actions; }
 /* The compact one-line meta string is the mobile-only fallback for the
    numeric/date columns. */
@@ -2571,7 +2572,8 @@ body.env-non-prod[data-env="local"]::before {
   .fp-cell-date,
   .fp-cell-duration,
   .fp-cell-stems,
-  .fp-cell-comments { display: none; }
+  .fp-cell-comments,
+  .fp-cell-presence { display: none; }
   .fp-cell-meta {
     display: block;
     align-self: start;
