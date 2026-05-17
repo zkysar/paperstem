@@ -1601,9 +1601,7 @@ function PaperstemApp({
       )}
       {player.audioSuppressed && (
         <div className="audio-suppressed-banner" role="status">
-          Playback hasn't started. On iOS this usually means Focus or Do Not
-          Disturb is suppressing audio — try toggling it off in Control Center.
-          If that's not it, try playing again.
+          Not hearing anything? iOS Focus or Do Not Disturb may be muting audio.
         </div>
       )}
       <AppHeader
