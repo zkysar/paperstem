@@ -184,6 +184,13 @@ app.get('/auth/callback', (c) => {
   return c.html(html);
 });
 
+// Register the WS route BEFORE registerStatic so the SPA catchall
+// (`app.use('/*', serveStatic)` + `app.get('*', ...)`) doesn't swallow the
+// upgrade request. Hono matches routes in registration order — first one wins
+// — and in production the static catchall would otherwise return index.html
+// for `/ws/presence` before the upgrade handler ever ran.
+const { injectWebSocket } = registerPresenceWs(app);
+
 if (process.env.NODE_ENV === 'production') {
   registerStatic(app);
 }
@@ -195,8 +202,6 @@ if (isDevLoginEnabled()) {
     console.error('[dev-seed] failed:', err);
   });
 }
-
-const { injectWebSocket } = registerPresenceWs(app);
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   console.log(`paperstem server listening on http://localhost:${info.port}`);
