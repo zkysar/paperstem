@@ -69,8 +69,11 @@ process.stdout.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
   return (origStdoutWrite as unknown as (...a: unknown[]) => boolean)(chunk, ...rest);
 }) as typeof process.stdout.write;
 
-import { afterEach } from 'vitest';
+import { afterEach, expect } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import * as matchers from '@testing-library/jest-dom/matchers';
+
+expect.extend(matchers);
 
 afterEach(() => {
   cleanup();
