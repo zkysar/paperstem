@@ -72,6 +72,44 @@ if (tableExists('sessions')) {
 
 db.exec(schema);
 
+// Backfill the service invite allowlist with every email that already has
+// a user row, plus the gatekeeper email. This runs every startup but is a
+// no-op once the rows exist (PRIMARY KEY conflict on `email` is ignored).
+// Without this, rolling out the allowlist gate would 403 invites for
+// people who already share a band with the inviter — that's not the
+// intent of the gate.
+// Run the one-time backfill only when the allowlist is empty (i.e. the
+// table was just created). Once any row exists, the gatekeeper is the
+// sole source of truth and we must not re-add deleted entries on restart.
+{
+  const already = db
+    .prepare<[], { c: number }>(`SELECT COUNT(*) AS c FROM service_allowlist`)
+    .get();
+  if (!already || already.c === 0) {
+    // Keep in sync with src/server/allowlist.ts getGatekeeperEmail(). We
+    // can't import that here without a circular dep (allowlist.ts imports
+    // stmts from this file), so the env-override + default live in both
+    // places. Test suites that set PAPERSTEM_GATEKEEPER_EMAIL before
+    // importing db.js get their override pre-seeded into the allowlist.
+    const GATEKEEPER_EMAIL =
+      process.env.PAPERSTEM_GATEKEEPER_EMAIL?.trim().toLowerCase() ||
+      'zach.kysar@gmail.com';
+    const nowSec = Math.floor(Date.now() / 1000);
+    const backfill = db.prepare<[string, string | null, number]>(
+      `INSERT OR IGNORE INTO service_allowlist (email, added_by_user_id, added_at)
+       VALUES (?, ?, ?)`,
+    );
+    const allUsers = db
+      .prepare<[], { id: string; email: string }>(`SELECT id, email FROM users`)
+      .all();
+    const tx = db.transaction(() => {
+      backfill.run(GATEKEEPER_EMAIL, null, nowSec);
+      for (const u of allUsers) backfill.run(u.email, u.id, nowSec);
+    });
+    tx();
+  }
+}
+
 export type UserRow = {
   id: string;
   email: string;
@@ -339,6 +377,17 @@ export type NotificationPrefsRow = {
 };
 
 export type BandWithMuteRow = { id: string; name: string; muted: number };
+
+export type AllowlistRow = {
+  email: string;
+  added_by_user_id: string | null;
+  added_at: number;
+  note: string | null;
+};
+
+export type AllowlistJoinedRow = AllowlistRow & {
+  added_by_email: string | null;
+};
 
 export type PublicLinkRow = {
   token: string;
@@ -1146,6 +1195,47 @@ export const stmts = {
     `UPDATE public_links SET last_accessed_at = ?
        WHERE token = ?
          AND (last_accessed_at IS NULL OR last_accessed_at < ?)`,
+  ),
+
+  // --- service invite allowlist ---
+  findAllowlistEntry: db.prepare<[string], AllowlistRow>(
+    'SELECT * FROM service_allowlist WHERE email = ?',
+  ),
+  findAllowlistEntryJoined: db.prepare<[string], AllowlistJoinedRow>(
+    `SELECT a.email, a.added_by_user_id, a.added_at, a.note,
+            u.email AS added_by_email
+       FROM service_allowlist a
+       LEFT JOIN users u ON u.id = a.added_by_user_id
+      WHERE a.email = ?`,
+  ),
+  // Used by the admin POST path: the gatekeeper deliberately re-adding an
+  // email should refresh the attribution + note (e.g. updating a stale
+  // note). Distinct from `tryInsertAllowlistEntry` below.
+  insertAllowlistEntry: db.prepare<[string, string | null, number, string | null]>(
+    `INSERT INTO service_allowlist (email, added_by_user_id, added_at, note)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(email) DO UPDATE SET
+       added_by_user_id = excluded.added_by_user_id,
+       added_at = excluded.added_at,
+       note = excluded.note`,
+  ),
+  // Used by bin/onboard-band.ts and dev-seed: these run server-side and
+  // shouldn't clobber an existing row's attribution. If the email is
+  // already on the list, leave the original `added_by_user_id`/`note`
+  // alone.
+  tryInsertAllowlistEntry: db.prepare<[string, string | null, number, string | null]>(
+    `INSERT OR IGNORE INTO service_allowlist (email, added_by_user_id, added_at, note)
+     VALUES (?, ?, ?, ?)`,
+  ),
+  deleteAllowlistEntry: db.prepare<[string]>(
+    'DELETE FROM service_allowlist WHERE email = ?',
+  ),
+  listAllowlistEntries: db.prepare<[], AllowlistJoinedRow>(
+    `SELECT a.email, a.added_by_user_id, a.added_at, a.note,
+            u.email AS added_by_email
+       FROM service_allowlist a
+       LEFT JOIN users u ON u.id = a.added_by_user_id
+      ORDER BY a.added_at DESC, a.email ASC`,
   ),
 
   // --- notifications: bands with mute status (for settings dialog) ---

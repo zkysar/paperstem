@@ -85,6 +85,11 @@ import {
   handleListPublicSections,
   handleRevokePublicLink,
 } from './public-links.js';
+import {
+  handleAddAllowlist,
+  handleListAllowlist,
+  handleRemoveAllowlist,
+} from './admin.js';
 import { handleSnapshotsHealth } from './health.js';
 import { handleVersion } from './version.js';
 import { handleBugReport } from './bug-report.js';
@@ -172,6 +177,9 @@ app.get(
   handleListPublicReplies,
 );
 app.get('/api/public/links/:token/sections', handleListPublicSections);
+app.get('/api/admin/allowlist', handleListAllowlist);
+app.post('/api/admin/allowlist', handleAddAllowlist);
+app.delete('/api/admin/allowlist/:email', handleRemoveAllowlist);
 app.get('/api/health/snapshots', handleSnapshotsHealth);
 app.get('/api/version', handleVersion);
 app.post('/api/bug-report', handleBugReport);

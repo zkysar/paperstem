@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { stmts } from '../db.js';
+import { tryAddToAllowlist } from '../allowlist.js';
 import { createFolder, findFolderByName, uploadFile } from '../storage.js';
 import { isDevLoginEnabled } from './dev-login.js';
 
@@ -30,6 +31,8 @@ export async function seedDevBandIfNeeded(): Promise<void> {
     user = stmts.findUserByEmail.get(email);
     if (!user) return;
   }
+  // The dev auto-login user can invite freely in the dev environment.
+  tryAddToAllowlist(email, user.id, 'dev-seed');
 
   const existingBands = stmts.findBandsForUser.all(user.id);
   if (existingBands.length > 0) return;

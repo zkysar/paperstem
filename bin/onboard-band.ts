@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { db, stmts } from '../src/server/db.js';
+import { tryAddToAllowlist } from '../src/server/allowlist.js';
 import { sendBandInvite } from '../src/server/mailer.js';
 import { createFolder } from '../src/server/storage.js';
 
@@ -71,6 +72,12 @@ try {
 
 const seedBand = db.transaction(() => {
   const ownerId = upsertUser(ownerEmailRaw!);
+  // The CLI is the on-the-server admin path; anyone it touches is
+  // implicitly approved, so keep the allowlist in sync.
+  tryAddToAllowlist(ownerEmailRaw!, null, 'onboard-band CLI');
+  for (const email of dedupedMemberEmails) {
+    tryAddToAllowlist(email, ownerId, 'onboard-band CLI');
+  }
 
   const duplicate = stmts.findBandByNameAndOwner.get(name!, ownerId);
   if (duplicate) {

@@ -5,6 +5,7 @@ import { recordAudit } from './audit.js';
 import { requireUser, type AuthVariables } from './auth/middleware.js';
 import { sendBandInvite } from './mailer.js';
 import { createFolder, trashItem } from './storage.js';
+import { isAllowlisted } from './allowlist.js';
 
 // Owners delete groups via handleDeleteBand (soft-delete + 30-day purge).
 // Members leave via handleLeaveBand. Owners can leave too, but must hand
@@ -254,6 +255,14 @@ export async function handleInviteMember(
 
   const band = stmts.findBandById.get(bandId);
   if (!band) return c.json({ error: 'not_found' }, 404);
+
+  // Service-wide invite gate: only emails the gatekeeper has added to
+  // service_allowlist may be invited (or already-allowlisted existing
+  // users). The gatekeeper manages the table via /api/admin/allowlist;
+  // see src/server/allowlist.ts.
+  if (!isAllowlisted(emailRaw)) {
+    return c.json({ error: 'not_allowlisted' }, 403);
+  }
 
   // Upsert the invited user. Matches bin/onboard-band.ts's upsertUser
   // behavior so the CLI and the in-app invite stay symmetric.

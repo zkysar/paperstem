@@ -53,7 +53,16 @@ afterAll(() => {
 
 function resetTables() {
   dbMod.db.exec(
-    'DELETE FROM audit_log; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM users;',
+    'DELETE FROM audit_log; DELETE FROM memberships; DELETE FROM bands; DELETE FROM sessions; DELETE FROM magic_links; DELETE FROM service_allowlist; DELETE FROM users;',
+  );
+}
+
+function allowlist(email: string) {
+  dbMod.stmts.insertAllowlistEntry.run(
+    email.toLowerCase(),
+    null,
+    Math.floor(Date.now() / 1000),
+    null,
   );
 }
 
@@ -475,6 +484,7 @@ describe('POST /api/bands/:id/members', () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
     const sid = createSession(owner);
+    allowlist('newbie@example.com');
     expect(dbMod.stmts.findUserByEmail.get('newbie@example.com')).toBeUndefined();
 
     const res = await app.fetch(
@@ -509,6 +519,7 @@ describe('POST /api/bands/:id/members', () => {
     const existing = createUser('existing@example.com');
     const bandId = createBand('Alpha', owner);
     const sid = createSession(owner);
+    allowlist('existing@example.com');
 
     const res = await app.fetch(
       new Request(`http://x/api/bands/${bandId}/members`, {
@@ -529,6 +540,7 @@ describe('POST /api/bands/:id/members', () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
     const sid = createSession(owner);
+    allowlist('caps@example.com');
 
     const res = await app.fetch(
       new Request(`http://x/api/bands/${bandId}/members`, {
@@ -551,6 +563,7 @@ describe('POST /api/bands/:id/members', () => {
     const bandId = createBand('Alpha', owner);
     addMember(bandId, existing);
     const sid = createSession(owner);
+    allowlist('existing@example.com');
 
     const res = await app.fetch(
       new Request(`http://x/api/bands/${bandId}/members`, {
@@ -567,10 +580,35 @@ describe('POST /api/bands/:id/members', () => {
     expect(body.error).toBe('already_member');
   });
 
+  it('returns 403 not_allowlisted when the invitee email is not on the service allowlist', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const sid = createSession(owner);
+    // Deliberately do NOT allowlist 'stranger@example.com'.
+    const res = await app.fetch(
+      new Request(`http://x/api/bands/${bandId}/members`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: cookieHeader(sid),
+        },
+        body: JSON.stringify({ email: 'stranger@example.com' }),
+      }),
+    );
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe('not_allowlisted');
+    // Nothing was created.
+    expect(
+      dbMod.stmts.findUserByEmail.get('stranger@example.com'),
+    ).toBeUndefined();
+  });
+
   it('returns 409 when the invitee is the owner themself', async () => {
     const owner = createUser('owner@example.com');
     const bandId = createBand('Alpha', owner);
     const sid = createSession(owner);
+    allowlist('owner@example.com');
 
     const res = await app.fetch(
       new Request(`http://x/api/bands/${bandId}/members`, {

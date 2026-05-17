@@ -260,6 +260,19 @@ CREATE TABLE IF NOT EXISTS public_links (
 CREATE INDEX IF NOT EXISTS idx_public_links_project
   ON public_links(project_id, created_at DESC);
 
+-- Service-wide invite allowlist. Only the hardcoded gatekeeper email
+-- (see src/server/allowlist.ts) can add/remove rows; band invites for any
+-- email not in this table are rejected with 403 not_allowlisted. The
+-- gatekeeper's own email is inserted at migration time alongside a
+-- backfill of every existing user, so rolling this out doesn't lock
+-- current members out of being re-invited or re-added.
+CREATE TABLE IF NOT EXISTS service_allowlist (
+  email             TEXT PRIMARY KEY,
+  added_by_user_id  TEXT REFERENCES users(id) ON DELETE SET NULL,
+  added_at          INTEGER NOT NULL,
+  note              TEXT
+);
+
 CREATE TABLE IF NOT EXISTS pending_notifications (
   id              TEXT PRIMARY KEY,
   recipient_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

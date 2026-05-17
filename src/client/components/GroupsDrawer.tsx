@@ -330,9 +330,11 @@ function GroupRow({
             ? `${email} is already in this group.`
             : body.error === 'bad_email' || body.error === 'email_required'
               ? "That doesn't look like a valid email."
-              : body.error === 'forbidden'
-                ? 'Only the owner can invite new members.'
-                : `HTTP ${res.status}`;
+              : body.error === 'not_allowlisted'
+                ? `${email} isn't approved yet — ask Zach to add them, then try again.`
+                : body.error === 'forbidden'
+                  ? 'Only the owner can invite new members.'
+                  : `HTTP ${res.status}`;
         setInviteError(msg);
         return;
       }
@@ -523,6 +525,10 @@ function GroupRow({
                   autoComplete="off"
                 />
               </label>
+              <p className="upload-hint">
+                Paperstem is invite-only. Existing members can be added right
+                away; brand-new emails need Zach's approval first.
+              </p>
               <button
                 type="submit"
                 className="group-settings-invite-btn"
