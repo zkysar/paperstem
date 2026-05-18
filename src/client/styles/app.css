@@ -3157,6 +3157,7 @@ body.env-non-prod[data-env="local"]::before {
    menu is discoverable. */
 @media (hover: none) {
   .cl-overflow-trigger { opacity: 1; }
+  .cp-reply-menu { opacity: 1; }
 }
 .cl-overflow-menu {
   position: absolute;
