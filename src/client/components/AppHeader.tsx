@@ -8,6 +8,10 @@ import type { BandWithRole } from '../../shared/types';
 type Props = {
   userEmail: string;
   userInitials: string;
+  // Used by the presence chip to drop the current user's own row, so the
+  // chip doesn't duplicate the profile avatar next to it. Optional so
+  // test/public callers can omit it.
+  currentUserId?: string | null;
   // The user's groups (a.k.a. bands at the DB layer). The switcher renders
   // whenever the user is in 1+ groups so the "+ New group" entry has a
   // stable home; with zero groups the switcher is hidden and the empty
@@ -57,7 +61,7 @@ type Props = {
 };
 
 export function AppHeader({
-  userEmail, userInitials, groups, currentGroupId, onSwitchGroup, onCreateGroup,
+  userEmail, userInitials, currentUserId, groups, currentGroupId, onSwitchGroup, onCreateGroup,
   projectTitle, stemCount, duration,
   annotationsOpen, hasProject, canRename, isWide, appVersion, appEnv, downloading,
   debugInfo,
@@ -226,7 +230,7 @@ export function AppHeader({
         </button>
       )}
       {hasProject && currentProjectId && !publicMode ? (
-        <PresenceAvatars projectId={currentProjectId} />
+        <PresenceAvatars projectId={currentProjectId} currentUserId={currentUserId} />
       ) : null}
       {publicMode ? (
         <button

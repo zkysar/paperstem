@@ -84,6 +84,39 @@ describe('<PresenceAvatars />', () => {
     render(<PresenceAvatars projectId="proj-A" />);
     expect(screen.getAllByTestId('presence-avatar')).toHaveLength(2);
   });
+
+  it('renders nothing when the only viewer is the current user', () => {
+    usePresenceMock.mockReturnValue(snap([
+      { userId: 'u1', displayName: 'Me', emailLocal: 'me', state: 'active', lastBeatAt: 1 },
+    ]));
+    const { container } = render(
+      <PresenceAvatars projectId="proj-A" currentUserId="u1" />,
+    );
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('hides only the current user when others are also viewing', () => {
+    usePresenceMock.mockReturnValue(snap([
+      { userId: 'u1', displayName: 'Me',    emailLocal: 'me',    state: 'active', lastBeatAt: 5 },
+      { userId: 'u2', displayName: 'Alice', emailLocal: 'alice', state: 'active', lastBeatAt: 4 },
+      { userId: 'u3', displayName: 'Bob',   emailLocal: 'bob',   state: 'active', lastBeatAt: 3 },
+    ]));
+    render(<PresenceAvatars projectId="proj-A" currentUserId="u1" />);
+    const labels = screen.getAllByTestId('presence-avatar').map((el) => el.getAttribute('aria-label'));
+    expect(labels).toHaveLength(2);
+    expect(labels.some((l) => l && /Me,/.test(l))).toBe(false);
+    expect(labels.some((l) => l && /Alice/.test(l))).toBe(true);
+    expect(labels.some((l) => l && /Bob/.test(l))).toBe(true);
+  });
+
+  it('still renders the anon chip when self is the only named viewer', () => {
+    usePresenceMock.mockReturnValue(snap([
+      { userId: 'u1', displayName: 'Me', emailLocal: 'me', state: 'active', lastBeatAt: 1 },
+    ], 2));
+    render(<PresenceAvatars projectId="proj-A" currentUserId="u1" />);
+    expect(screen.queryAllByTestId('presence-avatar')).toHaveLength(0);
+    expect(screen.getByTestId('presence-anon')).toHaveTextContent('2');
+  });
 });
 
 describe('<PresenceAvatars /> popover interactions', () => {

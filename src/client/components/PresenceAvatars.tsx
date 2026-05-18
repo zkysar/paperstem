@@ -5,7 +5,13 @@ import { resolveDisplayName, presenceColorFor, presenceInitial } from '../lib/pr
 import { PresencePopover } from './PresencePopover';
 import type { PresenceRowDto } from '../lib/presence-client';
 
-type Props = { projectId: string };
+type Props = {
+  projectId: string;
+  // When provided, rows belonging to this user are filtered out of the
+  // visible list — the user's own profile avatar in the header already
+  // represents "you", so the presence chip would otherwise just duplicate it.
+  currentUserId?: string | null;
+};
 
 const MAX_AVATARS = 3;
 
@@ -38,15 +44,18 @@ type OpenState =
   | { kind: 'overflow' }
   | null;
 
-export function PresenceAvatars({ projectId }: Props) {
+export function PresenceAvatars({ projectId, currentUserId }: Props) {
   const map = usePresence([projectId]);
   const snap = map[projectId] ?? { rows: [], anonymousCount: 0 };
   const [open, setOpen] = useState<OpenState>(null);
   const triggerRefs = useRef(new Map<string, HTMLButtonElement>());
 
-  if (snap.rows.length === 0 && snap.anonymousCount === 0) return null;
+  const filteredRows = currentUserId
+    ? snap.rows.filter((r) => r.userId !== currentUserId)
+    : snap.rows;
+  if (filteredRows.length === 0 && snap.anonymousCount === 0) return null;
 
-  const ordered = order(snap.rows);
+  const ordered = order(filteredRows);
   const visible = ordered.slice(0, MAX_AVATARS);
   const hidden = ordered.slice(MAX_AVATARS);
   const overflow = hidden.length;

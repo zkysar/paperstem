@@ -5022,22 +5022,28 @@ body.env-non-prod[data-env="local"]::before {
   opacity: 1;
 }
 
-/* Presence indicators (Google-Docs-style avatars on projects). */
+/* Presence indicators (Google-Docs-style avatars on projects).
+   The whole cluster sits inside a single subtle chip so it reads as one
+   "viewers" indicator and stays visually distinct from the user's own
+   profile avatar nearby in the header. */
 .presence-avatars {
   display: inline-flex;
   align-items: center;
   gap: 0;
+  padding: 2px 6px 2px 4px;
+  border-radius: 12px;
+  background: var(--surface-elevated, #f0f0f0);
 }
 .presence-avatar {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  margin-left: -6px;
+  margin-left: -5px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   user-select: none;
 }
@@ -5048,35 +5054,35 @@ body.env-non-prod[data-env="local"]::before {
 }
 .presence-overflow {
   margin-left: 4px;
-  padding: 0 6px;
-  height: 24px;
-  border-radius: 12px;
-  background: var(--surface-elevated, #f0f0f0);
+  padding: 0;
+  height: 20px;
+  background: transparent;
   color: var(--text-secondary, #444);
-  font-size: 11px;
+  font-size: 10px;
   display: inline-flex;
   align-items: center;
 }
 .presence-anon {
   margin-left: 4px;
-  padding: 0 6px;
-  height: 24px;
-  border-radius: 12px;
-  background: var(--surface-elevated, #f0f0f0);
+  padding: 0;
+  height: 20px;
+  background: transparent;
   color: var(--text-secondary, #444);
-  font-size: 11px;
+  font-size: 10px;
   display: inline-flex;
   align-items: center;
   gap: 2px;
 }
 
 /* Presence avatar buttons — reset native button styling so they still look
-   like circular avatars (the elements changed from div to button in Task 6). */
+   like circular avatars (the elements changed from div to button in Task 6).
+   Intentionally do NOT include `font: inherit` here — that shorthand would
+   override the explicit font-size/font-weight on `.presence-avatar` and
+   `.presence-overflow` (higher specificity than the global `button` reset). */
 button.presence-avatar,
 button.presence-overflow {
   border: 0;
   cursor: pointer;
-  font: inherit;
   padding: 0;
 }
 button.presence-avatar:focus-visible,

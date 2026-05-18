@@ -1610,6 +1610,7 @@ function PaperstemApp({
       <AppHeader
         userEmail={user.email}
         userInitials={initialsFromEmail(user.email)}
+        currentUserId={user.id}
         groups={bands}
         currentGroupId={activeBandId}
         onSwitchGroup={(id) => {
