@@ -13,6 +13,7 @@ vi.mock('../lib/presence-client', () => ({
     disconnect: vi.fn(),
     computeState: () => 'active',
     subscribe: subscribeMock,
+    setPresentIn: vi.fn(),
     addListener: (fn: any) => { listeners.push(fn); addListenerMock(fn); return () => {}; },
     getSnapshot: getSnapshotMock,
   }),
