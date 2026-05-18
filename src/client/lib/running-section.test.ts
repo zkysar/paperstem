@@ -61,4 +61,11 @@ describe('findRunningSection', () => {
     // strict-less-than rule, so a is still the running section.
     expect(findRunningSection(sections, 30_000)?.id).toBe('a');
   });
+
+  it('returns null when the candidate has neither song_name nor label', () => {
+    // Sections with no identity (no song, no free-text label) are valid in
+    // the schema but have nothing to render in an "End ... here" action.
+    const sections = [s({ id: 'unnamed', start_ms: 0 })];
+    expect(findRunningSection(sections, 5_000)).toBeNull();
+  });
 });

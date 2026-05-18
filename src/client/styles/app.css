@@ -4807,7 +4807,9 @@ body.env-non-prod[data-env="local"]::before {
 .sp-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+  row-gap: 6px;
   border-top: 1px solid var(--rule);
   padding-top: 6px;
 }
@@ -4823,6 +4825,18 @@ body.env-non-prod[data-env="local"]::before {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
+}
+/* The "End <name> here" button is the only action that takes user-controlled
+   text — long song names would otherwise push Cancel / Add section off the
+   edge of a narrow popover. Let it shrink and ellipsize instead. */
+.sp-action-end {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sp-action:hover { background: var(--accent-tint); }
 .sp-action-primary {
