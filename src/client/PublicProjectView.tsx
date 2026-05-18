@@ -556,6 +556,8 @@ export function PublicProjectView({ token }: { token: string }) {
                 open={drawerOpen}
                 isNarrow={railCollapsed}
                 selfUserId=""
+                selfDisplayName=""
+                selfColor="#888"
                 canEdit={true}
                 canReact={false}
                 annotations={annotationsForPlayer}
@@ -613,9 +615,11 @@ export function PublicProjectView({ token }: { token: string }) {
                     onCopyLink={promptIgnoreArgs}
                     onClose={closePopovers}
                     selfUserId=""
+                    selfDisplayName=""
+                    selfColor="#888"
+                    userColorMap={userColorMap}
                     isNarrow={railCollapsed}
                     replies={replies.get(active.id)}
-                    replyCount={active.reply_count}
                     onLoadReplies={loadReplies}
                     onCreateReply={promptAsync}
                     onEditReply={promptAsync}
@@ -662,8 +666,10 @@ export function PublicProjectView({ token }: { token: string }) {
                         onDelete={promptIgnoreArgs}
                         onClose={closePopovers}
                         selfUserId=""
+                        selfDisplayName=""
+                        selfColor="#888"
+                        userColorMap={userColorMap}
                         replies={replies.get(active.id)}
-                        replyCount={active.reply_count}
                         onLoadReplies={loadReplies}
                         onCreateReply={promptAsync}
                         onEditReply={promptAsync}

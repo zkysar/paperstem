@@ -26,8 +26,10 @@ type Props = {
   onDelete(): void;
   onClose(): void;
   selfUserId: string;
+  selfDisplayName: string;
+  selfColor: string;
+  userColorMap: Map<string, string>;
   replies: AnnotationReply[] | undefined;
-  replyCount: number;
   onLoadReplies(annotationId: string): Promise<void> | void;
   onCreateReply(annotationId: string, body: string): Promise<void> | void;
   onEditReply(replyId: string, body: string): Promise<void> | void;
@@ -43,7 +45,7 @@ function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
 export function CommentBottomSheet({
   annotation, color, canEdit, canReact = true, isOwn, index, total,
   onPrev, onNext, onLoopRegion, onToggleStar, onSaveEdit, onDelete, onClose,
-  selfUserId, replies, replyCount,
+  selfUserId, selfDisplayName, selfColor, userColorMap, replies,
   onLoadReplies, onCreateReply, onEditReply, onDeleteReply, onToggleReaction,
 }: Props) {
   const [editing, setEditing] = useState(false);
@@ -196,9 +198,11 @@ export function CommentBottomSheet({
       <ReplyThread
         key={annotation.id}
         annotationId={annotation.id}
-        replyCount={replyCount}
         replies={replies}
         selfUserId={selfUserId}
+        selfDisplayName={selfDisplayName}
+        selfColor={selfColor}
+        userColorMap={userColorMap}
         canEdit={canEdit}
         canReact={canReact}
         isNarrow={true}

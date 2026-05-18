@@ -20,6 +20,8 @@ type Filter =
 type Props = {
   annotations: Annotation[];
   selfUserId: string;
+  selfDisplayName: string;
+  selfColor: string;
   activeId: string | null;
   /**
    * Comment id that arrived via a share link's `fc=` param. The matching row
@@ -67,6 +69,8 @@ function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
 export function CommentList({
   annotations,
   selfUserId,
+  selfDisplayName,
+  selfColor,
   activeId,
   emphasizedId,
   userColorMap,
@@ -324,7 +328,7 @@ export function CommentList({
                 ) : (
                   <>
                     <div className="cl-body">{a.body}</div>
-                    <div className="cl-foot">
+                    <div className="cp-reactions">
                       <Reactions
                         reactions={a.reactions}
                         isNarrow={isNarrow}
@@ -333,23 +337,25 @@ export function CommentList({
                           onToggleReaction({ kind: 'annotation', id: a.id }, emoji)
                         }
                       />
-                      <ReplyThread
-                        annotationId={a.id}
-                        replyCount={a.reply_count}
-                        replies={replies.get(a.id)}
-                        selfUserId={selfUserId}
-                        canEdit={canEdit}
-                        canReact={canReact}
-                        isNarrow={isNarrow}
-                        onLoadReplies={onLoadReplies}
-                        onCreateReply={onCreateReply}
-                        onEditReply={onEditReply}
-                        onDeleteReply={onDeleteReply}
-                        onToggleReaction={(replyId, emoji) =>
-                          onToggleReaction({ kind: 'reply', id: replyId }, emoji)
-                        }
-                      />
                     </div>
+                    <ReplyThread
+                      annotationId={a.id}
+                      replies={replies.get(a.id)}
+                      selfUserId={selfUserId}
+                      selfDisplayName={selfDisplayName}
+                      selfColor={selfColor}
+                      userColorMap={userColorMap}
+                      canEdit={canEdit}
+                      canReact={canReact}
+                      isNarrow={isNarrow}
+                      onLoadReplies={onLoadReplies}
+                      onCreateReply={onCreateReply}
+                      onEditReply={onEditReply}
+                      onDeleteReply={onDeleteReply}
+                      onToggleReaction={(replyId, emoji) =>
+                        onToggleReaction({ kind: 'reply', id: replyId }, emoji)
+                      }
+                    />
                   </>
                 )}
               </li>

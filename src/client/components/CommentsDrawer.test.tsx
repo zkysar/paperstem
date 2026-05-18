@@ -23,6 +23,8 @@ const baseProps = {
   open: true,
   isNarrow: false,
   selfUserId: 'u1',
+  selfDisplayName: 'Test User',
+  selfColor: '#888',
   canEdit: true,
   annotations: [ann],
   userColorMap: new Map<string, string>(),

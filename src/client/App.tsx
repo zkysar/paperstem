@@ -72,7 +72,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
 import { useViewport } from './hooks/useViewport';
-import { buildUserColorMap } from './lib/colors';
+import { buildUserColorMap, SELF_ANNOTATION_COLOR } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
 import type {
   Annotation,
@@ -458,6 +458,9 @@ function PaperstemApp({
     () => buildUserColorMap(annotations.map((a) => a.user_id), user.id),
     [annotations, user.id],
   );
+
+  const selfDisplayName = user.display_name ?? user.email;
+  const selfColor = userColorMap.get(user.id) ?? SELF_ANNOTATION_COLOR;
 
   const [isWide, setIsWide] = useState(() =>
     typeof window === 'undefined'
@@ -1318,7 +1321,7 @@ function PaperstemApp({
     setPendingDraft(null);
   }
 
-  async function loadReplies(annotationId: string): Promise<void> {
+  const loadReplies = useCallback(async (annotationId: string): Promise<void> => {
     if (replies.has(annotationId)) return;
     // Let the caller observe failure so it can surface an error and offer a
     // retry. App.tsx itself doesn't need a toast here — ReplyThread owns the
@@ -1329,12 +1332,12 @@ function PaperstemApp({
       next.set(annotationId, fetched);
       return next;
     });
-  }
+  }, [replies]);
 
-  async function createReply(
+  const createReply = useCallback(async (
     annotationId: string,
     body: string,
-  ): Promise<void> {
+  ): Promise<void> => {
     const reply = await createReplyApi(annotationId, body);
     setReplies((m) => {
       const next = new Map(m);
@@ -1346,9 +1349,9 @@ function PaperstemApp({
         a.id === annotationId ? { ...a, reply_count: a.reply_count + 1 } : a,
       ),
     );
-  }
+  }, []);
 
-  async function editReply(replyId: string, body: string): Promise<void> {
+  const editReply = useCallback(async (replyId: string, body: string): Promise<void> => {
     const updated = await patchReplyApi(replyId, body);
     setReplies((m) => {
       const next = new Map(m);
@@ -1361,9 +1364,9 @@ function PaperstemApp({
       }
       return next;
     });
-  }
+  }, []);
 
-  async function deleteReply(annotationId: string, replyId: string): Promise<void> {
+  const deleteReply = useCallback(async (annotationId: string, replyId: string): Promise<void> => {
     await deleteReplyApi(replyId);
     setReplies((m) => {
       const next = new Map(m);
@@ -1378,7 +1381,7 @@ function PaperstemApp({
           : a,
       ),
     );
-  }
+  }, []);
 
   function applyReactionDelta(
     reactions: Reaction[],
@@ -1772,6 +1775,8 @@ function PaperstemApp({
                 open={drawerOpen}
                 isNarrow={isNarrow}
                 selfUserId={user.id}
+                selfDisplayName={selfDisplayName}
+                selfColor={selfColor}
                 canEdit={activeProjectId !== null}
                 annotations={annotations}
                 userColorMap={userColorMap}
@@ -1829,9 +1834,11 @@ function PaperstemApp({
                     onCopyLink={() => handleCopyCommentLink(active)}
                     onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
                     selfUserId={user.id}
+                    selfDisplayName={selfDisplayName}
+                    selfColor={selfColor}
+                    userColorMap={userColorMap}
                     isNarrow={isNarrow}
                     replies={replies.get(active.id)}
-                    replyCount={active.reply_count}
                     onLoadReplies={loadReplies}
                     onCreateReply={createReply}
                     onEditReply={editReply}
@@ -1875,8 +1882,10 @@ function PaperstemApp({
                         onDelete={() => void handleDelete(active)}
                         onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
                         selfUserId={user.id}
+                        selfDisplayName={selfDisplayName}
+                        selfColor={selfColor}
+                        userColorMap={userColorMap}
                         replies={replies.get(active.id)}
-                        replyCount={active.reply_count}
                         onLoadReplies={loadReplies}
                         onCreateReply={createReply}
                         onEditReply={editReply}
