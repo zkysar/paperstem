@@ -83,12 +83,12 @@ describe('SectionPopover', () => {
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'song_name', song_name: 'Brand New' });
   });
 
-  it('Label tab + Enter fires label submit', async () => {
+  it('Label checkbox + Enter fires label submit', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
     render(<SectionPopover {...baseProps} onSubmit={onSubmit} />);
-    await user.click(screen.getByRole('tab', { name: /label/i }));
-    const input = screen.getByLabelText('Label');
+    await user.click(screen.getByRole('radio', { name: /^label$/i }));
+    const input = screen.getByRole('textbox', { name: /label/i });
     await user.type(input, 'warmup{Enter}');
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'label', label: 'warmup' });
   });
@@ -237,26 +237,20 @@ describe('SectionPopover', () => {
         onSubmit={onSubmit}
       />,
     );
-    const input = screen.getByLabelText('Label');
+    const input = screen.getByRole('textbox', { name: /label/i });
     await user.clear(input);
     await user.click(screen.getByRole('button', { name: /^save$/i }));
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'clear' });
   });
 
-  it('"Not a song?" hint switches the popover to Label mode', async () => {
+  it('Label checkbox switches the popover to Label mode', async () => {
     const user = userEvent.setup();
     render(<SectionPopover {...baseProps} />);
-    const input = screen.getByLabelText('Song name');
-    await user.type(input, 'warmup');
-    // The hint appears alongside the Create-song suggestion.
-    const hint = screen.getByText(/not a song\?/i);
-    await user.click(hint);
-    // Now the Label input is rendered.
-    expect(screen.getByLabelText('Label')).not.toBeNull();
+    await user.click(screen.getByRole('radio', { name: /^label$/i }));
+    expect(screen.getByRole('textbox', { name: /label/i })).not.toBeNull();
   });
 
-  it('"Not a song?" hint is also offered when editing a song-attached section', async () => {
-    const user = userEvent.setup();
+  it('Label checkbox is reachable when editing a song-attached section', () => {
     render(
       <SectionPopover
         {...baseProps}
@@ -274,12 +268,7 @@ describe('SectionPopover', () => {
         bandSongs={[song({ id: 's-1', name: 'Heart Sounds' })]}
       />,
     );
-    const input = screen.getByLabelText('Song name');
-    await user.clear(input);
-    await user.type(input, 'tuning break');
-    // The label-hint copy is contextual to whether a song is currently
-    // attached, but the affordance must always be reachable.
-    expect(screen.getByText(/not a song\?/i)).not.toBeNull();
+    expect(screen.getByRole('radio', { name: /^label$/i })).not.toBeNull();
   });
 
   it('submit button reads "Add section" in create mode', () => {

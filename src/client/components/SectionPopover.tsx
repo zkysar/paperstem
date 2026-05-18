@@ -229,22 +229,6 @@ export function SectionPopover({
           <X size={14} strokeWidth={2} aria-hidden="true" />
         </button>
       </div>
-      <div className="sp-mode-tabs" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 'song'}
-          className={'sp-mode-tab' + (mode === 'song' ? ' active' : '')}
-          onClick={() => setMode('song')}
-        >Song</button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 'label'}
-          className={'sp-mode-tab' + (mode === 'label' ? ' active' : '')}
-          onClick={() => setMode('label')}
-        >Label</button>
-      </div>
       <input
         ref={inputRef}
         type="text"
@@ -267,60 +251,92 @@ export function SectionPopover({
         }}
         aria-label={mode === 'song' ? 'Song name' : 'Label'}
       />
+      <div
+        className="sp-mode-toggle"
+        role="radiogroup"
+        aria-label="Section type"
+        onKeyDown={(e) => {
+          // Arrow keys flip between Song/Label per ARIA radiogroup conventions.
+          if (
+            e.key === 'ArrowLeft' ||
+            e.key === 'ArrowRight' ||
+            e.key === 'ArrowUp' ||
+            e.key === 'ArrowDown'
+          ) {
+            e.preventDefault();
+            const next = mode === 'song' ? 'label' : 'song';
+            setMode(next);
+            const sel = `[data-mode="${next}"]`;
+            (e.currentTarget.querySelector(sel) as HTMLButtonElement | null)?.focus();
+          }
+        }}
+      >
+        <button
+          type="button"
+          role="radio"
+          data-mode="song"
+          aria-checked={mode === 'song'}
+          tabIndex={mode === 'song' ? 0 : -1}
+          className={'sp-mode-option' + (mode === 'song' ? ' active' : '')}
+          onClick={() => setMode('song')}
+        >Song</button>
+        <button
+          type="button"
+          role="radio"
+          data-mode="label"
+          aria-checked={mode === 'label'}
+          tabIndex={mode === 'label' ? 0 : -1}
+          className={'sp-mode-option' + (mode === 'label' ? ' active' : '')}
+          onClick={() => setMode('label')}
+        >Label</button>
+      </div>
       {renamePropagation !== null && (
         <div className="sp-rename-note" role="status">
           Will rename in {renamePropagation} practices.
         </div>
       )}
-      {mode === 'song' && (
-        <div className="sp-suggestions">
-          {matches.map((s) => (
-            <button
-              type="button"
-              key={s.id}
-              className="sp-suggestion"
-              data-testid={`sp-suggestion-${s.id}`}
-              onClick={() => pickSong(s.id)}
-            >
-              <span className="sp-suggestion-name">{s.name}</span>
-              {s.use_count > 0 && (
-                <span className="sp-suggestion-count">
-                  {s.use_count} practice{s.use_count === 1 ? '' : 's'}
-                </span>
-              )}
-            </button>
-          ))}
-          {text.trim() && !exactMatch && !section?.song_id && (
-            <button
-              type="button"
-              className="sp-suggestion sp-suggestion-create"
-              onClick={submit}
-            >
-              <Plus size={14} strokeWidth={2} aria-hidden="true" />
-              <span>Create song in catalog: "{text.trim()}"</span>
-            </button>
-          )}
-          {text.trim() && !exactMatch && (
-            <button
-              type="button"
-              className="sp-suggestion sp-suggestion-label-hint"
-              onClick={() => setMode('label')}
-            >
-              <span>
-                {section?.song_id
-                  ? 'Not a song? Use as a label here (won\'t change the catalog).'
-                  : 'Not a song? Use as a label for this practice only.'}
-              </span>
-            </button>
-          )}
-        </div>
-      )}
-      {mode === 'label' && (
-        <div className="sp-hint">
-          <Tag size={12} strokeWidth={2} aria-hidden="true" />
-          <span>Labels are local to this practice — they don't appear in the catalog.</span>
-        </div>
-      )}
+      <div className="sp-body">
+        {mode === 'song' ? (
+          <div className="sp-suggestions">
+            {matches.map((s) => (
+              <button
+                type="button"
+                key={s.id}
+                className="sp-suggestion"
+                data-testid={`sp-suggestion-${s.id}`}
+                onClick={() => pickSong(s.id)}
+              >
+                <span className="sp-suggestion-name">{s.name}</span>
+                {s.use_count > 0 && (
+                  <span className="sp-suggestion-count">
+                    {s.use_count} practice{s.use_count === 1 ? '' : 's'}
+                  </span>
+                )}
+              </button>
+            ))}
+            {text.trim() && !exactMatch && !section?.song_id && (
+              <button
+                type="button"
+                className="sp-suggestion sp-suggestion-create"
+                onClick={submit}
+              >
+                <Plus size={14} strokeWidth={2} aria-hidden="true" />
+                <span>Create song in catalog: "{text.trim()}"</span>
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="sp-suggestions sp-suggestions-empty" aria-hidden="true" />
+        )}
+      </div>
+      <div className="sp-hint" role="status">
+        <Tag size={12} strokeWidth={2} aria-hidden="true" />
+        <span>
+          {mode === 'song'
+            ? "Songs are shared across this band's practices."
+            : 'Labels are local to this practice only.'}
+        </span>
+      </div>
       <div className="sp-actions">
         {section && onDelete && (
           <button

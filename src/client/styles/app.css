@@ -4650,25 +4650,34 @@ body.env-non-prod[data-env="local"]::before {
 }
 .sp-close:hover { background: var(--accent-tint); color: var(--ink); }
 
-.sp-mode-tabs {
-  display: flex;
+.sp-mode-toggle {
+  display: inline-flex;
+  align-self: flex-start;
+  background: var(--accent-tint);
+  border-radius: 999px;
+  padding: 2px;
   gap: 2px;
-  border-bottom: 1px solid var(--rule);
-  padding-bottom: 4px;
 }
-.sp-mode-tab {
+.sp-mode-option {
   background: transparent;
   border: none;
-  padding: 4px 8px;
+  padding: 5px 12px;
   font-size: var(--fs-2xs);
   color: var(--muted);
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: 999px;
+  font-family: inherit;
+  line-height: 1.2;
 }
-.sp-mode-tab.active {
-  background: var(--accent-tint);
+.sp-mode-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.sp-mode-option.active {
+  background: var(--paper, #fff);
   color: var(--ink);
   font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .sp-input {
@@ -4689,12 +4698,24 @@ body.env-non-prod[data-env="local"]::before {
   padding: 0 2px;
 }
 
+.sp-body {
+  /* Reserve a consistent height so toggling Label doesn't make the popover
+     jump. The empty placeholder fills the same space in label mode. */
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+}
 .sp-suggestions {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1 1 auto;
   max-height: 200px;
   overflow-y: auto;
+}
+.sp-suggestions-empty {
+  /* No content, just preserves the body's reserved height. */
+  pointer-events: none;
 }
 .sp-suggestion {
   background: transparent;
