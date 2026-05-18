@@ -135,11 +135,11 @@ export function ReplyThread({
                   }
                 }}
               />
-              {error && <div className="reply-composer-error">{error}</div>}
-              <div className="reply-composer-actions">
+              {error && <div className="cp-composer-error">{error}</div>}
+              <div className="cp-composer-actions">
                 <button
                   type="button"
-                  className="reply-cancel"
+                  className="cp-reply-cancel"
                   onClick={() => {
                     setDraft('');
                     setComposerOpen(false);
@@ -150,7 +150,7 @@ export function ReplyThread({
                 </button>
                 <button
                   type="button"
-                  className="reply-save"
+                  className="cp-reply-save"
                   disabled={draft.trim().length === 0}
                   onClick={() => void submit()}
                 >

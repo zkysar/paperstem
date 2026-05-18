@@ -133,11 +133,11 @@ export function ReplyCard({
                 }
               }}
             />
-            {error && <div className="reply-composer-error">{error}</div>}
-            <div className="reply-edit-actions">
+            {error && <div className="cp-composer-error">{error}</div>}
+            <div className="cp-reply-edit-actions">
               <button
                 type="button"
-                className="reply-cancel"
+                className="cp-reply-cancel"
                 onClick={() => {
                   setDraft(reply.body);
                   setEditing(false);
@@ -148,7 +148,7 @@ export function ReplyCard({
               </button>
               <button
                 type="button"
-                className="reply-save"
+                className="cp-reply-save"
                 disabled={draft.trim().length === 0}
                 onClick={() => void commit()}
               >
@@ -159,7 +159,7 @@ export function ReplyCard({
         ) : (
           <>
             <div className="cp-reply-text">{reply.body}</div>
-            {error && <div className="reply-composer-error">{error}</div>}
+            {error && <div className="cp-composer-error">{error}</div>}
             <Reactions
               reactions={reply.reactions}
               isNarrow={isNarrow}

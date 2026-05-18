@@ -4388,28 +4388,16 @@ body.env-non-prod[data-env="local"]::before {
 
 .reaction-add:hover { color: var(--ink); background: var(--rule-2); }
 
-.reply-edit textarea {
-  width: 100%;
-  box-sizing: border-box;
-  font: inherit;
-  font-size: var(--fs-sm);
-  border: 1px solid var(--rule);
-  border-radius: 3px;
-  padding: 4px 6px;
-  resize: vertical;
-  min-height: 32px;
-}
-
-.reply-edit-actions,
-.reply-composer-actions {
+.cp-reply-edit-actions,
+.cp-composer-actions {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
   margin-top: 4px;
 }
 
-.reply-save,
-.reply-cancel {
+.cp-reply-save,
+.cp-reply-cancel {
   border-radius: 3px;
   font: inherit;
   font-size: var(--fs-sm);
@@ -4417,41 +4405,29 @@ body.env-non-prod[data-env="local"]::before {
   cursor: pointer;
 }
 
-.reply-save {
+.cp-reply-save {
   background: var(--accent);
   color: var(--paper);
   border: none;
   padding: 6px 14px;
 }
 
-.reply-cancel {
+.cp-reply-cancel {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--rule);
   padding: 5px 13px;
 }
 
-.reply-cancel:hover { background: var(--rule-2); }
+.cp-reply-cancel:hover { background: var(--rule-2); }
 
-.reply-save:focus-visible,
-.reply-cancel:focus-visible {
+.cp-reply-save:focus-visible,
+.cp-reply-cancel:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.reply-save:disabled { opacity: 0.5; cursor: not-allowed; }
-
-.reply-composer textarea {
-  width: 100%;
-  box-sizing: border-box;
-  font: inherit;
-  font-size: var(--fs-sm);
-  border: 1px solid var(--rule);
-  border-radius: 3px;
-  padding: 4px 6px;
-  resize: vertical;
-  min-height: 36px;
-}
+.cp-reply-save:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .emoji-picker-popover { width: max-content; }
 
@@ -4475,7 +4451,7 @@ body.env-non-prod[data-env="local"]::before {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
-.reply-composer-error {
+.cp-composer-error {
   color: var(--accent);
   font-size: var(--fs-xs);
   margin-top: 4px;
