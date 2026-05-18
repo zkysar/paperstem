@@ -5,7 +5,6 @@ import { ReplyCard } from './ReplyCard';
 
 type Props = {
   annotationId: string;
-  replyCount: number;
   replies: AnnotationReply[] | undefined;
   selfUserId: string;
   selfDisplayName: string;
@@ -29,8 +28,8 @@ function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
 function selfInitials(name: string): string {
   const trimmed = name.trim();
   if (!trimmed) return '?';
-  const local = trimmed.split('@')[0];
-  return local.slice(0, 2).toUpperCase();
+  const source = trimmed.includes('@') ? (trimmed.split('@')[0] ?? trimmed) : trimmed;
+  return source.slice(0, 2).toUpperCase();
 }
 
 export function ReplyThread({

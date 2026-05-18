@@ -17,7 +17,6 @@ const colorMap = new Map<string, string>([['u1', '#b14a3c']]);
 
 const baseProps = {
   annotationId: 'a1',
-  replyCount: 0,
   replies: undefined as AnnotationReply[] | undefined,
   selfUserId: 'u1',
   selfDisplayName: 'Riley',
@@ -38,7 +37,6 @@ describe('ReplyThread', () => {
     render(
       <ReplyThread
         {...baseProps}
-        replyCount={2}
         replies={undefined}
         onLoadReplies={onLoad}
       />,
@@ -52,7 +50,6 @@ describe('ReplyThread', () => {
     render(
       <ReplyThread
         {...baseProps}
-        replyCount={1}
         replies={[]}
         onLoadReplies={onLoad}
       />,
@@ -73,7 +70,7 @@ describe('ReplyThread', () => {
         body: 'second', created_at: 0, updated_at: 0, reactions: [],
       },
     ];
-    render(<ReplyThread {...baseProps} replyCount={2} replies={replies} />);
+    render(<ReplyThread {...baseProps} replies={replies} />);
     expect(screen.getByTestId('mock-reply-r1')).toBeTruthy();
     expect(screen.getByTestId('mock-reply-r2')).toBeTruthy();
   });
@@ -145,14 +142,13 @@ describe('ReplyThread', () => {
   it('refetches when annotationId changes', async () => {
     const onLoad = vi.fn().mockResolvedValue(undefined);
     const { rerender } = render(
-      <ReplyThread {...baseProps} replyCount={1} onLoadReplies={onLoad} />,
+      <ReplyThread {...baseProps} onLoadReplies={onLoad} />,
     );
     await waitFor(() => expect(onLoad).toHaveBeenCalledWith('a1'));
     rerender(
       <ReplyThread
         {...baseProps}
         annotationId="a2"
-        replyCount={1}
         onLoadReplies={onLoad}
       />,
     );
