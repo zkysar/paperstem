@@ -21,11 +21,11 @@ describe('<PresenceAvatars />', () => {
 
   it('renders up to 3 member avatars and an overflow chip for the rest', () => {
     usePresenceMock.mockReturnValue(snap([
-      { userId: 'u1', displayName: 'Alice',   state: 'active', lastBeatAt: 5 },
-      { userId: 'u2', displayName: 'Bob',     state: 'active', lastBeatAt: 4 },
-      { userId: 'u3', displayName: 'Charlie', state: 'idle',   lastBeatAt: 3 },
-      { userId: 'u4', displayName: 'Dora',    state: 'idle',   lastBeatAt: 2 },
-      { userId: 'u5', displayName: 'Eve',     state: 'idle',   lastBeatAt: 1 },
+      { userId: 'u1', displayName: 'Alice',   emailLocal: 'alice', state: 'active', lastBeatAt: 5 },
+      { userId: 'u2', displayName: 'Bob',     emailLocal: 'bob', state: 'active', lastBeatAt: 4 },
+      { userId: 'u3', displayName: 'Charlie', emailLocal: 'charlie', state: 'idle',   lastBeatAt: 3 },
+      { userId: 'u4', displayName: 'Dora',    emailLocal: 'dora', state: 'idle',   lastBeatAt: 2 },
+      { userId: 'u5', displayName: 'Eve',     emailLocal: 'eve', state: 'idle',   lastBeatAt: 1 },
     ]));
     render(<PresenceAvatars projectId="proj-A" />);
     expect(screen.getAllByTestId('presence-avatar')).toHaveLength(3);
@@ -34,9 +34,9 @@ describe('<PresenceAvatars />', () => {
 
   it('orders active members ahead of idle, both by recency desc', () => {
     usePresenceMock.mockReturnValue(snap([
-      { userId: 'u1', displayName: 'OldActive',   state: 'active', lastBeatAt: 1 },
-      { userId: 'u2', displayName: 'NewIdle',     state: 'idle',   lastBeatAt: 10 },
-      { userId: 'u3', displayName: 'NewerActive', state: 'active', lastBeatAt: 5 },
+      { userId: 'u1', displayName: 'OldActive',   emailLocal: 'oldactive', state: 'active', lastBeatAt: 1 },
+      { userId: 'u2', displayName: 'NewIdle',     emailLocal: 'newidle', state: 'idle',   lastBeatAt: 10 },
+      { userId: 'u3', displayName: 'NewerActive', emailLocal: 'neweractive', state: 'active', lastBeatAt: 5 },
     ]));
     render(<PresenceAvatars projectId="proj-A" />);
     const labels = screen.getAllByTestId('presence-avatar').map((el) => el.getAttribute('aria-label'));
@@ -55,7 +55,7 @@ describe('<PresenceAvatars />', () => {
 
   it('marks idle members in the aria-label and applies the idle class', () => {
     usePresenceMock.mockReturnValue(snap([
-      { userId: 'u1', displayName: 'Alice', state: 'idle', lastBeatAt: 1 },
+      { userId: 'u1', displayName: 'Alice', emailLocal: 'alice', state: 'idle', lastBeatAt: 1 },
     ]));
     render(<PresenceAvatars projectId="proj-A" />);
     const av = screen.getByTestId('presence-avatar');
@@ -65,9 +65,9 @@ describe('<PresenceAvatars />', () => {
 
   it('dedupes the same userId across multiple tabs; active wins over idle', () => {
     usePresenceMock.mockReturnValue(snap([
-      { userId: 'u1', displayName: 'Alice', state: 'idle',   lastBeatAt: 5 },
-      { userId: 'u1', displayName: 'Alice', state: 'active', lastBeatAt: 10 },
-      { userId: 'u2', displayName: 'Bob',   state: 'active', lastBeatAt: 8 },
+      { userId: 'u1', displayName: 'Alice', emailLocal: 'alice', state: 'idle',   lastBeatAt: 5 },
+      { userId: 'u1', displayName: 'Alice', emailLocal: 'alice', state: 'active', lastBeatAt: 10 },
+      { userId: 'u2', displayName: 'Bob',   emailLocal: 'bob', state: 'active', lastBeatAt: 8 },
     ]));
     render(<PresenceAvatars projectId="proj-A" />);
     const avs = screen.getAllByTestId('presence-avatar');
@@ -77,8 +77,8 @@ describe('<PresenceAvatars />', () => {
 
   it('keeps anonymous (null-userId) rows separate from each other', () => {
     usePresenceMock.mockReturnValue(snap([
-      { userId: null, displayName: 'X', state: 'active', lastBeatAt: 1 },
-      { userId: null, displayName: 'Y', state: 'active', lastBeatAt: 2 },
+      { userId: null, displayName: 'X', emailLocal: null, state: 'active', lastBeatAt: 1 },
+      { userId: null, displayName: 'Y', emailLocal: null, state: 'active', lastBeatAt: 2 },
     ]));
     render(<PresenceAvatars projectId="proj-A" />);
     expect(screen.getAllByTestId('presence-avatar')).toHaveLength(2);
