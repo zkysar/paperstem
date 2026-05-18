@@ -337,23 +337,30 @@ describe('AppHeader group switcher', () => {
     { id: 'b2', name: 'Moon Tractor', folder_id: 'f2', owner_user_id: 'u2', created_at: 0, role: 'member' as const },
   ];
 
-  it('does not render the switcher when the user is in 0 groups', () => {
+  it('does not render the switcher when the user is in 0 groups', async () => {
+    const user = userEvent.setup();
     render(<AppHeader {...baseProps} groups={[]} currentGroupId={null} />);
-    expect(screen.queryByLabelText('Switch group')).toBeNull();
+    await user.click(screen.getByLabelText('Account'));
+    expect(screen.queryByText('Switch group')).toBeNull();
   });
 
-  it('renders the switcher when the user is in exactly 1 group (gives "+ New group" a stable home)', () => {
+  it('renders the switcher when the user is in exactly 1 group (gives "+ New group" a stable home)', async () => {
+    const user = userEvent.setup();
     render(<AppHeader {...baseProps} groups={[groups[0]!]} currentGroupId="b1" onCreateGroup={vi.fn()} />);
-    expect(screen.getByLabelText('Switch group')).not.toBeNull();
-    expect(screen.getByText('Sun Toilet')).not.toBeNull();
+    await user.click(screen.getByLabelText('Account'));
+    expect(screen.getByText('Switch group')).not.toBeNull();
+    expect(screen.getByRole('menuitem', { name: /Sun Toilet/ })).not.toBeNull();
   });
 
-  it('hides the switcher with 1 group when onCreateGroup is absent (no inert chevron)', () => {
+  it('hides the switcher with 1 group when onCreateGroup is absent (no inert single-item list)', async () => {
+    const user = userEvent.setup();
     render(<AppHeader {...baseProps} groups={[groups[0]!]} currentGroupId="b1" />);
-    expect(screen.queryByLabelText('Switch group')).toBeNull();
+    await user.click(screen.getByLabelText('Account'));
+    expect(screen.queryByText('Switch group')).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /Sun Toilet/ })).toBeNull();
   });
 
-  it('with 1 group and onCreateGroup, the menu has the current group + a "+ New group" entry', async () => {
+  it('with 1 group and onCreateGroup, the avatar menu has the current group + a "+ New group" entry', async () => {
     const onCreate = vi.fn();
     const user = userEvent.setup();
     render(
@@ -364,29 +371,29 @@ describe('AppHeader group switcher', () => {
         onCreateGroup={onCreate}
       />,
     );
-    await user.click(screen.getByLabelText('Switch group'));
-    const items = screen.getAllByRole('menuitem');
-    // Current group + "+ New group" entry.
-    expect(items).toHaveLength(2);
-    expect(items[0]!.getAttribute('aria-current')).toBe('true');
+    await user.click(screen.getByLabelText('Account'));
+    const current = screen.getByRole('menuitem', { name: /Sun Toilet/ });
+    expect(current.getAttribute('aria-current')).toBe('true');
     await user.click(screen.getByRole('menuitem', { name: /New group/i }));
     expect(onCreate).toHaveBeenCalledOnce();
   });
 
-  it('renders the current group name when there are 2+ groups', () => {
-    render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
-    expect(screen.getByLabelText('Switch group')).not.toBeNull();
-    expect(screen.getByText('Sun Toilet')).not.toBeNull();
-  });
-
-  it('opens a menu listing every group, marking the current one with aria-current', async () => {
+  it('renders the current group name when there are 2+ groups', async () => {
     const user = userEvent.setup();
     render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
-    await user.click(screen.getByLabelText('Switch group'));
-    const items = screen.getAllByRole('menuitem');
-    expect(items).toHaveLength(2);
-    expect(items[0]!.getAttribute('aria-current')).toBe('true');
-    expect(items[1]!.getAttribute('aria-current')).toBeNull();
+    await user.click(screen.getByLabelText('Account'));
+    expect(screen.getByText('Switch group')).not.toBeNull();
+    expect(screen.getByRole('menuitem', { name: /Sun Toilet/ })).not.toBeNull();
+  });
+
+  it('lists every group, marking the current one with aria-current', async () => {
+    const user = userEvent.setup();
+    render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
+    await user.click(screen.getByLabelText('Account'));
+    const sun = screen.getByRole('menuitem', { name: /Sun Toilet/ });
+    const moon = screen.getByRole('menuitem', { name: /Moon Tractor/ });
+    expect(sun.getAttribute('aria-current')).toBe('true');
+    expect(moon.getAttribute('aria-current')).toBeNull();
   });
 
   it('clicking a different group calls onSwitchGroup and closes the menu', async () => {
@@ -400,10 +407,10 @@ describe('AppHeader group switcher', () => {
         onSwitchGroup={onSwitch}
       />,
     );
-    await user.click(screen.getByLabelText('Switch group'));
+    await user.click(screen.getByLabelText('Account'));
     await user.click(screen.getByRole('menuitem', { name: /Moon Tractor/ }));
     expect(onSwitch).toHaveBeenCalledWith('b2');
-    expect(screen.queryByRole('menuitem')).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /Sun Toilet/ })).toBeNull();
   });
 
   it('clicking the current group does NOT call onSwitchGroup but still closes the menu', async () => {
@@ -417,15 +424,18 @@ describe('AppHeader group switcher', () => {
         onSwitchGroup={onSwitch}
       />,
     );
-    await user.click(screen.getByLabelText('Switch group'));
+    await user.click(screen.getByLabelText('Account'));
     await user.click(screen.getByRole('menuitem', { name: /Sun Toilet/ }));
     expect(onSwitch).not.toHaveBeenCalled();
-    expect(screen.queryByRole('menuitem')).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /Sun Toilet/ })).toBeNull();
   });
 
-  it('falls back to the first group when currentGroupId does not match any', () => {
+  it('falls back to the first group when currentGroupId does not match any', async () => {
+    const user = userEvent.setup();
     render(<AppHeader {...baseProps} groups={groups} currentGroupId="b-missing" />);
-    expect(screen.getByText('Sun Toilet')).not.toBeNull();
+    await user.click(screen.getByLabelText('Account'));
+    const sun = screen.getByRole('menuitem', { name: /Sun Toilet/ });
+    expect(sun.getAttribute('aria-current')).toBe('true');
   });
 
   it('avatar menu shows "Groups" when onOpenGroups is wired and fires it', async () => {
@@ -470,16 +480,16 @@ describe('AppHeader group switcher', () => {
   it('Escape closes the open menu', async () => {
     const user = userEvent.setup();
     render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
-    await user.click(screen.getByLabelText('Switch group'));
-    expect(screen.queryAllByRole('menuitem')).toHaveLength(2);
+    await user.click(screen.getByLabelText('Account'));
+    expect(screen.getByRole('menuitem', { name: /Sun Toilet/ })).not.toBeNull();
     await user.keyboard('{Escape}');
-    expect(screen.queryAllByRole('menuitem')).toHaveLength(0);
+    expect(screen.queryByRole('menuitem', { name: /Sun Toilet/ })).toBeNull();
   });
 
   it('"+ New group" entry is hidden when onCreateGroup is absent', async () => {
     const user = userEvent.setup();
     render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" />);
-    await user.click(screen.getByLabelText('Switch group'));
+    await user.click(screen.getByLabelText('Account'));
     expect(screen.queryByRole('menuitem', { name: /New group/i })).toBeNull();
   });
 
@@ -494,20 +504,13 @@ describe('AppHeader group switcher', () => {
         onCreateGroup={onCreate}
       />,
     );
-    await user.click(screen.getByLabelText('Switch group'));
+    await user.click(screen.getByLabelText('Account'));
     const item = screen.getByRole('menuitem', { name: /New group/i });
     await user.click(item);
     expect(onCreate).toHaveBeenCalledOnce();
   });
 
-  it('on mobile, the header group switcher is hidden (gets the ah-hide-on-mobile class)', () => {
-    render(<AppHeader {...baseProps} groups={groups} currentGroupId="b1" isWide={false} />);
-    const headerSwitcher = screen.getByLabelText('Switch group').closest('.ah-group-block');
-    expect(headerSwitcher).not.toBeNull();
-    expect(headerSwitcher!.className).toContain('ah-hide-on-mobile');
-  });
-
-  it('on mobile, multi-group switching lives inside the avatar menu', async () => {
+  it('on mobile, the avatar menu surfaces the same group switcher (one consolidated home)', async () => {
     const onSwitch = vi.fn();
     const user = userEvent.setup();
     render(
@@ -520,7 +523,6 @@ describe('AppHeader group switcher', () => {
       />,
     );
     await user.click(screen.getByLabelText('Account'));
-    // Both groups appear as menu items inside the avatar dropdown.
     expect(screen.getByRole('menuitem', { name: /Sun Toilet/ })).not.toBeNull();
     const moon = screen.getByRole('menuitem', { name: /Moon Tractor/ });
     await user.click(moon);
@@ -576,10 +578,10 @@ describe('AppHeader group switcher', () => {
         <div data-testid="outside">outside</div>
       </div>,
     );
-    await user.click(screen.getByLabelText('Switch group'));
+    await user.click(screen.getByLabelText('Account'));
     expect(screen.getByRole('menuitem', { name: /Sun Toilet/ })).not.toBeNull();
     await user.click(screen.getByTestId('outside'));
-    expect(screen.queryByRole('menuitem')).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /Sun Toilet/ })).toBeNull();
   });
 
   describe('publicMode (the /p/<token> page)', () => {
@@ -612,7 +614,9 @@ describe('AppHeader group switcher', () => {
         />,
       );
       expect(screen.queryByLabelText('Switch project')).toBeNull();
-      expect(screen.queryByLabelText('Switch group')).toBeNull();
+      expect(screen.queryByText('Switch group')).toBeNull();
+      expect(screen.queryByRole('menuitem', { name: /Sun Toilet/ })).toBeNull();
+      expect(screen.queryByRole('menuitem', { name: /Moon Floor/ })).toBeNull();
     });
 
     it('renders the title as a non-interactive label (not a button)', () => {
