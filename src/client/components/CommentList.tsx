@@ -328,7 +328,7 @@ export function CommentList({
                 ) : (
                   <>
                     <div className="cl-body">{a.body}</div>
-                    <div className="cl-foot">
+                    <div className="cp-reactions">
                       <Reactions
                         reactions={a.reactions}
                         isNarrow={isNarrow}
@@ -337,25 +337,25 @@ export function CommentList({
                           onToggleReaction({ kind: 'annotation', id: a.id }, emoji)
                         }
                       />
-                      <ReplyThread
-                        annotationId={a.id}
-                        replies={replies.get(a.id)}
-                        selfUserId={selfUserId}
-                        selfDisplayName={selfDisplayName}
-                        selfColor={selfColor}
-                        userColorMap={userColorMap}
-                        canEdit={canEdit}
-                        canReact={canReact}
-                        isNarrow={isNarrow}
-                        onLoadReplies={onLoadReplies}
-                        onCreateReply={onCreateReply}
-                        onEditReply={onEditReply}
-                        onDeleteReply={onDeleteReply}
-                        onToggleReaction={(replyId, emoji) =>
-                          onToggleReaction({ kind: 'reply', id: replyId }, emoji)
-                        }
-                      />
                     </div>
+                    <ReplyThread
+                      annotationId={a.id}
+                      replies={replies.get(a.id)}
+                      selfUserId={selfUserId}
+                      selfDisplayName={selfDisplayName}
+                      selfColor={selfColor}
+                      userColorMap={userColorMap}
+                      canEdit={canEdit}
+                      canReact={canReact}
+                      isNarrow={isNarrow}
+                      onLoadReplies={onLoadReplies}
+                      onCreateReply={onCreateReply}
+                      onEditReply={onEditReply}
+                      onDeleteReply={onDeleteReply}
+                      onToggleReaction={(replyId, emoji) =>
+                        onToggleReaction({ kind: 'reply', id: replyId }, emoji)
+                      }
+                    />
                   </>
                 )}
               </li>
