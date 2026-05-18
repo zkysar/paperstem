@@ -4387,21 +4387,50 @@ body.env-non-prod[data-env="local"]::before {
 
 .cp-reply-save:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.emoji-picker-popover { width: max-content; }
-
+/* emoji-mart picker themed to match the rest of the UI. emoji-mart reads
+   these CSS variables off the host element, so setting them on the wrapper
+   propagates into the shadow tree. */
+.emoji-picker-popover,
 .emoji-picker-sheet {
-  width: 100%;
-  background: var(--paper);
-  border-top: 1px solid var(--rule);
-  padding-bottom: env(safe-area-inset-bottom);
+  --em-rgb-background: 255, 255, 255;
+  --em-rgb-color: 42, 39, 35;
+  --em-rgb-accent: 193, 116, 70;
+  --em-rgb-input: 241, 235, 221;
+  --em-color-border: rgba(236, 230, 216, 1);
+  --em-color-border-over: rgba(236, 230, 216, 0.6);
+  --em-font-family: inherit;
 }
 
+.emoji-picker-popover {
+  width: 352px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  box-shadow: 0 12px 32px -10px rgba(60, 40, 20, 0.24);
+  overflow: hidden;
+}
+
+.emoji-picker-sheet {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 -12px 32px -8px rgba(60, 40, 20, 0.28);
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow: hidden;
+}
+
+/* Reserve the picker's footprint so the suspense fallback doesn't render as
+   a tiny floating string at the top-left of an unsized container. */
 .emoji-picker-loading {
-  padding: 24px;
-  text-align: center;
+  height: 435px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--muted);
   font-size: var(--fs-sm);
 }
+.emoji-picker-sheet .emoji-picker-loading { height: 360px; }
 
 .comment-sheet {
   max-height: 80vh;
