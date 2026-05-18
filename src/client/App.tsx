@@ -55,6 +55,7 @@ import {
   deleteSection,
 } from './data/sections-repo';
 import { END_SECTION_LABEL } from './lib/section-end';
+import { findRunningSection } from './lib/running-section';
 import {
   listSongs,
   listSongUsage,
@@ -2060,6 +2061,7 @@ function PaperstemApp({
               section={sectionPopover.section}
               startMs={sectionPopover.startMs}
               bandSongs={songs}
+              runningSection={findRunningSection(sections, sectionPopover.startMs)}
               anchorLeftPx={sectionPopover.anchorLeft}
               anchorTopPx={sectionPopover.anchorTop}
               onSubmit={(payload) => void handleSectionSubmit(payload)}

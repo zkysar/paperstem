@@ -20,6 +20,7 @@ const baseProps = {
   section: null,
   startMs: 12000,
   bandSongs: [] as Song[],
+  runningSection: null,
   anchorLeftPx: 200,
   anchorTopPx: 200,
   onSubmit: vi.fn(),
@@ -157,12 +158,9 @@ describe('SectionPopover', () => {
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'song_id', song_id: 's-2' });
   });
 
-  it('"End here" button fires a label submit with the em-dash marker', async () => {
-    const onSubmit = vi.fn();
-    const user = userEvent.setup();
-    render(<SectionPopover {...baseProps} onSubmit={onSubmit} />);
-    await user.click(screen.getByRole('button', { name: /^end here$/i }));
-    expect(onSubmit).toHaveBeenCalledWith({ kind: 'label', label: '—' });
+  it('"End here" button is hidden when no runningSection is provided', () => {
+    render(<SectionPopover {...baseProps} />);
+    expect(screen.queryByRole('button', { name: /end/i })).toBeNull();
   });
 
   it('"End here" button is hidden when editing an existing section', () => {
@@ -180,9 +178,67 @@ describe('SectionPopover', () => {
           created_at: 0,
           updated_at: 0,
         }}
+        runningSection={{
+          id: 'sec-0',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: 's-1',
+          song_name: 'Heart Sounds',
+          label: null,
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
       />,
     );
-    expect(screen.queryByRole('button', { name: /^end here$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /end/i })).toBeNull();
+  });
+
+  it('"End here" button renders with the song name when runningSection has a song', async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SectionPopover
+        {...baseProps}
+        runningSection={{
+          id: 'sec-0',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: 's-1',
+          song_name: 'Wonderwall',
+          label: null,
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+        onSubmit={onSubmit}
+      />,
+    );
+    const button = screen.getByRole('button', { name: /end "wonderwall" here/i });
+    await user.click(button);
+    expect(onSubmit).toHaveBeenCalledWith({ kind: 'label', label: '—' });
+  });
+
+  it('"End here" button renders with the label text when runningSection is free-text', () => {
+    render(
+      <SectionPopover
+        {...baseProps}
+        runningSection={{
+          id: 'sec-0',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: null,
+          song_name: null,
+          label: 'Bridge talk',
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+      />,
+    );
+    expect(
+      screen.getByRole('button', { name: /end "bridge talk" here/i }),
+    ).not.toBeNull();
   });
 
   it('Cancel button calls onClose', async () => {

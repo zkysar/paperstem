@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link2 } from 'lucide-react';
 import type { Section } from '../../shared/types';
@@ -96,6 +96,32 @@ export function SectionLane({
     };
   }, [draggingId]);
 
+  // Cursor lock: pointer-capture continues delivering events after the
+  // cursor leaves the 12px grip strip, but the rendered cursor reverts to
+  // whatever element is under it (grab on the pill, default on empty
+  // space). Setting the cursor on documentElement for the duration of an
+  // active left-edge drag keeps ew-resize stable across the whole gesture.
+  const priorCursorRef = useRef<string | null>(null);
+
+  function lockCursor() {
+    if (priorCursorRef.current !== null) return;
+    priorCursorRef.current = document.documentElement.style.cursor;
+    document.documentElement.style.cursor = 'ew-resize';
+  }
+
+  function unlockCursor() {
+    if (priorCursorRef.current === null) return;
+    document.documentElement.style.cursor = priorCursorRef.current;
+    priorCursorRef.current = null;
+  }
+
+  useEffect(() => {
+    return () => {
+      // Safety: clear the lock if the component unmounts mid-drag.
+      unlockCursor();
+    };
+  }, []);
+
   // Cursor-anchored label chip. Mouse only — touch already has a tap-to-expand
   // affordance and a chip floating under the finger would be obscured.
   // Keyboard focus uses the same chip anchored to the element's bounding box,
@@ -150,6 +176,7 @@ export function SectionLane({
           Math.min(payload.maxStartMs, candidate),
         );
         if (phase === 'preview') {
+          lockCursor();
           setProvisional((cur) => {
             const m = new Map(cur);
             m.set(payload.sectionId, next);
@@ -157,6 +184,7 @@ export function SectionLane({
           });
           setGuideline(waveLeftPx + (next / (duration * 1000)) * waveWidthPx);
         } else {
+          unlockCursor();
           setProvisional((cur) => {
             const m = new Map(cur);
             m.delete(payload.sectionId);
