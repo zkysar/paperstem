@@ -24,6 +24,12 @@ type Props = {
   // create, or the existing section's start_ms on edit.
   startMs: number;
   bandSongs: Song[];
+  // Section whose span the popover's click point falls inside, if any. Used
+  // to decide whether to render the "End here" action and how to label it.
+  // The caller resolves this from the canonical sections list; null means
+  // no section is running here (or the running section is itself an
+  // em-dash terminator), so ending makes no sense.
+  runningSection: Section | null;
   anchorLeftPx: number;
   anchorTopPx: number;
   onSubmit(payload: SectionSubmit): void;
@@ -40,6 +46,7 @@ export function SectionPopover({
   section,
   startMs,
   bandSongs,
+  runningSection,
   anchorLeftPx,
   anchorTopPx,
   onSubmit,
@@ -208,6 +215,12 @@ export function SectionPopover({
     onSubmit({ kind: 'song_id', song_id: id });
   }
 
+  function endButtonLabel(target: Section): string {
+    const name = target.song_name ?? target.label ?? '';
+    if (!name) return 'End section here';
+    return `End "${name}" here`;
+  }
+
   return (
     <div
       className="section-popover"
@@ -332,16 +345,16 @@ export function SectionPopover({
             Delete section
           </button>
         )}
-        {!section && (
+        {!section && runningSection && (
           <button
             type="button"
             className="sp-action sp-action-end"
             onClick={() =>
               onSubmit({ kind: 'label', label: END_SECTION_LABEL })
             }
-            title="Mark the previous section as ending here without naming what comes next"
+            title="Mark the section as ending here without naming what comes next"
           >
-            End here
+            {endButtonLabel(runningSection)}
           </button>
         )}
         <span className="sp-actions-spacer" />
