@@ -71,7 +71,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
 import { useViewport } from './hooks/useViewport';
-import { buildUserColorMap } from './lib/colors';
+import { buildUserColorMap, SELF_ANNOTATION_COLOR } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
 import type {
   Annotation,
@@ -457,6 +457,9 @@ function PaperstemApp({
     () => buildUserColorMap(annotations.map((a) => a.user_id), user.id),
     [annotations, user.id],
   );
+
+  const selfDisplayName = user.display_name ?? user.email;
+  const selfColor = userColorMap.get(user.id) ?? SELF_ANNOTATION_COLOR;
 
   const [isWide, setIsWide] = useState(() =>
     typeof window === 'undefined'
@@ -1770,8 +1773,8 @@ function PaperstemApp({
                 open={drawerOpen}
                 isNarrow={isNarrow}
                 selfUserId={user.id}
-                selfDisplayName={user.display_name ?? user.email}
-                selfColor={userColorMap.get(user.id) ?? '#c17446'}
+                selfDisplayName={selfDisplayName}
+                selfColor={selfColor}
                 canEdit={activeProjectId !== null}
                 annotations={annotations}
                 userColorMap={userColorMap}
@@ -1818,8 +1821,8 @@ function PaperstemApp({
                     onCopyLink={() => handleCopyCommentLink(active)}
                     onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
                     selfUserId={user.id}
-                    selfDisplayName={user.display_name ?? user.email}
-                    selfColor={userColorMap.get(user.id) ?? '#c17446'}
+                    selfDisplayName={selfDisplayName}
+                    selfColor={selfColor}
                     userColorMap={userColorMap}
                     isNarrow={isNarrow}
                     replies={replies.get(active.id)}
@@ -1855,8 +1858,8 @@ function PaperstemApp({
                         onDelete={() => void handleDelete(active)}
                         onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
                         selfUserId={user.id}
-                        selfDisplayName={user.display_name ?? user.email}
-                        selfColor={userColorMap.get(user.id) ?? '#c17446'}
+                        selfDisplayName={selfDisplayName}
+                        selfColor={selfColor}
                         userColorMap={userColorMap}
                         replies={replies.get(active.id)}
                         onLoadReplies={loadReplies}
