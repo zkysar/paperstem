@@ -50,3 +50,47 @@ describe('resolveDisplayName', () => {
     expect(resolveDisplayName(row({ displayName: '', emailLocal: null }))).toBe('Unknown');
   });
 });
+
+import { positionPopover } from './presence-format';
+
+const VIEWPORT = { width: 1000, height: 800 };
+
+describe('positionPopover', () => {
+  it('anchors below and left-aligned with the trigger by default', () => {
+    const trigger = { left: 100, top: 50, right: 124, bottom: 74 } as DOMRect;
+    const popover = { width: 200, height: 120 };
+    const pos = positionPopover(trigger, popover, VIEWPORT);
+    expect(pos).toEqual({ top: 74 + 8, left: 100 });
+  });
+
+  it('shifts left when the popover would clip the right edge', () => {
+    const trigger = { left: 900, top: 50, right: 924, bottom: 74 } as DOMRect;
+    const popover = { width: 200, height: 120 };
+    const pos = positionPopover(trigger, popover, VIEWPORT);
+    expect(pos.left).toBe(1000 - 200 - 8);
+    expect(pos.top).toBe(74 + 8);
+  });
+
+  it('flips above when the popover would clip the bottom edge', () => {
+    const trigger = { left: 100, top: 760, right: 124, bottom: 784 } as DOMRect;
+    const popover = { width: 200, height: 120 };
+    const pos = positionPopover(trigger, popover, VIEWPORT);
+    expect(pos.top).toBe(632);
+    expect(pos.left).toBe(100);
+  });
+
+  it('handles both right-clip and bottom-clip at once', () => {
+    const trigger = { left: 900, top: 760, right: 924, bottom: 784 } as DOMRect;
+    const popover = { width: 200, height: 120 };
+    const pos = positionPopover(trigger, popover, VIEWPORT);
+    expect(pos.left).toBe(1000 - 200 - 8);
+    expect(pos.top).toBe(632);
+  });
+
+  it('clamps left to 8px if the trigger is near the left edge', () => {
+    const trigger = { left: -50, top: 50, right: -26, bottom: 74 } as DOMRect;
+    const popover = { width: 200, height: 120 };
+    const pos = positionPopover(trigger, popover, VIEWPORT);
+    expect(pos.left).toBe(8);
+  });
+});

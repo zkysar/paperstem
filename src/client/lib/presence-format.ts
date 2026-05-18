@@ -17,3 +17,31 @@ export function formatPresenceState(row: PresenceRowDto, now: number): string {
   const deltaHr = Math.floor(deltaMin / 60);
   return `Idle ${deltaHr} ${deltaHr === 1 ? 'hour' : 'hours'} ago`;
 }
+
+type Rect = Pick<DOMRect, 'left' | 'top' | 'right' | 'bottom'>;
+
+export function positionPopover(
+  trigger: Rect,
+  popover: { width: number; height: number },
+  viewport: { width: number; height: number },
+): { top: number; left: number } {
+  const MARGIN = 8;
+  // Default: MARGIN below the trigger, left-aligned.
+  let top = trigger.bottom + MARGIN;
+  let left = trigger.left;
+
+  // Right-edge clip: shift left so the right edge sits MARGIN inside the viewport.
+  if (left + popover.width > viewport.width - MARGIN) {
+    left = viewport.width - popover.width - MARGIN;
+  }
+
+  // Left clamp.
+  if (left < MARGIN) left = MARGIN;
+
+  // Bottom-edge clip: flip above the trigger.
+  if (top + popover.height > viewport.height - MARGIN) {
+    top = trigger.top - popover.height - MARGIN;
+  }
+
+  return { top, left };
+}
