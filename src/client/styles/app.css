@@ -4438,7 +4438,9 @@ body.env-non-prod[data-env="local"]::before {
   position: relative;
   height: 22px;
   border-bottom: 1px solid var(--rule-2);
-  background: var(--bg);
+  /* Translucent so the topmost waveform peeks through — the lane floats
+     above the first track rather than reserving its own band. */
+  background: rgba(251, 249, 244, 0.9);
 }
 
 /* Sticks to the left edge of .viewport so the rail column area in the
@@ -4450,20 +4452,19 @@ body.env-non-prod[data-env="local"]::before {
   left: 0;
   width: var(--rail-w);
   height: 22px;
-  background: var(--bg);
+  /* Matches .section-lane's translucent fill so the rail-column portion
+     of the floating overlay reads as the same panel. */
+  background: rgba(251, 249, 244, 0.9);
   z-index: 1;
   pointer-events: none;
-  /* Pull subsequent flow content back up — the mask is in-flow so it
-     would otherwise occupy the lane's full 22px vertically. Pills are
-     position: absolute so they don't flow next to it; this just keeps
-     the lane's effective height at 22px. */
+  /* The wrap is height: 0; this pulls the mask's own 22px out of flow so
+     it doesn't push the first track down. */
   margin-bottom: -22px;
 }
 .player.rail-collapsed .section-rail-mask { display: none; }
-/* In ribbon mode the wrap is 14px tall; the absolutely-positioned ribbon
-   means the mask's margin-bottom cancellation is moot, but the mask's own
-   height still needs to shrink so it doesn't paint into the track below. */
-.section-lane-wrap.collapsed .section-rail-mask { height: 14px; }
+/* In collapsed (ribbon) mode the ribbon-segs are positioned past the rail
+   and carry no full-width background of their own, so no mask is needed. */
+.section-lane-wrap.collapsed .section-rail-mask { display: none; }
 
 .section-pill {
   position: absolute;
@@ -4514,18 +4515,12 @@ body.env-non-prod[data-env="local"]::before {
 }
 
 /* Wrapper around the section lane that catches hover and pointerdown
-   for the expand/collapse behavior. Visible height is driven by the
-   child (.section-lane in pills mode or .section-ribbon in ribbon mode);
-   wrapper itself adds no padding. */
+   for the expand/collapse behavior. Wrap reserves no space — both the
+   collapsed ribbon and the expanded pill lane are absolutely positioned
+   children that float above the top of the first waveform. */
 .section-lane-wrap {
   position: relative;
-}
-/* Wrap is always the ribbon-strip height. Expanded mode floats the pill
-   lane as an absolute overlay on top of the first track instead of growing
-   the wrap, so tracks never reflow on hover. */
-.section-lane-wrap.expanded,
-.section-lane-wrap.collapsed {
-  height: 14px;
+  height: 0;
 }
 .section-lane-wrap.disabled {
   pointer-events: none;
@@ -4537,6 +4532,9 @@ body.env-non-prod[data-env="local"]::before {
   left: 0;
   right: 0;
   z-index: 5;
+  /* Light blur on top of the translucent fill keeps pill labels readable
+     against busy waveform content underneath. */
+  backdrop-filter: blur(2px);
   box-shadow:
     0 6px 14px -4px rgba(0, 0, 0, 0.18),
     0 0 0 1px rgba(0, 0, 0, 0.06);
@@ -4568,9 +4566,10 @@ body.env-non-prod[data-env="local"]::before {
   text-overflow: ellipsis;
 }
 
-/* Ribbon mode — 6px strip pinned to the top of the reserved 22px wrap.
-   Below the strip the segment ::after extends the hit target by 8 more
-   transparent pixels (no interactive content there). */
+/* Ribbon mode — 6px strip that floats over the top of the first track
+   (the wrap reserves no space). Below the strip the segment ::after
+   extends the hit target by 8 more transparent pixels into the waveform
+   so the lane is easy to grab without reflowing on hover. */
 .section-ribbon {
   position: absolute;
   top: 0;
