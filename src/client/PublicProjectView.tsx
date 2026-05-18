@@ -40,8 +40,7 @@ import { useAppVersion } from './hooks/useAppVersion';
 import { useIsMobile } from './hooks/useIsMobile';
 import { useKeyboard } from './hooks/useKeyboard';
 import { usePlayer } from './hooks/usePlayer';
-import { usePresence } from './hooks/usePresence';
-import { PresenceContext } from './hooks/usePresenceConnection';
+import { PresenceContext, usePresentIn } from './hooks/usePresenceConnection';
 import { useViewport } from './hooks/useViewport';
 import { createPresenceClient } from './lib/presence-client';
 import { buildUserColorMap, SELF_ANNOTATION_COLOR } from './lib/colors';
@@ -729,7 +728,7 @@ function SignInPrompt({
 }
 
 function PublicPresenceSubscriber({ projectId }: { projectId: string }) {
-  void usePresence([projectId]);
+  usePresentIn(projectId);
   return null;
 }
 

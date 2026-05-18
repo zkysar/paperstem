@@ -18,6 +18,7 @@ export type PresenceClient = {
   connect(): void;
   disconnect(): void;
   subscribe(consumerId: string, projectIds: string[]): void;
+  setPresentIn(projectId: string | null): void;
   addListener(fn: Listener): () => void;
   getSnapshot(projectId: string): Snapshot;
 };
@@ -34,6 +35,7 @@ export function createPresenceClient(opts: Opts = {}): PresenceClient {
   let reconnectAttempts = 0;
   const consumers = new Map<string, Set<string>>();
   const subscribed = new Set<string>();
+  const presentIn = new Set<string>();
   const snapshots = new Map<string, Snapshot>();
   const listeners = new Set<Listener>();
   let lastSentState: State | null = null;
@@ -76,16 +78,21 @@ export function createPresenceClient(opts: Opts = {}): PresenceClient {
   function sendBeatNow() {
     const state = computeState();
     lastSentState = state;
-    for (const projectId of subscribed) {
+    for (const projectId of presentIn) {
       send({ type: 'beat', projectId, state });
     }
   }
 
   function recomputeSubscribed() {
+    // The WS-level subscription is the union of consumer read-subscriptions
+    // and the projects this tab is present in. The server requires a project
+    // to be subscribed before it accepts beats for it, so presentIn must be
+    // a subset of the subscribed set we declare.
     const next = new Set<string>();
     for (const ids of consumers.values()) {
       for (const id of ids) next.add(id);
     }
+    for (const id of presentIn) next.add(id);
     let changed = next.size !== subscribed.size;
     if (!changed) {
       for (const id of next) if (!subscribed.has(id)) { changed = true; break; }
@@ -124,7 +131,7 @@ export function createPresenceClient(opts: Opts = {}): PresenceClient {
       beatTimer = setInterval(() => {
         const state = computeState();
         if (state !== lastSentState) sendBeatNow();
-        else for (const projectId of subscribed) send({ type: 'beat', projectId, state });
+        else for (const projectId of presentIn) send({ type: 'beat', projectId, state });
       }, BEAT_INTERVAL_MS);
     };
     ws.onmessage = onMessage;
@@ -150,6 +157,20 @@ export function createPresenceClient(opts: Opts = {}): PresenceClient {
     recomputeSubscribed();
   }
 
+  function setPresentIn(projectId: string | null) {
+    const next = new Set<string>();
+    if (projectId) next.add(projectId);
+    let changed = next.size !== presentIn.size;
+    if (!changed) {
+      for (const id of next) if (!presentIn.has(id)) { changed = true; break; }
+    }
+    if (!changed) return;
+    presentIn.clear();
+    for (const id of next) presentIn.add(id);
+    recomputeSubscribed();
+    sendBeatNow();
+  }
+
   function addListener(fn: Listener): () => void {
     listeners.add(fn);
     for (const [projectId, snap] of snapshots) fn(projectId, snap);
@@ -160,5 +181,5 @@ export function createPresenceClient(opts: Opts = {}): PresenceClient {
     return snapshots.get(projectId) ?? { rows: [], anonymousCount: 0 };
   }
 
-  return { computeState, connect, disconnect, subscribe, addListener, getSnapshot };
+  return { computeState, connect, disconnect, subscribe, setPresentIn, addListener, getSnapshot };
 }

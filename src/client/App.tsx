@@ -20,7 +20,7 @@ import { CommentBottomSheet } from './components/CommentBottomSheet';
 import { createPortal } from 'react-dom';
 import { Plus } from 'lucide-react';
 import { AppHeader } from './components/AppHeader';
-import { PresenceProvider } from './hooks/usePresenceConnection';
+import { PresenceProvider, usePresentIn } from './hooks/usePresenceConnection';
 import { AppToolbar } from './components/AppToolbar';
 import {
   BugReportDrawer,
@@ -1589,6 +1589,7 @@ function PaperstemApp({
 
   return (
     <PresenceProvider>
+    <PresenceTracker projectId={activeProjectId} />
     <div className="app-shell">
       {arrival && (
         <ShareArrivalBanner
@@ -2066,4 +2067,9 @@ function PaperstemApp({
     </div>
     </PresenceProvider>
   );
+}
+
+function PresenceTracker({ projectId }: { projectId: string | null }) {
+  usePresentIn(projectId);
+  return null;
 }

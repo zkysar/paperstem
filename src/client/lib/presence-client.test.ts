@@ -114,15 +114,43 @@ describe('presenceClient — WS lifecycle', () => {
     expect(seen[0].snap.rows[0].displayName).toBe('Alice');
   });
 
-  it('beats every 10s for every subscribed project', () => {
+  it('beats only for the project this tab is present in, not every subscribed project', () => {
     const c = createPresenceClient({ now: () => Date.now(), url: 'ws://test/ws/presence' });
     c.connect();
     MockSocket.instances[0].open();
-    c.subscribe('comp', ['p1', 'p2']);
+    c.subscribe('comp', ['p1', 'p2', 'p3']);
+    c.setPresentIn('p2');
+    MockSocket.instances[0].sent.length = 0;
     vi.advanceTimersByTime(10_001);
     const beats = MockSocket.instances[0].sent
       .map((s) => JSON.parse(s))
       .filter((m) => m.type === 'beat');
-    expect(beats.map((b) => b.projectId).sort()).toEqual(['p1', 'p2']);
+    expect(beats.map((b) => b.projectId)).toEqual(['p2']);
+  });
+
+  it('does not beat when no project is set as present', () => {
+    const c = createPresenceClient({ now: () => Date.now(), url: 'ws://test/ws/presence' });
+    c.connect();
+    MockSocket.instances[0].open();
+    c.subscribe('comp', ['p1', 'p2']);
+    MockSocket.instances[0].sent.length = 0;
+    vi.advanceTimersByTime(10_001);
+    const beats = MockSocket.instances[0].sent
+      .map((s) => JSON.parse(s))
+      .filter((m) => m.type === 'beat');
+    expect(beats).toEqual([]);
+  });
+
+  it('setPresentIn adds the project to the WS subscribe set so server accepts beats', () => {
+    const c = createPresenceClient({ now: () => Date.now(), url: 'ws://test/ws/presence' });
+    c.connect();
+    const sock = MockSocket.instances[0];
+    sock.open();
+    c.setPresentIn('only-present');
+    const lastSubscribe = sock.sent
+      .map((s) => JSON.parse(s))
+      .filter((m) => m.type === 'subscribe')
+      .pop();
+    expect(lastSubscribe.projectIds).toContain('only-present');
   });
 });
