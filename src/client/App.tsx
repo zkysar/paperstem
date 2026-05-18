@@ -1320,7 +1320,7 @@ function PaperstemApp({
     setPendingDraft(null);
   }
 
-  async function loadReplies(annotationId: string): Promise<void> {
+  const loadReplies = useCallback(async (annotationId: string): Promise<void> => {
     if (replies.has(annotationId)) return;
     // Let the caller observe failure so it can surface an error and offer a
     // retry. App.tsx itself doesn't need a toast here — ReplyThread owns the
@@ -1331,12 +1331,12 @@ function PaperstemApp({
       next.set(annotationId, fetched);
       return next;
     });
-  }
+  }, [replies]);
 
-  async function createReply(
+  const createReply = useCallback(async (
     annotationId: string,
     body: string,
-  ): Promise<void> {
+  ): Promise<void> => {
     const reply = await createReplyApi(annotationId, body);
     setReplies((m) => {
       const next = new Map(m);
@@ -1348,9 +1348,9 @@ function PaperstemApp({
         a.id === annotationId ? { ...a, reply_count: a.reply_count + 1 } : a,
       ),
     );
-  }
+  }, []);
 
-  async function editReply(replyId: string, body: string): Promise<void> {
+  const editReply = useCallback(async (replyId: string, body: string): Promise<void> => {
     const updated = await patchReplyApi(replyId, body);
     setReplies((m) => {
       const next = new Map(m);
@@ -1363,9 +1363,9 @@ function PaperstemApp({
       }
       return next;
     });
-  }
+  }, []);
 
-  async function deleteReply(annotationId: string, replyId: string): Promise<void> {
+  const deleteReply = useCallback(async (annotationId: string, replyId: string): Promise<void> => {
     await deleteReplyApi(replyId);
     setReplies((m) => {
       const next = new Map(m);
@@ -1380,7 +1380,7 @@ function PaperstemApp({
           : a,
       ),
     );
-  }
+  }, []);
 
   function applyReactionDelta(
     reactions: Reaction[],
