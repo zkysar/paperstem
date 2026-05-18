@@ -3207,10 +3207,13 @@ body.env-non-prod[data-env="local"]::before {
 }
 
 /* ===== CommentsDrawer ===== */
+/* Backdrop sits above the sticky app-header (z:20) so the dim covers the
+   top bar too, matching the section-popover scrim's coverage. The drawer
+   itself is then bumped above the backdrop. */
 .comments-drawer-backdrop {
   position: fixed;
   left: 0; top: 0; right: 320px; bottom: 0;
-  z-index: 18;
+  z-index: 25;
   background: var(--scrim);
 }
 .comments-drawer {
@@ -3222,7 +3225,7 @@ body.env-non-prod[data-env="local"]::before {
   box-shadow: -16px 0 32px -16px rgba(60, 40, 20, 0.18);
   display: flex;
   flex-direction: column;
-  z-index: 20;
+  z-index: 26;
 }
 .cd-head {
   display: flex;
