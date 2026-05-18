@@ -23,6 +23,10 @@ type Props = {
   loadError: string | null;
   projects: Project[];
   activeProjectId: string | null;
+  // Passed through to PresenceAvatars on each project row so the current
+  // user's own avatar is filtered out — otherwise the row for the project
+  // you're viewing duplicates your account avatar from the header.
+  currentUserId?: string | null;
   showUpload: boolean;
   // Song catalog + per-project usage backs the chip-rail filter above the
   // project list. Filtering is purely client-side (one usage fetch per band
@@ -45,7 +49,7 @@ type Props = {
 };
 
 export function ProjectPicker({
-  open, loading, loadError, projects, activeProjectId, showUpload,
+  open, loading, loadError, projects, activeProjectId, currentUserId, showUpload,
   bandSongs, songUsage, filterSongId, onSetFilterSongId,
   onClose, onSelect, onLoadFolder, onRetry,
   onRenameProject, onDeleteProject,
@@ -232,6 +236,7 @@ export function ProjectPicker({
             tab={tab} search={search}
             loading={loading} loadError={loadError}
             projects={filteredProjects} activeProjectId={activeProjectId}
+            currentUserId={currentUserId}
             showUpload={showUpload}
             onSelect={onSelect}
             onNewProjectClick={() => folderInputRef.current?.click()}
@@ -294,7 +299,7 @@ export function ProjectPicker({
 }
 
 function ProjectPickerBody({
-  search, projects, activeProjectId, loading, loadError, showUpload,
+  search, projects, activeProjectId, currentUserId, loading, loadError, showUpload,
   onSelect, onNewProjectClick, onRetry, onRenameProject, onRequestDelete,
 }: {
   tab: Tab;
@@ -303,6 +308,7 @@ function ProjectPickerBody({
   loadError: string | null;
   projects: Project[];
   activeProjectId: string | null;
+  currentUserId: string | null | undefined;
   showUpload: boolean;
   onSelect(id: string): void;
   onNewProjectClick(): void;
@@ -405,6 +411,7 @@ function ProjectPickerBody({
           project={p}
           active={p.id === activeProjectId}
           editing={editing?.id === p.id ? editing.draft : null}
+          currentUserId={currentUserId}
           onSelect={() => onSelect(p.id)}
           onStartRename={() => setEditing({ id: p.id, draft: p.title })}
           onChangeDraft={(draft) => setEditing({ id: p.id, draft })}
@@ -460,13 +467,14 @@ function sortProjects(
 }
 
 function ProjectRow({
-  project: p, active, editing,
+  project: p, active, editing, currentUserId,
   onSelect, onStartRename, onChangeDraft, onCommitRename, onCancelRename,
   onRequestDelete,
 }: {
   project: Project;
   active: boolean;
   editing: string | null;
+  currentUserId: string | null | undefined;
   onSelect(): void;
   onStartRename(): void;
   onChangeDraft(draft: string): void;
@@ -544,7 +552,7 @@ function ProjectRow({
         </button>
       )}
       <span className="fp-cell-presence">
-        <PresenceAvatars projectId={p.id} />
+        <PresenceAvatars projectId={p.id} currentUserId={currentUserId} />
       </span>
       <span className="fp-cell-actions fp-row-end">
         {!isEditing && (
