@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import { fireEvent } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 const usePresenceMock = vi.fn();
@@ -82,5 +83,74 @@ describe('<PresenceAvatars />', () => {
     ]));
     render(<PresenceAvatars projectId="proj-A" />);
     expect(screen.getAllByTestId('presence-avatar')).toHaveLength(2);
+  });
+});
+
+describe('<PresenceAvatars /> popover interactions', () => {
+  it('clicking an avatar opens a popover with the viewer name', () => {
+    usePresenceMock.mockReturnValue(snap([
+      { userId: 'u1', displayName: 'Alice', emailLocal: 'alice', state: 'active', lastBeatAt: Date.now() },
+    ]));
+    render(<PresenceAvatars projectId="proj-A" />);
+    fireEvent.click(screen.getByTestId('presence-avatar'));
+    // The popover renders into document.body via portal; query globally.
+    expect(screen.getByRole('dialog')).toHaveAttribute('aria-label', expect.stringContaining('Alice'));
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+  });
+
+  it('clicking the same avatar twice closes the popover', () => {
+    usePresenceMock.mockReturnValue(snap([
+      { userId: 'u1', displayName: 'Alice', emailLocal: 'alice', state: 'active', lastBeatAt: Date.now() },
+    ]));
+    render(<PresenceAvatars projectId="proj-A" />);
+    const av = screen.getByTestId('presence-avatar');
+    fireEvent.click(av);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.click(av);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('clicking a different avatar switches the open popover', () => {
+    usePresenceMock.mockReturnValue(snap([
+      { userId: 'u1', displayName: 'Alice', emailLocal: 'alice', state: 'active', lastBeatAt: Date.now() },
+      { userId: 'u2', displayName: 'Bob',   emailLocal: 'bob',   state: 'active', lastBeatAt: Date.now() },
+    ]));
+    render(<PresenceAvatars projectId="proj-A" />);
+    const [a, b] = screen.getAllByTestId('presence-avatar');
+    fireEvent.click(a!);
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toMatch(/Alice/);
+    fireEvent.click(b!);
+    expect(screen.getByRole('dialog').getAttribute('aria-label')).toMatch(/Bob/);
+  });
+
+  it('clicking the +N chip opens a list popover with the non-visible viewers', () => {
+    const now = Date.now();
+    usePresenceMock.mockReturnValue(snap([
+      { userId: 'u1', displayName: 'A', emailLocal: 'a', state: 'active', lastBeatAt: now },
+      { userId: 'u2', displayName: 'B', emailLocal: 'b', state: 'active', lastBeatAt: now - 1 },
+      { userId: 'u3', displayName: 'C', emailLocal: 'c', state: 'active', lastBeatAt: now - 2 },
+      { userId: 'u4', displayName: 'D', emailLocal: 'd', state: 'active', lastBeatAt: now - 3 },
+      { userId: 'u5', displayName: 'E', emailLocal: 'e', state: 'active', lastBeatAt: now - 4 },
+    ]));
+    render(<PresenceAvatars projectId="proj-A" />);
+    fireEvent.click(screen.getByTestId('presence-overflow'));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveAttribute('aria-label', 'All viewers');
+    // First 3 (A, B, C) are visible avatars; the list should contain D and E only.
+    const { getAllByText, queryByText } = within(dialog);
+    expect(getAllByText('D').length).toBeGreaterThan(0);
+    expect(getAllByText('E').length).toBeGreaterThan(0);
+    expect(queryByText('A')).toBeNull();
+  });
+
+  it('Escape closes the popover', () => {
+    usePresenceMock.mockReturnValue(snap([
+      { userId: 'u1', displayName: 'Alice', emailLocal: 'alice', state: 'active', lastBeatAt: Date.now() },
+    ]));
+    render(<PresenceAvatars projectId="proj-A" />);
+    fireEvent.click(screen.getByTestId('presence-avatar'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
