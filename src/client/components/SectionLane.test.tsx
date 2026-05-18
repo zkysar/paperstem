@@ -348,7 +348,7 @@ describe('SectionLane', () => {
       expect(onPatchSection).toHaveBeenCalledTimes(1);
     });
 
-    it('committing a middle drag opens the popover at the dropped position but does not seek', () => {
+    it('committing a middle drag patches the section but does not open the popover or seek', () => {
       const onPatchSection = vi.fn(async () => {});
       const onSelect = vi.fn();
       const onSeek = vi.fn();
@@ -380,14 +380,9 @@ describe('SectionLane', () => {
       fireEvent.click(pill, { clientX: 540 });
 
       expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 36000 });
-      // Section popover should open at the dropped position with the
-      // already-updated start_ms so the dialog reflects where the pill
-      // now sits — mirrors how comments stay editable after a drag.
-      expect(onSelect).toHaveBeenCalledTimes(1);
-      expect(onSelect.mock.calls[0][0]).toMatchObject({
-        id: 's2',
-        start_ms: 36000,
-      });
+      // Drop should not open the edit popover — that only opens on a plain
+      // click (with no drag).
+      expect(onSelect).not.toHaveBeenCalled();
       // Drag is for editing, not playback — the playhead shouldn't jump.
       expect(onSeek).not.toHaveBeenCalled();
     });

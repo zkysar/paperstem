@@ -182,13 +182,10 @@ export function SectionLane({
         });
         setGuideline(waveLeftPx + (nextStart / (duration * 1000)) * waveWidthPx);
       } else if (phase === 'commit' && onPatchSection) {
-        // After a middle drag we open the section popover at the dropped
-        // position, mirroring how a click on the pill opens it for editing.
-        // The pill's anchor lookup (data-section-id getBoundingClientRect)
-        // needs to find it at the *new* position, so we keep `provisional`
-        // in place until the patches resolve and the parent re-fetches the
-        // canonical start_ms — then the optimistic state and real state
-        // coincide and we can drop the provisional entry without a flicker.
+        // Keep `provisional` in place until the patches resolve and the
+        // parent re-fetches the canonical start_ms — then the optimistic
+        // state and real state coincide and we can drop the provisional
+        // entry without a flicker back to the old position.
         const promises = [
           onPatchSection(payload.sectionId, { start_ms: nextStart }),
         ];
@@ -206,8 +203,6 @@ export function SectionLane({
           });
         });
         setGuideline(null);
-        const dragged = sections.find((s) => s.id === payload.sectionId);
-        if (dragged) onSelect({ ...dragged, start_ms: nextStart });
       } else {
         setProvisional((cur) => {
           const m = new Map(cur);
