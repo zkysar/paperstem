@@ -1799,6 +1799,17 @@ function PaperstemApp({
                   onClick={toggleDrawer}
                 />
               )}
+              {active && popoverAnchor && !isNarrow && !drawerOpen &&
+                createPortal(
+                  <div
+                    data-testid="comment-popover-scrim"
+                    className="surface-scrim"
+                    role="presentation"
+                    aria-hidden="true"
+                    onClick={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
+                  />,
+                  document.body,
+                )}
               {active && popoverAnchor && !isNarrow &&
                 createPortal(
                   <CommentPopover
@@ -1825,6 +1836,17 @@ function PaperstemApp({
                     onEditReply={editReply}
                     onDeleteReply={deleteReply}
                     onToggleReaction={toggleReaction}
+                  />,
+                  document.body,
+                )}
+              {active && isNarrow && !drawerOpen &&
+                createPortal(
+                  <div
+                    data-testid="comment-sheet-scrim"
+                    className="surface-scrim"
+                    role="presentation"
+                    aria-hidden="true"
+                    onClick={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
                   />,
                   document.body,
                 )}

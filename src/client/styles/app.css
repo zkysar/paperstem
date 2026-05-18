@@ -11,6 +11,7 @@
   --accent-tint: rgba(193, 116, 70, 0.08);
   --accent-tint-2: rgba(193, 116, 70, 0.18);
   --accent-tint-3: rgba(193, 116, 70, 0.04);
+  --scrim: rgba(42, 39, 35, 0.42);
   --rail-w: 260px;
   --rail-gap: 12px;
 
@@ -990,7 +991,7 @@ button.track-name:disabled { cursor: default; }
 .upload-modal-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(42, 39, 35, 0.42);
+  background: var(--scrim);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -2066,7 +2067,7 @@ body.env-non-prod[data-env="local"]::before {
 /* ===== ProjectPicker ===== */
 .projectpicker-scrim {
   position: fixed; inset: 0;
-  background: rgba(42, 39, 35, 0.42);
+  background: var(--scrim);
   z-index: 40;
 }
 .projectpicker {
@@ -2384,7 +2385,7 @@ body.env-non-prod[data-env="local"]::before {
 .fp-kebab-item-danger:hover { background: #fae3df; }
 .fp-modal-scrim {
   position: fixed; inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--scrim);
   display: flex; align-items: center; justify-content: center;
   z-index: 1000;
 }
@@ -2659,6 +2660,19 @@ body.env-non-prod[data-env="local"]::before {
   padding: 1px 7px;
   border-radius: 999px;
   font-variant-numeric: tabular-nums;
+}
+
+/* Scrim rendered behind transient anchored popovers (comment popover and
+   the mobile comment bottom sheet). Modals and the section popover have
+   their own scrim classes — this one layers at z:59, just under the
+   popover/sheet at z:60. The drawer-backdrop already supplies the dim
+   when the comments drawer is open, so the popover scrim is suppressed
+   in that case (see App.tsx) to avoid stacking two dims. */
+.surface-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  z-index: 59;
 }
 
 /* ===== CommentPopover ===== */
@@ -3060,7 +3074,7 @@ body.env-non-prod[data-env="local"]::before {
   position: fixed;
   left: 0; top: 0; right: 320px; bottom: 0;
   z-index: 18;
-  background: transparent;
+  background: var(--scrim);
 }
 .comments-drawer {
   position: fixed;
@@ -3498,7 +3512,7 @@ body.env-non-prod[data-env="local"]::before {
 .shortcuts-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3875,7 +3889,7 @@ body.env-non-prod[data-env="local"]::before {
 .share-dialog-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
