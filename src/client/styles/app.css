@@ -1445,11 +1445,6 @@ button.track-name:disabled { cursor: default; }
 }
 .empty-state-cta:hover { filter: brightness(0.95); }
 
-.ah-group-menu-divider {
-  height: 1px;
-  background: var(--rule);
-  margin: 4px 0;
-}
 .ah-group-menu-create {
   color: var(--accent);
   font-weight: var(--fw-semi);
@@ -1729,56 +1724,8 @@ button.track-name:disabled { cursor: default; }
   margin: 0;
 }
 .ah-divider { width: 1px; height: 18px; background: var(--rule); }
-.ah-group-wrap { position: relative; }
-.ah-group-block { display: flex; flex-direction: column; line-height: 1.18; min-width: 0; }
-.ah-group-label {
-  font-size: var(--fs-2xs); color: var(--muted);
-  letter-spacing: 0.12em; text-transform: uppercase;
-}
-.ah-group-trigger {
-  display: inline-flex; align-items: center; gap: 4px;
-  background: transparent; border: 0; padding: 0; margin: 0;
-  color: inherit; font: inherit;
-  cursor: pointer; min-width: 0;
-}
-.ah-group-name {
-  font-weight: var(--fw-semi);
-  font-size: var(--fs-md);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  max-width: 180px;
-}
-.ah-group-trigger:hover .ah-group-name {
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
-}
-.ah-group-trigger > svg { color: var(--muted); flex: 0 0 auto; }
-.ah-group-menu {
-  position: absolute; top: 100%; left: 0;
-  margin-top: 6px;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.10);
-  padding: 6px;
-  min-width: 220px;
-  z-index: 30;
-}
-.ah-group-menu button {
-  width: 100%;
-  display: flex; align-items: center; gap: 8px;
-  text-align: left;
-  background: transparent; border: none;
-  padding: 6px 8px;
-  font: inherit; font-size: var(--fs-md);
-  color: var(--ink); border-radius: 4px;
-  cursor: pointer;
-}
-.ah-group-menu button > svg { flex: 0 0 14px; color: var(--accent); }
 .ah-group-menu-spacer { display: inline-block; width: 14px; flex: 0 0 14px; }
 .ah-group-menu-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ah-group-menu button:hover { background: var(--accent-tint); }
-.ah-group-menu button[aria-current="true"] { font-weight: var(--fw-semi); }
 .ah-title-block { display: flex; flex-direction: column; line-height: 1.18; min-width: 0; }
 .ah-title-label {
   font-size: var(--fs-2xs); color: var(--muted);
