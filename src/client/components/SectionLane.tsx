@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link2 } from 'lucide-react';
 import type { Section } from '../../shared/types';
@@ -96,6 +96,32 @@ export function SectionLane({
     };
   }, [draggingId]);
 
+  // Cursor lock: pointer-capture continues delivering events after the
+  // cursor leaves the 12px grip strip, but the rendered cursor reverts to
+  // whatever element is under it (grab on the pill, default on empty
+  // space). Setting the cursor on documentElement for the duration of an
+  // active left-edge drag keeps ew-resize stable across the whole gesture.
+  const priorCursorRef = useRef<string | null>(null);
+
+  function lockCursor() {
+    if (priorCursorRef.current !== null) return;
+    priorCursorRef.current = document.documentElement.style.cursor;
+    document.documentElement.style.cursor = 'ew-resize';
+  }
+
+  function unlockCursor() {
+    if (priorCursorRef.current === null) return;
+    document.documentElement.style.cursor = priorCursorRef.current;
+    priorCursorRef.current = null;
+  }
+
+  useEffect(() => {
+    return () => {
+      // Safety: clear the lock if the component unmounts mid-drag.
+      unlockCursor();
+    };
+  }, []);
+
   // Cursor-anchored label chip. Mouse only — touch already has a tap-to-expand
   // affordance and a chip floating under the finger would be obscured.
   // Keyboard focus uses the same chip anchored to the element's bounding box,
@@ -150,6 +176,7 @@ export function SectionLane({
           Math.min(payload.maxStartMs, candidate),
         );
         if (phase === 'preview') {
+          lockCursor();
           setProvisional((cur) => {
             const m = new Map(cur);
             m.set(payload.sectionId, next);
@@ -157,6 +184,7 @@ export function SectionLane({
           });
           setGuideline(waveLeftPx + (next / (duration * 1000)) * waveWidthPx);
         } else {
+          unlockCursor();
           setProvisional((cur) => {
             const m = new Map(cur);
             m.delete(payload.sectionId);
@@ -182,13 +210,10 @@ export function SectionLane({
         });
         setGuideline(waveLeftPx + (nextStart / (duration * 1000)) * waveWidthPx);
       } else if (phase === 'commit' && onPatchSection) {
-        // After a middle drag we open the section popover at the dropped
-        // position, mirroring how a click on the pill opens it for editing.
-        // The pill's anchor lookup (data-section-id getBoundingClientRect)
-        // needs to find it at the *new* position, so we keep `provisional`
-        // in place until the patches resolve and the parent re-fetches the
-        // canonical start_ms — then the optimistic state and real state
-        // coincide and we can drop the provisional entry without a flicker.
+        // Keep `provisional` in place until the patches resolve and the
+        // parent re-fetches the canonical start_ms — then the optimistic
+        // state and real state coincide and we can drop the provisional
+        // entry without a flicker back to the old position.
         const promises = [
           onPatchSection(payload.sectionId, { start_ms: nextStart }),
         ];
@@ -206,8 +231,6 @@ export function SectionLane({
           });
         });
         setGuideline(null);
-        const dragged = sections.find((s) => s.id === payload.sectionId);
-        if (dragged) onSelect({ ...dragged, start_ms: nextStart });
       } else {
         setProvisional((cur) => {
           const m = new Map(cur);

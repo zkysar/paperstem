@@ -20,6 +20,7 @@ const baseProps = {
   section: null,
   startMs: 12000,
   bandSongs: [] as Song[],
+  runningSection: null,
   anchorLeftPx: 200,
   anchorTopPx: 200,
   onSubmit: vi.fn(),
@@ -83,12 +84,12 @@ describe('SectionPopover', () => {
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'song_name', song_name: 'Brand New' });
   });
 
-  it('Label tab + Enter fires label submit', async () => {
+  it('Label checkbox + Enter fires label submit', async () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
     render(<SectionPopover {...baseProps} onSubmit={onSubmit} />);
-    await user.click(screen.getByRole('tab', { name: /label/i }));
-    const input = screen.getByLabelText('Label');
+    await user.click(screen.getByRole('radio', { name: /^label$/i }));
+    const input = screen.getByRole('textbox', { name: /label/i });
     await user.type(input, 'warmup{Enter}');
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'label', label: 'warmup' });
   });
@@ -157,12 +158,9 @@ describe('SectionPopover', () => {
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'song_id', song_id: 's-2' });
   });
 
-  it('"End here" button fires a label submit with the em-dash marker', async () => {
-    const onSubmit = vi.fn();
-    const user = userEvent.setup();
-    render(<SectionPopover {...baseProps} onSubmit={onSubmit} />);
-    await user.click(screen.getByRole('button', { name: /^end here$/i }));
-    expect(onSubmit).toHaveBeenCalledWith({ kind: 'label', label: '—' });
+  it('"End here" button is hidden when no runningSection is provided', () => {
+    render(<SectionPopover {...baseProps} />);
+    expect(screen.queryByRole('button', { name: /end/i })).toBeNull();
   });
 
   it('"End here" button is hidden when editing an existing section', () => {
@@ -180,9 +178,67 @@ describe('SectionPopover', () => {
           created_at: 0,
           updated_at: 0,
         }}
+        runningSection={{
+          id: 'sec-0',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: 's-1',
+          song_name: 'Heart Sounds',
+          label: null,
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
       />,
     );
-    expect(screen.queryByRole('button', { name: /^end here$/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /end/i })).toBeNull();
+  });
+
+  it('"End here" button renders with the song name when runningSection has a song', async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <SectionPopover
+        {...baseProps}
+        runningSection={{
+          id: 'sec-0',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: 's-1',
+          song_name: 'Wonderwall',
+          label: null,
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+        onSubmit={onSubmit}
+      />,
+    );
+    const button = screen.getByRole('button', { name: /end "wonderwall" here/i });
+    await user.click(button);
+    expect(onSubmit).toHaveBeenCalledWith({ kind: 'label', label: '—' });
+  });
+
+  it('"End here" button renders with the label text when runningSection is free-text', () => {
+    render(
+      <SectionPopover
+        {...baseProps}
+        runningSection={{
+          id: 'sec-0',
+          project_id: 'p-1',
+          start_ms: 0,
+          song_id: null,
+          song_name: null,
+          label: 'Bridge talk',
+          source: 'manual',
+          created_at: 0,
+          updated_at: 0,
+        }}
+      />,
+    );
+    expect(
+      screen.getByRole('button', { name: /end "bridge talk" here/i }),
+    ).not.toBeNull();
   });
 
   it('Cancel button calls onClose', async () => {
@@ -237,26 +293,20 @@ describe('SectionPopover', () => {
         onSubmit={onSubmit}
       />,
     );
-    const input = screen.getByLabelText('Label');
+    const input = screen.getByRole('textbox', { name: /label/i });
     await user.clear(input);
     await user.click(screen.getByRole('button', { name: /^save$/i }));
     expect(onSubmit).toHaveBeenCalledWith({ kind: 'clear' });
   });
 
-  it('"Not a song?" hint switches the popover to Label mode', async () => {
+  it('Label checkbox switches the popover to Label mode', async () => {
     const user = userEvent.setup();
     render(<SectionPopover {...baseProps} />);
-    const input = screen.getByLabelText('Song name');
-    await user.type(input, 'warmup');
-    // The hint appears alongside the Create-song suggestion.
-    const hint = screen.getByText(/not a song\?/i);
-    await user.click(hint);
-    // Now the Label input is rendered.
-    expect(screen.getByLabelText('Label')).not.toBeNull();
+    await user.click(screen.getByRole('radio', { name: /^label$/i }));
+    expect(screen.getByRole('textbox', { name: /label/i })).not.toBeNull();
   });
 
-  it('"Not a song?" hint is also offered when editing a song-attached section', async () => {
-    const user = userEvent.setup();
+  it('Label checkbox is reachable when editing a song-attached section', () => {
     render(
       <SectionPopover
         {...baseProps}
@@ -274,12 +324,7 @@ describe('SectionPopover', () => {
         bandSongs={[song({ id: 's-1', name: 'Heart Sounds' })]}
       />,
     );
-    const input = screen.getByLabelText('Song name');
-    await user.clear(input);
-    await user.type(input, 'tuning break');
-    // The label-hint copy is contextual to whether a song is currently
-    // attached, but the affordance must always be reachable.
-    expect(screen.getByText(/not a song\?/i)).not.toBeNull();
+    expect(screen.getByRole('radio', { name: /^label$/i })).not.toBeNull();
   });
 
   it('submit button reads "Add section" in create mode', () => {

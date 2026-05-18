@@ -11,6 +11,7 @@
   --accent-tint: rgba(193, 116, 70, 0.08);
   --accent-tint-2: rgba(193, 116, 70, 0.18);
   --accent-tint-3: rgba(193, 116, 70, 0.04);
+  --scrim: rgba(42, 39, 35, 0.42);
   --rail-w: 260px;
   --rail-gap: 12px;
 
@@ -199,8 +200,8 @@ kbd {
 
 /* ===== Player =====
    Flex column inside the bounded app-body so .stage flex-grows and .tracks
-   gets a real height to scroll against, while .status + .keys-hint stay at
-   the bottom of the player regardless of how many stems are loaded. */
+   gets a real height to scroll against, while .keys-hint stays at the bottom
+   of the player regardless of how many stems are loaded. */
 .player {
   min-width: 0;
   display: flex;
@@ -832,15 +833,9 @@ button.track-name:disabled { cursor: default; }
 .status-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
-}
-.status {
-  color: var(--muted);
-  font-size: var(--fs-md);
-  margin: 12px 0 0;
-  min-height: 1em;
-  word-break: break-word;
+  margin-top: 12px;
 }
 .keys-hint {
   margin-top: 16px;
@@ -996,7 +991,7 @@ button.track-name:disabled { cursor: default; }
 .upload-modal-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(42, 39, 35, 0.42);
+  background: var(--scrim);
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -1445,11 +1440,6 @@ button.track-name:disabled { cursor: default; }
 }
 .empty-state-cta:hover { filter: brightness(0.95); }
 
-.ah-group-menu-divider {
-  height: 1px;
-  background: var(--rule);
-  margin: 4px 0;
-}
 .ah-group-menu-create {
   color: var(--accent);
   font-weight: var(--fw-semi);
@@ -1729,56 +1719,8 @@ button.track-name:disabled { cursor: default; }
   margin: 0;
 }
 .ah-divider { width: 1px; height: 18px; background: var(--rule); }
-.ah-group-wrap { position: relative; }
-.ah-group-block { display: flex; flex-direction: column; line-height: 1.18; min-width: 0; }
-.ah-group-label {
-  font-size: var(--fs-2xs); color: var(--muted);
-  letter-spacing: 0.12em; text-transform: uppercase;
-}
-.ah-group-trigger {
-  display: inline-flex; align-items: center; gap: 4px;
-  background: transparent; border: 0; padding: 0; margin: 0;
-  color: inherit; font: inherit;
-  cursor: pointer; min-width: 0;
-}
-.ah-group-name {
-  font-weight: var(--fw-semi);
-  font-size: var(--fs-md);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  max-width: 180px;
-}
-.ah-group-trigger:hover .ah-group-name {
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
-}
-.ah-group-trigger > svg { color: var(--muted); flex: 0 0 auto; }
-.ah-group-menu {
-  position: absolute; top: 100%; left: 0;
-  margin-top: 6px;
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.10);
-  padding: 6px;
-  min-width: 220px;
-  z-index: 30;
-}
-.ah-group-menu button {
-  width: 100%;
-  display: flex; align-items: center; gap: 8px;
-  text-align: left;
-  background: transparent; border: none;
-  padding: 6px 8px;
-  font: inherit; font-size: var(--fs-md);
-  color: var(--ink); border-radius: 4px;
-  cursor: pointer;
-}
-.ah-group-menu button > svg { flex: 0 0 14px; color: var(--accent); }
 .ah-group-menu-spacer { display: inline-block; width: 14px; flex: 0 0 14px; }
 .ah-group-menu-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ah-group-menu button:hover { background: var(--accent-tint); }
-.ah-group-menu button[aria-current="true"] { font-weight: var(--fw-semi); }
 .ah-title-block { display: flex; flex-direction: column; line-height: 1.18; min-width: 0; }
 .ah-title-label {
   font-size: var(--fs-2xs); color: var(--muted);
@@ -2125,7 +2067,7 @@ body.env-non-prod[data-env="local"]::before {
 /* ===== ProjectPicker ===== */
 .projectpicker-scrim {
   position: fixed; inset: 0;
-  background: rgba(42, 39, 35, 0.42);
+  background: var(--scrim);
   z-index: 40;
 }
 .projectpicker {
@@ -2443,7 +2385,7 @@ body.env-non-prod[data-env="local"]::before {
 .fp-kebab-item-danger:hover { background: #fae3df; }
 .fp-modal-scrim {
   position: fixed; inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--scrim);
   display: flex; align-items: center; justify-content: center;
   z-index: 1000;
 }
@@ -2718,6 +2660,19 @@ body.env-non-prod[data-env="local"]::before {
   padding: 1px 7px;
   border-radius: 999px;
   font-variant-numeric: tabular-nums;
+}
+
+/* Scrim rendered behind transient anchored popovers (comment popover and
+   the mobile comment bottom sheet). Modals and the section popover have
+   their own scrim classes — this one layers at z:59, just under the
+   popover/sheet at z:60. The drawer-backdrop already supplies the dim
+   when the comments drawer is open, so the popover scrim is suppressed
+   in that case (see App.tsx) to avoid stacking two dims. */
+.surface-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  z-index: 59;
 }
 
 /* ===== CommentPopover ===== */
@@ -3256,7 +3211,7 @@ body.env-non-prod[data-env="local"]::before {
   position: fixed;
   left: 0; top: 0; right: 320px; bottom: 0;
   z-index: 18;
-  background: transparent;
+  background: var(--scrim);
 }
 .comments-drawer {
   position: fixed;
@@ -3694,7 +3649,7 @@ body.env-non-prod[data-env="local"]::before {
 .shortcuts-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4071,7 +4026,7 @@ body.env-non-prod[data-env="local"]::before {
 .share-dialog-scrim {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4467,8 +4422,6 @@ body.env-non-prod[data-env="local"]::before {
 .section-lane {
   position: relative;
   height: 22px;
-  border-bottom: 1px solid var(--rule-2);
-  background: var(--bg);
 }
 
 /* Sticks to the left edge of .viewport so the rail column area in the
@@ -4567,10 +4520,6 @@ body.env-non-prod[data-env="local"]::before {
   left: 0;
   right: 0;
   z-index: 5;
-  box-shadow:
-    0 6px 14px -4px rgba(0, 0, 0, 0.18),
-    0 0 0 1px rgba(0, 0, 0, 0.06);
-  border-radius: 0 0 4px 4px;
 }
 /* Rail mask must stay above the floating lane so pills never visually
    bleed onto the track-name rail at the left. */
@@ -4739,25 +4688,34 @@ body.env-non-prod[data-env="local"]::before {
 }
 .sp-close:hover { background: var(--accent-tint); color: var(--ink); }
 
-.sp-mode-tabs {
-  display: flex;
+.sp-mode-toggle {
+  display: inline-flex;
+  align-self: flex-start;
+  background: var(--accent-tint);
+  border-radius: 999px;
+  padding: 2px;
   gap: 2px;
-  border-bottom: 1px solid var(--rule);
-  padding-bottom: 4px;
 }
-.sp-mode-tab {
+.sp-mode-option {
   background: transparent;
   border: none;
-  padding: 4px 8px;
+  padding: 5px 12px;
   font-size: var(--fs-2xs);
   color: var(--muted);
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: 999px;
+  font-family: inherit;
+  line-height: 1.2;
 }
-.sp-mode-tab.active {
-  background: var(--accent-tint);
+.sp-mode-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.sp-mode-option.active {
+  background: var(--paper, #fff);
   color: var(--ink);
   font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .sp-input {
@@ -4778,12 +4736,24 @@ body.env-non-prod[data-env="local"]::before {
   padding: 0 2px;
 }
 
+.sp-body {
+  /* Reserve a consistent height so toggling Label doesn't make the popover
+     jump. The empty placeholder fills the same space in label mode. */
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+}
 .sp-suggestions {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1 1 auto;
   max-height: 200px;
   overflow-y: auto;
+}
+.sp-suggestions-empty {
+  /* No content, just preserves the body's reserved height. */
+  pointer-events: none;
 }
 .sp-suggestion {
   background: transparent;
@@ -4837,7 +4807,9 @@ body.env-non-prod[data-env="local"]::before {
 .sp-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 6px;
+  row-gap: 6px;
   border-top: 1px solid var(--rule);
   padding-top: 6px;
 }
@@ -4853,6 +4825,18 @@ body.env-non-prod[data-env="local"]::before {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
+}
+/* The "End <name> here" button is the only action that takes user-controlled
+   text — long song names would otherwise push Cancel / Add section off the
+   edge of a narrow popover. Let it shrink and ellipsize instead. */
+.sp-action-end {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sp-action:hover { background: var(--accent-tint); }
 .sp-action-primary {
@@ -5008,10 +4992,6 @@ body.env-non-prod[data-env="local"]::before {
 .section-pill.active .section-grip,
 .section-grip:active {
   opacity: 1;
-  /* Light wash over the hit area so the entire grippable zone lights up,
-     not just the thin handle bar. Mirrors how comment grips read at a
-     glance against the marker background. */
-  background: rgba(255, 255, 255, 0.18);
 }
 .section-grip-left {
   left: 0;
@@ -5024,17 +5004,19 @@ body.env-non-prod[data-env="local"]::before {
   position: absolute;
   top: 3px;
   bottom: 3px;
-  left: 4px;
-  width: 3px;
+  left: 2px;
+  width: 2px;
   /* currentColor = the pill's text color (--paper, white) → high contrast
-     against the colored fill. Matches the comment-grip approach. */
+     against the colored fill. Matches the comment-grip approach. The bar
+     sits within the pill's 6px left/right padding so it never lands on
+     top of the label text. */
   background: currentColor;
   border-radius: 1px;
   opacity: 0.85;
 }
 .section-grip-right::after {
   left: auto;
-  right: 4px;
+  right: 2px;
 }
 @media (pointer: coarse) {
   .section-grip {
@@ -5111,22 +5093,28 @@ body.env-non-prod[data-env="local"]::before {
   opacity: 1;
 }
 
-/* Presence indicators (Google-Docs-style avatars on projects). */
+/* Presence indicators (Google-Docs-style avatars on projects).
+   The whole cluster sits inside a single subtle chip so it reads as one
+   "viewers" indicator and stays visually distinct from the user's own
+   profile avatar nearby in the header. */
 .presence-avatars {
   display: inline-flex;
   align-items: center;
   gap: 0;
+  padding: 2px 6px 2px 4px;
+  border-radius: 12px;
+  background: var(--surface-elevated, #f0f0f0);
 }
 .presence-avatar {
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  margin-left: -6px;
+  margin-left: -5px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: #fff;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   user-select: none;
 }
@@ -5137,35 +5125,35 @@ body.env-non-prod[data-env="local"]::before {
 }
 .presence-overflow {
   margin-left: 4px;
-  padding: 0 6px;
-  height: 24px;
-  border-radius: 12px;
-  background: var(--surface-elevated, #f0f0f0);
+  padding: 0;
+  height: 20px;
+  background: transparent;
   color: var(--text-secondary, #444);
-  font-size: 11px;
+  font-size: 10px;
   display: inline-flex;
   align-items: center;
 }
 .presence-anon {
   margin-left: 4px;
-  padding: 0 6px;
-  height: 24px;
-  border-radius: 12px;
-  background: var(--surface-elevated, #f0f0f0);
+  padding: 0;
+  height: 20px;
+  background: transparent;
   color: var(--text-secondary, #444);
-  font-size: 11px;
+  font-size: 10px;
   display: inline-flex;
   align-items: center;
   gap: 2px;
 }
 
 /* Presence avatar buttons — reset native button styling so they still look
-   like circular avatars (the elements changed from div to button in Task 6). */
+   like circular avatars (the elements changed from div to button in Task 6).
+   Intentionally do NOT include `font: inherit` here — that shorthand would
+   override the explicit font-size/font-weight on `.presence-avatar` and
+   `.presence-overflow` (higher specificity than the global `button` reset). */
 button.presence-avatar,
 button.presence-overflow {
   border: 0;
   cursor: pointer;
-  font: inherit;
   padding: 0;
 }
 button.presence-avatar:focus-visible,

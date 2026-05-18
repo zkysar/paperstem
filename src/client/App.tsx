@@ -55,6 +55,7 @@ import {
   deleteSection,
 } from './data/sections-repo';
 import { END_SECTION_LABEL } from './lib/section-end';
+import { findRunningSection } from './lib/running-section';
 import {
   listSongs,
   listSongUsage,
@@ -1613,6 +1614,7 @@ function PaperstemApp({
       <AppHeader
         userEmail={user.email}
         userInitials={initialsFromEmail(user.email)}
+        currentUserId={user.id}
         groups={bands}
         currentGroupId={activeBandId}
         onSwitchGroup={(id) => {
@@ -1803,6 +1805,17 @@ function PaperstemApp({
                   onClick={toggleDrawer}
                 />
               )}
+              {active && popoverAnchor && !isNarrow && !drawerOpen &&
+                createPortal(
+                  <div
+                    data-testid="comment-popover-scrim"
+                    className="surface-scrim"
+                    role="presentation"
+                    aria-hidden="true"
+                    onClick={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
+                  />,
+                  document.body,
+                )}
               {active && popoverAnchor && !isNarrow &&
                 createPortal(
                   <CommentPopover
@@ -1831,6 +1844,17 @@ function PaperstemApp({
                     onEditReply={editReply}
                     onDeleteReply={deleteReply}
                     onToggleReaction={toggleReaction}
+                  />,
+                  document.body,
+                )}
+              {active && isNarrow && !drawerOpen &&
+                createPortal(
+                  <div
+                    data-testid="comment-sheet-scrim"
+                    className="surface-scrim"
+                    role="presentation"
+                    aria-hidden="true"
+                    onClick={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
                   />,
                   document.body,
                 )}
@@ -1882,6 +1906,7 @@ function PaperstemApp({
         loadError={loadError}
         projects={projects}
         activeProjectId={activeProjectId}
+        currentUserId={user.id}
         showUpload={showUploadButton}
         bandSongs={songs}
         songUsage={songUsage}
@@ -2046,6 +2071,7 @@ function PaperstemApp({
               section={sectionPopover.section}
               startMs={sectionPopover.startMs}
               bandSongs={songs}
+              runningSection={findRunningSection(sections, sectionPopover.startMs)}
               anchorLeftPx={sectionPopover.anchorLeft}
               anchorTopPx={sectionPopover.anchorTop}
               onSubmit={(payload) => void handleSectionSubmit(payload)}

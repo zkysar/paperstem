@@ -586,6 +586,17 @@ export function PublicProjectView({ token }: { token: string }) {
                   onClick={toggleDrawer}
                 />
               )}
+              {active && popoverAnchor && !railCollapsed && !drawerOpen &&
+                createPortal(
+                  <div
+                    data-testid="comment-popover-scrim"
+                    className="surface-scrim"
+                    role="presentation"
+                    aria-hidden="true"
+                    onClick={closePopovers}
+                  />,
+                  document.body,
+                )}
               {active && popoverAnchor && !railCollapsed &&
                 createPortal(
                   <CommentPopover
@@ -614,6 +625,17 @@ export function PublicProjectView({ token }: { token: string }) {
                     onEditReply={promptAsync}
                     onDeleteReply={promptAsync}
                     onToggleReaction={promptIgnoreArgs}
+                  />,
+                  document.body,
+                )}
+              {active && railCollapsed && !drawerOpen &&
+                createPortal(
+                  <div
+                    data-testid="comment-sheet-scrim"
+                    className="surface-scrim"
+                    role="presentation"
+                    aria-hidden="true"
+                    onClick={closePopovers}
                   />,
                   document.body,
                 )}

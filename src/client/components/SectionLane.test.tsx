@@ -115,6 +115,60 @@ describe('SectionLane', () => {
     expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 64500 });
   });
 
+  it('grip drag locks document cursor to ew-resize during preview and restores on commit', async () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+      />,
+    );
+    const grip = document.querySelector(
+      '[data-testid="section-s2"] .section-grip-left',
+    )!;
+    (grip as any).setPointerCapture = vi.fn();
+    (grip as any).releasePointerCapture = vi.fn();
+
+    const priorCursor = document.documentElement.style.cursor;
+    fireEvent.pointerDown(grip, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 530, pointerId: 1 });
+    expect(document.documentElement.style.cursor).toBe('ew-resize');
+    fireEvent.pointerUp(window, { clientX: 530, pointerId: 1 });
+    expect(document.documentElement.style.cursor).toBe(priorCursor);
+  });
+
+  it('grip drag restores document cursor on cancel (pointercancel)', () => {
+    const onPatchSection = vi.fn(async () => {});
+    const sections = [
+      section({ id: 's1', start_ms: 0 }),
+      section({ id: 's2', start_ms: 60000 }),
+    ];
+    render(
+      <SectionLane
+        {...baseProps}
+        sections={sections}
+        onPatchSection={onPatchSection}
+      />,
+    );
+    const grip = document.querySelector(
+      '[data-testid="section-s2"] .section-grip-left',
+    )!;
+    (grip as any).setPointerCapture = vi.fn();
+    (grip as any).releasePointerCapture = vi.fn();
+
+    const priorCursor = document.documentElement.style.cursor;
+    fireEvent.pointerDown(grip, { clientX: 500, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 530, pointerId: 1 });
+    expect(document.documentElement.style.cursor).toBe('ew-resize');
+    fireEvent.pointerCancel(window, { clientX: 530, pointerId: 1 });
+    expect(document.documentElement.style.cursor).toBe(priorCursor);
+  });
+
   it('clicking a pill seeks and selects', async () => {
     const onSelect = vi.fn();
     const onSeek = vi.fn();
@@ -348,7 +402,7 @@ describe('SectionLane', () => {
       expect(onPatchSection).toHaveBeenCalledTimes(1);
     });
 
-    it('committing a middle drag opens the popover at the dropped position but does not seek', () => {
+    it('committing a middle drag patches the section but does not open the popover or seek', () => {
       const onPatchSection = vi.fn(async () => {});
       const onSelect = vi.fn();
       const onSeek = vi.fn();
@@ -380,14 +434,9 @@ describe('SectionLane', () => {
       fireEvent.click(pill, { clientX: 540 });
 
       expect(onPatchSection).toHaveBeenCalledWith('s2', { start_ms: 36000 });
-      // Section popover should open at the dropped position with the
-      // already-updated start_ms so the dialog reflects where the pill
-      // now sits — mirrors how comments stay editable after a drag.
-      expect(onSelect).toHaveBeenCalledTimes(1);
-      expect(onSelect.mock.calls[0][0]).toMatchObject({
-        id: 's2',
-        start_ms: 36000,
-      });
+      // Drop should not open the edit popover — that only opens on a plain
+      // click (with no drag).
+      expect(onSelect).not.toHaveBeenCalled();
       // Drag is for editing, not playback — the playhead shouldn't jump.
       expect(onSeek).not.toHaveBeenCalled();
     });

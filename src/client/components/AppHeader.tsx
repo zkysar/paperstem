@@ -8,6 +8,10 @@ import type { BandWithRole } from '../../shared/types';
 type Props = {
   userEmail: string;
   userInitials: string;
+  // Used by the presence chip to drop the current user's own row, so the
+  // chip doesn't duplicate the profile avatar next to it. Optional so
+  // test/public callers can omit it.
+  currentUserId?: string | null;
   // The user's groups (a.k.a. bands at the DB layer). The switcher renders
   // whenever the user is in 1+ groups so the "+ New group" entry has a
   // stable home; with zero groups the switcher is hidden and the empty
@@ -57,7 +61,7 @@ type Props = {
 };
 
 export function AppHeader({
-  userEmail, userInitials, groups, currentGroupId, onSwitchGroup, onCreateGroup,
+  userEmail, userInitials, currentUserId, groups, currentGroupId, onSwitchGroup, onCreateGroup,
   projectTitle, stemCount, duration,
   annotationsOpen, hasProject, canRename, isWide, appVersion, appEnv, downloading,
   debugInfo,
@@ -67,8 +71,6 @@ export function AppHeader({
   const envBadge = appEnv && appEnv !== 'prod' ? appEnv.toUpperCase() : null;
   const [avatarOpen, setAvatarOpen] = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
-  const [groupOpen, setGroupOpen] = useState(false);
-  const groupRef = useRef<HTMLDivElement>(null);
 
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(projectTitle ?? '');
@@ -82,17 +84,8 @@ export function AppHeader({
     function onDoc(e: MouseEvent) {
       if (!avatarRef.current?.contains(e.target as Node)) setAvatarOpen(false);
     }
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [avatarOpen]);
-
-  useEffect(() => {
-    if (!groupOpen) return;
-    function onDoc(e: MouseEvent) {
-      if (!groupRef.current?.contains(e.target as Node)) setGroupOpen(false);
-    }
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setGroupOpen(false);
+      if (e.key === 'Escape') setAvatarOpen(false);
     }
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onKey);
@@ -100,20 +93,18 @@ export function AppHeader({
       document.removeEventListener('mousedown', onDoc);
       document.removeEventListener('keydown', onKey);
     };
-  }, [groupOpen]);
+  }, [avatarOpen]);
 
   const groupList = groups ?? [];
-  // Render the switcher whenever it would be useful. With 2+ groups that's
+  // Show the switcher whenever it would be useful. With 2+ groups that's
   // always; with exactly 1 group, only if the menu can offer "+ New group"
-  // (otherwise the menu would be a single inert row with a fake chevron).
-  // Hidden in public mode so anonymous viewers can't enumerate the link
-  // owner's band membership.
+  // (otherwise the menu would be a single inert row). Hidden in public mode
+  // so anonymous viewers can't enumerate the link owner's band membership.
   const showGroupSwitcher =
     !publicMode &&
     (groupList.length > 1 || (groupList.length === 1 && !!onCreateGroup));
   const currentGroup =
     groupList.find((g) => g.id === currentGroupId) ?? groupList[0] ?? null;
-  const hasMultipleGroups = groupList.length > 1;
 
   function commit() {
     setEditing(false);
@@ -142,73 +133,6 @@ export function AppHeader({
         </span>
       )}
       <span className="ah-divider" />
-      {showGroupSwitcher && currentGroup && (
-        <>
-          <div className="ah-group-block ah-group-wrap ah-hide-on-mobile" ref={groupRef}>
-            <span className="ah-group-label">Group</span>
-            <button
-              type="button"
-              className="ah-group-trigger"
-              onClick={() => setGroupOpen((v) => !v)}
-              aria-haspopup="menu"
-              aria-expanded={groupOpen}
-              aria-label="Switch group"
-              title={hasMultipleGroups
-                ? `Group: ${currentGroup.name} — click to switch`
-                : `Group: ${currentGroup.name}`}
-            >
-              <Users size={14} strokeWidth={2} aria-hidden="true" />
-              <span className="ah-group-name">{currentGroup.name}</span>
-              <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
-            </button>
-            {groupOpen && (
-              <div className="ah-group-menu" role="menu">
-                {groupList.map((g) => {
-                  const active = g.id === currentGroup.id;
-                  return (
-                    <button
-                      key={g.id}
-                      type="button"
-                      role="menuitem"
-                      aria-current={active ? 'true' : undefined}
-                      onClick={() => {
-                        setGroupOpen(false);
-                        if (!active) onSwitchGroup?.(g.id);
-                      }}
-                    >
-                      {active
-                        ? <Check size={14} strokeWidth={2} aria-hidden="true" />
-                        : <span className="ah-group-menu-spacer" aria-hidden="true" />}
-                      <span className="ah-group-menu-name">{g.name}</span>
-                    </button>
-                  );
-                })}
-                {onCreateGroup && (
-                  <>
-                    <div
-                      className="ah-group-menu-divider"
-                      aria-hidden="true"
-                    />
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="ah-group-menu-create"
-                      onClick={() => {
-                        setGroupOpen(false);
-                        onCreateGroup();
-                      }}
-                    >
-                      <Plus size={14} strokeWidth={2} aria-hidden="true" />
-                      <span className="ah-group-menu-name">New group</span>
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-          <span className="ah-divider" />
-        </>
-      )}
       {hasProject ? (
         <div className="ah-title-block">
           <span className="ah-title-label">Project</span>
@@ -306,7 +230,7 @@ export function AppHeader({
         </button>
       )}
       {hasProject && currentProjectId && !publicMode ? (
-        <PresenceAvatars projectId={currentProjectId} />
+        <PresenceAvatars projectId={currentProjectId} currentUserId={currentUserId} />
       ) : null}
       {publicMode ? (
         <button
@@ -338,7 +262,7 @@ export function AppHeader({
         {avatarOpen && (
           <div className="ah-avatar-menu" role="menu">
             <div className="ah-avatar-email">{userEmail}</div>
-            {!isWide && showGroupSwitcher && currentGroup && (
+            {showGroupSwitcher && currentGroup && (
               <>
                 <div className="ah-avatar-menu-label" aria-hidden="true">Switch group</div>
                 {groupList.map((g) => {
