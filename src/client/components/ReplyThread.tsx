@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { AnnotationReply } from '../../shared/types';
 import { ReplyCard } from './ReplyCard';
-import { isMac } from '../lib/platform';
 
 type Props = {
   annotationId: string;
   replyCount: number;
   replies: AnnotationReply[] | undefined;
   selfUserId: string;
+  selfDisplayName: string;
+  selfColor: string;
+  userColorMap: Map<string, string>;
   canEdit: boolean;
   canReact?: boolean;
   isNarrow: boolean;
@@ -21,14 +22,23 @@ type Props = {
 
 function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;
-  return isMac() ? e.metaKey : e.ctrlKey;
+  return e.metaKey || e.ctrlKey;
+}
+
+function selfInitials(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return '?';
+  const local = trimmed.split('@')[0];
+  return local.slice(0, 2).toUpperCase();
 }
 
 export function ReplyThread({
   annotationId,
-  replyCount,
   replies,
   selfUserId,
+  selfDisplayName,
+  selfColor,
+  userColorMap,
   canEdit,
   canReact = true,
   isNarrow,
@@ -38,53 +48,26 @@ export function ReplyThread({
   onDeleteReply,
   onToggleReaction,
 }: Props) {
-  const [expanded, setExpanded] = useState(false);
-  const [composing, setComposing] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
   const [draft, setDraft] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   // Track which annotationId we've already fetched for so a reused instance
-  // (CommentPopover / CommentBottomSheet navigating between annotations) doesn't
-  // skip the fetch when the prop changes.
+  // (CommentPopover / CommentBottomSheet navigating between annotations)
+  // doesn't skip the fetch when the prop changes.
   const fetchedForRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!expanded) return;
-    if (replies !== undefined) return;
+    if (replies !== undefined) {
+      fetchedForRef.current = annotationId;
+      return;
+    }
     if (fetchedForRef.current === annotationId) return;
     fetchedForRef.current = annotationId;
-    setLoading(true);
-    setLoadError(null);
-    (async () => {
-      try {
-        await onLoadReplies(annotationId);
-      } catch {
-        // Clear the fetch guard so the user can retry by collapsing/re-expanding.
-        fetchedForRef.current = null;
-        setLoadError("Couldn't load replies.");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [expanded, replies, annotationId, onLoadReplies]);
-
-  function retryLoad() {
-    fetchedForRef.current = null;
-    setLoadError(null);
-    setLoading(true);
-    (async () => {
-      try {
-        await onLoadReplies(annotationId);
-        fetchedForRef.current = annotationId;
-      } catch {
-        setLoadError("Couldn't load replies.");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }
-
-  const [error, setError] = useState<string | null>(null);
+    void Promise.resolve(onLoadReplies(annotationId)).catch(() => {
+      // Clear the guard so a future remount / annotation switch can retry.
+      fetchedForRef.current = null;
+    });
+  }, [annotationId, replies, onLoadReplies]);
 
   async function submit() {
     const text = draft.trim();
@@ -92,83 +75,44 @@ export function ReplyThread({
     setError(null);
     try {
       await onCreateReply(annotationId, text);
-      // Only clear the composer on success. On failure the draft stays so the
-      // user can retry without re-typing.
       setDraft('');
-      setComposing(false);
-      setExpanded(true);
+      setComposerOpen(false);
     } catch {
       setError("Couldn't send reply — try again.");
     }
   }
 
+  const list = replies ?? [];
+  const hasReplies = list.length > 0;
+  const initials = selfInitials(selfDisplayName);
+
   return (
-    <div className="reply-thread">
-      <div className="reply-thread-bar">
-        {replyCount > 0 && (
-          <button
-            type="button"
-            className="reply-expand"
-            aria-expanded={expanded}
-            onClick={(e) => {
-              e.stopPropagation();
-              setExpanded((x) => !x);
-            }}
+    <div className={'cp-thread' + (hasReplies ? ' has-replies' : '')}>
+      {list.map((r) => (
+        <ReplyCard
+          key={r.id}
+          reply={r}
+          selfUserId={selfUserId}
+          userColorMap={userColorMap}
+          canEdit={canEdit}
+          canReact={canReact}
+          isNarrow={isNarrow}
+          onEdit={onEditReply}
+          onDelete={(id) => onDeleteReply(annotationId, id)}
+          onToggleReaction={onToggleReaction}
+        />
+      ))}
+      {canEdit && (
+        <div className="cp-composer">
+          <span
+            className="cp-composer-avatar"
+            style={{ background: selfColor }}
+            aria-hidden="true"
           >
-            {expanded ? (
-              <ChevronDown size={12} strokeWidth={2} aria-hidden="true" />
-            ) : (
-              <ChevronRight size={12} strokeWidth={2} aria-hidden="true" />
-            )}
-            {replyCount} {replyCount === 1 ? 'reply' : 'replies'}
-          </button>
-        )}
-        {canEdit && (
-          <button
-            type="button"
-            className="reply-cta"
-            onClick={(e) => {
-              e.stopPropagation();
-              setComposing(true);
-              setExpanded(true);
-            }}
-          >
-            Reply
-          </button>
-        )}
-      </div>
-      {expanded && (
-        <div className="reply-thread-list">
-          {loading && replies === undefined && (
-            <div className="reply-thread-loading">Loading replies…</div>
-          )}
-          {loadError && (
-            <div className="reply-thread-error">
-              {loadError}{' '}
-              <button
-                type="button"
-                className="reply-thread-retry"
-                onClick={retryLoad}
-              >
-                Retry
-              </button>
-            </div>
-          )}
-          {(replies ?? []).map((r) => (
-            <ReplyCard
-              key={r.id}
-              reply={r}
-              selfUserId={selfUserId}
-              canEdit={canEdit}
-              canReact={canReact}
-              isNarrow={isNarrow}
-              onEdit={onEditReply}
-              onDelete={(id) => onDeleteReply(annotationId, id)}
-              onToggleReaction={onToggleReaction}
-            />
-          ))}
-          {composing && (
-            <div className="reply-composer">
+            {initials}
+          </span>
+          {composerOpen ? (
+            <div className="cp-composer-open">
               <textarea
                 autoFocus
                 rows={2}
@@ -186,7 +130,7 @@ export function ReplyThread({
                   if (e.key === 'Escape') {
                     e.preventDefault();
                     setDraft('');
-                    setComposing(false);
+                    setComposerOpen(false);
                     setError(null);
                   }
                 }}
@@ -198,7 +142,7 @@ export function ReplyThread({
                   className="reply-cancel"
                   onClick={() => {
                     setDraft('');
-                    setComposing(false);
+                    setComposerOpen(false);
                     setError(null);
                   }}
                 >
@@ -214,6 +158,14 @@ export function ReplyThread({
                 </button>
               </div>
             </div>
+          ) : (
+            <button
+              type="button"
+              className="cp-composer-pill"
+              onClick={() => setComposerOpen(true)}
+            >
+              Reply…
+            </button>
           )}
         </div>
       )}
