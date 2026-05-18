@@ -33,6 +33,8 @@ const annotations: Annotation[] = [
 const baseProps = {
   annotations,
   selfUserId: 'u1',
+  selfDisplayName: 'Test User',
+  selfColor: '#888',
   activeId: null as string | null,
   userColorMap: new Map([['u2', '#6f8559']]),
   canEdit: true,

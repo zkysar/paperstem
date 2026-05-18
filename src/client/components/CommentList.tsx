@@ -20,6 +20,8 @@ type Filter =
 type Props = {
   annotations: Annotation[];
   selfUserId: string;
+  selfDisplayName: string;
+  selfColor: string;
   activeId: string | null;
   /**
    * Comment id that arrived via a share link's `fc=` param. The matching row
@@ -67,6 +69,8 @@ function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
 export function CommentList({
   annotations,
   selfUserId,
+  selfDisplayName,
+  selfColor,
   activeId,
   emphasizedId,
   userColorMap,
@@ -335,9 +339,11 @@ export function CommentList({
                       />
                       <ReplyThread
                         annotationId={a.id}
-                        replyCount={a.reply_count}
                         replies={replies.get(a.id)}
                         selfUserId={selfUserId}
+                        selfDisplayName={selfDisplayName}
+                        selfColor={selfColor}
+                        userColorMap={userColorMap}
                         canEdit={canEdit}
                         canReact={canReact}
                         isNarrow={isNarrow}

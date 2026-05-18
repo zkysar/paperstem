@@ -1770,6 +1770,8 @@ function PaperstemApp({
                 open={drawerOpen}
                 isNarrow={isNarrow}
                 selfUserId={user.id}
+                selfDisplayName={user.display_name ?? user.email}
+                selfColor={userColorMap.get(user.id) ?? '#c17446'}
                 canEdit={activeProjectId !== null}
                 annotations={annotations}
                 userColorMap={userColorMap}
@@ -1816,9 +1818,11 @@ function PaperstemApp({
                     onCopyLink={() => handleCopyCommentLink(active)}
                     onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
                     selfUserId={user.id}
+                    selfDisplayName={user.display_name ?? user.email}
+                    selfColor={userColorMap.get(user.id) ?? '#c17446'}
+                    userColorMap={userColorMap}
                     isNarrow={isNarrow}
                     replies={replies.get(active.id)}
-                    replyCount={active.reply_count}
                     onLoadReplies={loadReplies}
                     onCreateReply={createReply}
                     onEditReply={editReply}
@@ -1851,8 +1855,10 @@ function PaperstemApp({
                         onDelete={() => void handleDelete(active)}
                         onClose={() => { setActiveCommentId(null); setPopoverAnchor(null); }}
                         selfUserId={user.id}
+                        selfDisplayName={user.display_name ?? user.email}
+                        selfColor={userColorMap.get(user.id) ?? '#c17446'}
+                        userColorMap={userColorMap}
                         replies={replies.get(active.id)}
-                        replyCount={active.reply_count}
                         onLoadReplies={loadReplies}
                         onCreateReply={createReply}
                         onEditReply={editReply}

@@ -39,9 +39,11 @@ type Props = {
   onCopyLink(): void;
   onClose(): void;
   selfUserId: string;
+  selfDisplayName: string;
+  selfColor: string;
+  userColorMap: Map<string, string>;
   isNarrow: boolean;
   replies: AnnotationReply[] | undefined;
-  replyCount: number;
   onLoadReplies(annotationId: string): Promise<void> | void;
   onCreateReply(annotationId: string, body: string): Promise<void> | void;
   onEditReply(replyId: string, body: string): Promise<void> | void;
@@ -71,9 +73,11 @@ export function CommentPopover({
   onCopyLink,
   onClose,
   selfUserId,
+  selfDisplayName,
+  selfColor,
+  userColorMap,
   isNarrow,
   replies,
-  replyCount,
   onLoadReplies,
   onCreateReply,
   onEditReply,
@@ -365,7 +369,7 @@ export function CommentPopover({
       ) : (
         <>
           <div className="cp-body">{annotation.body}</div>
-          <div className="cl-foot">
+          <div className="cp-reactions">
             <Reactions
               reactions={annotation.reactions}
               isNarrow={isNarrow}
@@ -374,24 +378,26 @@ export function CommentPopover({
                 onToggleReaction({ kind: 'annotation', id: annotation.id }, emoji)
               }
             />
-            <ReplyThread
-              key={annotation.id}
-              annotationId={annotation.id}
-              replyCount={replyCount}
-              replies={replies}
-              selfUserId={selfUserId}
-              canEdit={canEdit}
-              canReact={canReact}
-              isNarrow={isNarrow}
-              onLoadReplies={onLoadReplies}
-              onCreateReply={onCreateReply}
-              onEditReply={onEditReply}
-              onDeleteReply={onDeleteReply}
-              onToggleReaction={(replyId, emoji) =>
-                onToggleReaction({ kind: 'reply', id: replyId }, emoji)
-              }
-            />
           </div>
+          <ReplyThread
+            key={annotation.id}
+            annotationId={annotation.id}
+            replies={replies}
+            selfUserId={selfUserId}
+            selfDisplayName={selfDisplayName}
+            selfColor={selfColor}
+            userColorMap={userColorMap}
+            canEdit={canEdit}
+            canReact={canReact}
+            isNarrow={isNarrow}
+            onLoadReplies={onLoadReplies}
+            onCreateReply={onCreateReply}
+            onEditReply={onEditReply}
+            onDeleteReply={onDeleteReply}
+            onToggleReaction={(replyId, emoji) =>
+              onToggleReaction({ kind: 'reply', id: replyId }, emoji)
+            }
+          />
         </>
       )}
     </div>
