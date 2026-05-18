@@ -118,7 +118,6 @@ export function Player({
     duration,
     loop,
     loopArmed,
-    status,
     loading,
     waveformNormalization,
   } = state;
@@ -898,15 +897,14 @@ export function Player({
         </div>
       )}
 
-      <div className="status-row">
-        <div className="status">{status}</div>
-        {viewport.state.hZoom > 1 && (
+      {viewport.state.hZoom > 1 && (
+        <div className="status-row">
           <FollowPill
             active={viewport.state.followActive}
             onToggle={() => viewport.setFollowActive(!viewport.state.followActive)}
           />
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="keys-hint">
         Press <kbd>?</kbd> for keyboard shortcuts.
