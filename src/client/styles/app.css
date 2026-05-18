@@ -4421,14 +4421,14 @@ body.env-non-prod[data-env="local"]::before {
   background: var(--accent);
   color: var(--paper);
   border: none;
-  padding: 2px 10px;
+  padding: 6px 14px;
 }
 
 .reply-cancel {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--rule);
-  padding: 1px 9px;
+  padding: 5px 13px;
 }
 
 .reply-cancel:hover { background: var(--rule-2); }
