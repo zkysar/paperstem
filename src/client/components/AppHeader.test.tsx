@@ -527,7 +527,28 @@ describe('AppHeader group switcher', () => {
     expect(onSwitch).toHaveBeenCalledWith('b2');
   });
 
-  it('on mobile, "+ New group" appears inside the avatar menu when onCreateGroup is wired', async () => {
+  it('on mobile with no project, avatar menu STILL surfaces the group switcher (no-project lockout regression)', async () => {
+    const onSwitch = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AppHeader
+        {...baseProps}
+        isWide={false}
+        hasProject={false}
+        projectTitle={null}
+        groups={groups}
+        currentGroupId="b1"
+        onSwitchGroup={onSwitch}
+      />,
+    );
+    await user.click(screen.getByLabelText('Account'));
+    // The Switch group section appears regardless of whether a project is loaded.
+    const moon = screen.getByRole('menuitem', { name: /Moon Tractor/ });
+    await user.click(moon);
+    expect(onSwitch).toHaveBeenCalledWith('b2');
+  });
+
+  it('on mobile, "+ New group" works inside the avatar menu even when no project is loaded', async () => {
     const onCreate = vi.fn();
     const user = userEvent.setup();
     render(
@@ -537,6 +558,8 @@ describe('AppHeader group switcher', () => {
         currentGroupId="b1"
         onCreateGroup={onCreate}
         isWide={false}
+        hasProject={false}
+        projectTitle={null}
       />,
     );
     await user.click(screen.getByLabelText('Account'));

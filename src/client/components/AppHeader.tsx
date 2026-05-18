@@ -338,48 +338,48 @@ export function AppHeader({
         {avatarOpen && (
           <div className="ah-avatar-menu" role="menu">
             <div className="ah-avatar-email">{userEmail}</div>
+            {!isWide && showGroupSwitcher && currentGroup && (
+              <>
+                <div className="ah-avatar-menu-label" aria-hidden="true">Switch group</div>
+                {groupList.map((g) => {
+                  const active = g.id === currentGroup.id;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      role="menuitem"
+                      aria-current={active ? 'true' : undefined}
+                      onClick={() => {
+                        setAvatarOpen(false);
+                        if (!active) onSwitchGroup?.(g.id);
+                      }}
+                    >
+                      {active
+                        ? <Check size={14} strokeWidth={2} aria-hidden="true" />
+                        : <span className="ah-group-menu-spacer" aria-hidden="true" />}
+                      <span className="ah-group-menu-name">{g.name}</span>
+                    </button>
+                  );
+                })}
+                {onCreateGroup && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="ah-group-menu-create"
+                    onClick={() => {
+                      setAvatarOpen(false);
+                      onCreateGroup();
+                    }}
+                  >
+                    <Plus size={14} strokeWidth={2} aria-hidden="true" />
+                    <span className="ah-group-menu-name">New group</span>
+                  </button>
+                )}
+                <div className="ah-avatar-menu-divider" role="separator" />
+              </>
+            )}
             {!isWide && hasProject && (
               <>
-                {showGroupSwitcher && currentGroup && (
-                  <>
-                    <div className="ah-avatar-menu-label" aria-hidden="true">Switch group</div>
-                    {groupList.map((g) => {
-                      const active = g.id === currentGroup.id;
-                      return (
-                        <button
-                          key={g.id}
-                          type="button"
-                          role="menuitem"
-                          aria-current={active ? 'true' : undefined}
-                          onClick={() => {
-                            setAvatarOpen(false);
-                            if (!active) onSwitchGroup?.(g.id);
-                          }}
-                        >
-                          {active
-                            ? <Check size={14} strokeWidth={2} aria-hidden="true" />
-                            : <span className="ah-group-menu-spacer" aria-hidden="true" />}
-                          <span className="ah-group-menu-name">{g.name}</span>
-                        </button>
-                      );
-                    })}
-                    {onCreateGroup && (
-                      <button
-                        type="button"
-                        role="menuitem"
-                        className="ah-group-menu-create"
-                        onClick={() => {
-                          setAvatarOpen(false);
-                          onCreateGroup();
-                        }}
-                      >
-                        <Plus size={14} strokeWidth={2} aria-hidden="true" />
-                        <span className="ah-group-menu-name">New group</span>
-                      </button>
-                    )}
-                    <div className="ah-avatar-menu-divider" role="separator" />
-                  </>
-                )}
                 <button
                   type="button"
                   role="menuitem"
