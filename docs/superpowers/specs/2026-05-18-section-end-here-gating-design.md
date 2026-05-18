@@ -115,3 +115,16 @@ Manual verification (per project rule for UI changes):
 ## Open questions
 
 - None blocking. The right-grip root cause is unverified in-browser, but the spec is explicit that the deletion path is conditional on reproducing cause (1).
+
+## Investigation finding (2026-05-18, in-browser)
+
+Reproduced against a project with three adjacent sections (Alpha/Beta/Gamma) in the dev environment.
+
+- `document.elementFromPoint` over the rightmost 12px of the Alpha pill returns `.section-grip section-grip-right`, parent section "Alpha".
+- `getComputedStyle(elementFromPoint).cursor` is `ew-resize` on every probed pixel inside the right-grip strip.
+- A synthesized `pointerdown` + `pointermove` + `pointerup` on Alpha's right grip:
+  - sets `document.documentElement.style.cursor` to `ew-resize` for the duration of the gesture (the Task 3 cursor lock)
+  - restores it after `pointerup`
+  - patches Beta's `start_ms` from 2000 to 2200 (correct: right grip drags the next pill's start)
+
+The right grip is reachable and the drag works. The user's "I never seem to be able to drag on the right boundary" complaint matches **candidate cause (2)** from the candidate list — the cursor was reverting from `ew-resize` to `grab` / default mid-gesture, which made it feel like the drag wasn't taking. Task 3's cursor lock resolves that. **No further code change is needed** for the right-grip behavior; Task 5 takes the variant 5b "no-op confirmation" path.
