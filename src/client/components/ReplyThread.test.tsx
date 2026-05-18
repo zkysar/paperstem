@@ -9,6 +9,10 @@ vi.mock('./ReplyCard', () => ({
   ),
 }));
 
+vi.mock('../lib/platform', () => ({
+  isMac: () => true,
+}));
+
 const colorMap = new Map<string, string>([['u1', '#b14a3c']]);
 
 const baseProps = {

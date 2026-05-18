@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react';
 import type { AnnotationReply } from '../../shared/types';
+import { isMac } from '../lib/platform';
 import { ReplyCard } from './ReplyCard';
 
 type Props = {
@@ -22,7 +23,7 @@ type Props = {
 
 function isSubmitShortcut(e: KeyboardEvent<HTMLTextAreaElement>): boolean {
   if (e.key !== 'Enter') return false;
-  return e.metaKey || e.ctrlKey;
+  return isMac() ? e.metaKey : e.ctrlKey;
 }
 
 function selfInitials(name: string): string {
