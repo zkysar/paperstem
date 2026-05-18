@@ -75,3 +75,13 @@ describe('<PresencePopover /> list mode', () => {
     expect(screen.getByText('Idle 5 minutes ago')).toBeInTheDocument();
   });
 });
+
+describe('<PresencePopover /> defensive', () => {
+  it('renders nothing when rows is empty', () => {
+    const { container } = render(
+      <PresencePopover mode="single" rows={[]} triggerRect={TRIGGER_RECT} onClose={() => {}} />,
+    );
+    expect(container.firstChild).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});

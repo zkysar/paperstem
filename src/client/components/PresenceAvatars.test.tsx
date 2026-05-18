@@ -135,7 +135,7 @@ describe('<PresenceAvatars /> popover interactions', () => {
     render(<PresenceAvatars projectId="proj-A" />);
     fireEvent.click(screen.getByTestId('presence-overflow'));
     const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveAttribute('aria-label', 'All viewers');
+    expect(dialog).toHaveAttribute('aria-label', 'More viewers');
     // First 3 (A, B, C) are visible avatars; the list should contain D and E only.
     const { getAllByText, queryByText } = within(dialog);
     expect(getAllByText('D').length).toBeGreaterThan(0);
@@ -152,5 +152,32 @@ describe('<PresenceAvatars /> popover interactions', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('toggles aria-expanded on the avatar button when popover opens and closes', () => {
+    usePresenceMock.mockReturnValue(snap([
+      { userId: 'u1', displayName: 'Alice', emailLocal: 'alice', state: 'active', lastBeatAt: Date.now() },
+    ]));
+    render(<PresenceAvatars projectId="proj-A" />);
+    const btn = screen.getByTestId('presence-avatar');
+    expect(btn).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(btn);
+    expect(btn).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(btn);
+    expect(btn).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('restores focus to the trigger when the popover closes via Escape', () => {
+    usePresenceMock.mockReturnValue(snap([
+      { userId: 'u1', displayName: 'Alice', emailLocal: 'alice', state: 'active', lastBeatAt: Date.now() },
+    ]));
+    render(<PresenceAvatars projectId="proj-A" />);
+    const btn = screen.getByTestId('presence-avatar');
+    btn.focus();
+    expect(document.activeElement).toBe(btn);
+    fireEvent.click(btn);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    // After unmount, the popover's cleanup should restore focus.
+    expect(document.activeElement).toBe(btn);
   });
 });

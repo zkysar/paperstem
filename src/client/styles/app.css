@@ -5089,6 +5089,15 @@ button.presence-overflow:focus-visible {
   outline: 2px solid var(--accent, #c17446);
   outline-offset: 2px;
 }
+button.presence-avatar:hover {
+  filter: brightness(1.12);
+}
+button.presence-overflow:hover {
+  background: var(--surface-elevated-2, #e4e4e4);
+}
+button.presence-avatar:focus-visible {
+  z-index: 1;
+}
 
 /* Popover (rendered into document.body via portal). */
 .presence-popover {
@@ -5097,7 +5106,7 @@ button.presence-overflow:focus-visible {
   border: 1px solid var(--border, #ddd);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  z-index: 1000;
+  z-index: 1001;
   outline: none;
 }
 .presence-popover-body {

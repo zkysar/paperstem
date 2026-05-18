@@ -1,24 +1,13 @@
 import { useRef, useState } from 'react';
 import { Eye } from 'lucide-react';
 import { usePresence } from '../hooks/usePresence';
-import { paletteIndexForUserId, ANNOTATION_PALETTE } from '../lib/colors';
-import { resolveDisplayName } from '../lib/presence-format';
+import { resolveDisplayName, presenceColorFor, presenceInitial } from '../lib/presence-format';
 import { PresencePopover } from './PresencePopover';
 import type { PresenceRowDto } from '../lib/presence-client';
 
 type Props = { projectId: string };
 
 const MAX_AVATARS = 3;
-
-function colorFor(userId: string | null): string {
-  if (!userId) return '#6a6a6a';
-  return ANNOTATION_PALETTE[paletteIndexForUserId(userId, ANNOTATION_PALETTE.length)];
-}
-
-function initial(name: string): string {
-  const trimmed = name.trim();
-  return trimmed ? trimmed[0]!.toUpperCase() : '?';
-}
 
 function dedupeByUserId(rows: PresenceRowDto[]): PresenceRowDto[] {
   const byUser = new Map<string, PresenceRowDto>();
@@ -112,7 +101,7 @@ export function PresenceAvatars({ projectId }: Props) {
     <>
       <div className="presence-avatars" role="group" aria-label={`${totalPeople} people viewing`}>
         {visible.map((row) => {
-          const bg = colorFor(row.userId);
+          const bg = presenceColorFor(row.userId);
           const idle = row.state === 'idle';
           const userId = row.userId ?? `anon:${row.lastBeatAt}`;
           const isOpen = open?.kind === 'avatar' && open.userId === userId;
@@ -131,7 +120,7 @@ export function PresenceAvatars({ projectId }: Props) {
               title={`${name} — ${idle ? 'idle' : 'active'}`}
               onClick={() => toggleAvatar(userId)}
             >
-              {initial(name)}
+              {presenceInitial(name)}
             </button>
           );
         })}

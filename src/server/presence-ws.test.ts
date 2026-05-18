@@ -172,6 +172,7 @@ describe('/ws/presence', () => {
     const aliceRow = onB.rows.find((r: any) => r.displayName === 'alice');
     expect(aliceRow).toBeDefined();
     expect(aliceRow.emailLocal).toBe('alice');
+    expect(aliceRow).not.toHaveProperty('email');
 
     await closeWs(wsA);
     await closeWs(wsB);

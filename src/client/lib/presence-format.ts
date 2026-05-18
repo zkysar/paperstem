@@ -1,4 +1,15 @@
 import type { PresenceRowDto } from './presence-client';
+import { paletteIndexForUserId, ANNOTATION_PALETTE } from './colors';
+
+export function presenceColorFor(userId: string | null): string {
+  if (!userId) return '#6a6a6a';
+  return ANNOTATION_PALETTE[paletteIndexForUserId(userId, ANNOTATION_PALETTE.length)];
+}
+
+export function presenceInitial(name: string): string {
+  const trimmed = name.trim();
+  return trimmed ? trimmed[0]!.toUpperCase() : '?';
+}
 
 export function resolveDisplayName(row: PresenceRowDto): string {
   if (row.displayName.trim()) return row.displayName.trim();

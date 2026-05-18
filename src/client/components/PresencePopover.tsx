@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { paletteIndexForUserId, ANNOTATION_PALETTE } from '../lib/colors';
-import { formatPresenceState, positionPopover, resolveDisplayName } from '../lib/presence-format';
+import { formatPresenceState, positionPopover, resolveDisplayName, presenceColorFor, presenceInitial } from '../lib/presence-format';
 import type { PresenceRowDto } from '../lib/presence-client';
 
 type Props = {
@@ -18,17 +17,8 @@ function estimateHeight(mode: 'single' | 'list', rowCount: number): number {
   return Math.min(40 + Math.min(rowCount, 6) * 44, 320);
 }
 
-function colorFor(userId: string | null): string {
-  if (!userId) return '#6a6a6a';
-  return ANNOTATION_PALETTE[paletteIndexForUserId(userId, ANNOTATION_PALETTE.length)];
-}
-
-function initial(name: string): string {
-  const trimmed = name.trim();
-  return trimmed ? trimmed[0]!.toUpperCase() : '?';
-}
-
 export function PresencePopover({ mode, rows, triggerRect, onClose }: Props) {
+  if (rows.length === 0) return null;
   const wrapperRef = useRef<HTMLDivElement>(null);
   const now = Date.now();
 
@@ -62,7 +52,7 @@ export function PresencePopover({ mode, rows, triggerRect, onClose }: Props) {
     return () => { previouslyFocused?.focus?.(); };
   }, []);
 
-  const label = mode === 'single' ? `${resolveDisplayName(rows[0]!)} presence details` : 'All viewers';
+  const label = mode === 'single' ? `${resolveDisplayName(rows[0]!)} presence details` : 'More viewers';
 
   const body = mode === 'single'
     ? <SinglePopoverBody row={rows[0]!} now={now} />
@@ -84,7 +74,7 @@ export function PresencePopover({ mode, rows, triggerRect, onClose }: Props) {
 }
 
 function SinglePopoverBody({ row, now }: { row: PresenceRowDto; now: number }) {
-  const bg = colorFor(row.userId);
+  const bg = presenceColorFor(row.userId);
   const name = resolveDisplayName(row);
   return (
     <div className="presence-popover-body presence-popover-single">
@@ -93,7 +83,7 @@ function SinglePopoverBody({ row, now }: { row: PresenceRowDto; now: number }) {
         style={{ background: bg }}
         aria-hidden="true"
       >
-        {initial(name)}
+        {presenceInitial(name)}
       </div>
       <div className="presence-popover-name">{name}</div>
       <div className="presence-popover-state">{formatPresenceState(row, now)}</div>
@@ -105,12 +95,12 @@ function ListPopoverBody({ rows, now }: { rows: PresenceRowDto[]; now: number })
   return (
     <ul className="presence-popover-body presence-popover-list">
       {rows.map((row) => {
-        const bg = colorFor(row.userId);
+        const bg = presenceColorFor(row.userId);
         const name = resolveDisplayName(row);
         return (
           <li key={row.userId ?? row.lastBeatAt} className="presence-popover-list-row">
             <span className="presence-popover-list-avatar" style={{ background: bg }} aria-hidden="true">
-              {initial(name)}
+              {presenceInitial(name)}
             </span>
             <span className="presence-popover-list-name">{name}</span>
             <span className="presence-popover-list-state">{formatPresenceState(row, now)}</span>
