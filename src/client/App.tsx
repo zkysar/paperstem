@@ -1897,6 +1897,7 @@ function PaperstemApp({
         loadError={loadError}
         projects={projects}
         activeProjectId={activeProjectId}
+        currentUserId={user.id}
         showUpload={showUploadButton}
         bandSongs={songs}
         songUsage={songUsage}
