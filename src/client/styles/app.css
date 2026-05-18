@@ -5074,3 +5074,96 @@ body.env-non-prod[data-env="local"]::before {
   align-items: center;
   gap: 2px;
 }
+
+/* Presence avatar buttons — reset native button styling so they still look
+   like circular avatars (the elements changed from div to button in Task 6). */
+button.presence-avatar,
+button.presence-overflow {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+button.presence-avatar:focus-visible,
+button.presence-overflow:focus-visible {
+  outline: 2px solid var(--accent, #c17446);
+  outline-offset: 2px;
+}
+
+/* Popover (rendered into document.body via portal). */
+.presence-popover {
+  background: var(--surface, #fff);
+  color: var(--text, #222);
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 1000;
+  outline: none;
+}
+.presence-popover-body {
+  padding: 12px;
+}
+
+/* Single-viewer body — stacked, centered. */
+.presence-popover-single {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.presence-popover-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+}
+.presence-popover-name {
+  font-weight: 600;
+  font-size: 13px;
+}
+.presence-popover-state {
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+}
+
+/* List body — one row per non-visible viewer. */
+.presence-popover-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.presence-popover-list-row {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+}
+.presence-popover-list-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.presence-popover-list-name {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.presence-popover-list-state {
+  font-size: 11px;
+  color: var(--text-secondary, #666);
+}
