@@ -63,7 +63,7 @@ Audio lives on the local filesystem under `$PAPERSTEM_AUDIO_ROOT`. In production
 
 - `npx vitest run` — all 93+ tests, ~3s.
 - `npx tsc --noEmit` — typecheck.
-- For UI changes, refresh http://localhost:<vite-port> and exercise the feature. Don't claim a UI fix is done without loading it in a browser.
+- For UI changes, refresh http://localhost:<vite-port> and exercise the feature. Don't claim a UI fix is done without loading it in a browser. **Check the mobile viewport too** — resize to a phone width (~390px) or use the browser devtools device toolbar and confirm the change still looks right. Paperstem is used on phones; a UX change that only works on desktop isn't done.
 - `npm run test:e2e` — Playwright journeys (spawns the dev server, drives Chromium, ~30s). **Required for large UI features** that introduce a new cross-component flow; **recommended** for any change touching playback timing, zoom/layout, or modals/drawers — historically those are where vitest-only coverage misses real-browser regressions (see PR #133). CI runs it on every PR; see [docs/testing.md § End-to-end tests](docs/testing.md#end-to-end-tests-playwright) for how to add a new journey.
 
 ### Showing the user work-in-progress
@@ -72,7 +72,7 @@ If you have the Claude Preview MCP available (`preview_start`, `preview_screensh
 
 1. **Start `npm run dev` early in the task** (background it), not after edits are done. Vite cold-start and dependency resolution cost the same time whether the server boots now or later, so kicking it off up front means it's ready when you need a screenshot. Once the launcher prints UI/API URLs, run `preview_start` against the Vite URL.
 2. **Lean on HMR.** After edits to `src/client/`, the running Vite picks them up automatically. No restart needed for normal UI work; `preview_screenshot` (or `preview_snapshot` for layout questions) just shows the new state.
-3. **Post a screenshot inline before opening the PR** for any UI-visible change. Zach would rather see the result than read a diff description. A short caption ("here's the new ribbon collapsed state") with the screenshot beats a paragraph of prose.
+3. **Post a screenshot inline before opening the PR** for any UI-visible change. Zach would rather see the result than read a diff description. A short caption ("here's the new ribbon collapsed state") with the screenshot beats a paragraph of prose. For anything touching layout, navigation, or interactive controls, **include a mobile-width screenshot alongside the desktop one** (set the preview viewport to ~390px wide). Catching a broken mobile layout before the PR is far cheaper than catching it in review.
 
 This is a strong default, not a hard rule. Skip it when the change is purely server-side with no UI surface, when the dev server is already known to be broken, or when the task is small enough that booting the server costs more than it's worth. But for anything user-visible, treat the screenshot as part of "done."
 
@@ -88,7 +88,7 @@ Before finishing a piece of work, measure the diff against `main` (`git diff --s
 
 - **Over 200 lines changed**: spawn one independent reviewer agent. A single general-purpose reviewer with the diff and the goal of the change is enough.
 - **Over 500 lines changed**: spawn five independent reviewer agents in parallel (single message, multiple `Agent` tool calls), each with a distinct topic so coverage doesn't overlap. Default topic split: (1) correctness and edge cases, (2) test coverage and verification, (3) architecture and abstraction fit, (4) security and data handling, (5) performance and resource use. Swap topics out if one is obviously irrelevant to the diff, but keep five distinct angles.
-- **UI implications** (any change touching `src/client/`, CSS, copy, accessibility, or user-visible behavior — regardless of line count): also spawn a UX reviewer. This is additive — a 600-line UI change gets the five topical reviewers *and* the UX reviewer.
+- **UI implications** (any change touching `src/client/`, CSS, copy, accessibility, or user-visible behavior — regardless of line count): also spawn a UX reviewer, and explicitly ask them to evaluate the change at both desktop and mobile (~390px) widths. This is additive — a 600-line UI change gets the five topical reviewers *and* the UX reviewer.
 
 Wait for reviewers to return, address their feedback (or document why you're not), and only then move on to the PR steps below.
 
