@@ -1,7 +1,7 @@
 import { expect, test } from '../helpers/fixtures.js';
 
 test.describe('Journey: create a labelled section marker at the playhead', () => {
-  test('M → switch to Label tab → type label → Add section → pill appears', async ({
+  test('M → switch to Label mode → type label → Add section → pill appears', async ({
     app,
     page,
   }) => {
@@ -17,8 +17,9 @@ test.describe('Journey: create a labelled section marker at the playhead', () =>
 
     // The popover starts in 'song' mode where free text is treated as a
     // catalog-song name. For an e2e label we want the lighter-weight
-    // "Label" tab, which does not touch the band's song catalog.
-    await popover.getByRole('tab', { name: 'Label' }).click();
+    // "Label" mode, which does not touch the band's song catalog. The
+    // Song/Label control is a pill toggle (radiogroup), not tabs.
+    await popover.getByRole('radio', { name: 'Label' }).click();
 
     const label = 'e2e: warm-up';
     await popover.getByLabel('Label').fill(label);
