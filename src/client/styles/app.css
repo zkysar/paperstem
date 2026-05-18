@@ -4150,7 +4150,9 @@ body.env-non-prod[data-env="local"]::before {
    .comments-fab / .atb-overflow-menu / .atb-master-pop rules so these win
    the cascade at equal specificity. ===== */
 @media (max-width: 720px) {
-  /* Pin the toolbar to the bottom of the viewport. */
+  /* Pin the toolbar to the bottom of the viewport. The toolbar is full-width
+     here, so distribute children across the bar instead of letting them clump
+     at the left (which left a visible empty gap on the right). */
   .app-toolbar {
     position: fixed;
     top: auto;
@@ -4166,6 +4168,7 @@ body.env-non-prod[data-env="local"]::before {
     padding-right: max(env(safe-area-inset-right), 8px);
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
     gap: 2px;
+    justify-content: space-between;
   }
 
   /* Hide visual dividers on mobile — they consume ~12px each (1px + 4+4 margin
