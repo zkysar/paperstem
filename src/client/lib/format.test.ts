@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { fmt, clamp, formatDurationMs, formatRelativeDate, pixelToTime, longestStemIdx } from './format';
+import { fmt, clamp, formatDurationMs, formatRelativeDate, pixelToTime, longestStemIdx, formatRelativeTime } from './format';
 
 describe('fmt', () => {
   test('formats seconds as M:SS', () => {
@@ -97,5 +97,45 @@ describe('longestStemIdx', () => {
   test('ignores non-finite durations', () => {
     expect(longestStemIdx([NaN, 7, Infinity])).toBe(1);
     expect(longestStemIdx([NaN, NaN])).toBe(0);
+  });
+});
+
+describe('formatRelativeTime', () => {
+  const now = new Date('2026-05-18T12:00:00Z').getTime();
+
+  test('returns "just now" within 60 seconds', () => {
+    expect(formatRelativeTime(now - 30_000, now)).toBe('just now');
+    expect(formatRelativeTime(now, now)).toBe('just now');
+  });
+
+  test('returns minutes for the first hour', () => {
+    expect(formatRelativeTime(now - 5 * 60 * 1000, now)).toBe('5m ago');
+    expect(formatRelativeTime(now - 59 * 60 * 1000, now)).toBe('59m ago');
+  });
+
+  test('returns hours up to 24h', () => {
+    expect(formatRelativeTime(now - 2 * 60 * 60 * 1000, now)).toBe('2h ago');
+    expect(formatRelativeTime(now - 23 * 60 * 60 * 1000, now)).toBe('23h ago');
+  });
+
+  test('returns days up to 7d', () => {
+    expect(formatRelativeTime(now - 2 * 24 * 60 * 60 * 1000, now)).toBe('2d ago');
+    expect(formatRelativeTime(now - 6 * 24 * 60 * 60 * 1000, now)).toBe('6d ago');
+  });
+
+  test('falls back to absolute date past a week', () => {
+    const old = new Date('2026-03-14T12:00:00Z').getTime();
+    expect(formatRelativeTime(old, now)).toBe('14 Mar');
+  });
+
+  test('includes year when older than the current year', () => {
+    const old = new Date('2024-08-02T12:00:00Z').getTime();
+    expect(formatRelativeTime(old, now)).toBe('2 Aug 2024');
+  });
+
+  test('returns empty string for invalid timestamps', () => {
+    expect(formatRelativeTime(0, now)).toBe('');
+    expect(formatRelativeTime(NaN, now)).toBe('');
+    expect(formatRelativeTime(Infinity, now)).toBe('');
   });
 });

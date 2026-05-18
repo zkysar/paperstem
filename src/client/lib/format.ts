@@ -81,3 +81,22 @@ export function longestStemIdx(durations: number[]): number {
   }
   return idx;
 }
+
+export function formatRelativeTime(epochMs: number, now: number = Date.now()): string {
+  if (!epochMs || !isFinite(epochMs)) return '';
+  const diffMs = now - epochMs;
+  if (diffMs < 60_000) return 'just now';
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const d = new Date(epochMs);
+  const today = new Date(now);
+  const opts: Intl.DateTimeFormatOptions =
+    d.getFullYear() === today.getFullYear()
+      ? { day: 'numeric', month: 'short' }
+      : { day: 'numeric', month: 'short', year: 'numeric' };
+  return new Intl.DateTimeFormat('en-GB', opts).format(d);
+}
