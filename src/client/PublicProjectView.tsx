@@ -617,7 +617,7 @@ export function PublicProjectView({ token }: { token: string }) {
                   />,
                   document.body,
                 )}
-              {active && railCollapsed &&
+              {active && railCollapsed && !drawerOpen &&
                 createPortal(
                   (() => {
                     const idx = annotationsForPlayer.findIndex(
