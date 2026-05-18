@@ -30,6 +30,7 @@ type ConnCtx = {
   connId: string;
   userId: string | null;
   displayName: string;
+  emailLocal: string | null;
   isAnonymous: boolean;
   subscribed: Set<string>;
 };
@@ -68,11 +69,12 @@ export function registerPresenceWs(app: Hono<{ Variables: AuthVariables }>) {
     return { type: 'presence', projectId, rows: snap.rows.map(stripInternal), anonymousCount: snap.anonymousCount };
   }
 
-  function stripInternal(row: { connId: string; userId: string | null; displayName: string; state: 'active' | 'idle'; lastBeatAt: number }) {
+  function stripInternal(row: { connId: string; userId: string | null; displayName: string; emailLocal: string | null; state: 'active' | 'idle'; lastBeatAt: number }) {
     // connId is server-internal; do not leak it to clients.
     return {
       userId: row.userId,
       displayName: row.displayName,
+      emailLocal: row.emailLocal,
       state: row.state,
       lastBeatAt: row.lastBeatAt,
     };
@@ -106,6 +108,7 @@ export function registerPresenceWs(app: Hono<{ Variables: AuthVariables }>) {
         connId: crypto.randomUUID(),
         userId: user?.id ?? null,
         displayName: user?.display_name ?? '',
+        emailLocal: user?.email ? user.email.split('@')[0]! : null,
         isAnonymous: !user,
         subscribed: new Set(),
       };
@@ -156,6 +159,7 @@ export function registerPresenceWs(app: Hono<{ Variables: AuthVariables }>) {
             registry.addOrUpdate(ctx.connId, projectId, {
               userId: ctx.userId,
               displayName: ctx.displayName,
+              emailLocal: ctx.emailLocal,
               state,
               isAnonymous: ctx.isAnonymous,
             });
