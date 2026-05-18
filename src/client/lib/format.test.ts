@@ -133,6 +133,19 @@ describe('formatRelativeTime', () => {
     expect(formatRelativeTime(old, now)).toBe('2 Aug 2024');
   });
 
+  test('crosses 60s exactly into minutes', () => {
+    expect(formatRelativeTime(now - 60_000, now)).toBe('1m ago');
+  });
+
+  test('crosses 60m exactly into hours', () => {
+    expect(formatRelativeTime(now - 60 * 60 * 1000, now)).toBe('1h ago');
+  });
+
+  test('crosses 7d exactly into absolute date', () => {
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    expect(formatRelativeTime(sevenDaysAgo, now)).toBe('11 May');
+  });
+
   test('returns empty string for invalid timestamps', () => {
     expect(formatRelativeTime(0, now)).toBe('');
     expect(formatRelativeTime(NaN, now)).toBe('');

@@ -82,6 +82,8 @@ export function longestStemIdx(durations: number[]): number {
   return idx;
 }
 
+// Locale is hardcoded to 'en-GB' for day-month output ("14 Mar" not "Mar 14")
+// to ensure fixture stability across CI hosts with different default locales.
 export function formatRelativeTime(epochMs: number, now: number = Date.now()): string {
   if (!epochMs || !isFinite(epochMs)) return '';
   const diffMs = now - epochMs;
