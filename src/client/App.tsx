@@ -1858,7 +1858,7 @@ function PaperstemApp({
                   />,
                   document.body,
                 )}
-              {active && isNarrow &&
+              {active && isNarrow && !drawerOpen &&
                 createPortal(
                   (() => {
                     const idx = annotations.findIndex((a) => a.id === active.id);
