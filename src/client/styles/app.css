@@ -4392,8 +4392,6 @@ body.env-non-prod[data-env="local"]::before {
 .section-lane {
   position: relative;
   height: 22px;
-  border-bottom: 1px solid var(--rule-2);
-  background: var(--bg);
 }
 
 /* Sticks to the left edge of .viewport so the rail column area in the
@@ -4492,10 +4490,6 @@ body.env-non-prod[data-env="local"]::before {
   left: 0;
   right: 0;
   z-index: 5;
-  box-shadow:
-    0 6px 14px -4px rgba(0, 0, 0, 0.18),
-    0 0 0 1px rgba(0, 0, 0, 0.06);
-  border-radius: 0 0 4px 4px;
 }
 /* Rail mask must stay above the floating lane so pills never visually
    bleed onto the track-name rail at the left. */
@@ -4968,10 +4962,6 @@ body.env-non-prod[data-env="local"]::before {
 .section-pill.active .section-grip,
 .section-grip:active {
   opacity: 1;
-  /* Light wash over the hit area so the entire grippable zone lights up,
-     not just the thin handle bar. Mirrors how comment grips read at a
-     glance against the marker background. */
-  background: rgba(255, 255, 255, 0.18);
 }
 .section-grip-left {
   left: 0;
@@ -4984,17 +4974,19 @@ body.env-non-prod[data-env="local"]::before {
   position: absolute;
   top: 3px;
   bottom: 3px;
-  left: 4px;
-  width: 3px;
+  left: 2px;
+  width: 2px;
   /* currentColor = the pill's text color (--paper, white) → high contrast
-     against the colored fill. Matches the comment-grip approach. */
+     against the colored fill. Matches the comment-grip approach. The bar
+     sits within the pill's 6px left/right padding so it never lands on
+     top of the label text. */
   background: currentColor;
   border-radius: 1px;
   opacity: 0.85;
 }
 .section-grip-right::after {
   left: auto;
-  right: 4px;
+  right: 2px;
 }
 @media (pointer: coarse) {
   .section-grip {
