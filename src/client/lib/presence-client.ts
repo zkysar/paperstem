@@ -4,6 +4,7 @@ type Opts = { now?: () => number; url?: string; linkToken?: string };
 export type PresenceRowDto = {
   userId: string | null;
   displayName: string;
+  emailLocal: string | null;
   state: State;
   lastBeatAt: number;
 };

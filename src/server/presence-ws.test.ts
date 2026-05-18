@@ -155,6 +155,29 @@ describe('/ws/presence', () => {
     await closeWs(wsA);
   });
 
+  it('includes emailLocal on member rows broadcast to peers', async () => {
+    const alice = seedUserAndSession('alice');
+    const bob = seedUserAndSession('bob');
+    const { projectId } = seedBandWithProject([alice.userId, bob.userId]);
+
+    const wsA = await openWs(alice.cookieHeader);
+    const wsB = await openWs(bob.cookieHeader);
+    wsA.send(JSON.stringify({ type: 'subscribe', projectIds: [projectId] }));
+    wsB.send(JSON.stringify({ type: 'subscribe', projectIds: [projectId] }));
+    await nextMessage(wsA);
+    await nextMessage(wsB);
+
+    wsA.send(JSON.stringify({ type: 'beat', projectId, state: 'active' }));
+    const onB = await nextMessage(wsB);
+    const aliceRow = onB.rows.find((r: any) => r.displayName === 'alice');
+    expect(aliceRow).toBeDefined();
+    expect(aliceRow.emailLocal).toBe('alice');
+    expect(aliceRow).not.toHaveProperty('email');
+
+    await closeWs(wsA);
+    await closeWs(wsB);
+  });
+
   it('rejects unauthenticated upgrades with 401 (not 500)', async () => {
     const ws = new WebSocket(`ws://localhost:${port}/ws/presence`);
     const err = await new Promise<Error & { message: string }>((resolve) => {

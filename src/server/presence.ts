@@ -2,6 +2,7 @@ export type PresenceRow = {
   connId: string;
   userId: string | null;
   displayName: string;
+  emailLocal: string | null;
   state: 'active' | 'idle';
   lastBeatAt: number;
   isAnonymous: boolean;
