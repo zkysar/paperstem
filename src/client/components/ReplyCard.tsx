@@ -53,6 +53,7 @@ export function ReplyCard({
     userColorMap.get(reply.user_id) ??
     colorForAnnotationAuthor(reply.user_id, selfUserId);
   const initials = initialsFor(reply);
+  // Server stores created_at as Unix seconds; formatRelativeTime expects ms.
   const timeText = formatRelativeTime(reply.created_at * 1000);
 
   useEffect(() => {
@@ -97,7 +98,11 @@ export function ReplyCard({
 
   return (
     <div className="cp-reply" data-testid={`reply-card-${reply.id}`}>
-      <span className="cp-reply-avatar" style={{ background: color }}>
+      <span
+        className="cp-reply-avatar"
+        style={{ background: color }}
+        aria-hidden="true"
+      >
         {initials}
       </span>
       <div className="cp-reply-body">
