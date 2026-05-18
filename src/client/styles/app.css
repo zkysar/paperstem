@@ -199,8 +199,8 @@ kbd {
 
 /* ===== Player =====
    Flex column inside the bounded app-body so .stage flex-grows and .tracks
-   gets a real height to scroll against, while .status + .keys-hint stay at
-   the bottom of the player regardless of how many stems are loaded. */
+   gets a real height to scroll against, while .keys-hint stays at the bottom
+   of the player regardless of how many stems are loaded. */
 .player {
   min-width: 0;
   display: flex;
@@ -832,15 +832,9 @@ button.track-name:disabled { cursor: default; }
 .status-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 8px;
-}
-.status {
-  color: var(--muted);
-  font-size: var(--fs-md);
-  margin: 12px 0 0;
-  min-height: 1em;
-  word-break: break-word;
+  margin-top: 12px;
 }
 .keys-hint {
   margin-top: 16px;
