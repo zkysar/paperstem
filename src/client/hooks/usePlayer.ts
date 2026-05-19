@@ -635,8 +635,12 @@ export function usePlayer(): PlayerControls {
     }
     const built: LoadedStem[] = input.sources.map((src, i) => {
       const audio = new Audio();
-      audio.preload = 'auto';
-      audio.muted = true; // Web Audio drives all sound now; this is metadata only.
+      // Web Audio drives all sound; the element only exists so WaveSurfer has a
+      // `media` binding and so Track can listen for `error` (ghost-stem
+      // detection). `metadata` fetches enough to surface a 410 without racing
+      // the real Web Audio decode for connection bandwidth (issue #194).
+      audio.preload = 'metadata';
+      audio.muted = true;
       audio.src = src.src;
       const userVolume = loadVolume(ctx.projectId, src.name);
       const gain = graph.ctx.createGain();
@@ -664,9 +668,8 @@ export function usePlayer(): PlayerControls {
     // Decode each stem's audio into an AudioBuffer; that's the only thing we
     // need to play (and gives us a duration). The HTMLAudioElement is bound for
     // WaveSurfer but we intentionally don't wait on its `loadedmetadata` — on
-    // mobile Safari, a muted <audio> with preload="auto" often doesn't fire
-    // that event until a play() inside a user gesture, which would hang load()
-    // forever.
+    // mobile Safari, a muted <audio> often doesn't fire that event until a
+    // play() inside a user gesture, which would hang load() forever.
     await Promise.all(
       built.map(async (s, i) => {
         const buf = await decodeStem(graph.ctx, input.sources[i].src);
