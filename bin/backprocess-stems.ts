@@ -273,10 +273,22 @@ for (const stem of candidates) {
     const needsRename = currentName !== newName;
 
     if (COMMIT) {
-      const res = await updateFile(stem.file_id, TARGET_MIME, encoded);
+      // Order matters: rename the storage entry first so the new bytes land
+      // at the new path (and matching MIME). If updateFile() ran first and
+      // the process crashed before the rename, the row would still resolve
+      // to e.g. `*.mp3` while the bytes on disk were already MP4 — the
+      // serve path would hand the browser AAC under `audio/mpeg`, a silent
+      // playback failure. With rename-first, a mid-step crash leaves the
+      // DB pointing at a path that no longer exists, which the audio
+      // handler already detects and surfaces as `drive_missing` (HTTP 410).
+      let activeFileId = stem.file_id;
       if (needsRename) {
         const renamed = await renameAndRetype(stem.file_id, newName, TARGET_MIME);
-        updateFileIdAndMeta.run(renamed.id, res.size, newDurationForUpdate, stem.id);
+        activeFileId = renamed.id;
+      }
+      const res = await updateFile(activeFileId, TARGET_MIME, encoded);
+      if (needsRename) {
+        updateFileIdAndMeta.run(activeFileId, res.size, newDurationForUpdate, stem.id);
       } else {
         updateSize.run(res.size, newDurationForUpdate, stem.id);
       }
