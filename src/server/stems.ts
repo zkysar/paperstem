@@ -31,6 +31,7 @@ export async function handleRenameStem(
   }
 
   stmts.renameStem.run(name, id);
+  stmts.touchProject.run(Math.floor(Date.now() / 1000), stem.project_id);
 
   try {
     const renamed = await renameItem(stem.file_id, name);
@@ -59,6 +60,7 @@ export async function handleDeleteStem(
 
   const now = Math.floor(Date.now() / 1000);
   stmts.softDeleteStem.run(now, user.id, id);
+  stmts.touchProject.run(now, stem.project_id);
 
   recordAudit({
     action: 'stem.soft_delete',
@@ -100,6 +102,7 @@ export async function handleRestoreStem(
   }
 
   stmts.restoreStem.run(id);
+  stmts.touchProject.run(Math.floor(Date.now() / 1000), stem.project_id);
 
   try {
     await untrashItem(stem.file_id);

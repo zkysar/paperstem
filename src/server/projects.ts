@@ -521,6 +521,7 @@ export async function handleCreateStem(
     uploaded.size,
     peaks,
   );
+  stmts.touchProject.run(Math.floor(Date.now() / 1000), projectId);
 
   return c.json(
     {
