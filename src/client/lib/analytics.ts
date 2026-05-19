@@ -14,6 +14,7 @@ export function initAnalytics(): void {
     api_host: host,
     capture_pageview: true,
     person_profiles: 'identified_only',
+    disable_session_recording: true,
   });
   started = true;
 }
