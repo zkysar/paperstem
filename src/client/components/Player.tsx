@@ -628,6 +628,10 @@ export function Player({
       return kind === 'mute' ? s.userMuted : s.soloed;
     }, []),
   });
+  const onKeyboardToggle = useCallback((idx: number, kind: PaintKind) => {
+    if (kind === 'mute') player.toggleMute(idx);
+    else player.toggleSolo(idx);
+  }, [player.toggleMute, player.toggleSolo]);
 
   return (
     <main
@@ -803,6 +807,7 @@ export function Player({
                   trackHeight={viewport.state.trackHeight}
                   hZoom={viewport.state.hZoom}
                   onPillMouseDown={onPillMouseDown}
+                  onKeyboardToggle={onKeyboardToggle}
                   onSetVolume={player.setVolume}
                   onSeek={player.seek}
                   onRenameStem={onRenameStem}

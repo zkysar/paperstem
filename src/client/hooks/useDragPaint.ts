@@ -56,6 +56,10 @@ export function useDragPaint({ apply, readState }: UseDragPaintArgs) {
       // Left button only; let the browser context-menu or middle-click pass.
       if (e.button !== 0) return;
       e.preventDefault();
+      // Defensive: if a previous gesture was somehow left dangling (e.g. the
+      // mouseup was swallowed), tear it down before starting a new one so we
+      // never leak document listeners.
+      if (gestureRef.current) endGesture();
       const current = readStateRef.current(idx, kind);
       const targetState = !current;
       gestureRef.current = {

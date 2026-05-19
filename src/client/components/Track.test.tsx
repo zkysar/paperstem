@@ -34,6 +34,7 @@ function defaultProps(overrides: Record<string, unknown> = {}) {
     trackHeight: DEFAULT_TRACK_H,
     hZoom: 1,
     onPillMouseDown: vi.fn(),
+    onKeyboardToggle: vi.fn(),
     onSetVolume: vi.fn(),
     onSeek: vi.fn(),
     onRenameStem: vi.fn(),
@@ -157,6 +158,42 @@ describe('Track unavailable state', () => {
     expect(screen.queryByRole('tooltip')).not.toBeNull();
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+});
+
+describe('Track mute/solo keyboard activation', () => {
+  it('Enter on the M pill calls onKeyboardToggle, not onPillMouseDown', async () => {
+    const user = userEvent.setup();
+    const onKeyboardToggle = vi.fn();
+    const onPillMouseDown = vi.fn();
+    render(
+      <Track
+        {...defaultProps({ onKeyboardToggle, onPillMouseDown })}
+      />,
+    );
+    const mute = screen.getByRole('button', { name: /^Mute old\.wav$/ });
+    mute.focus();
+    await user.keyboard('{Enter}');
+    expect(onKeyboardToggle).toHaveBeenCalledWith(0, 'mute');
+    expect(onPillMouseDown).not.toHaveBeenCalled();
+  });
+
+  it('Space on the S pill calls onKeyboardToggle for solo', async () => {
+    const user = userEvent.setup();
+    const onKeyboardToggle = vi.fn();
+    render(<Track {...defaultProps({ onKeyboardToggle })} />);
+    const solo = screen.getByRole('button', { name: /^Solo old\.wav$/ });
+    solo.focus();
+    await user.keyboard(' ');
+    expect(onKeyboardToggle).toHaveBeenCalledWith(0, 'solo');
+  });
+
+  it('M and S pills are disabled when canMutate is false', () => {
+    render(<Track {...defaultProps({ canMutate: false })} />);
+    const mute = screen.getByRole('button', { name: /^Mute old\.wav$/ });
+    const solo = screen.getByRole('button', { name: /^Solo old\.wav$/ });
+    expect((mute as HTMLButtonElement).disabled).toBe(true);
+    expect((solo as HTMLButtonElement).disabled).toBe(true);
   });
 });
 

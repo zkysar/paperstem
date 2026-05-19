@@ -17,6 +17,9 @@ type Props = {
   trackHeight: number;
   hZoom: number;
   onPillMouseDown(idx: number, kind: PaintKind, e: ReactMouseEvent): void;
+  // Fires only for keyboard activation of an M/S pill (Enter/Space). Mouse
+  // clicks go through onPillMouseDown instead.
+  onKeyboardToggle(idx: number, kind: PaintKind): void;
   onSetVolume(idx: number, vol: number): void;
   onSeek(t: number): void;
   onRenameStem(serverId: string, name: string): void;
@@ -33,6 +36,7 @@ export function Track({
   trackHeight,
   hZoom,
   onPillMouseDown,
+  onKeyboardToggle,
   onSetVolume,
   onSeek,
   onRenameStem,
@@ -393,7 +397,15 @@ export function Track({
               aria-label={stem.userMuted ? `Unmute ${stem.displayName}` : `Mute ${stem.displayName}`}
               aria-pressed={stem.userMuted}
               title={stem.userMuted ? 'Muted — click or drag to hear stems again' : 'Mute — silence this stem (drag across tracks to mute multiple)'}
+              disabled={!canMutate}
               onMouseDown={(e) => onPillMouseDown(idx, 'mute', e)}
+              // Keyboard activation (Enter/Space) dispatches a click with
+              // detail=0 — onMouseDown doesn't fire, so we toggle here.
+              // Mouse clicks have detail>=1 and already toggled via the
+              // gesture's mousedown path, so we skip them.
+              onClick={(e) => {
+                if (e.detail === 0) onKeyboardToggle(idx, 'mute');
+              }}
             >
               M
             </button>
@@ -403,7 +415,11 @@ export function Track({
               aria-label={stem.soloed ? `Unsolo ${stem.displayName}` : `Solo ${stem.displayName}`}
               aria-pressed={stem.soloed}
               title={stem.soloed ? 'Soloed — click or drag to unsolo' : 'Solo — hear only this stem (drag across tracks to solo multiple)'}
+              disabled={!canMutate}
               onMouseDown={(e) => onPillMouseDown(idx, 'solo', e)}
+              onClick={(e) => {
+                if (e.detail === 0) onKeyboardToggle(idx, 'solo');
+              }}
             >
               S
             </button>

@@ -18,31 +18,46 @@ function setupWorld(idxs: number[]): World {
   container.style.left = '0';
   document.body.appendChild(container);
 
+  // Each row carries data-track-idx on its outermost element and contains
+  // two child pills (.pill.mute, .pill.solo). This mirrors the real DOM so
+  // tests exercise the .closest('[data-track-idx]') walk in the hook.
   const rows: Row[] = idxs.map((idx) => {
     const el = document.createElement('div');
     el.setAttribute('data-track-idx', String(idx));
+    const mute = document.createElement('button');
+    mute.className = 'pill mute';
+    const solo = document.createElement('button');
+    solo.className = 'pill solo';
+    el.appendChild(mute);
+    el.appendChild(solo);
     container.appendChild(el);
     return { idx, el };
   });
 
   const elementFromPointSpy = vi.spyOn(document, 'elementFromPoint');
   let lastHit: number | null = null;
+  let lastHitKind: 'row' | 'mute' | 'solo' = 'row';
   elementFromPointSpy.mockImplementation(() => {
     const idx = lastHit;
     if (idx === null) return null;
-    return rows.find((r) => r.idx === idx)?.el ?? null;
+    const row = rows.find((r) => r.idx === idx);
+    if (!row) return null;
+    if (lastHitKind === 'mute') return row.el.children[0] as Element;
+    if (lastHitKind === 'solo') return row.el.children[1] as Element;
+    return row.el;
   });
 
   return {
     rows,
     hitAt: (_x, _y) => lastHit,
-    // small helper attached for tests
+    // small helpers attached for tests
     ...({
-      __setHit: (idx: number | null) => {
+      __setHit: (idx: number | null, kind: 'row' | 'mute' | 'solo' = 'row') => {
         lastHit = idx;
+        lastHitKind = kind;
       },
     } as object),
-  } as World & { __setHit: (idx: number | null) => void };
+  } as World & { __setHit: (idx: number | null, kind?: 'row' | 'mute' | 'solo') => void };
 }
 
 function teardownWorld() {
@@ -205,7 +220,7 @@ describe('useDragPaint', () => {
     const { result } = renderHook(() => useDragPaint({ apply, readState }));
 
     const world = setupWorld([0, 1]) as ReturnType<typeof setupWorld> & {
-      __setHit: (idx: number | null) => void;
+      __setHit: (idx: number | null, kind?: 'row' | 'mute' | 'solo') => void;
     };
 
     // Start gesture on the M pill (kind = 'mute').
@@ -213,15 +228,77 @@ describe('useDragPaint', () => {
       result.current.onPillMouseDown(0, 'mute', fakeReactMouseDown());
     });
 
-    // Cursor enters track row 1. Even if it's hovering over the S pill area,
-    // the brush stays 'mute'.
+    // Cursor enters track row 1 — hovering directly over the S pill child
+    // element, not the row container. The .closest('[data-track-idx]') walk
+    // resolves it to row 1; the brush kind stays 'mute'.
     act(() => {
-      world.__setHit(1);
+      world.__setHit(1, 'solo');
       dispatchDocMouseMove();
     });
 
     expect(apply).toHaveBeenCalledWith(1, 'mute', true);
+    expect(apply).not.toHaveBeenCalledWith(1, 'solo', expect.anything());
     expect(args.state.get('1:solo')).toBeUndefined();
+
+    act(() => dispatchDocMouseUp());
+  });
+
+  it('cleans up listeners and body class on unmount mid-gesture', () => {
+    const args = { state: new Map<string, boolean>() };
+    const { apply, readState } = makeHooks(args);
+    const { result, unmount } = renderHook(() =>
+      useDragPaint({ apply, readState }),
+    );
+
+    const world = setupWorld([0, 1]) as ReturnType<typeof setupWorld> & {
+      __setHit: (idx: number | null, kind?: 'row' | 'mute' | 'solo') => void;
+    };
+
+    act(() => {
+      result.current.onPillMouseDown(0, 'mute', fakeReactMouseDown());
+    });
+    expect(document.body.classList.contains('dragging-vertical')).toBe(true);
+
+    apply.mockClear();
+    unmount();
+
+    expect(document.body.classList.contains('dragging-vertical')).toBe(false);
+
+    // After unmount, document-level listeners should be detached.
+    act(() => {
+      world.__setHit(1);
+      dispatchDocMouseMove();
+    });
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it('resumes painting after the cursor leaves the track list and re-enters', () => {
+    const args = { state: new Map<string, boolean>() };
+    const { apply, readState } = makeHooks(args);
+    const { result } = renderHook(() => useDragPaint({ apply, readState }));
+
+    const world = setupWorld([0, 1, 2]) as ReturnType<typeof setupWorld> & {
+      __setHit: (idx: number | null) => void;
+    };
+
+    act(() => {
+      result.current.onPillMouseDown(0, 'mute', fakeReactMouseDown());
+    });
+    apply.mockClear();
+
+    // Cursor leaves the track list.
+    act(() => {
+      world.__setHit(null);
+      dispatchDocMouseMove();
+    });
+    expect(apply).not.toHaveBeenCalled();
+
+    // Cursor re-enters and lands on row 2. Painting resumes.
+    act(() => {
+      world.__setHit(2);
+      dispatchDocMouseMove();
+    });
+    expect(apply).toHaveBeenCalledWith(2, 'mute', true);
 
     act(() => dispatchDocMouseUp());
   });

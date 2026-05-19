@@ -538,10 +538,13 @@ button.track-name:disabled { cursor: default; }
   text-align: right;
 }
 .ms-pills { display: flex; gap: 4px; }
-/* Drag-paint on M/S pills: while a vertical paint gesture is active, force
-   ns-resize cursor everywhere so the user knows they're in paint mode. */
-body.dragging-vertical,
-body.dragging-vertical * {
+/* Drag-paint on M/S pills: while a vertical paint gesture is active, show
+   ns-resize cursor over the player surface (tracks + their pills) so the
+   user knows they're in paint mode. Scoped to .player so modals, drawers,
+   and text inputs outside the player retain their normal cursor if a
+   gesture is ever left dangling. */
+body.dragging-vertical .player,
+body.dragging-vertical .player * {
   cursor: ns-resize !important;
   user-select: none;
 }
