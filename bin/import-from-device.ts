@@ -25,7 +25,7 @@ import {
   type MarkerSegment,
 } from '../src/server/import/marker.js';
 import {
-  compressToMp3,
+  compressToAacMono,
   ffmpegAvailable,
 } from '../src/server/import/audio-compress-local.js';
 import type { DeviceImporter, ImportTask } from '../src/server/import/types.js';
@@ -74,7 +74,7 @@ function nowIso(now: () => number): string {
 
 function defaultEncode(): EncodeFn {
   return async ({ inputPath, outputPath, slice }) => {
-    await compressToMp3({
+    await compressToAacMono({
       inputPath,
       outputPath,
       bitrateKbps: DEFAULT_BITRATE,
@@ -245,7 +245,7 @@ async function uploadStem(args: {
   form.append(
     'file',
     new Blob([new Uint8Array(fileBytes)]),
-    `${args.stemName}.mp3`,
+    `${args.stemName}.m4a`,
   );
   const url = `${args.baseUrl}/api/projects/${encodeURIComponent(args.projectId)}/stems`;
   const res = await args.fetchImpl(url, {
@@ -391,7 +391,7 @@ async function runImporterInner(args: {
             basename(inputPath),
             position,
           );
-          const outputPath = join(tmp, `${stemName}.mp3`);
+          const outputPath = join(tmp, `${stemName}.m4a`);
           const slice = task.segment
             ? {
                 startSec: task.segment.startSample / task.segment.sampleRate,

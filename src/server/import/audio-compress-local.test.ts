@@ -9,7 +9,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { compressToMp3, ffmpegAvailable } from './audio-compress-local.js';
+import { compressToAacMono, ffmpegAvailable } from './audio-compress-local.js';
 
 function buildSilentWav(durationSec: number, sampleRate = 44100): Buffer {
   const samples = Math.floor(durationSec * sampleRate);
@@ -31,7 +31,7 @@ function buildSilentWav(durationSec: number, sampleRate = 44100): Buffer {
   return out;
 }
 
-function readMp3Duration(path: string): number {
+function readAudioDuration(path: string): number {
   const res = spawnSync('ffprobe', [
     '-v',
     'error',
@@ -44,9 +44,39 @@ function readMp3Duration(path: string): number {
   return parseFloat(res.stdout.toString().trim());
 }
 
+function readChannelCount(path: string): number {
+  const res = spawnSync('ffprobe', [
+    '-v',
+    'error',
+    '-select_streams',
+    'a:0',
+    '-show_entries',
+    'stream=channels',
+    '-of',
+    'default=noprint_wrappers=1:nokey=1',
+    path,
+  ]);
+  return parseInt(res.stdout.toString().trim(), 10);
+}
+
+function readCodec(path: string): string {
+  const res = spawnSync('ffprobe', [
+    '-v',
+    'error',
+    '-select_streams',
+    'a:0',
+    '-show_entries',
+    'stream=codec_name',
+    '-of',
+    'default=noprint_wrappers=1:nokey=1',
+    path,
+  ]);
+  return res.stdout.toString().trim();
+}
+
 const ffmpegOk = ffmpegAvailable();
 
-describe.skipIf(!ffmpegOk)('compressToMp3', () => {
+describe.skipIf(!ffmpegOk)('compressToAacMono', () => {
   beforeAll(() => {
     if (!ffmpegOk) {
       // eslint-disable-next-line no-console
@@ -54,37 +84,63 @@ describe.skipIf(!ffmpegOk)('compressToMp3', () => {
     }
   });
 
-  it('encodes a whole file to MP3 128 kbps', async () => {
+  it('encodes a whole file to AAC mono in an MP4 container', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'compress-'));
     const inputPath = join(dir, 'in.wav');
-    const outputPath = join(dir, 'out.mp3');
+    const outputPath = join(dir, 'out.m4a');
     writeFileSync(inputPath, buildSilentWav(2.0));
-    await compressToMp3({ inputPath, outputPath, bitrateKbps: 128 });
+    await compressToAacMono({ inputPath, outputPath, bitrateKbps: 64 });
     expect(existsSync(outputPath)).toBe(true);
     expect(statSync(outputPath).size).toBeGreaterThan(0);
     const buf = readFileSync(outputPath);
-    // Either an MP3 frame sync (0xFFE/0xFFF) or an ID3v2 tag header ("ID3").
-    const isId3 = buf.toString('ascii', 0, 3) === 'ID3';
-    const isFrameSync =
-      buf[0] === 0xff && ((buf[1] ?? 0) & 0xe0) === 0xe0;
-    expect(isId3 || isFrameSync).toBe(true);
-    const dur = readMp3Duration(outputPath);
+    // MP4 container — bytes 4..8 should be "ftyp".
+    expect(buf.toString('ascii', 4, 8)).toBe('ftyp');
+    const dur = readAudioDuration(outputPath);
     expect(dur).toBeGreaterThan(1.9);
     expect(dur).toBeLessThan(2.2);
+    expect(readChannelCount(outputPath)).toBe(1);
+    expect(readCodec(outputPath)).toBe('aac');
+  });
+
+  it('downmixes stereo input to mono', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'compress-'));
+    const inputPath = join(dir, 'in.wav');
+    const outputPath = join(dir, 'out.m4a');
+    // Build a 2-channel WAV header so ffmpeg sees stereo input.
+    const sampleRate = 44100;
+    const samples = Math.floor(2.0 * sampleRate);
+    const dataBytes = samples * 2 * 2;
+    const out = Buffer.alloc(44 + dataBytes);
+    out.write('RIFF', 0);
+    out.writeUInt32LE(36 + dataBytes, 4);
+    out.write('WAVE', 8);
+    out.write('fmt ', 12);
+    out.writeUInt32LE(16, 16);
+    out.writeUInt16LE(1, 20);
+    out.writeUInt16LE(2, 22);
+    out.writeUInt32LE(sampleRate, 24);
+    out.writeUInt32LE(sampleRate * 4, 28);
+    out.writeUInt16LE(4, 32);
+    out.writeUInt16LE(16, 34);
+    out.write('data', 36);
+    out.writeUInt32LE(dataBytes, 40);
+    writeFileSync(inputPath, out);
+    await compressToAacMono({ inputPath, outputPath, bitrateKbps: 64 });
+    expect(readChannelCount(outputPath)).toBe(1);
   });
 
   it('slices a segment when slice is provided', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'compress-'));
     const inputPath = join(dir, 'in.wav');
-    const outputPath = join(dir, 'out.mp3');
+    const outputPath = join(dir, 'out.m4a');
     writeFileSync(inputPath, buildSilentWav(5.0));
-    await compressToMp3({
+    await compressToAacMono({
       inputPath,
       outputPath,
-      bitrateKbps: 128,
+      bitrateKbps: 64,
       slice: { startSec: 1.0, durationSec: 2.0 },
     });
-    const dur = readMp3Duration(outputPath);
+    const dur = readAudioDuration(outputPath);
     expect(dur).toBeGreaterThan(1.9);
     expect(dur).toBeLessThan(2.2);
   });
@@ -92,10 +148,10 @@ describe.skipIf(!ffmpegOk)('compressToMp3', () => {
   it('rejects when ffmpeg fails (bogus input)', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'compress-'));
     const inputPath = join(dir, 'in.wav');
-    const outputPath = join(dir, 'out.mp3');
+    const outputPath = join(dir, 'out.m4a');
     writeFileSync(inputPath, Buffer.from('not a wav'));
     await expect(
-      compressToMp3({ inputPath, outputPath, bitrateKbps: 128 }),
+      compressToAacMono({ inputPath, outputPath, bitrateKbps: 64 }),
     ).rejects.toThrow();
   });
 });
