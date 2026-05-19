@@ -13,18 +13,21 @@ export function ffmpegAvailable(): boolean {
 }
 
 /**
- * Encode a WAV (or other ffmpeg-readable audio) to MP3 at the given bitrate.
+ * Encode any ffmpeg-readable audio to AAC-LC mono in an MP4 container.
  * When `slice` is set, ffmpeg's `-ss`/`-t` is used to extract that range.
  * Resolves on ffmpeg exit code 0; rejects with the captured stderr otherwise.
  */
-export function compressToMp3(opts: CompressOptions): Promise<void> {
+export function compressToAacMono(opts: CompressOptions): Promise<void> {
   const args: string[] = ['-hide_banner', '-loglevel', 'error', '-y'];
   if (opts.slice) {
     args.push('-ss', opts.slice.startSec.toFixed(6));
     args.push('-t', opts.slice.durationSec.toFixed(6));
   }
   args.push('-i', opts.inputPath);
-  args.push('-codec:a', 'libmp3lame', '-b:a', `${opts.bitrateKbps}k`);
+  args.push('-vn');
+  args.push('-ac', '1');
+  args.push('-codec:a', 'aac', '-b:a', `${opts.bitrateKbps}k`);
+  args.push('-movflags', '+faststart');
   args.push(opts.outputPath);
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', args);
