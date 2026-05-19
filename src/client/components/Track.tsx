@@ -1,10 +1,11 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { AlertCircle, Trash2 } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import type { LoadedStem, WaveformNormalization } from '../data/types';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
 import { mix } from '../lib/colors';
 import { computePeaks, encodePeaks, PLAYER_PEAK_BINS } from '../lib/peaks';
+import type { PaintKind } from '../hooks/useDragPaint';
 
 type Props = {
   stem: LoadedStem;
@@ -15,8 +16,10 @@ type Props = {
   canMutate: boolean;
   trackHeight: number;
   hZoom: number;
-  onToggleMute(idx: number): void;
-  onToggleSolo(idx: number): void;
+  onPillMouseDown(idx: number, kind: PaintKind, e: ReactMouseEvent): void;
+  // Fires only for keyboard activation of an M/S pill (Enter/Space). Mouse
+  // clicks go through onPillMouseDown instead.
+  onKeyboardToggle(idx: number, kind: PaintKind): void;
   onSetVolume(idx: number, vol: number): void;
   onSeek(t: number): void;
   onRenameStem(serverId: string, name: string): void;
@@ -32,8 +35,8 @@ export function Track({
   canMutate,
   trackHeight,
   hZoom,
-  onToggleMute,
-  onToggleSolo,
+  onPillMouseDown,
+  onKeyboardToggle,
   onSetVolume,
   onSeek,
   onRenameStem,
@@ -285,7 +288,7 @@ export function Track({
     : 'tier-full';
 
   return (
-    <div className={'track ' + tierClass}>
+    <div className={'track ' + tierClass} data-track-idx={idx}>
       {unavailable ? (
         <div className="track-rail track-rail-unavailable">
           <span className="swatch swatch-muted" />
@@ -393,8 +396,16 @@ export function Track({
               className={'pill mute' + (stem.userMuted ? ' on' : '')}
               aria-label={stem.userMuted ? `Unmute ${stem.displayName}` : `Mute ${stem.displayName}`}
               aria-pressed={stem.userMuted}
-              title={stem.userMuted ? 'Muted — click to hear this stem again' : 'Mute — silence this stem'}
-              onClick={() => onToggleMute(idx)}
+              title={stem.userMuted ? 'Muted — click or drag to hear stems again' : 'Mute — silence this stem (drag across tracks to mute multiple)'}
+              disabled={!canMutate}
+              onMouseDown={(e) => onPillMouseDown(idx, 'mute', e)}
+              // Keyboard activation (Enter/Space) dispatches a click with
+              // detail=0 — onMouseDown doesn't fire, so we toggle here.
+              // Mouse clicks have detail>=1 and already toggled via the
+              // gesture's mousedown path, so we skip them.
+              onClick={(e) => {
+                if (e.detail === 0) onKeyboardToggle(idx, 'mute');
+              }}
             >
               M
             </button>
@@ -403,8 +414,12 @@ export function Track({
               className={'pill solo' + (stem.soloed ? ' on' : '')}
               aria-label={stem.soloed ? `Unsolo ${stem.displayName}` : `Solo ${stem.displayName}`}
               aria-pressed={stem.soloed}
-              title={stem.soloed ? 'Soloed — click to hear all stems again' : 'Solo — hear only this stem (mutes the others)'}
-              onClick={() => onToggleSolo(idx)}
+              title={stem.soloed ? 'Soloed — click or drag to unsolo' : 'Solo — hear only this stem (drag across tracks to solo multiple)'}
+              disabled={!canMutate}
+              onMouseDown={(e) => onPillMouseDown(idx, 'solo', e)}
+              onClick={(e) => {
+                if (e.detail === 0) onKeyboardToggle(idx, 'solo');
+              }}
             >
               S
             </button>

@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -20,6 +21,7 @@ import { Ruler } from './Ruler';
 import { SectionLane } from './SectionLane';
 import { ActiveSectionChip } from './ActiveSectionChip';
 import { Track } from './Track';
+import { useDragPaint, type PaintKind } from '../hooks/useDragPaint';
 import type { ViewportControls } from '../hooks/useViewport';
 
 const DRAG_THRESHOLD_PX = 4;
@@ -606,6 +608,31 @@ export function Player({
   // Effective mute: if any stem is soloed, non-soloed are muted.
   const anySolo = stems.some((s) => s.soloed);
 
+  // DAW-style press-and-drag on M/S pills paints state across track rows.
+  // Read latest stems via a ref so the hook's callbacks don't churn each render.
+  const stemsRef = useRef(stems);
+  stemsRef.current = stems;
+  const { onPillMouseDown } = useDragPaint({
+    apply: useCallback((idx: number, kind: PaintKind, targetState: boolean) => {
+      const s = stemsRef.current[idx];
+      if (!s) return;
+      if (kind === 'mute') {
+        if (s.userMuted !== targetState) player.toggleMute(idx);
+      } else {
+        if (s.soloed !== targetState) player.toggleSolo(idx);
+      }
+    }, [player.toggleMute, player.toggleSolo]),
+    readState: useCallback((idx: number, kind: PaintKind) => {
+      const s = stemsRef.current[idx];
+      if (!s) return false;
+      return kind === 'mute' ? s.userMuted : s.soloed;
+    }, []),
+  });
+  const onKeyboardToggle = useCallback((idx: number, kind: PaintKind) => {
+    if (kind === 'mute') player.toggleMute(idx);
+    else player.toggleSolo(idx);
+  }, [player.toggleMute, player.toggleSolo]);
+
   return (
     <main
       className={
@@ -779,8 +806,8 @@ export function Player({
                   canMutate={canMutate}
                   trackHeight={viewport.state.trackHeight}
                   hZoom={viewport.state.hZoom}
-                  onToggleMute={player.toggleMute}
-                  onToggleSolo={player.toggleSolo}
+                  onPillMouseDown={onPillMouseDown}
+                  onKeyboardToggle={onKeyboardToggle}
                   onSetVolume={player.setVolume}
                   onSeek={player.seek}
                   onRenameStem={onRenameStem}
