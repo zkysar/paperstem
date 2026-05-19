@@ -10,10 +10,16 @@
 // rejects v1 so the loader treats those stems as having no precomputed peaks
 // and the Track backfill recomputes raw peaks and rewrites as v2.
 
+import {
+  encodePeaksWireV2,
+  PLAYER_PEAK_BINS,
+  WIRE_V2_PREFIX,
+} from '../../shared/peaks-wire';
+
+export { PLAYER_PEAK_BINS };
+
 const CACHE_PREFIX = 'paperstem:peaks:v1:';
-const WIRE_V2_PREFIX = 'v2:';
 export const PEAK_BINS = 110;
-export const PLAYER_PEAK_BINS = 2000;
 
 export function computePeaks(
   buffer: AudioBuffer,
@@ -84,12 +90,7 @@ export function saveCachedPeaks(stemId: string, peaks: number[]): void {
 // Wire-format encode/decode for the server-side `stems.peaks` column. Emits
 // v2 (raw, un-normalized amplitudes). Legacy bare CSV (v1) is rejected on
 // decode so the Track-level backfill recomputes and rewrites it.
-export function encodePeaks(peaks: number[]): string {
-  return (
-    WIRE_V2_PREFIX +
-    peaks.map((p) => Math.round(Math.max(0, Math.min(1, p)) * 255)).join(',')
-  );
-}
+export const encodePeaks = encodePeaksWireV2;
 
 export function decodePeaks(raw: string): number[] | null {
   if (!raw || !raw.startsWith(WIRE_V2_PREFIX)) return null;

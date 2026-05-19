@@ -130,11 +130,6 @@ describe.skipIf(!ffmpegOk)('compressToAacMono', () => {
     expect(bufPeaks!.length).toBe(32);
   });
 
-  it('encodes peaks to v2 wire format', () => {
-    expect(encodePeaksV2([0, 0.5, 1])).toBe('v2:0,128,255');
-    expect(encodePeaksV2([-1, 2])).toBe('v2:0,255');
-  });
-
   it('rejects when ffmpeg fails (bogus input)', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'compress-'));
     const inputPath = join(dir, 'in.wav');
@@ -143,5 +138,16 @@ describe.skipIf(!ffmpegOk)('compressToAacMono', () => {
     await expect(
       compressToAacMono({ inputPath, outputPath, bitrateKbps: 128 }),
     ).rejects.toThrow();
+  });
+});
+
+// Pure (non-ffmpeg) helpers — always runnable.
+describe('encodePeaksV2', () => {
+  it('emits v2 wire format with 0..255 quantization', () => {
+    expect(encodePeaksV2([0, 0.5, 1])).toBe('v2:0,128,255');
+  });
+
+  it('clamps out-of-range inputs to 0..1 before quantizing', () => {
+    expect(encodePeaksV2([-1, 2])).toBe('v2:0,255');
   });
 });

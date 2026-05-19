@@ -15,9 +15,8 @@ import {
   computePeaksFromFile,
   encodePeaksV2,
 } from '../src/server/import/audio-compress-local.js';
+import { PLAYER_PEAK_BINS } from '../src/shared/peaks-wire.js';
 import type { StemRow } from '../src/server/db.js';
-
-const PLAYER_PEAK_BINS = 2000;
 
 const { values } = parseArgs({
   options: {

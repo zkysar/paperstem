@@ -218,15 +218,6 @@ export async function computePeaksFromBuffer(
   );
 }
 
-/**
- * Encode peaks (numbers in 0..1) to the v2 wire format the server's
- * `stems.peaks` column and the player expect.
- */
-export function encodePeaksV2(peaks: number[]): string {
-  return (
-    'v2:' +
-    peaks
-      .map((p) => Math.round(Math.max(0, Math.min(1, p)) * 255))
-      .join(',')
-  );
-}
+// Re-export the shared wire encoder so callers in this module's neighborhood
+// (importer, backprocess) get a single import surface for audio metadata.
+export { encodePeaksWireV2 as encodePeaksV2 } from '../../shared/peaks-wire.js';

@@ -31,8 +31,7 @@ import {
   ffmpegAvailable,
   probeDurationMs,
 } from '../src/server/import/audio-compress-local.js';
-
-const PLAYER_PEAK_BINS = 2000;
+import { PLAYER_PEAK_BINS } from '../src/shared/peaks-wire.js';
 import type { DeviceImporter, ImportTask } from '../src/server/import/types.js';
 
 export type Config = {
@@ -54,7 +53,7 @@ export type EncodeFn = (args: {
 }) => Promise<{
   durationMs: number | null;
   peaks: string | null;
-} | void>;
+}>;
 
 export type RunOpts = {
   config: Config;
@@ -422,9 +421,11 @@ async function runImporterInner(args: {
                   task.segment.sampleRate,
               }
             : null;
-          const encResult = await encode({ inputPath, outputPath, slice });
-          const durationMs = encResult?.durationMs ?? null;
-          const peaks = encResult?.peaks ?? null;
+          const { durationMs, peaks } = await encode({
+            inputPath,
+            outputPath,
+            slice,
+          });
           await uploadStem({
             baseUrl: cfg.paperstem_url,
             projectId,

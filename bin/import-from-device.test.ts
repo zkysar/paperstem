@@ -114,6 +114,7 @@ describe('runImporter', () => {
       fetchImpl: fetchMock,
       encodeFn: async ({ outputPath }) => {
         writeFileSync(outputPath, Buffer.from('fake mp3 bytes'));
+        return { durationMs: null, peaks: null };
       },
     });
     expect(result.status).toBe('ok');
@@ -232,7 +233,7 @@ describe('runImporter', () => {
     expect(capturedPeaks).toBe('v2:0,128,255');
   });
 
-  it('omits duration_ms when the encoder returns null', async () => {
+  it('omits duration_ms and peaks when the encoder returns null', async () => {
     const card = tempCard();
     placeOneStemFolder(
       card,
@@ -245,7 +246,8 @@ describe('runImporter', () => {
       paperstem_url: 'https://paperstem.test',
       band_id: 'b1',
     };
-    let captured: unknown = 'sentinel';
+    let capturedDuration: unknown = 'sentinel';
+    let capturedPeaks: unknown = 'sentinel';
     const fetchMock = vi
       .fn()
       .mockImplementation(async (url: string, init: RequestInit) => {
@@ -262,7 +264,9 @@ describe('runImporter', () => {
           url.startsWith('https://paperstem.test/api/projects/pr_nul/stems')
         ) {
           if (init.method === 'POST') {
-            captured = (init.body as FormData).get('duration_ms');
+            const fd = init.body as FormData;
+            capturedDuration = fd.get('duration_ms');
+            capturedPeaks = fd.get('peaks');
             return new Response(JSON.stringify({ stem: { id: 's1' } }), {
               status: 201,
             });
@@ -281,7 +285,8 @@ describe('runImporter', () => {
       },
     });
     expect(result.status).toBe('ok');
-    expect(captured).toBeNull();
+    expect(capturedDuration).toBeNull();
+    expect(capturedPeaks).toBeNull();
   });
 
   it('skips a folder whose marker is already imported', async () => {
