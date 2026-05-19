@@ -651,6 +651,10 @@ export const stmts = {
     `UPDATE projects SET name = ?, updated_at = ?
       WHERE id = ? AND deleted_at IS NULL`,
   ),
+  touchProject: db.prepare<[number, string]>(
+    `UPDATE projects SET updated_at = ?
+      WHERE id = ? AND deleted_at IS NULL`,
+  ),
   softDeleteProject: db.prepare<[number, string, string]>(
     `UPDATE projects
         SET deleted_at = ?, deleted_by = ?, deleted_reason = 'user'

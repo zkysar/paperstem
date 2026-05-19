@@ -84,6 +84,7 @@ function createProjectAndStem(
   bandId: string,
   ownerId: string,
   stemName: string,
+  projectCreatedAt?: number,
 ): { projectId: string; stemId: string; fileId: string; rel: string } {
   const projectFolderRel = `${bandFolderName}/p1`;
   const stemRel = `${projectFolderRel}/${stemName}`;
@@ -93,7 +94,7 @@ function createProjectAndStem(
   const projectId = randomUUID();
   const stemId = randomUUID();
   const fileId = encodeId(stemRel);
-  const now = Math.floor(Date.now() / 1000);
+  const ts = projectCreatedAt ?? Math.floor(Date.now() / 1000);
   dbMod.stmts.insertProject.run(
     projectId,
     bandId,
@@ -101,9 +102,9 @@ function createProjectAndStem(
     '2026-05-01',
     encodeId(projectFolderRel),
     null,
-    now,
+    ts,
     ownerId,
-    now,
+    ts,
   );
   dbMod.stmts.insertStem.run(stemId, projectId, stemName, 0, fileId, null, 1024, null);
   return { projectId, stemId, fileId, rel: stemRel };
@@ -344,5 +345,95 @@ describe('POST /api/stems/:id/restore', () => {
       }),
     );
     expect(res.status).toBe(404);
+  });
+});
+
+describe('project updated_at bumping (issue #207)', () => {
+  it('bumps project.updated_at on stem rename', async () => {
+    const owner = createUser('owner@example.com');
+    const bandName = 'Alpha';
+    const bandId = createBand(bandName, owner);
+    const stale = Math.floor(Date.now() / 1000) - 3600;
+    const { projectId, stemId } = createProjectAndStem(
+      bandName,
+      bandId,
+      owner,
+      'old.wav',
+      stale,
+    );
+    const sid = createSession(owner);
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/stems/${stemId}`, {
+        method: 'PATCH',
+        headers: {
+          Cookie: cookieHeader(sid),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: 'new.wav' }),
+      }),
+    );
+    expect(res.status).toBe(200);
+
+    const project = dbMod.stmts.findProjectById.get(projectId)!;
+    expect(project.updated_at).toBeGreaterThan(stale);
+  });
+
+  it('bumps project.updated_at on stem delete', async () => {
+    const owner = createUser('owner@example.com');
+    const bandName = 'Alpha';
+    const bandId = createBand(bandName, owner);
+    const stale = Math.floor(Date.now() / 1000) - 3600;
+    const { projectId, stemId } = createProjectAndStem(
+      bandName,
+      bandId,
+      owner,
+      'drums.wav',
+      stale,
+    );
+    const sid = createSession(owner);
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/stems/${stemId}`, {
+        method: 'DELETE',
+        headers: { Cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(200);
+
+    const project = dbMod.stmts.findProjectById.get(projectId)!;
+    expect(project.updated_at).toBeGreaterThan(stale);
+  });
+
+  it('bumps project.updated_at on stem restore', async () => {
+    const owner = createUser('owner@example.com');
+    const bandName = 'Alpha';
+    const bandId = createBand(bandName, owner);
+    const stale = Math.floor(Date.now() / 1000) - 3600;
+    const { projectId, stemId } = createProjectAndStem(
+      bandName,
+      bandId,
+      owner,
+      'drums.wav',
+      stale,
+    );
+    dbMod.stmts.softDeleteStem.run(stale, owner, stemId);
+    // softDeleteStem doesn't bump updated_at directly; reset it to stale to
+    // isolate the restore-path assertion.
+    dbMod.db
+      .prepare('UPDATE projects SET updated_at = ? WHERE id = ?')
+      .run(stale, projectId);
+    const sid = createSession(owner);
+
+    const res = await app.fetch(
+      new Request(`http://localhost/api/stems/${stemId}/restore`, {
+        method: 'POST',
+        headers: { Cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(200);
+
+    const project = dbMod.stmts.findProjectById.get(projectId)!;
+    expect(project.updated_at).toBeGreaterThan(stale);
   });
 });
