@@ -143,18 +143,25 @@ export function startScheduler(): void {
   const now = Date.now();
   const snapshotDelay = msUntilNextDailyUtc(now, SNAPSHOT_HOUR_UTC);
   const backupDelay = msUntilNextWeeklyUtc(now, BACKUP_DOW_UTC, BACKUP_HOUR_UTC);
-  const diskDelay = msUntilNextDailyUtc(now, DISK_CHECK_HOUR_UTC);
   const auditPruneDelay = msUntilNextDailyUtc(now, AUDIT_PRUNE_HOUR_UTC);
   scheduleSnapshots(snapshotDelay);
   scheduleBackups(backupDelay);
-  scheduleDiskCheck(diskDelay);
   scheduleAuditPrune(auditPruneDelay);
   scheduleBatchedFlush(FIRST_RUN_DELAY_MS);
   scheduleDailyFlush(FIRST_RUN_DELAY_MS);
+
+  // statfs() reports stats for the filesystem containing the path, not the
+  // directory. In dev, $PAPERSTEM_AUDIO_ROOT sits on the developer's main
+  // disk, so the check would alert on laptop fullness rather than the prod
+  // Fly volume it's meant to monitor.
+  const runDiskCheck = process.env.NODE_ENV === 'production';
+  const diskDelay = runDiskCheck ? msUntilNextDailyUtc(now, DISK_CHECK_HOUR_UTC) : 0;
+  if (runDiskCheck) scheduleDiskCheck(diskDelay);
+
   console.log(
     `[scheduler] next snapshot in ${Math.round(snapshotDelay / 1000)}s, ` +
       `next backup in ${Math.round(backupDelay / 1000)}s, ` +
-      `next disk check in ${Math.round(diskDelay / 1000)}s, ` +
+      `next disk check ${runDiskCheck ? `in ${Math.round(diskDelay / 1000)}s` : 'skipped (non-production)'}, ` +
       `next audit prune in ${Math.round(auditPruneDelay / 1000)}s, ` +
       `batched flush in ${FIRST_RUN_DELAY_MS / 1000}s, ` +
       `daily flush in ${FIRST_RUN_DELAY_MS / 1000}s`,
