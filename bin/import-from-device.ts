@@ -26,8 +26,13 @@ import {
 } from '../src/server/import/marker.js';
 import {
   compressToAacMono,
+  computePeaksFromFile,
+  encodePeaksV2,
   ffmpegAvailable,
+  probeDurationMs,
 } from '../src/server/import/audio-compress-local.js';
+
+const PLAYER_PEAK_BINS = 2000;
 import type { DeviceImporter, ImportTask } from '../src/server/import/types.js';
 
 export type Config = {
@@ -46,7 +51,10 @@ export type EncodeFn = (args: {
   inputPath: string;
   outputPath: string;
   slice: { startSec: number; durationSec: number } | null;
-}) => Promise<void>;
+}) => Promise<{
+  durationMs: number | null;
+  peaks: string | null;
+} | void>;
 
 export type RunOpts = {
   config: Config;
@@ -80,6 +88,12 @@ function defaultEncode(): EncodeFn {
       bitrateKbps: DEFAULT_BITRATE,
       slice: slice ?? undefined,
     });
+    const durationMs = probeDurationMs(outputPath);
+    const rawPeaks = await computePeaksFromFile(outputPath, PLAYER_PEAK_BINS);
+    return {
+      durationMs,
+      peaks: rawPeaks ? encodePeaksV2(rawPeaks) : null,
+    };
   };
 }
 
@@ -235,12 +249,20 @@ async function uploadStem(args: {
   filePath: string;
   stemName: string;
   position: number;
+  durationMs: number | null;
+  peaks: string | null;
   token: string;
   fetchImpl: typeof fetch;
 }): Promise<void> {
   const form = new FormData();
   form.append('position', String(args.position));
   form.append('name', args.stemName);
+  if (args.durationMs !== null) {
+    form.append('duration_ms', String(args.durationMs));
+  }
+  if (args.peaks !== null) {
+    form.append('peaks', args.peaks);
+  }
   const fileBytes = readFileSync(args.filePath);
   form.append(
     'file',
@@ -400,13 +422,17 @@ async function runImporterInner(args: {
                   task.segment.sampleRate,
               }
             : null;
-          await encode({ inputPath, outputPath, slice });
+          const encResult = await encode({ inputPath, outputPath, slice });
+          const durationMs = encResult?.durationMs ?? null;
+          const peaks = encResult?.peaks ?? null;
           await uploadStem({
             baseUrl: cfg.paperstem_url,
             projectId,
             filePath: outputPath,
             stemName,
             position,
+            durationMs,
+            peaks,
             token,
             fetchImpl,
           });

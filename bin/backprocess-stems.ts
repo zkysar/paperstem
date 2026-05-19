@@ -11,7 +11,13 @@ import {
   renameAndRetype,
   updateFile,
 } from '../src/server/storage.js';
+import {
+  computePeaksFromFile,
+  encodePeaksV2,
+} from '../src/server/import/audio-compress-local.js';
 import type { StemRow } from '../src/server/db.js';
+
+const PLAYER_PEAK_BINS = 2000;
 
 const { values } = parseArgs({
   options: {
@@ -103,7 +109,12 @@ function currentExt(fileId: string): string {
 }
 
 const candidates = allStems.filter(
-  (s) => !(currentExt(s.file_id) === TARGET_EXT && s.duration_ms != null),
+  (s) =>
+    !(
+      currentExt(s.file_id) === TARGET_EXT &&
+      s.duration_ms != null &&
+      s.peaks != null
+    ),
 );
 const alreadyDone = allStems.length - candidates.length;
 
@@ -119,6 +130,9 @@ const updateSize = db.prepare<[number, number | null, string]>(
 );
 const updateFileIdAndMeta = db.prepare<[string, number, number | null, string]>(
   'UPDATE stems SET file_id = ?, size_bytes = ?, duration_ms = COALESCE(?, duration_ms) WHERE id = ?',
+);
+const updateMetaOnly = db.prepare<[number | null, string | null, string]>(
+  'UPDATE stems SET duration_ms = COALESCE(?, duration_ms), peaks = COALESCE(?, peaks) WHERE id = ?',
 );
 
 function withTargetExt(name: string): string {
@@ -249,6 +263,25 @@ for (const stem of candidates) {
     const after = encoded.length;
     const savings = before - after;
 
+    // Backfill duration_ms / peaks for stems that are missing them, BEFORE
+    // the savings check. Otherwise a stem already in target format would
+    // never get duration/peaks (savings ≤ 0 → continue → no write). The
+    // backfill is gated on COMMIT and only sets fields that are still NULL
+    // (COALESCE in updateMetaOnly).
+    let peaksToWrite: string | null = null;
+    if (stem.peaks == null) {
+      const rawPeaks = await computePeaksFromFile(outPath, PLAYER_PEAK_BINS);
+      if (rawPeaks) peaksToWrite = encodePeaksV2(rawPeaks);
+    }
+    let durationToWrite: number | null = null;
+    if (stem.duration_ms == null) {
+      const durSec = await ffprobeDurationSeconds(outPath);
+      durationToWrite = Math.round(durSec * 1000);
+    }
+    if (COMMIT && (peaksToWrite !== null || durationToWrite !== null)) {
+      updateMetaOnly.run(durationToWrite, peaksToWrite, stem.id);
+    }
+
     if (savings <= 0) {
       stats.skippedSmaller++;
       stats.bytesAfter += before;
@@ -264,8 +297,12 @@ for (const stem of candidates) {
       continue;
     }
 
-    const durationSec = await ffprobeDurationSeconds(outPath);
-    const durationMs = Math.round(durationSec * 1000);
+    // Reuse the duration probed above when we already had to (stem missing
+    // duration_ms); otherwise probe lazily here so the dry-run summary can
+    // still print it.
+    const durationMs =
+      durationToWrite ??
+      Math.round((await ffprobeDurationSeconds(outPath)) * 1000);
     const newDurationForUpdate = stem.duration_ms == null ? durationMs : null;
 
     const currentName = storageFilename(stem.file_id) || stem.name;

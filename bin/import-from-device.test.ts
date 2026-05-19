@@ -126,6 +126,164 @@ describe('runImporter', () => {
     expect(marker.segments[0].uploaded_at).toBeTruthy();
   });
 
+  it('forwards duration_ms from the encoder to the stem upload', async () => {
+    const card = tempCard();
+    placeOneStemFolder(
+      card,
+      '260512_0010',
+      new Date(Date.now() - 60 * 60 * 1000),
+    );
+    const cfg = {
+      device: 'model12',
+      sd_card_path: card,
+      paperstem_url: 'https://paperstem.test',
+      band_id: 'b1',
+    };
+    let capturedDurationMs: string | null | undefined;
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async (url: string, init: RequestInit) => {
+        if (
+          url === 'https://paperstem.test/api/projects' &&
+          init.method === 'POST'
+        ) {
+          return new Response(JSON.stringify({ project: { id: 'pr_dur' } }), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        if (
+          url.startsWith('https://paperstem.test/api/projects/pr_dur/stems')
+        ) {
+          if (init.method === 'POST') {
+            const body = init.body as FormData;
+            const v = body.get('duration_ms');
+            capturedDurationMs = typeof v === 'string' ? v : null;
+            return new Response(JSON.stringify({ stem: { id: 's1' } }), {
+              status: 201,
+            });
+          }
+          return new Response(JSON.stringify({ stems: [] }), { status: 200 });
+        }
+        throw new Error(`unexpected url ${url} ${init.method}`);
+      });
+    const result = await runImporter({
+      config: cfg,
+      token: 'tok',
+      fetchImpl: fetchMock,
+      encodeFn: async ({ outputPath }) => {
+        writeFileSync(outputPath, Buffer.from('fake mp3 bytes'));
+        return { durationMs: 123456, peaks: null };
+      },
+    });
+    expect(result.status).toBe('ok');
+    expect(capturedDurationMs).toBe('123456');
+  });
+
+  it('forwards peaks from the encoder to the stem upload', async () => {
+    const card = tempCard();
+    placeOneStemFolder(
+      card,
+      '260512_0012',
+      new Date(Date.now() - 60 * 60 * 1000),
+    );
+    const cfg = {
+      device: 'model12',
+      sd_card_path: card,
+      paperstem_url: 'https://paperstem.test',
+      band_id: 'b1',
+    };
+    let capturedPeaks: unknown = 'sentinel';
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async (url: string, init: RequestInit) => {
+        if (
+          url === 'https://paperstem.test/api/projects' &&
+          init.method === 'POST'
+        ) {
+          return new Response(JSON.stringify({ project: { id: 'pr_pk' } }), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        if (
+          url.startsWith('https://paperstem.test/api/projects/pr_pk/stems')
+        ) {
+          if (init.method === 'POST') {
+            capturedPeaks = (init.body as FormData).get('peaks');
+            return new Response(JSON.stringify({ stem: { id: 's1' } }), {
+              status: 201,
+            });
+          }
+          return new Response(JSON.stringify({ stems: [] }), { status: 200 });
+        }
+        throw new Error(`unexpected url ${url} ${init.method}`);
+      });
+    const result = await runImporter({
+      config: cfg,
+      token: 'tok',
+      fetchImpl: fetchMock,
+      encodeFn: async ({ outputPath }) => {
+        writeFileSync(outputPath, Buffer.from('fake mp3 bytes'));
+        return { durationMs: 1000, peaks: 'v2:0,128,255' };
+      },
+    });
+    expect(result.status).toBe('ok');
+    expect(capturedPeaks).toBe('v2:0,128,255');
+  });
+
+  it('omits duration_ms when the encoder returns null', async () => {
+    const card = tempCard();
+    placeOneStemFolder(
+      card,
+      '260512_0011',
+      new Date(Date.now() - 60 * 60 * 1000),
+    );
+    const cfg = {
+      device: 'model12',
+      sd_card_path: card,
+      paperstem_url: 'https://paperstem.test',
+      band_id: 'b1',
+    };
+    let captured: unknown = 'sentinel';
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(async (url: string, init: RequestInit) => {
+        if (
+          url === 'https://paperstem.test/api/projects' &&
+          init.method === 'POST'
+        ) {
+          return new Response(JSON.stringify({ project: { id: 'pr_nul' } }), {
+            status: 201,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+        if (
+          url.startsWith('https://paperstem.test/api/projects/pr_nul/stems')
+        ) {
+          if (init.method === 'POST') {
+            captured = (init.body as FormData).get('duration_ms');
+            return new Response(JSON.stringify({ stem: { id: 's1' } }), {
+              status: 201,
+            });
+          }
+          return new Response(JSON.stringify({ stems: [] }), { status: 200 });
+        }
+        throw new Error(`unexpected url ${url} ${init.method}`);
+      });
+    const result = await runImporter({
+      config: cfg,
+      token: 'tok',
+      fetchImpl: fetchMock,
+      encodeFn: async ({ outputPath }) => {
+        writeFileSync(outputPath, Buffer.from('fake mp3 bytes'));
+        return { durationMs: null, peaks: null };
+      },
+    });
+    expect(result.status).toBe('ok');
+    expect(captured).toBeNull();
+  });
+
   it('skips a folder whose marker is already imported', async () => {
     const card = tempCard();
     const dir = placeOneStemFolder(
