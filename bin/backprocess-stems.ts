@@ -1,5 +1,8 @@
 import { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { db } from '../src/server/db.js';
 import {
@@ -13,6 +16,8 @@ import type { StemRow } from '../src/server/db.js';
 const { values } = parseArgs({
   options: {
     commit: { type: 'boolean', default: false },
+    codec: { type: 'string', default: 'mp3' },
+    channels: { type: 'string' },
     bitrate: { type: 'string', default: '64' },
     id: { type: 'string' },
     'min-savings-bytes': { type: 'string', default: '524288' },
@@ -21,10 +26,20 @@ const { values } = parseArgs({
 });
 
 const COMMIT = values.commit === true;
+const CODEC = values.codec === 'aac' ? 'aac' : values.codec === 'mp3' ? 'mp3' : null;
 const BITRATE_KBPS = Number(values.bitrate);
 const MIN_SAVINGS = Number(values['min-savings-bytes']);
 const ONLY_ID = values.id?.trim();
+const CHANNELS = values.channels !== undefined
+  ? Number(values.channels)
+  : CODEC === 'aac'
+    ? 1
+    : 2;
 
+if (CODEC === null) {
+  console.error(`invalid --codec=${values.codec} (expected 'aac' or 'mp3')`);
+  process.exit(1);
+}
 if (!Number.isFinite(BITRATE_KBPS) || BITRATE_KBPS < 32 || BITRATE_KBPS > 320) {
   console.error(`invalid --bitrate=${values.bitrate} (expected 32..320)`);
   process.exit(1);
@@ -33,9 +48,18 @@ if (!Number.isFinite(MIN_SAVINGS) || MIN_SAVINGS < 0) {
   console.error(`invalid --min-savings-bytes=${values['min-savings-bytes']}`);
   process.exit(1);
 }
+if (!Number.isFinite(CHANNELS) || (CHANNELS !== 1 && CHANNELS !== 2)) {
+  console.error(`invalid --channels=${values.channels} (expected 1 or 2)`);
+  process.exit(1);
+}
+
+const TARGET_EXT = CODEC === 'aac' ? '.m4a' : '.mp3';
+const TARGET_MIME = CODEC === 'aac' ? 'audio/mp4' : 'audio/mpeg';
 
 const header = COMMIT ? 'COMMIT' : 'DRY-RUN';
-console.log(`backprocess-stems [${header}] @ ${BITRATE_KBPS}kbps`);
+console.log(
+  `backprocess-stems [${header}] codec=${CODEC} channels=${CHANNELS} @ ${BITRATE_KBPS}kbps`,
+);
 console.log(
   `min savings to keep: ${(MIN_SAVINGS / 1024 / 1024).toFixed(2)} MB`,
 );
@@ -66,26 +90,41 @@ const allStems = ONLY_ID
       )
       .all() as StemWithPath[]);
 
-console.log(`stems to consider: ${allStems.length}`);
-if (allStems.length === 0) process.exit(0);
-
-const updateSize = db.prepare<[number, string]>(
-  'UPDATE stems SET size_bytes = ? WHERE id = ?',
-);
-const updateFileId = db.prepare<[string, number, string]>(
-  'UPDATE stems SET file_id = ?, size_bytes = ? WHERE id = ?',
-);
-
-function withMp3Ext(name: string): string {
-  const i = name.lastIndexOf('.');
-  const base = i === -1 || i === 0 ? name : name.slice(0, i);
-  return `${base}.mp3`;
-}
-
 function storageFilename(fileId: string): string {
   const rel = Buffer.from(fileId, 'base64url').toString('utf8');
   const slash = rel.lastIndexOf('/');
   return slash === -1 ? rel : rel.slice(slash + 1);
+}
+
+function currentExt(fileId: string): string {
+  const name = storageFilename(fileId);
+  const i = name.lastIndexOf('.');
+  return i === -1 || i === 0 ? '' : name.slice(i).toLowerCase();
+}
+
+const candidates = allStems.filter(
+  (s) => !(currentExt(s.file_id) === TARGET_EXT && s.duration_ms != null),
+);
+const alreadyDone = allStems.length - candidates.length;
+
+const upfrontBytes = candidates.reduce((n, s) => n + (s.size_bytes ?? 0), 0);
+console.log(
+  `stems considered: ${allStems.length}  candidates: ${candidates.length}  already in target format: ${alreadyDone}`,
+);
+console.log(`candidate total size: ${(upfrontBytes / 1024 / 1024).toFixed(2)} MB`);
+if (candidates.length === 0) process.exit(0);
+
+const updateSize = db.prepare<[number, number | null, string]>(
+  'UPDATE stems SET size_bytes = ?, duration_ms = COALESCE(?, duration_ms) WHERE id = ?',
+);
+const updateFileIdAndMeta = db.prepare<[string, number, number | null, string]>(
+  'UPDATE stems SET file_id = ?, size_bytes = ?, duration_ms = COALESCE(?, duration_ms) WHERE id = ?',
+);
+
+function withTargetExt(name: string): string {
+  const i = name.lastIndexOf('.');
+  const base = i === -1 || i === 0 ? name : name.slice(0, i);
+  return `${base}${TARGET_EXT}`;
 }
 
 type Stats = {
@@ -117,31 +156,31 @@ async function streamToBuffer(stream: ReadableStream<Uint8Array>): Promise<Buffe
   return Buffer.concat(chunks);
 }
 
-function transcode(input: Buffer, kbps: number): Promise<Buffer> {
+function transcodeToFile(input: Buffer, outPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
+    const codecArgs =
+      CODEC === 'aac'
+        ? ['-c:a', 'aac', '-b:a', `${BITRATE_KBPS}k`, '-movflags', '+faststart', '-f', 'mp4']
+        : ['-c:a', 'libmp3lame', '-b:a', `${BITRATE_KBPS}k`, '-f', 'mp3'];
     const args = [
       '-hide_banner',
       '-loglevel',
       'error',
+      '-y',
       '-i',
       'pipe:0',
       '-vn',
-      '-c:a',
-      'libmp3lame',
-      '-b:a',
-      `${kbps}k`,
-      '-f',
-      'mp3',
-      'pipe:1',
+      '-ac',
+      String(CHANNELS),
+      ...codecArgs,
+      outPath,
     ];
-    const ff = spawn('ffmpeg', args, { stdio: ['pipe', 'pipe', 'pipe'] });
-    const out: Buffer[] = [];
+    const ff = spawn('ffmpeg', args, { stdio: ['pipe', 'ignore', 'pipe'] });
     const err: Buffer[] = [];
-    ff.stdout.on('data', (c: Buffer) => out.push(c));
     ff.stderr.on('data', (c: Buffer) => err.push(c));
     ff.on('error', reject);
     ff.on('close', (code) => {
-      if (code === 0) resolve(Buffer.concat(out));
+      if (code === 0) resolve();
       else
         reject(
           new Error(
@@ -154,21 +193,59 @@ function transcode(input: Buffer, kbps: number): Promise<Buffer> {
   });
 }
 
+function ffprobeDurationSeconds(path: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const args = [
+      '-hide_banner',
+      '-loglevel',
+      'error',
+      '-show_entries',
+      'format=duration',
+      '-of',
+      'default=noprint_wrappers=1:nokey=1',
+      path,
+    ];
+    const proc = spawn('ffprobe', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const out: Buffer[] = [];
+    const err: Buffer[] = [];
+    proc.stdout.on('data', (c: Buffer) => out.push(c));
+    proc.stderr.on('data', (c: Buffer) => err.push(c));
+    proc.on('error', reject);
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`ffprobe exited ${code}: ${Buffer.concat(err).toString().trim()}`));
+        return;
+      }
+      const text = Buffer.concat(out).toString().trim();
+      const n = Number(text);
+      if (!Number.isFinite(n) || n <= 0) {
+        reject(new Error(`ffprobe produced unparseable duration: ${JSON.stringify(text)}`));
+        return;
+      }
+      resolve(n);
+    });
+  });
+}
+
 function fmt(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
 }
 
 let index = 0;
-for (const stem of allStems) {
+for (const stem of candidates) {
   index++;
-  const label = `[${index}/${allStems.length}] ${stem.band_name} / ${stem.project_name} / ${stem.name}`;
+  const label = `[${index}/${candidates.length}] ${stem.band_name} / ${stem.project_name} / ${stem.name}`;
+  let scratch: string | null = null;
   try {
     const { body } = await getFile(stem.file_id);
     const original = await streamToBuffer(body);
     const before = original.length;
     stats.bytesBefore += before;
 
-    const encoded = await transcode(original, BITRATE_KBPS);
+    scratch = await mkdtemp(join(tmpdir(), 'paperstem-backprocess-'));
+    const outPath = join(scratch, `out${TARGET_EXT}`);
+    await transcodeToFile(original, outPath);
+    const encoded = await readFile(outPath);
     const after = encoded.length;
     const savings = before - after;
 
@@ -187,23 +264,28 @@ for (const stem of allStems) {
       continue;
     }
 
+    const durationSec = await ffprobeDurationSeconds(outPath);
+    const durationMs = Math.round(durationSec * 1000);
+    const newDurationForUpdate = stem.duration_ms == null ? durationMs : null;
+
     const currentName = storageFilename(stem.file_id) || stem.name;
-    const newName = withMp3Ext(currentName);
+    const newName = withTargetExt(currentName);
     const needsRename = currentName !== newName;
 
     if (COMMIT) {
-      const res = await updateFile(stem.file_id, 'audio/mpeg', encoded);
+      const res = await updateFile(stem.file_id, TARGET_MIME, encoded);
       if (needsRename) {
-        const renamed = await renameAndRetype(stem.file_id, newName, 'audio/mpeg');
-        updateFileId.run(renamed.id, res.size, stem.id);
+        const renamed = await renameAndRetype(stem.file_id, newName, TARGET_MIME);
+        updateFileIdAndMeta.run(renamed.id, res.size, newDurationForUpdate, stem.id);
       } else {
-        updateSize.run(res.size, stem.id);
+        updateSize.run(res.size, newDurationForUpdate, stem.id);
       }
     }
     stats.processed++;
     stats.bytesAfter += after;
+    const durNote = newDurationForUpdate != null ? `  duration_ms=${durationMs}` : '';
     console.log(
-      `${label}  ${fmt(before)} → ${fmt(after)}  -${fmt(savings)}` +
+      `${label}  ${fmt(before)} → ${fmt(after)}  -${fmt(savings)}${durNote}` +
         (COMMIT ? '  written' : '  (dry-run)'),
     );
   } catch (e) {
@@ -215,6 +297,8 @@ for (const stem of allStems) {
           ? e.message
           : String(e);
     console.warn(`${label}  FAILED: ${msg}`);
+  } finally {
+    if (scratch) await rm(scratch, { recursive: true, force: true }).catch(() => {});
   }
 }
 
@@ -222,7 +306,10 @@ const totalSavings = stats.bytesBefore - stats.bytesAfter;
 console.log('');
 console.log('--- summary ---');
 console.log(`mode:            ${COMMIT ? 'COMMIT (writes performed)' : 'DRY-RUN (no writes)'}`);
+console.log(`codec:           ${CODEC} (${TARGET_MIME})  channels: ${CHANNELS}  bitrate: ${BITRATE_KBPS}k`);
 console.log(`considered:      ${allStems.length}`);
+console.log(`already done:    ${alreadyDone}`);
+console.log(`candidates:      ${candidates.length}`);
 console.log(`would replace:   ${stats.processed}`);
 console.log(`skipped (same):  ${stats.skippedSmaller}`);
 console.log(`skipped (tiny):  ${stats.skippedTrivial}`);
