@@ -188,6 +188,23 @@ describe('Track mute/solo keyboard activation', () => {
     expect(onKeyboardToggle).toHaveBeenCalledWith(0, 'solo');
   });
 
+  it('real mouse click on the M pill goes through onPillMouseDown only — no double-toggle via onKeyboardToggle', async () => {
+    const user = userEvent.setup();
+    const onKeyboardToggle = vi.fn();
+    const onPillMouseDown = vi.fn();
+    render(
+      <Track {...defaultProps({ onKeyboardToggle, onPillMouseDown })} />,
+    );
+    const mute = screen.getByRole('button', { name: /^Mute old\.wav$/ });
+    await user.click(mute);
+    // userEvent.click fires the full mouse sequence: mousedown → mouseup → click(detail=1).
+    // onPillMouseDown should be invoked once (on mousedown). onKeyboardToggle
+    // should NOT be invoked — the trailing click has detail >= 1 and is
+    // filtered by the discriminator in Track.tsx.
+    expect(onPillMouseDown).toHaveBeenCalledTimes(1);
+    expect(onKeyboardToggle).not.toHaveBeenCalled();
+  });
+
   it('M and S pills are disabled when canMutate is false', () => {
     render(<Track {...defaultProps({ canMutate: false })} />);
     const mute = screen.getByRole('button', { name: /^Mute old\.wav$/ });

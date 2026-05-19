@@ -44,6 +44,9 @@ test.describe('Journey: drag-paint mute and solo across tracks', () => {
     if (!m0Box) throw new Error('mute pill 0 has no bounding box');
     await page.mouse.move(m0Box.x + m0Box.width / 2, m0Box.y + m0Box.height / 2);
     await page.mouse.down();
+    // Body should now carry the dragging-vertical class — the CSS affordance
+    // that gives the cursor its ns-resize feedback during the paint gesture.
+    await expect(page.locator('body')).toHaveClass(/dragging-vertical/);
     // Move through the centre of each subsequent row.
     for (let i = 1; i < TRACK_COUNT; i++) {
       const b = rowBoxes[i];

@@ -23,6 +23,12 @@ export function useDragPaint({ apply, readState }: UseDragPaintArgs) {
   applyRef.current = apply;
   readStateRef.current = readState;
 
+  // endGesture, onPillMouseDown, onMouseMove, and onMouseUp all close over
+  // the first-render bindings of onMouseMove/onMouseUp because both
+  // useCallback wrappers have empty dep arrays. That means add and remove
+  // pair up against the same function identities every gesture. Don't
+  // remove the useCallback([])s here without also moving these handlers
+  // into refs — the symmetry is load-bearing.
   const endGesture = useCallback(() => {
     gestureRef.current = null;
     document.body.classList.remove(BODY_CLASS);
