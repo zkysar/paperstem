@@ -144,9 +144,14 @@ describe('<PresenceAvatars /> popover interactions', () => {
   });
 
   it('clicking a different avatar switches the open popover', () => {
+    // Distinct, descending lastBeatAt values pin the avatar order: Alice (more
+    // recent) sorts first, Bob second. Two bare Date.now() calls would tie most
+    // of the time but occasionally differ by 1ms, flipping the sort and making
+    // this test flaky (see the order() recency sort in PresenceAvatars).
+    const now = Date.now();
     usePresenceMock.mockReturnValue(snap([
-      { userId: 'u1', displayName: 'Alice', emailLocal: 'alice', state: 'active', lastBeatAt: Date.now() },
-      { userId: 'u2', displayName: 'Bob',   emailLocal: 'bob',   state: 'active', lastBeatAt: Date.now() },
+      { userId: 'u1', displayName: 'Alice', emailLocal: 'alice', state: 'active', lastBeatAt: now },
+      { userId: 'u2', displayName: 'Bob',   emailLocal: 'bob',   state: 'active', lastBeatAt: now - 1 },
     ]));
     render(<PresenceAvatars projectId="proj-A" />);
     const [a, b] = screen.getAllByTestId('presence-avatar');
