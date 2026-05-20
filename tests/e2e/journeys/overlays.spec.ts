@@ -58,4 +58,37 @@ test.describe('Journey: open and close every overlay with no leaked modal state'
     }
     await app.expectLayoutBounded();
   });
+
+  test('single-key shortcuts are suppressed while a modal is open (issue #222)', async ({
+    app,
+    page,
+  }) => {
+    await app.open();
+    await app.openSampleProject();
+
+    const ctrl = process.platform === 'darwin' ? 'Meta' : 'Control';
+    await page.keyboard.press(`${ctrl}+k`);
+    const picker = page.getByRole('dialog', { name: 'Projects' });
+    await expect(picker).toBeVisible();
+
+    // With the picker open, pressing ? must NOT open the shortcuts help on
+    // top of it (the original bug stacked dialogs).
+    await page.keyboard.press('?');
+    await expect(
+      page.getByRole('dialog', { name: 'Keyboard shortcuts' }),
+    ).toBeHidden();
+
+    // Further single keys (Groups/zoom/comment) must not open anything new
+    // either: the picker stays the only visible dialog.
+    await page.keyboard.press('g');
+    await page.keyboard.press('s');
+    await page.keyboard.press('c');
+    await expect(page.getByRole('dialog')).toHaveCount(1);
+    await expect(picker).toBeVisible();
+
+    // Escape still closes the picker — the one shortcut that stays active.
+    await page.keyboard.press('Escape');
+    await expect(picker).toBeHidden();
+    await app.expectLayoutBounded();
+  });
 });

@@ -30,6 +30,13 @@ function playheadAnchorX(
 export type KeyboardOpts = {
   player: PlayerControls;
   pickerOpen: boolean;
+  /**
+   * True while any full-screen blocking overlay other than the Projects picker
+   * is open (shortcuts help, share, groups, upload, bug report, tokens, create
+   * group). When set, the hook suppresses every global shortcut so single keys
+   * can't leak through and stack unrelated dialogs. See issue #222.
+   */
+  overlayOpen: boolean;
   drawerOpen: boolean;
   popoverOpen: boolean;
   annotationCreateMode: boolean;
@@ -57,6 +64,7 @@ export function useKeyboard(opts: KeyboardOpts): void {
   const {
     player,
     pickerOpen,
+    overlayOpen,
     drawerOpen,
     popoverOpen,
     annotationCreateMode,
@@ -77,55 +85,61 @@ export function useKeyboard(opts: KeyboardOpts): void {
       const isTextField =
         !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
 
+      // ⌘K / Ctrl-K toggles the Projects picker. Suppressed while a *different*
+      // blocking overlay (shortcuts help, share, groups, …) owns the screen so
+      // it can't stack a second dialog underneath it (issue #222). When only
+      // the picker itself is open, ⌘K still toggles it closed.
       if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        onTogglePicker();
+        if (!overlayOpen) onTogglePicker();
         return;
       }
+
+      // A blocking modal — the picker or any full-screen overlay — owns the
+      // keyboard. Beyond Escape (handled below, so the user can always back
+      // out), every global shortcut is suppressed so single keys (?, C, M,
+      // WASD, zoom chords) can't leak through and stack unrelated dialogs
+      // (issue #222). Typing into the modal's own inputs is unaffected.
+      const modalOpen = pickerOpen || overlayOpen;
 
       // Zoom chords: ⌘= / ⌘- (horizontal), ⇧⌘= / ⇧⌘- (vertical), ⌘0 (fit).
       // Run before the isTextField guard so users zoom while focused in a
       // rename field; these aren't characters anyone would type in text.
-      if ((e.metaKey || e.ctrlKey) && (e.key === '=' || e.key === '+')) {
-        e.preventDefault();
-        const stage = document.querySelector('.stage') as HTMLDivElement | null;
-        const rect = stage?.getBoundingClientRect();
-        const sw = rect?.width ?? 800;
-        if (e.shiftKey) {
-          opts.viewport.zoomV('in');
-        } else {
-          const anchorX = playheadAnchorX(sw, player, opts.viewport);
-          opts.viewport.zoomH('in', { stageWidth: sw, anchorX });
+      if (!modalOpen) {
+        if ((e.metaKey || e.ctrlKey) && (e.key === '=' || e.key === '+')) {
+          e.preventDefault();
+          const stage = document.querySelector('.stage') as HTMLDivElement | null;
+          const rect = stage?.getBoundingClientRect();
+          const sw = rect?.width ?? 800;
+          if (e.shiftKey) {
+            opts.viewport.zoomV('in');
+          } else {
+            const anchorX = playheadAnchorX(sw, player, opts.viewport);
+            opts.viewport.zoomH('in', { stageWidth: sw, anchorX });
+          }
+          return;
         }
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === '-') {
-        e.preventDefault();
-        const stage = document.querySelector('.stage') as HTMLDivElement | null;
-        const rect = stage?.getBoundingClientRect();
-        const sw = rect?.width ?? 800;
-        if (e.shiftKey) {
-          opts.viewport.zoomV('out');
-        } else {
-          const anchorX = playheadAnchorX(sw, player, opts.viewport);
-          opts.viewport.zoomH('out', { stageWidth: sw, anchorX });
+        if ((e.metaKey || e.ctrlKey) && e.key === '-') {
+          e.preventDefault();
+          const stage = document.querySelector('.stage') as HTMLDivElement | null;
+          const rect = stage?.getBoundingClientRect();
+          const sw = rect?.width ?? 800;
+          if (e.shiftKey) {
+            opts.viewport.zoomV('out');
+          } else {
+            const anchorX = playheadAnchorX(sw, player, opts.viewport);
+            opts.viewport.zoomH('out', { stageWidth: sw, anchorX });
+          }
+          return;
         }
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === '0') {
-        e.preventDefault();
-        opts.viewport.fitToWindow();
-        return;
+        if ((e.metaKey || e.ctrlKey) && e.key === '0') {
+          e.preventDefault();
+          opts.viewport.fitToWindow();
+          return;
+        }
       }
 
       if (isTextField) return;
-
-      // ? opens the shortcuts overlay (not inside text inputs).
-      if (e.key === '?') {
-        e.preventDefault();
-        opts.onToggleShortcuts();
-        return;
-      }
 
       const { state } = player;
 
@@ -154,6 +168,19 @@ export function useKeyboard(opts: KeyboardOpts): void {
           e.preventDefault();
           player.clearLoop();
         }
+        return;
+      }
+
+      // Past this point every binding is a single-key player shortcut. While a
+      // blocking modal owns the screen, suppress them all (issue #222). The
+      // overlay's own handlers deal with the keys it cares about (e.g. ? and
+      // Escape close the shortcuts help).
+      if (modalOpen) return;
+
+      // ? opens the shortcuts overlay (not inside text inputs).
+      if (e.key === '?') {
+        e.preventDefault();
+        opts.onToggleShortcuts();
         return;
       }
 
@@ -255,6 +282,7 @@ export function useKeyboard(opts: KeyboardOpts): void {
   }, [
     player,
     pickerOpen,
+    overlayOpen,
     drawerOpen,
     popoverOpen,
     annotationCreateMode,

@@ -51,6 +51,7 @@ function defaultOpts() {
   return {
     player: stubPlayer(),
     pickerOpen: false,
+    overlayOpen: false,
     drawerOpen: false,
     popoverOpen: false,
     annotationCreateMode: false,
@@ -585,6 +586,95 @@ describe('useKeyboard arrow-key seek', () => {
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     expect(player.seek).not.toHaveBeenCalled();
     document.body.removeChild(input);
+  });
+});
+
+describe('useKeyboard suppresses shortcuts while a modal is open (issue #222)', () => {
+  it('overlayOpen swallows ? so it cannot stack the shortcuts help', () => {
+    const onToggleShortcuts = vi.fn();
+    renderHook(() =>
+      useKeyboard({ ...defaultOpts(), overlayOpen: true, onToggleShortcuts }),
+    );
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '?' }));
+    expect(onToggleShortcuts).not.toHaveBeenCalled();
+  });
+
+  it('pickerOpen swallows ?, C, M and WASD', () => {
+    const onToggleShortcuts = vi.fn();
+    const onAddCommentAtPlayhead = vi.fn();
+    const onAddSectionAtPlayhead = vi.fn();
+    const viewport = defaultViewport();
+    renderHook(() =>
+      useKeyboard({
+        ...defaultOpts(),
+        pickerOpen: true,
+        viewport,
+        onToggleShortcuts,
+        onAddCommentAtPlayhead,
+        onAddSectionAtPlayhead,
+      }),
+    );
+    for (const key of ['?', 'c', 'm', 'w', 'a', 's', 'd']) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key }));
+    }
+    expect(onToggleShortcuts).not.toHaveBeenCalled();
+    expect(onAddCommentAtPlayhead).not.toHaveBeenCalled();
+    expect(onAddSectionAtPlayhead).not.toHaveBeenCalled();
+    expect(viewport.zoomH).not.toHaveBeenCalled();
+    expect(viewport.setScrollLeft).not.toHaveBeenCalled();
+  });
+
+  it('overlayOpen swallows arrow-key seeking', () => {
+    const player = stubPlayer();
+    player.currentTime = 10;
+    player.state.duration = 120;
+    renderHook(() => useKeyboard({ ...defaultOpts(), overlayOpen: true, player }));
+    fireEvent.keyDown(document, { key: 'ArrowRight' });
+    expect(player.seek).not.toHaveBeenCalled();
+  });
+
+  it('overlayOpen swallows zoom chords', () => {
+    const viewport = defaultViewport();
+    renderHook(() => useKeyboard({ ...defaultOpts(), overlayOpen: true, viewport }));
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '=', metaKey: true }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '0', metaKey: true }),
+    );
+    expect(viewport.zoomH).not.toHaveBeenCalled();
+    expect(viewport.fitToWindow).not.toHaveBeenCalled();
+  });
+
+  it('cmd-K is swallowed while a different overlay is open (no stacking)', () => {
+    const onTogglePicker = vi.fn();
+    renderHook(() =>
+      useKeyboard({ ...defaultOpts(), overlayOpen: true, onTogglePicker }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'k', metaKey: true }),
+    );
+    expect(onTogglePicker).not.toHaveBeenCalled();
+  });
+
+  it('cmd-K still toggles the picker closed when only the picker is open', () => {
+    const onTogglePicker = vi.fn();
+    renderHook(() =>
+      useKeyboard({ ...defaultOpts(), pickerOpen: true, onTogglePicker }),
+    );
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'k', metaKey: true }),
+    );
+    expect(onTogglePicker).toHaveBeenCalledOnce();
+  });
+
+  it('Escape still closes the picker while it owns the screen', () => {
+    const onClosePicker = vi.fn();
+    renderHook(() =>
+      useKeyboard({ ...defaultOpts(), pickerOpen: true, onClosePicker }),
+    );
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClosePicker).toHaveBeenCalledOnce();
   });
 });
 
