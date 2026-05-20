@@ -402,6 +402,14 @@ function PaperstemApp({
     prevActiveProjectIdRef.current = activeProjectId;
   }, [activeProjectId, player]);
 
+  // Keep document.title in sync with the active project name.
+  useEffect(() => {
+    const env = appInfo?.env;
+    const base = env && env !== 'prod' ? `[${env.toUpperCase()}] Paperstem` : 'Paperstem';
+    const title = player.state.title;
+    document.title = title && title !== '—' ? `${title} — ${base}` : base;
+  }, [player.state.title, appInfo?.env]);
+
   useKeyboard({
     player,
     pickerOpen,
@@ -1595,6 +1603,9 @@ function PaperstemApp({
     <PresenceProvider>
     <PresenceTracker projectId={activeProjectId} />
     <div className="app-shell">
+      <div className="sr-only" aria-live="polite" aria-atomic="true">
+        {player.state.title && player.state.title !== '—' ? `Now viewing ${player.state.title}` : ''}
+      </div>
       {arrival && (
         <ShareArrivalBanner
           time={arrival.time}
