@@ -122,7 +122,7 @@ export function AppHeader({
 
   return (
     <header className="app-header">
-      <h1 className="ah-brand">Paperstem</h1>
+      <span className="ah-brand">Paperstem</span>
       {envBadge && (
         <span
           className={`ah-env-badge ah-env-${appEnv}`}

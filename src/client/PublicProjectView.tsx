@@ -47,6 +47,7 @@ import { buildUserColorMap, SELF_ANNOTATION_COLOR } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
 import { decodePeaks } from './lib/peaks';
 import { stashReturnPath } from './lib/public-return';
+import { buildDocumentTitle } from './lib/document-title';
 
 // The /p/<token> page reuses the same AppHeader / AppToolbar / Player /
 // CommentsDrawer / CommentsFab tree as the authenticated app. Every
@@ -177,6 +178,14 @@ export function PublicProjectView({ token }: { token: string }) {
   // but not a band member). 'signed-in-member' is never observed here
   // because we redirect to /#p=<id> instantly when we see it.
   const [probe, setProbe] = useState<MembershipProbe>({ kind: 'anonymous' });
+
+  // Reflect the shared project in the tab/page title once it loads, instead
+  // of leaving the static "Paperstem" from index.html.
+  const publicProjectTitle =
+    state.kind === 'ready' ? state.detail.project.name : null;
+  useEffect(() => {
+    document.title = buildDocumentTitle(appInfo?.env, publicProjectTitle);
+  }, [appInfo?.env, publicProjectTitle]);
 
   const presenceClient = useMemo(
     () => createPresenceClient({ linkToken: token }),
@@ -428,6 +437,9 @@ export function PublicProjectView({ token }: { token: string }) {
     <PresenceContext.Provider value={presenceClient}>
       <PublicPresenceSubscriber projectId={detail.project.id} />
     <div className="app-shell">
+      {/* Page heading reflecting the shared project — the brand in AppHeader
+          is a styled <span>, not a heading. */}
+      <h1 className="sr-only">{detail.project.name}</h1>
       {noAccessBanner && (
         <div className="public-signin-banner" role="status">
           You're signed in but don't have access to this project. Ask the

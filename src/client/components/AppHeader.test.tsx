@@ -35,6 +35,14 @@ describe('AppHeader', () => {
     expect(screen.getByText(/9 stems/)).not.toBeNull();
   });
 
+  it('renders the brand as a non-heading so the page h1 can track the project', () => {
+    render(<AppHeader {...baseProps} />);
+    // The brand is a styled <span>; the document-level h1 (owned by App /
+    // PublicProjectView) reflects the open project instead. See issue #227.
+    expect(screen.queryByRole('heading')).toBeNull();
+    expect(screen.getByText('Paperstem').tagName).toBe('SPAN');
+  });
+
   it('does not render a standalone Library button anymore', () => {
     render(<AppHeader {...baseProps} />);
     expect(screen.queryByLabelText('Open projects')).toBeNull();
