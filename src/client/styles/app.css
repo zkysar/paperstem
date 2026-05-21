@@ -2639,6 +2639,23 @@ body.env-non-prod[data-env="local"]::before {
     padding: 4px 6px;
   }
   .track-rail .vol-row { display: none; }
+
+  /* When the rail is collapsed on mobile, show a compact name+M/S strip
+     stacked above each waveform instead of hiding it entirely. Stems stay
+     identifiable and mute/solo is one tap away; railWidth stays 0 so the
+     waveform continues to fill the full stage width. */
+  .player.rail-collapsed .track {
+    display: flex;
+    flex-direction: column;
+  }
+  .player.rail-collapsed .track-rail {
+    display: flex;
+    box-shadow: 0 1px 0 var(--rule-2);
+    padding: 3px 6px;
+  }
+  .player.rail-collapsed .track-rail .pill.trash {
+    display: none;
+  }
 }
 
 /* ===== CommentsFab ===== */
