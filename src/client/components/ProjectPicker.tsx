@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { PresenceAvatars } from './PresenceAvatars';
 import { ChevronDown, ChevronUp, FolderOpen, HelpCircle, MessageSquare, MoreVertical, Pencil, Trash2, X } from 'lucide-react';
 import type { Project, TrashList } from '../data/types';
@@ -58,7 +58,12 @@ export function ProjectPicker({
   const [tab, setTab] = useState<Tab>('recent');
   const [search, setSearch] = useState('');
   const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const pickerRowsRef = useRef<Project[]>([]);
   const folderInputRef = useRef<HTMLInputElement>(null);
+
+  // Reset highlight when search or tab changes so stale positions don't persist.
+  useEffect(() => { setHighlightedIndex(-1); }, [search, tab]);
 
   // Set of project IDs that contain the active song filter. When no
   // filter is set, the original projects pass through untouched.
@@ -122,6 +127,23 @@ export function ProjectPicker({
             placeholder="Search projects"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (tab === 'trash' || confirm) return;
+              const count = pickerRowsRef.current.length;
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setHighlightedIndex((i) => Math.min(i + 1, count - 1));
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setHighlightedIndex((i) => Math.max(i - 1, -1));
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const idx = highlightedIndex >= 0 ? highlightedIndex : (count === 1 ? 0 : -1);
+                if (idx >= 0 && idx < count) {
+                  onSelect(pickerRowsRef.current[idx].id);
+                }
+              }
+            }}
           />
           {showUpload && (
             <button
@@ -243,6 +265,8 @@ export function ProjectPicker({
             onRetry={onRetry}
             onRenameProject={onRenameProject}
             onRequestDelete={(id, name) => setConfirm({ id, name })}
+            highlightedIndex={highlightedIndex}
+            rowsRef={pickerRowsRef}
           />
         )}
         {showUpload && tab !== 'trash' && (
@@ -301,6 +325,7 @@ export function ProjectPicker({
 function ProjectPickerBody({
   search, projects, activeProjectId, currentUserId, loading, loadError, showUpload,
   onSelect, onNewProjectClick, onRetry, onRenameProject, onRequestDelete,
+  highlightedIndex, rowsRef,
 }: {
   tab: Tab;
   search: string;
@@ -315,6 +340,8 @@ function ProjectPickerBody({
   onRetry(): void;
   onRenameProject(id: string, name: string): void;
   onRequestDelete(id: string, name: string): void;
+  highlightedIndex: number;
+  rowsRef: MutableRefObject<Project[]>;
 }) {
   const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
   // Default sort matches the server's intent ("recently touched first").
@@ -342,6 +369,7 @@ function ProjectPickerBody({
     onRenameProject(id, next);
   }
   if (loadError) {
+    rowsRef.current = [];
     return (
       <div className="fp-body fp-state">
         <p className="fp-state-msg">Couldn't load projects ({loadError}).</p>
@@ -352,6 +380,7 @@ function ProjectPickerBody({
     );
   }
   if (loading) {
+    rowsRef.current = [];
     return (
       <div className="fp-body">
         {[0, 1, 2, 3, 4].map((i) => (
@@ -370,6 +399,7 @@ function ProjectPickerBody({
     );
   }
   if (projects.length === 0) {
+    rowsRef.current = [];
     return (
       <div className="fp-body fp-state">
         <p className="fp-state-msg">No projects yet.</p>
@@ -392,6 +422,8 @@ function ProjectPickerBody({
     return p.title.toLowerCase().includes(q);
   });
   const rows = sortProjects(filtered, sort);
+  // Keep the parent's ref in sync so Arrow/Enter handlers resolve the right project.
+  rowsRef.current = rows;
 
   return (
     <div className="fp-body">
@@ -405,11 +437,12 @@ function ProjectPickerBody({
         <span className="fp-cell-presence" />
         <span className="fp-cell-actions" />
       </div>
-      {rows.map((p) => (
+      {rows.map((p, i) => (
         <ProjectRow
           key={p.id}
           project={p}
           active={p.id === activeProjectId}
+          highlighted={i === highlightedIndex}
           editing={editing?.id === p.id ? editing.draft : null}
           currentUserId={currentUserId}
           onSelect={() => onSelect(p.id)}
@@ -467,12 +500,13 @@ function sortProjects(
 }
 
 function ProjectRow({
-  project: p, active, editing, currentUserId,
+  project: p, active, highlighted, editing, currentUserId,
   onSelect, onStartRename, onChangeDraft, onCommitRename, onCancelRename,
   onRequestDelete,
 }: {
   project: Project;
   active: boolean;
+  highlighted: boolean;
   editing: string | null;
   currentUserId: string | null | undefined;
   onSelect(): void;
@@ -482,7 +516,14 @@ function ProjectRow({
   onCancelRename(): void;
   onRequestDelete(): void;
 }) {
+  const rowRef = useRef<HTMLDivElement>(null);
   const isEditing = editing !== null;
+
+  useEffect(() => {
+    if (highlighted && rowRef.current) {
+      rowRef.current.scrollIntoView({ block: 'nearest' });
+    }
+  }, [highlighted]);
   const date = formatRelativeDate(p.updatedAt);
   const duration = formatDurationMs(p.totalDurationMs);
   const stemsLabel = `${p.stemCount} ${p.stemCount === 1 ? 'stem' : 'stems'}`;
@@ -497,8 +538,9 @@ function ProjectRow({
 
   return (
     <div
+      ref={rowRef}
       data-testid={`fp-row-${p.id}`}
-      className={'fp-row fp-row-data' + (active ? ' active' : '')}
+      className={'fp-row fp-row-data' + (active ? ' active' : '') + (highlighted ? ' fp-row-highlighted' : '')}
     >
       {isEditing ? (
         // display:contents — children become direct grid items so cell

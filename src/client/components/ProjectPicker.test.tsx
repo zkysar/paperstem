@@ -476,4 +476,67 @@ describe('ProjectPicker', () => {
     );
     expect(screen.getByText(/clear filter/i)).not.toBeNull();
   });
+
+  it('ArrowDown highlights the first row', async () => {
+    const user = userEvent.setup();
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
+    await user.keyboard('{ArrowDown}');
+    const rows = screen.getAllByTestId(/^fp-row-/);
+    expect(rows[0].className).toContain('fp-row-highlighted');
+    expect(rows[1].className).not.toContain('fp-row-highlighted');
+  });
+
+  it('ArrowDown then ArrowDown highlights the second row', async () => {
+    const user = userEvent.setup();
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    const rows = screen.getAllByTestId(/^fp-row-/);
+    expect(rows[0].className).not.toContain('fp-row-highlighted');
+    expect(rows[1].className).toContain('fp-row-highlighted');
+  });
+
+  it('ArrowUp from first row clears the highlight', async () => {
+    const user = userEvent.setup();
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
+    await user.keyboard('{ArrowDown}{ArrowUp}');
+    const rows = screen.getAllByTestId(/^fp-row-/);
+    rows.forEach((r) => expect(r.className).not.toContain('fp-row-highlighted'));
+  });
+
+  it('Enter selects the highlighted row', async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} onSelect={onSelect} />);
+    // ArrowDown highlights first row (p1 is newest so it's first in default sort)
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(onSelect).toHaveBeenCalledWith('p1');
+  });
+
+  it('Enter with no highlight selects the sole result when search narrows to one', async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} onSelect={onSelect} />);
+    await user.type(screen.getByPlaceholderText('Search projects'), '04-28');
+    // Only p1 visible — Enter without ArrowDown should select it.
+    await user.keyboard('{Enter}');
+    expect(onSelect).toHaveBeenCalledWith('p1');
+  });
+
+  it('Enter with no highlight does nothing when multiple rows are visible', async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} onSelect={onSelect} />);
+    await user.keyboard('{Enter}');
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('highlight resets when search changes', async () => {
+    const user = userEvent.setup();
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
+    await user.keyboard('{ArrowDown}{ArrowDown}');
+    // Changing the search text should clear the highlight index
+    await user.type(screen.getByPlaceholderText('Search projects'), '2026');
+    const rows = screen.getAllByTestId(/^fp-row-/);
+    rows.forEach((r) => expect(r.className).not.toContain('fp-row-highlighted'));
+  });
 });
