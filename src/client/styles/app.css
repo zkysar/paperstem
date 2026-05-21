@@ -925,9 +925,8 @@ body.dragging-vertical .player * {
   .ah-avatar,
   .atb-overflow-wrap > button,
   .atb-share-wrap > button {
-    min-width: 40px;
-    min-height: 40px;
-    padding: 8px;
+    min-width: 44px;
+    min-height: 44px;
   }
   /* The icon glyphs themselves stay 16-18px; only hit areas grow. */
 
@@ -4361,6 +4360,35 @@ body.env-non-prod[data-env="local"]::before {
      it ends at the top of the fixed toolbar. */
   .app-shell {
     padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
+
+  /* Each toolbar slot — bare button or popover-trigger wrapper — takes an
+     equal share of the bar width so all items hit 44px+ without overflowing.
+     min-width: 0 lets flex shrink below the global 44px min-width when there
+     are many items; height is already guaranteed by the rule above. */
+  .app-toolbar > button.atb-btn,
+  .atb-share-wrap,
+  .atb-zoom-pop-wrap,
+  .atb-master-pop-wrap,
+  .atb-overflow-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .atb-share-wrap,
+  .atb-zoom-pop-wrap,
+  .atb-master-pop-wrap,
+  .atb-overflow-wrap {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .atb-share-wrap > .atb-btn,
+  .atb-zoom-pop-wrap > .atb-btn,
+  .atb-master-pop-wrap > .atb-btn,
+  .atb-overflow-wrap > .atb-btn {
+    width: 100%;
+    min-width: 0;
   }
 }
 
