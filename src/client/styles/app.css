@@ -952,7 +952,19 @@ body.dragging-vertical .player * {
   border-radius: 8px;
 }
 .login-card .brand { margin-bottom: 4px; }
-.login-card .brand-tag { margin-bottom: 24px; }
+.login-card .brand-tag { margin-bottom: 8px; }
+.login-tagline {
+  margin: 0 0 20px;
+  color: var(--ink-2);
+  font-size: var(--fs-lg);
+  line-height: 1.4;
+}
+.login-flow-note {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-md);
+  line-height: 1.4;
+}
 .login-hint {
   margin: 0 0 16px;
   padding: 10px 12px;

@@ -58,6 +58,9 @@ export function LoginScreen() {
       <div className="login-card">
         <h1 className="brand">Paperstem</h1>
         <div className="brand-tag">Sign in</div>
+        <p className="login-tagline">
+          Share rehearsal recordings as stems with your band.
+        </p>
         {hasPendingShareLink() && (
           <p className="login-hint">
             You&rsquo;ll be taken to the shared moment after you log in.
@@ -100,6 +103,9 @@ export function LoginScreen() {
             >
               {submitting ? 'Sending…' : 'Send me a sign-in link'}
             </button>
+            <p className="login-flow-note">
+              We&rsquo;ll email you a sign-in link — no password needed.
+            </p>
             {error && <div className="login-error">{error}</div>}
           </form>
         )}
