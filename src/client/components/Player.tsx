@@ -750,13 +750,17 @@ export function Player({
               />
               {!stems.length && !loading && (
                 <div className="empty-stage">
-                  <p>No project loaded.</p>
+                  <p className="empty-stage-title">No project open</p>
+                  <p className="empty-stage-desc">
+                    Paperstem is a stem player for bands — load a project to play
+                    individual tracks, add timestamped comments, and collaborate.
+                  </p>
                   <button
                     type="button"
                     className="empty-stage-cta"
                     onClick={onOpenPicker}
                   >
-                    {isMobile ? 'Open the project picker' : 'Open the project picker (⌘K)'}
+                    {isMobile ? 'Open a project' : 'Open a project  (⌘K)'}
                   </button>
                 </div>
               )}
