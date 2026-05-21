@@ -304,6 +304,13 @@ function PaperstemApp({
   const [tokensOpen, setTokensOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  // Share dialog state. Non-null while the dialog is open; the snapshot is
+  // captured at open time so toggling state inside the dialog can't be
+  // influenced by ongoing playback or zoom changes underneath.
+  const [shareDialog, setShareDialog] = useState<{
+    state: ShareState;
+    focusedAnnotation: Annotation | null;
+  } | null>(null);
 
   const openBugReport = useCallback((prefill: BugReportPrefill | null = null) => {
     setBugReportPrefill(prefill);
@@ -413,6 +420,16 @@ function PaperstemApp({
   useKeyboard({
     player,
     pickerOpen,
+    // Any full-screen blocking overlay besides the picker. While one is open,
+    // the hook suppresses global shortcuts so keys don't stack dialogs (#222).
+    overlayOpen:
+      shortcutsOpen ||
+      shareDialog !== null ||
+      uploadOpen ||
+      bugReportOpen ||
+      tokensOpen ||
+      groupSettingsOpen ||
+      createGroupOpen,
     drawerOpen,
     popoverOpen: activeCommentId !== null || sectionPopover !== null,
     annotationCreateMode,
@@ -520,7 +537,7 @@ function PaperstemApp({
   }, []);
 
   const showUploadButton =
-    isWide && activeBand !== null && activeBand.role === 'owner';
+    activeBand !== null && activeBand.role === 'owner';
 
   useEffect(() => {
     if (!repo) {
@@ -1212,14 +1229,6 @@ function PaperstemApp({
     },
     [player],
   );
-
-  // Share dialog state. Non-null while the dialog is open; the snapshot is
-  // captured at open time so toggling state inside the dialog can't be
-  // influenced by ongoing playback or zoom changes underneath.
-  const [shareDialog, setShareDialog] = useState<{
-    state: ShareState;
-    focusedAnnotation: Annotation | null;
-  } | null>(null);
 
   // Build a ShareState snapshot from the current player + UI state. Used by
   // both the toolbar Share button and the comment copy-link flow.
