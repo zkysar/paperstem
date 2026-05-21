@@ -58,6 +58,8 @@ export function ProjectPicker({
   const [tab, setTab] = useState<Tab>('recent');
   const [search, setSearch] = useState('');
   const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({ key: 'updated', dir: 'desc' });
+  const [focusedIndex, setFocusedIndex] = useState(-1);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   // Set of project IDs that contain the active song filter. When no
@@ -71,6 +73,52 @@ export function ProjectPicker({
     );
     return projects.filter((p) => allowed.has(p.id));
   }, [projects, songUsage, filterSongId]);
+
+  // Pre-compute the visible (filtered + sorted) rows so the parent can map
+  // focusedIndex → a project ID for Enter-to-open without needing a ref into
+  // the child component.
+  const visibleRows = useMemo<Project[]>(() => {
+    if (tab === 'trash') return [];
+    const q = search.toLowerCase().trim();
+    const filtered = filteredProjects.filter((p) =>
+      !q || p.title.toLowerCase().includes(q),
+    );
+    return sortProjects(filtered, sort);
+  }, [filteredProjects, search, sort, tab]);
+
+  // Reset keyboard focus whenever the visible list changes shape.
+  useEffect(() => {
+    setFocusedIndex(-1);
+  }, [search, sort, tab, filterSongId]);
+
+  // Reset focus when picker closes so it starts fresh next time.
+  useEffect(() => {
+    if (!open) setFocusedIndex(-1);
+  }, [open]);
+
+  function toggleSort(key: SortKey) {
+    setSort((prev) => {
+      if (prev.key !== key) return { key, dir: key === 'name' ? 'asc' : 'desc' };
+      return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+    });
+  }
+
+  function handleSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (tab === 'trash') return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setFocusedIndex((i) => Math.min(i + 1, visibleRows.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setFocusedIndex((i) => (i <= 0 ? -1 : i - 1));
+    } else if (e.key === 'Enter' && focusedIndex >= 0) {
+      const project = visibleRows[focusedIndex];
+      if (project) {
+        e.preventDefault();
+        onSelect(project.id);
+      }
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -122,6 +170,7 @@ export function ProjectPicker({
             placeholder="Search projects"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
           />
           {showUpload && (
             <button
@@ -233,11 +282,15 @@ export function ProjectPicker({
           />
         ) : (
           <ProjectPickerBody
-            tab={tab} search={search}
             loading={loading} loadError={loadError}
-            projects={filteredProjects} activeProjectId={activeProjectId}
+            rows={visibleRows}
+            hasAnyProjects={filteredProjects.length > 0}
+            activeProjectId={activeProjectId}
             currentUserId={currentUserId}
             showUpload={showUpload}
+            sort={sort}
+            onToggleSort={toggleSort}
+            focusedIndex={focusedIndex}
             onSelect={onSelect}
             onNewProjectClick={() => folderInputRef.current?.click()}
             onRetry={onRetry}
@@ -299,17 +352,20 @@ export function ProjectPicker({
 }
 
 function ProjectPickerBody({
-  search, projects, activeProjectId, currentUserId, loading, loadError, showUpload,
+  rows, hasAnyProjects, activeProjectId, currentUserId, loading, loadError, showUpload,
+  sort, onToggleSort, focusedIndex,
   onSelect, onNewProjectClick, onRetry, onRenameProject, onRequestDelete,
 }: {
-  tab: Tab;
-  search: string;
+  rows: Project[];
+  hasAnyProjects: boolean;
   loading: boolean;
   loadError: string | null;
-  projects: Project[];
   activeProjectId: string | null;
   currentUserId: string | null | undefined;
   showUpload: boolean;
+  sort: { key: SortKey; dir: SortDir };
+  onToggleSort(key: SortKey): void;
+  focusedIndex: number;
   onSelect(id: string): void;
   onNewProjectClick(): void;
   onRetry(): void;
@@ -317,27 +373,12 @@ function ProjectPickerBody({
   onRequestDelete(id: string, name: string): void;
 }) {
   const [editing, setEditing] = useState<{ id: string; draft: string } | null>(null);
-  // Default sort matches the server's intent ("recently touched first").
-  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
-    key: 'updated', dir: 'desc',
-  });
-
-  function toggleSort(key: SortKey) {
-    setSort((prev) => {
-      if (prev.key !== key) {
-        // First click on a new column: default to desc for date/numeric (most
-        // useful), asc for name (alphabetical).
-        return { key, dir: key === 'name' ? 'asc' : 'desc' };
-      }
-      return { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
-    });
-  }
 
   function commitEdit(id: string) {
     if (!editing || editing.id !== id) return;
     const next = editing.draft.trim();
     setEditing(null);
-    const original = projects.find((p) => p.id === id);
+    const original = rows.find((p) => p.id === id);
     if (!next || next === original?.title) return;
     onRenameProject(id, next);
   }
@@ -369,7 +410,7 @@ function ProjectPickerBody({
       </div>
     );
   }
-  if (projects.length === 0) {
+  if (!hasAnyProjects) {
     return (
       <div className="fp-body fp-state">
         <p className="fp-state-msg">No projects yet.</p>
@@ -386,30 +427,24 @@ function ProjectPickerBody({
     );
   }
 
-  const filtered = projects.filter((p) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return p.title.toLowerCase().includes(q);
-  });
-  const rows = sortProjects(filtered, sort);
-
   return (
     <div className="fp-body">
       <div className="fp-row fp-row-head" role="row">
-        <SortHeader className="fp-cell-name" label="Name" sortKey="name" sort={sort} onClick={toggleSort} />
+        <SortHeader className="fp-cell-name" label="Name" sortKey="name" sort={sort} onClick={onToggleSort} />
         <span className="fp-cell-thumb">Waveform</span>
-        <SortHeader className="fp-cell-date" label="Updated" sortKey="updated" sort={sort} onClick={toggleSort} />
-        <SortHeader className="fp-cell-duration" label="Length" sortKey="duration" sort={sort} onClick={toggleSort} />
-        <SortHeader className="fp-cell-stems" label="Stems" sortKey="stems" sort={sort} onClick={toggleSort} />
-        <SortHeader className="fp-cell-comments" label="Comments" sortKey="comments" sort={sort} onClick={toggleSort} />
+        <SortHeader className="fp-cell-date" label="Updated" sortKey="updated" sort={sort} onClick={onToggleSort} />
+        <SortHeader className="fp-cell-duration" label="Length" sortKey="duration" sort={sort} onClick={onToggleSort} />
+        <SortHeader className="fp-cell-stems" label="Stems" sortKey="stems" sort={sort} onClick={onToggleSort} />
+        <SortHeader className="fp-cell-comments" label="Comments" sortKey="comments" sort={sort} onClick={onToggleSort} />
         <span className="fp-cell-presence" />
         <span className="fp-cell-actions" />
       </div>
-      {rows.map((p) => (
+      {rows.map((p, i) => (
         <ProjectRow
           key={p.id}
           project={p}
           active={p.id === activeProjectId}
+          focused={i === focusedIndex}
           editing={editing?.id === p.id ? editing.draft : null}
           currentUserId={currentUserId}
           onSelect={() => onSelect(p.id)}
@@ -467,12 +502,13 @@ function sortProjects(
 }
 
 function ProjectRow({
-  project: p, active, editing, currentUserId,
+  project: p, active, focused, editing, currentUserId,
   onSelect, onStartRename, onChangeDraft, onCommitRename, onCancelRename,
   onRequestDelete,
 }: {
   project: Project;
   active: boolean;
+  focused: boolean;
   editing: string | null;
   currentUserId: string | null | undefined;
   onSelect(): void;
@@ -482,6 +518,11 @@ function ProjectRow({
   onCancelRename(): void;
   onRequestDelete(): void;
 }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (focused) rowRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [focused]);
+
   const isEditing = editing !== null;
   const date = formatRelativeDate(p.updatedAt);
   const duration = formatDurationMs(p.totalDurationMs);
@@ -497,8 +538,9 @@ function ProjectRow({
 
   return (
     <div
+      ref={rowRef}
       data-testid={`fp-row-${p.id}`}
-      className={'fp-row fp-row-data' + (active ? ' active' : '')}
+      className={'fp-row fp-row-data' + (active ? ' active' : '') + (focused ? ' fp-row-focused' : '')}
     >
       {isEditing ? (
         // display:contents — children become direct grid items so cell

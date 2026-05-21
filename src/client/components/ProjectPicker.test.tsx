@@ -155,6 +155,67 @@ describe('ProjectPicker', () => {
     expect(onSelect).toHaveBeenCalledWith('p1');
   });
 
+  it('ArrowDown highlights first row; ArrowDown again moves to second', async () => {
+    const user = userEvent.setup();
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
+    const search = screen.getByPlaceholderText('Search projects');
+    await user.click(search);
+    await user.keyboard('{ArrowDown}');
+    // Default sort is updated-desc: p1 (newest) first.
+    expect(screen.getByTestId('fp-row-p1').className).toContain('fp-row-focused');
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByTestId('fp-row-p1').className).not.toContain('fp-row-focused');
+    expect(screen.getByTestId('fp-row-p2').className).toContain('fp-row-focused');
+  });
+
+  it('ArrowUp from first-focused row clears highlight', async () => {
+    const user = userEvent.setup();
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
+    const search = screen.getByPlaceholderText('Search projects');
+    await user.click(search);
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByTestId('fp-row-p1').className).toContain('fp-row-focused');
+    await user.keyboard('{ArrowUp}');
+    expect(screen.getByTestId('fp-row-p1').className).not.toContain('fp-row-focused');
+  });
+
+  it('Enter with focused row calls onSelect for that project', async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} onSelect={onSelect} />);
+    const search = screen.getByPlaceholderText('Search projects');
+    await user.click(search);
+    await user.keyboard('{ArrowDown}');
+    await user.keyboard('{Enter}');
+    // Default sort is updated-desc: p1 (newest) is first.
+    expect(onSelect).toHaveBeenCalledWith('p1');
+  });
+
+  it('Enter with no row focused does not call onSelect', async () => {
+    const onSelect = vi.fn();
+    const user = userEvent.setup();
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} onSelect={onSelect} />);
+    const search = screen.getByPlaceholderText('Search projects');
+    await user.click(search);
+    await user.keyboard('{Enter}');
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('typing in search resets focused row to none', async () => {
+    const user = userEvent.setup();
+    render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
+    const search = screen.getByPlaceholderText('Search projects');
+    await user.click(search);
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByTestId('fp-row-p1').className).toContain('fp-row-focused');
+    // '04' still matches p1 and p2 so rows remain visible for the assertion.
+    await user.type(search, '04');
+    // After typing, focusedIndex resets so no visible row carries the class.
+    const rows = screen.queryAllByTestId(/^fp-row-/);
+    expect(rows.length).toBeGreaterThan(0);
+    rows.forEach((r) => expect(r.className).not.toContain('fp-row-focused'));
+  });
+
   it('marks active row with active class', () => {
     render(<ProjectPicker {...baseProps} projects={fixtureProjects} activeProjectId="p2" />);
     const row = screen.getByTestId('fp-row-p2');
