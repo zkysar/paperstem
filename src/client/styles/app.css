@@ -1250,6 +1250,19 @@ body.dragging-vertical .player * {
   background: var(--accent-tint);
   color: var(--accent);
 }
+.group-member-retry-btn {
+  margin-top: 6px;
+  font-size: var(--fs-sm);
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.group-member-retry-btn:hover {
+  opacity: 0.8;
+}
 .group-settings-leave {
   margin-top: 18px;
   padding-top: 14px;
