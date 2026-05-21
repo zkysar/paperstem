@@ -62,7 +62,9 @@ export function CreateGroupDialog({ open, onClose, onCreated }: Props) {
               ? 'Group names are limited to 80 characters.'
               : body.error === 'name_required'
                 ? 'A name is required.'
-                : `HTTP ${res.status}`;
+                : res.status === 401
+                  ? "You're signed out — reload the page to sign in again."
+                  : "Couldn't create the group. Try again.";
         setError(msg);
         return;
       }

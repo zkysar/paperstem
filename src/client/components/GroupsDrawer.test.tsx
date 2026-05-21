@@ -784,4 +784,45 @@ describe('GroupsDrawer', () => {
     await user.click(scrim);
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it('shows a human-readable error (not raw HTTP status) when members fetch returns 401', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () =>
+        new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    });
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[ownerGroup]}
+        currentGroupId="b1"
+        {...noopProps}
+      />,
+    );
+    await screen.findByText(/signed out/i);
+    expect(screen.queryByText(/HTTP 401/)).toBeNull();
+    expect(screen.queryByText('Loading…')).toBeNull();
+  });
+
+  it('does not show "Loading…" in the Members section when the fetch errors', async () => {
+    setupFetchMock({
+      [`/api/bands/${ownerGroup.id}`]: () =>
+        new Response(JSON.stringify({ error: 'server_error' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+    });
+    render(
+      <GroupsDrawer
+        open={true}
+        groups={[ownerGroup]}
+        currentGroupId="b1"
+        {...noopProps}
+      />,
+    );
+    await screen.findByText(/Couldn't load members/i);
+    expect(screen.queryByText('Loading…')).toBeNull();
+  });
 });

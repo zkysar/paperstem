@@ -162,6 +162,11 @@ type GetBandResponse = {
   members: BandMember[];
 };
 
+function httpFallback(status: number, action: string): string {
+  if (status === 401) return "You're signed out — reload the page to sign in again.";
+  return `Couldn't ${action}. Try again.`;
+}
+
 function GroupRow({
   group,
   isActive,
@@ -206,7 +211,7 @@ function GroupRow({
       async (res) => {
         if (cancelled) return;
         if (!res.ok) {
-          setError(`HTTP ${res.status}`);
+          setError(httpFallback(res.status, 'load members'));
           return;
         }
         const body = (await res.json()) as GetBandResponse;
@@ -265,7 +270,7 @@ function GroupRow({
               ? 'Group names are limited to 80 characters.'
               : body.error === 'name_required'
                 ? 'A name is required.'
-                : `HTTP ${res.status}`;
+                : httpFallback(res.status, 'rename the group');
         setRenameError(msg);
         return;
       }
@@ -291,7 +296,7 @@ function GroupRow({
         const msg =
           body.error === 'owner_cannot_be_removed'
             ? "You can't remove the owner of a group."
-            : `HTTP ${res.status}`;
+            : httpFallback(res.status, 'remove that member');
         setError(msg);
         return;
       }
@@ -332,7 +337,7 @@ function GroupRow({
               ? "That doesn't look like a valid email."
               : body.error === 'forbidden'
                 ? 'Only the owner can invite new members.'
-                : `HTTP ${res.status}`;
+                : httpFallback(res.status, 'send the invite');
         setInviteError(msg);
         return;
       }
@@ -379,7 +384,7 @@ function GroupRow({
               ? 'That person is no longer in this group — pick someone else.'
               : body.error === 'cannot_transfer_to_self'
                 ? "You can't transfer ownership to yourself."
-                : `HTTP ${res.status}`;
+                : httpFallback(res.status, 'leave the group');
         setError(msg);
         return;
       }
@@ -404,7 +409,7 @@ function GroupRow({
         const msg =
           body.error === 'forbidden'
             ? 'Only the owner can delete a group.'
-            : `HTTP ${res.status}`;
+            : httpFallback(res.status, 'delete the group');
         setError(msg);
         return;
       }
@@ -547,7 +552,7 @@ function GroupRow({
 
           <h3 className="group-settings-section">Members</h3>
           {members === null ? (
-            <p>Loading…</p>
+            !error && <p>Loading…</p>
           ) : members.length === 0 ? (
             <p className="upload-hint">No members.</p>
           ) : (
