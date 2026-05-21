@@ -872,6 +872,21 @@ body.dragging-vertical .player * {
     min-height: 28px;
   }
 
+  /* Expand M/S tap targets to ≥44×44 via invisible hit area — same trick as
+     .loop-handle::after and .playhead-handle::after. Visual size stays compact
+     so pills fit within tight track-row tiers; only the pressable area grows.
+     inset: -15px -14px covers even the smallest tier-min pill (16×14 → 44×44). */
+  .pill.mute,
+  .pill.solo {
+    position: relative;
+  }
+  .pill.mute::after,
+  .pill.solo::after {
+    content: "";
+    position: absolute;
+    inset: -15px -14px;
+  }
+
   /* Avoid label overlap: hide quarter ticks/labels on narrow screens */
   .ruler-label[data-pos="0.25"],
   .ruler-label[data-pos="0.75"],
