@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
-import { AlertCircle, Trash2 } from 'lucide-react';
+import { AlertCircle, Pencil, Trash2 } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import type { LoadedStem, WaveformNormalization } from '../data/types';
 import { VOLUME_MAX, VOLUME_UNITY } from '../lib/audio';
@@ -372,6 +372,9 @@ export function Track({
                 disabled={!nameEditable}
               >
                 {stem.displayName}
+                {nameEditable && (
+                  <Pencil className="rename-icon" size={10} strokeWidth={2} aria-hidden="true" />
+                )}
               </button>
             )}
             <span className="vol-row">

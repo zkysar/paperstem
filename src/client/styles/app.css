@@ -462,12 +462,17 @@ button.track-name {
   cursor: default;
 }
 button.track-name:disabled { cursor: default; }
-.track-name-editable { cursor: text; }
-.track-name-editable:hover {
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
+.track-name-editable { cursor: pointer; }
+.track-name-editable:hover { text-decoration: underline; text-underline-offset: 3px; }
+.rename-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
 }
+.track-name-editable:hover .rename-icon { opacity: 0.5; }
 .track-name-input {
   font-family: var(--font-mono);
   font-size: var(--fs-md);
