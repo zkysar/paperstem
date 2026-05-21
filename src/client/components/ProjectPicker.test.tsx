@@ -41,6 +41,40 @@ describe('ProjectPicker', () => {
     expect(screen.getByLabelText('Close picker')).not.toBeNull();
   });
 
+  it('moves focus to the search input when opened', () => {
+    render(<ProjectPicker {...baseProps} />);
+    expect(document.activeElement).toBe(screen.getByPlaceholderText('Search projects'));
+  });
+
+  it('marks sibling elements as inert while the picker is open', () => {
+    const container = document.createElement('div');
+    const sibling = document.createElement('section');
+    container.appendChild(sibling);
+    document.body.appendChild(container);
+
+    render(<ProjectPicker {...baseProps} />, { container });
+    expect(sibling.hasAttribute('inert')).toBe(true);
+
+    document.body.removeChild(container);
+  });
+
+  it('removes inert from siblings when the picker closes', () => {
+    const container = document.createElement('div');
+    const sibling = document.createElement('section');
+    container.appendChild(sibling);
+    document.body.appendChild(container);
+
+    const { rerender } = render(<ProjectPicker {...baseProps} />, { container });
+    expect(sibling.hasAttribute('inert')).toBe(true);
+
+    rerender(
+      <ProjectPicker {...baseProps} open={false} />,
+    );
+    expect(sibling.hasAttribute('inert')).toBe(false);
+
+    document.body.removeChild(container);
+  });
+
   it('renders nothing when open is false', () => {
     render(<ProjectPicker {...baseProps} open={false} />);
     expect(screen.queryByText('Projects')).toBeNull();
