@@ -539,7 +539,7 @@ function PaperstemApp({
   }, []);
 
   const showUploadButton =
-    isWide && activeBand !== null && activeBand.role === 'owner';
+    activeBand !== null && activeBand.role === 'owner';
 
   useEffect(() => {
     if (!repo) {
