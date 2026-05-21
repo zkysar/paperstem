@@ -521,6 +521,10 @@ function GroupRow({
                   placeholder="email@example.com"
                   aria-label={`Invite email for ${group.name}`}
                   autoComplete="off"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
               </label>
               <button

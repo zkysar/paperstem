@@ -5290,3 +5290,20 @@ button.presence-avatar:focus-visible {
   font-size: 11px;
   color: var(--text-secondary, #666);
 }
+
+/* ---- iOS auto-zoom prevention ------------------------------------------ */
+/* iOS Safari zooms the viewport on focus when an input's computed font-size
+   is below 16px. Force all editable inputs to 1rem on touch devices so the
+   zoom never fires — purely a touch-device concern, so we gate on
+   (hover: none) and (pointer: coarse) rather than a viewport-width breakpoint. */
+@media (hover: none) and (pointer: coarse) {
+  .fp-search,
+  .fp-name-input,
+  .track-name-input,
+  .ah-title-input,
+  .group-settings-rename-input,
+  .upload-field input,
+  .upload-field select {
+    font-size: 1rem;
+  }
+}
