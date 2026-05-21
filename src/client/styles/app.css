@@ -580,6 +580,37 @@ body.dragging-vertical .player * {
   min-height: 22px;
 }
 
+/* Touch hit-area expansion for M/S pills.
+   The visual pill stays compact so it fits inside the track row at every tier;
+   the ::after pseudo-element silently extends the tappable zone to ≥44×44 pt
+   (Apple HIG / Android minimum) without disturbing layout.
+   Matches the same technique used on .playhead-handle::after and
+   .loop-handle::after elsewhere in this file. */
+@media (pointer: coarse) {
+  .pill.mute,
+  .pill.solo {
+    position: relative;
+  }
+  .pill.mute::after,
+  .pill.solo::after {
+    content: '';
+    position: absolute;
+    /* At tier-full (24 px pill) → 24 + 32 = 56 px; at tier-min (14 px) →
+       14 + 32 = 46 px.  Both clear the 44 pt threshold.  Horizontal
+       expansion is kept conservative on the right side so S's area doesn't
+       swamp the trash button more than necessary. */
+    inset: -16px -10px;
+  }
+  /* Extra breathing room between the S pill and the trash icon so a stray
+     thumb tap on S is less likely to land on the destructive action. */
+  .ms-pills {
+    gap: 8px;
+  }
+  .pill.trash {
+    margin-left: 4px;
+  }
+}
+
 .wave {
   position: relative;
   /* Drive height directly from --track-h (driven by viewport.state.trackHeight).
