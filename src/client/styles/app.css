@@ -4301,6 +4301,28 @@ body.env-non-prod[data-env="local"]::before {
   .app-shell {
     padding-bottom: calc(56px + env(safe-area-inset-bottom));
   }
+
+  /* 44 × 44 px minimum tap targets (Apple HIG / WCAG 2.5.5).
+     Direct .atb-btn children use flex: 1 to claim equal toolbar width
+     instead of collapsing to the desktop 28 px. Wrapper divs that hold a
+     single button (zoom, volume, overflow, share) get the same treatment
+     so their whole footprint is tappable, not just the 28 px inner element. */
+  .app-toolbar > .atb-btn,
+  .app-toolbar .atb-overflow-wrap,
+  .app-toolbar .atb-zoom-pop-wrap,
+  .app-toolbar .atb-master-pop-wrap,
+  .app-toolbar .atb-share-wrap {
+    flex: 1;
+    max-width: 52px;
+    min-height: 44px;
+  }
+  .app-toolbar .atb-overflow-wrap > .atb-btn,
+  .app-toolbar .atb-zoom-pop-wrap > .atb-btn,
+  .app-toolbar .atb-master-pop-wrap > .atb-btn,
+  .app-toolbar .atb-share-wrap > .atb-btn {
+    width: 100%;
+    min-height: 44px;
+  }
 }
 
 /* === Replies and reactions === */
