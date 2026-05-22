@@ -734,12 +734,38 @@ body.dragging-vertical .player * {
   border-radius: 2px;
   transition: width 180ms ease-out;
 }
+/* Flash when the user tries to play before audio is ready — draws the eye to
+   the indicator that already explains the wait. transform keeps the centering
+   translate so the pulse scales in place. */
+.audio-loading-pill.is-nudged {
+  border-color: var(--accent);
+  animation: fp-pill-pulse 0.45s ease-in-out 2;
+}
+@keyframes fp-pill-pulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.06); }
+}
+/* On phones the transport toolbar is fixed to the bottom (and the zoom-hint,
+   z-index 900, sits there too). Lift the pill above both so it isn't hidden. */
+@media (max-width: 720px) {
+  .audio-loading-pill {
+    bottom: calc(56px + env(safe-area-inset-bottom) + 16px);
+    z-index: 950;
+  }
+}
 /* Spinner shown in the transport Play button while audio decodes — a
-   touch-visible cue for why Play is disabled (tooltips don't fire on touch). */
+   touch-visible cue for why Play is unavailable (tooltips don't fire on
+   touch). The button stays clickable so a tap is acknowledged. */
 .atb-spin { animation: fp-spin 0.8s linear infinite; }
+.atb-btn.play.is-loading { opacity: 0.55; cursor: progress; }
 @media (prefers-reduced-motion: reduce) {
   .audio-loading-pill-spinner { animation: none; }
   .atb-spin { animation: none; }
+  /* No scale pulse; keep a static accent ring so the nudge is still visible. */
+  .audio-loading-pill.is-nudged {
+    animation: none;
+    box-shadow: 0 0 0 3px var(--accent-tint-2), 0 4px 16px rgba(0, 0, 0, 0.12);
+  }
 }
 @keyframes fp-spin {
   to { transform: rotate(360deg); }

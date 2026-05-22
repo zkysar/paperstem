@@ -778,6 +778,40 @@ describe('usePlayer — deferred audio load', () => {
     expect(result.current.state.duration).toBe(60);
   });
 
+  it('a play attempt during loading bumps loading.nudge without starting playback', async () => {
+    gate('projA');
+    const { result } = renderHook(() => usePlayer());
+    let loadDone!: Promise<void>;
+    await act(async () => {
+      loadDone = result.current.load({
+        projectId: 'projA',
+        title: 't',
+        folderId: null,
+        sources: sourcesFor('projA', 'sA-'),
+      });
+      await Promise.resolve();
+    });
+    expect(result.current.state.loading?.nudge).toBe(0);
+
+    await act(async () => {
+      await result.current.togglePlay();
+    });
+    expect(result.current.state.isPlaying).toBe(false);
+    expect(result.current.state.loading?.nudge).toBe(1);
+
+    await act(async () => {
+      await result.current.togglePlay();
+    });
+    expect(result.current.state.loading?.nudge).toBe(2);
+    expect(result.current.state.isPlaying).toBe(false);
+
+    // Clean up the gate so the load settles.
+    await act(async () => {
+      release('projA');
+      await loadDone;
+    });
+  });
+
   it('preserves a mute toggled during loading when the decode completes', async () => {
     gate('projA');
     const { result } = renderHook(() => usePlayer());

@@ -48,6 +48,7 @@ type Action =
       status: string;
     }
   | { type: 'LOAD_PROGRESS'; delta: number }
+  | { type: 'NUDGE_LOADING' }
   | {
       // Decoded buffers, keyed so the reducer can merge them into the current
       // stems without clobbering mute/solo/volume the user set during load.
@@ -110,13 +111,19 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         loop: null,
         loopArmed: false,
         status: action.status,
-        loading: { total: action.total, loaded: 0 },
+        loading: { total: action.total, loaded: 0, nudge: 0 },
       };
     }
     case 'LOAD_PROGRESS': {
       if (!state.loading) return state;
       const next = Math.min(state.loading.loaded + action.delta, state.loading.total);
       return { ...state, loading: { ...state.loading, loaded: next } };
+    }
+    case 'NUDGE_LOADING': {
+      // A play attempt arrived while audio was still loading. Bump the counter
+      // so the loading indicator can flash and announce — no playback change.
+      if (!state.loading) return state;
+      return { ...state, loading: { ...state.loading, nudge: state.loading.nudge + 1 } };
     }
     case 'LOADED': {
       // Merge decoded buffers into the CURRENT stems (matched by serverId, or
@@ -800,7 +807,12 @@ export function usePlayer(): PlayerControls {
     if (!s.stems.length) return;
     // Audio is still downloading/decoding — the stems render (waveform,
     // sections, comments are usable) but there are no buffers to schedule yet.
-    if (s.loading) return;
+    // Acknowledge the attempt (flash + announce the loading indicator) instead
+    // of silently doing nothing.
+    if (s.loading) {
+      dispatch({ type: 'NUDGE_LOADING' });
+      return;
+    }
     if (s.isPlaying) {
       pause();
       return;

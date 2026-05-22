@@ -91,12 +91,18 @@ export function AppToolbar(props: Props) {
         title="Jump back to the start"
         disabled={!hasProject}
         onClick={() => onSeek(0)}><SkipBack size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" /></button>
-      <button type="button" className={'atb-btn play' + (isPlaying ? ' on' : '')}
+      <button type="button"
+        className={'atb-btn play' + (isPlaying ? ' on' : '') + (audioLoading ? ' is-loading' : '')}
         aria-label="Play"
         title={audioLoading
           ? 'Preparing audio…'
           : isPlaying ? 'Pause (Space)' : 'Play (Space)'}
-        disabled={!hasProject || audioLoading}
+        // While audio loads the button stays clickable (so a tap/click is
+        // acknowledged — tooltips don't fire on touch) but reads as disabled
+        // to assistive tech. onTogglePlay no-ops playback and flashes the
+        // loading indicator instead. Truly disabled only with no project.
+        disabled={!hasProject}
+        aria-disabled={audioLoading || undefined}
         onClick={onTogglePlay}>
         {audioLoading
           ? <LoaderCircle className="atb-spin" size={16} strokeWidth={2} aria-hidden="true" />

@@ -110,6 +110,10 @@ export type PlayerLoading = {
   // contributes up to 1.0 as its body streams in, so `loaded / total` is a
   // real-time download fraction that reaches 1.0 when every stem finishes.
   loaded: number;
+  // Bumped each time the user tries to play before audio is ready. The UI
+  // watches this to flash the loading indicator and announce that playback
+  // will start automatically once decode finishes.
+  nudge: number;
 };
 
 export type PlayerState = {
