@@ -125,6 +125,7 @@ export function ProjectPicker({
             type="search"
             className="fp-search"
             placeholder="Search projects"
+            autoFocus
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => {
