@@ -47,32 +47,34 @@ describe('ProjectPicker', () => {
   });
 
   it('marks sibling elements as inert while the picker is open', () => {
-    const container = document.createElement('div');
-    const sibling = document.createElement('section');
-    container.appendChild(sibling);
-    document.body.appendChild(container);
-
-    render(<ProjectPicker {...baseProps} />, { container });
-    expect(sibling.hasAttribute('inert')).toBe(true);
-
-    document.body.removeChild(container);
+    // The sibling must live inside the same React-managed container as the
+    // picker (a real sibling of the dialog in the DOM tree) — createRoot wipes
+    // any pre-existing children of a custom container before effects run.
+    render(
+      <>
+        <section data-testid="picker-sibling" />
+        <ProjectPicker {...baseProps} />
+      </>,
+    );
+    expect(screen.getByTestId('picker-sibling').hasAttribute('inert')).toBe(true);
   });
 
   it('removes inert from siblings when the picker closes', () => {
-    const container = document.createElement('div');
-    const sibling = document.createElement('section');
-    container.appendChild(sibling);
-    document.body.appendChild(container);
-
-    const { rerender } = render(<ProjectPicker {...baseProps} />, { container });
-    expect(sibling.hasAttribute('inert')).toBe(true);
+    const { rerender } = render(
+      <>
+        <section data-testid="picker-sibling" />
+        <ProjectPicker {...baseProps} />
+      </>,
+    );
+    expect(screen.getByTestId('picker-sibling').hasAttribute('inert')).toBe(true);
 
     rerender(
-      <ProjectPicker {...baseProps} open={false} />,
+      <>
+        <section data-testid="picker-sibling" />
+        <ProjectPicker {...baseProps} open={false} />
+      </>,
     );
-    expect(sibling.hasAttribute('inert')).toBe(false);
-
-    document.body.removeChild(container);
+    expect(screen.getByTestId('picker-sibling').hasAttribute('inert')).toBe(false);
   });
 
   it('renders nothing when open is false', () => {
