@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Bookmark,
+  LoaderCircle,
   Maximize2,
   MessageSquarePlus,
   Pause,
@@ -21,6 +22,10 @@ import { ToolbarOverflowMenu } from './ToolbarOverflowMenu';
 type Props = {
   hasProject: boolean;
   isPlaying: boolean;
+  // Stem audio is still downloading/decoding. The UI (waveform, sections,
+  // comments) is interactive, but playback can't start yet, so the play
+  // button is disabled with an explanatory tooltip.
+  audioLoading: boolean;
   loopEnabled: boolean;
   /**
    * The loop button has been clicked but no region has been dragged out yet,
@@ -65,7 +70,7 @@ type Props = {
 
 export function AppToolbar(props: Props) {
   const {
-    hasProject, isPlaying, loopEnabled, loopArmed = false,
+    hasProject, isPlaying, audioLoading, loopEnabled, loopArmed = false,
     waveformNormalization, masterVolume, currentTime, duration,
     annotationCreateMode, canCreateAnnotations,
     sectionCreateMode, canCreateSections,
@@ -88,12 +93,16 @@ export function AppToolbar(props: Props) {
         onClick={() => onSeek(0)}><SkipBack size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" /></button>
       <button type="button" className={'atb-btn play' + (isPlaying ? ' on' : '')}
         aria-label="Play"
-        title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
-        disabled={!hasProject}
+        title={audioLoading
+          ? 'Preparing audio…'
+          : isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+        disabled={!hasProject || audioLoading}
         onClick={onTogglePlay}>
-        {isPlaying
-          ? <Pause size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" />
-          : <Play size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" />}
+        {audioLoading
+          ? <LoaderCircle className="atb-spin" size={16} strokeWidth={2} aria-hidden="true" />
+          : isPlaying
+            ? <Pause size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" />
+            : <Play size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" />}
       </button>
       <button type="button" className={'atb-btn' + (loopEnabled ? ' loop-on' : '')}
         aria-label="Toggle loop"

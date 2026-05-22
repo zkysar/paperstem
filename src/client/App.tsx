@@ -694,6 +694,7 @@ function PaperstemApp({
           src: `/api/audio/${encodeURIComponent(s.id)}`,
           serverId: s.id,
           peaks: s.peaks ? decodePeaks(s.peaks) : null,
+          durationMs: s.durationMs,
         }));
         void player.load({
           projectId: detail.id,
@@ -1693,6 +1694,7 @@ function PaperstemApp({
       <AppToolbar
         hasProject={player.state.stems.length > 0}
         isPlaying={player.state.isPlaying}
+        audioLoading={player.state.loading !== null}
         loopEnabled={!!player.state.loop?.enabled || player.state.loopArmed}
         loopArmed={player.state.loopArmed}
         waveformNormalization={player.state.waveformNormalization}
