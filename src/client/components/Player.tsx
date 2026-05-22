@@ -126,6 +126,20 @@ export function Player({
 
   const isMobile = useIsMobile();
 
+  // Flash the loading pill when the user tries to play before audio is ready.
+  // `loading.nudge` is bumped by the player on each blocked play/Space attempt.
+  const [loadNudged, setLoadNudged] = useState(false);
+  const lastNudgeRef = useRef(0);
+  useEffect(() => {
+    const n = loading?.nudge ?? 0;
+    if (n === lastNudgeRef.current) return;
+    lastNudgeRef.current = n;
+    if (n === 0) return; // reset (new load / cleared) — don't flash
+    setLoadNudged(true);
+    const t = setTimeout(() => setLoadNudged(false), 1000);
+    return () => clearTimeout(t);
+  }, [loading?.nudge]);
+
   const stageRef = useRef<HTMLDivElement>(null);
   const rulerRef = useRef<HTMLDivElement>(null);
   const tracksRef = useRef<HTMLDivElement>(null);
@@ -861,10 +875,20 @@ export function Player({
                 spam a screen reader with a stream of numbers, so the pill
                 itself is aria-hidden and this static node carries the status. */}
             <span className="sr-only" role="status">Loading audio…</span>
-            <div className="audio-loading-pill" aria-hidden="true">
+            {loadNudged && (
+              <span className="sr-only" role="alert">
+                Still loading audio — playback will start automatically when it's ready.
+              </span>
+            )}
+            <div
+              className={'audio-loading-pill' + (loadNudged ? ' is-nudged' : '')}
+              aria-hidden="true"
+            >
               <span className="audio-loading-pill-spinner" />
               <span className="audio-loading-pill-text">
-                Loading audio… {Math.round((loading.loaded / Math.max(1, loading.total)) * 100)}%
+                {loadNudged
+                  ? 'Hang tight — still loading audio'
+                  : `Loading audio… ${Math.round((loading.loaded / Math.max(1, loading.total)) * 100)}%`}
               </span>
               <span className="audio-loading-pill-track">
                 <span

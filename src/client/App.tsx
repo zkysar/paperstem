@@ -1783,7 +1783,7 @@ function PaperstemApp({
             onDismiss={dismissSectionHint}
           />
         </div>
-        {showZoomHint && player.state.stems.length > 0 && (
+        {showZoomHint && player.state.stems.length > 0 && !player.state.loading && (
           <div className="zoom-hint" role="status" onClick={dismissZoomHint}>
             <span>Hold <kbd>⌥</kbd> and scroll to zoom in. Press <kbd>?</kbd> for shortcuts.</span>
             <button

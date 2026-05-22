@@ -55,6 +55,19 @@ describe('AppToolbar', () => {
     expect((screen.getByLabelText('Play') as HTMLButtonElement).disabled).toBe(true);
   });
 
+  it('keeps Play clickable while audio loads so a tap is acknowledged', async () => {
+    const onTogglePlay = vi.fn();
+    render(<AppToolbar {...baseProps} audioLoading={true} onTogglePlay={onTogglePlay} />);
+    const play = screen.getByLabelText('Play') as HTMLButtonElement;
+    // Not natively disabled (so the click handler runs on touch/tap), but
+    // marked unavailable for assistive tech.
+    expect(play.disabled).toBe(false);
+    expect(play.getAttribute('aria-disabled')).toBe('true');
+    expect(play.getAttribute('title')).toBe('Preparing audio…');
+    await userEvent.click(play);
+    expect(onTogglePlay).toHaveBeenCalledTimes(1);
+  });
+
   it('no longer renders the Download button (moved to header)', () => {
     render(<AppToolbar {...baseProps} />);
     expect(screen.queryByLabelText('Download all stems')).toBeNull();
