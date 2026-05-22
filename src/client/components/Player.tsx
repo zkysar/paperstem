@@ -74,6 +74,10 @@ type Props = {
   // Controlled rail-collapse state (lifted to App so AppToolbar's rail-toggle
   // button can drive it). The breakpoint listener also lives in App.
   railCollapsed: boolean;
+  // Briefly true right after a project's comments/sections commit, so the
+  // entrance fade on markers + section segments runs on load (and project
+  // switch) but not on the frequent hover-expand / visibility-toggle remounts.
+  contentEntering: boolean;
   canMutate: boolean;
   onToggleAnnotationCreate(): void;
   onOpenPicker(): void;
@@ -106,6 +110,7 @@ export function Player({
   onSectionCreated,
   onToggleSectionCreate,
   railCollapsed,
+  contentEntering,
   canMutate,
   onToggleAnnotationCreate,
   onOpenPicker,
@@ -647,7 +652,8 @@ export function Player({
       className={
         'player' +
         (railCollapsed ? ' rail-collapsed' : '') +
-        (annotationCreateMode ? ' annotating' : '')
+        (annotationCreateMode ? ' annotating' : '') +
+        (contentEntering ? ' content-entering' : '')
       }
     >
       <div className="stage" ref={stageRef}>

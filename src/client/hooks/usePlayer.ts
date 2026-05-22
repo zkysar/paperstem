@@ -70,7 +70,8 @@ type Action =
   | { type: 'SET_WAVEFORM_NORM'; mode: WaveformNormalization }
   | { type: 'SET_TITLE'; title: string }
   | { type: 'RENAME_STEM'; serverId: string; displayName: string }
-  | { type: 'REMOVE_STEM'; serverId: string };
+  | { type: 'REMOVE_STEM'; serverId: string }
+  | { type: 'METADATA' };
 
 const initialState: PlayerState = {
   projectId: null,
@@ -149,6 +150,19 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         status: action.status,
         loading: null,
       };
+    }
+    case 'METADATA': {
+      // The <audio> elements fire `loadedmetadata` (which populates
+      // audio.duration) well before the Web Audio decode finishes. Re-derive
+      // duration so the timeline — ruler, comment/section markers, playhead,
+      // which are all gated on duration > 0 — lays out early instead of all
+      // snapping into place at decode-complete. No-op once durationMs was
+      // supplied up front (modern uploads) or the buffer already decoded.
+      const { duration, referenceIdx } = durationAndReference(state.stems);
+      if (duration === state.duration && referenceIdx === state.referenceIdx) {
+        return state;
+      }
+      return { ...state, duration, referenceIdx };
     }
     case 'SET_PLAYING':
       return { ...state, isPlaying: action.isPlaying };
@@ -687,6 +701,18 @@ export function usePlayer(): PlayerControls {
       // the real Web Audio decode for connection bandwidth (issue #194).
       audio.preload = 'metadata';
       audio.muted = true;
+      // Adopt the element's duration as soon as the header is parsed — far
+      // sooner than the full Web Audio decode below. Guarded by the load
+      // generation so a superseded load can't push a stale duration onto the
+      // newer project. (On mobile Safari a muted element may not fire this
+      // until a play() gesture; the decode path remains the fallback.)
+      audio.addEventListener(
+        'loadedmetadata',
+        () => {
+          if (loadGenRef.current === myGen) dispatch({ type: 'METADATA' });
+        },
+        { once: true },
+      );
       audio.src = src.src;
       const userVolume = loadVolume(input.projectId, src.name);
       const gain = graph.ctx.createGain();

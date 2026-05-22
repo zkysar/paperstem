@@ -166,6 +166,10 @@ export function PublicProjectView({ token }: { token: string }) {
   const [state, setState] = useState<FetchState>({ kind: 'loading' });
   const [annotations, setAnnotations] = useState<PublicAnnotation[]>([]);
   const [sections, setSections] = useState<PublicSection[]>([]);
+  // See App.tsx: pulsed true for one animation length when comments/sections
+  // first commit, so Player fades them in on load without re-firing on the
+  // lane's hover-expand or the markers-visibility toggle.
+  const [contentEntering, setContentEntering] = useState(false);
   const [replies, setReplies] = useState<Map<string, AnnotationReply[]>>(
     () => new Map(),
   );
@@ -305,6 +309,10 @@ export function PublicProjectView({ token }: { token: string }) {
           if (cancelled) return;
           setAnnotations(anns);
           setSections(secs);
+          setContentEntering(true);
+          setTimeout(() => {
+            if (!cancelled) setContentEntering(false);
+          }, 260);
         } catch (err) {
           console.error('public secondary fetch failed', err);
         }
@@ -691,6 +699,7 @@ export function PublicProjectView({ token }: { token: string }) {
               selfUserId=""
               onToggleSectionCreate={promptIgnoreArgs}
               railCollapsed={railCollapsed}
+              contentEntering={contentEntering}
               canMutate={false}
               onOpenPicker={() => undefined}
               onRenameStem={promptIgnoreArgs}

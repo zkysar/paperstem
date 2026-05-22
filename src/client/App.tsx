@@ -258,6 +258,24 @@ function PaperstemApp({
     () => new Map(),
   );
   const [sections, setSections] = useState<Section[]>([]);
+  // Pulsed true for one animation-length window right after a project's
+  // comments/sections commit, so Player can fade those markers in on load
+  // without re-triggering on the lane's hover-expand or the markers-visibility
+  // toggle (both of which remount the elements). Ref-managed timer so a fast
+  // project switch resets the window rather than stacking timers.
+  const [contentEntering, setContentEntering] = useState(false);
+  const contentEnterTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flagContentEntering = useCallback(() => {
+    setContentEntering(true);
+    if (contentEnterTimer.current) clearTimeout(contentEnterTimer.current);
+    contentEnterTimer.current = setTimeout(() => setContentEntering(false), 260);
+  }, []);
+  useEffect(
+    () => () => {
+      if (contentEnterTimer.current) clearTimeout(contentEnterTimer.current);
+    },
+    [],
+  );
   const [songs, setSongs] = useState<Song[]>([]);
   const [songUsage, setSongUsage] = useState<SongUsageRow[]>([]);
   const [sectionCreateMode, setSectionCreateMode] = useState(false);
@@ -702,24 +720,25 @@ function PaperstemApp({
           folderId: detail.folderId,
           sources,
         });
-        try {
-          const list = await listAnnotations(id);
-          setAnnotations(list);
-        } catch (err) {
-          console.error('Failed to load annotations:', err);
-        }
-        try {
-          const list = await listSections(id);
-          setSections(list);
-        } catch (err) {
-          console.error('Failed to load sections:', err);
-        }
+        // Fetch comments + sections concurrently and commit both once they've
+        // settled, so their markers appear in the same frame rather than
+        // staggering in one after the other.
+        const [annoRes, sectionRes] = await Promise.allSettled([
+          listAnnotations(id),
+          listSections(id),
+        ]);
+        if (annoRes.status === 'fulfilled') setAnnotations(annoRes.value);
+        else console.error('Failed to load annotations:', annoRes.reason);
+        if (sectionRes.status === 'fulfilled') setSections(sectionRes.value);
+        else console.error('Failed to load sections:', sectionRes.reason);
+        // Open the entrance-fade window in the same commit the markers mount.
+        flagContentEntering();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         setLoadError(msg);
       }
     },
-    [repo, player, viewport],
+    [repo, player, viewport, flagContentEntering],
   );
 
   // Load the band's song catalog + usage map once per active band. These
@@ -1770,6 +1789,7 @@ function PaperstemApp({
               selfUserId={user.id}
               onToggleSectionCreate={() => setSectionCreateMode((v) => !v)}
               railCollapsed={railCollapsed}
+              contentEntering={contentEntering}
               canMutate={player.state.stems.length > 0}
               onOpenPicker={openPicker}
               onRenameStem={(id, name) => void renameStem(id, name)}
