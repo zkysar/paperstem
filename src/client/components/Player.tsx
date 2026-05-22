@@ -789,7 +789,7 @@ export function Player({
                         />
                       </div>
                       <div className="player-loading-count">
-                        {loading.loaded} / {loading.displayNames.length}
+                        {Math.round(loading.loaded)} / {loading.displayNames.length}
                       </div>
                     </div>
                   </div>

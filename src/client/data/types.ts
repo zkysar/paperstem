@@ -91,9 +91,11 @@ export type WaveformNormalization = 'per-track' | 'global';
 
 export type PlayerLoading = {
   // Display names (after common-prefix strip) and palette colors so the player
-  // can render skeleton tracks with the right shape while audio metadata is
-  // still being fetched. `loaded` increments as each stem's `loadedmetadata`
-  // (or error) resolves.
+  // can render skeleton tracks with the right shape while audio is still being
+  // fetched. `loaded` accumulates fractional byte-download progress: each stem
+  // contributes up to 1.0 as its body streams in, so `loaded / displayNames.length`
+  // is a real-time download fraction (it reaches `displayNames.length` when all
+  // stems finish).
   displayNames: string[];
   colors: string[];
   loaded: number;
