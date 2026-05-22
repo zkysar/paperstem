@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildPublicShareUrl,
   buildShareUrl,
+  decodePublicShareFragment,
   decodeShareUrl,
   describeShareCategories,
+  encodePublicShareFragment,
   encodeShareUrl,
   snapshotShareState,
   type ShareState,
@@ -108,6 +111,65 @@ describe('share-url', () => {
   it('drops an inverted or negative view', () => {
     expect(decodeShareUrl('p=x&tl=10&tr=5')).toEqual({ projectId: 'x' });
     expect(decodeShareUrl('p=x&tl=-1&tr=5')).toEqual({ projectId: 'x' });
+  });
+});
+
+describe('public share fragment', () => {
+  it('encodes state without the project id', () => {
+    expect(
+      encodePublicShareFragment({
+        projectId: 'proj_secret',
+        time: 42.5,
+        focusedCommentId: 'cmt_b',
+      }),
+    ).toBe('t=42.50&fc=cmt_b');
+  });
+
+  it('encodes to an empty string when only the project is present', () => {
+    expect(encodePublicShareFragment({ projectId: 'proj_secret' })).toBe('');
+  });
+
+  it('round-trips through decode with the project id supplied by the token', () => {
+    const state: ShareState = {
+      projectId: 'proj_x',
+      time: 10,
+      loop: { start: 5, end: 8, enabled: false },
+      mix: [{ stemId: 'a', muted: true }],
+      focusedCommentId: 'cmt_b',
+    };
+    const fragment = encodePublicShareFragment(state);
+    expect(fragment).not.toMatch(/(^|&)p=/);
+    expect(decodePublicShareFragment(fragment, 'proj_x')).toEqual(state);
+  });
+
+  it('decodes a hash with a leading # and ignores any stray p=', () => {
+    expect(decodePublicShareFragment('#p=evil&t=3.00', 'proj_real')).toEqual({
+      projectId: 'proj_real',
+      time: 3,
+    });
+  });
+
+  it('returns null for an empty fragment (nothing to apply)', () => {
+    expect(decodePublicShareFragment('', 'proj_x')).toBeNull();
+    expect(decodePublicShareFragment('#', 'proj_x')).toBeNull();
+  });
+});
+
+describe('buildPublicShareUrl', () => {
+  it('appends the state fragment to the /p/<token> path', () => {
+    expect(
+      buildPublicShareUrl(
+        'pls_abc',
+        { projectId: 'proj_x', time: 42.5 },
+        'https://paperstem.app',
+      ),
+    ).toBe('https://paperstem.app/p/pls_abc#t=42.50');
+  });
+
+  it('omits the hash entirely when there is no extra state', () => {
+    expect(
+      buildPublicShareUrl('pls_abc', { projectId: 'proj_x' }, 'https://paperstem.app/'),
+    ).toBe('https://paperstem.app/p/pls_abc');
   });
 });
 
