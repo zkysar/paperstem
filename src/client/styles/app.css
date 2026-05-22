@@ -947,6 +947,17 @@ body.dragging-vertical .player * {
   .ah-hide-on-mobile {
     display: none !important;
   }
+
+  /* Prevent iOS Safari auto-zoom: inputs focused below 16px trigger a
+     viewport zoom that yanks the layout and requires manual zoom-out. */
+  .fp-search,
+  .fp-name-input,
+  .track-name-input,
+  .ah-title-input,
+  .group-settings-rename-input,
+  .upload-field input {
+    font-size: 1rem;
+  }
 }
 
 /* ===== Login screen ===== */
