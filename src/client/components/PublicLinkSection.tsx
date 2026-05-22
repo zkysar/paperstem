@@ -1,19 +1,45 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  buildPublicLinkUrl,
   createPublicLink,
   listProjectPublicLinks,
   revokePublicLink,
   type PublicLinkSummary,
 } from '../data/public-links-admin';
+import { buildPublicShareUrl, type ShareState } from '../lib/share-url';
 
-type Props = { projectId: string };
+type Props = {
+  projectId: string;
+  /**
+   * The toggled share state from the dialog. The public link carries the same
+   * view-state (start time, mix, focused comment, …) in its hash as the owner
+   * link above, so a copied public link drops the recipient at the same spot.
+   */
+  state: ShareState;
+};
+
+function publicOrigin(): string {
+  return typeof window === 'undefined' ? 'https://paperstem.app' : window.location.origin;
+}
+
+// Human-readable list of the view-state the public link carries, mirroring the
+// "What's in the link" toggles so it's obvious mix/focus travel with the link.
+function summarizeContents(state: ShareState): string {
+  const bits: string[] = [];
+  if (state.time != null && state.time > 0) bits.push('start time');
+  if (state.loop) bits.push('loop region');
+  if ((state.mix && state.mix.length > 0) || (state.masterVolume != null && state.masterVolume !== 100)) bits.push('stem mix');
+  if (state.view || state.trackHeight != null) bits.push('zoom & scroll');
+  if (state.focusedCommentId) bits.push('focused comment');
+  if (bits.length === 0) return '';
+  if (bits.length === 1) return bits[0];
+  return `${bits.slice(0, -1).join(', ')} and ${bits[bits.length - 1]}`;
+}
 
 // A clearly-delineated section inside ShareDialog for managing a project's
 // public link. Public links are stored server-side, scoped to a single
 // project, and bypass auth — making this UI deliberately blunt: explicit
 // warning, one big button to create, one big button to revoke.
-export function PublicLinkSection({ projectId }: Props) {
+export function PublicLinkSection({ projectId, state }: Props) {
   const [links, setLinks] = useState<PublicLinkSummary[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +110,7 @@ export function PublicLinkSection({ projectId }: Props) {
   }, []);
 
   const onCopy = useCallback(async (token: string) => {
-    const url = buildPublicLinkUrl(token);
+    const url = buildPublicShareUrl(token, state, publicOrigin());
     try {
       await navigator.clipboard.writeText(url);
       setCopiedToken(token);
@@ -94,10 +120,11 @@ export function PublicLinkSection({ projectId }: Props) {
     } catch {
       setError("Couldn't copy automatically. Select the URL above and copy manually.");
     }
-  }, []);
+  }, [state]);
 
   const liveLinks = (links ?? []).filter((l) => l.revoked_at === null);
   const hasLive = liveLinks.length > 0;
+  const contents = summarizeContents(state);
 
   return (
     <section className="share-dialog-public-section" data-testid="public-link-section">
@@ -115,10 +142,18 @@ export function PublicLinkSection({ projectId }: Props) {
         </p>
       )}
 
+      {hasLive && (
+        <p className="share-dialog-public-includes" data-testid="public-link-includes">
+          {contents
+            ? `Includes the same ${contents} as the link above.`
+            : 'Project link only — no playback state attached.'}
+        </p>
+      )}
+
       {hasLive ? (
         <ul className="share-dialog-public-list">
           {liveLinks.map((l) => {
-            const url = buildPublicLinkUrl(l.token);
+            const url = buildPublicShareUrl(l.token, state, publicOrigin());
             const isBusy = busyToken === l.token;
             return (
               <li key={l.token} className="share-dialog-public-row">

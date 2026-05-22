@@ -52,10 +52,3 @@ export async function revokePublicLink(token: string): Promise<void> {
   });
   if (!res.ok && res.status !== 204) throw new Error(await readError(res));
 }
-
-export function buildPublicLinkUrl(token: string): string {
-  if (typeof window === 'undefined') {
-    return `/p/${encodeURIComponent(token)}`;
-  }
-  return `${window.location.origin}/p/${encodeURIComponent(token)}`;
-}
