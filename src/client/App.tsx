@@ -402,7 +402,10 @@ function PaperstemApp({
   // Keep `document.title` in step with the open project. The SPA only swaps
   // content (and the URL hash) on navigation, so without this the tab title
   // and screen-reader page title stay stuck on the brand name.
-  const documentProjectTitle = player.state.title || null;
+  // `player.state.title` is the em-dash placeholder when no project is loaded;
+  // treat that as "no project" so the tab title is the bare brand, not "— —".
+  const documentProjectTitle =
+    player.state.title && player.state.title !== '—' ? player.state.title : null;
   useEffect(() => {
     document.title = buildDocumentTitle(appInfo?.env, documentProjectTitle);
   }, [appInfo?.env, documentProjectTitle]);
@@ -539,7 +542,7 @@ function PaperstemApp({
   }, []);
 
   const showUploadButton =
-    isWide && activeBand !== null && activeBand.role === 'owner';
+    activeBand !== null && activeBand.role === 'owner';
 
   useEffect(() => {
     if (!repo) {

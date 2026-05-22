@@ -41,7 +41,7 @@ type Action =
       colors: string[];
       status: string;
     }
-  | { type: 'LOAD_PROGRESS' }
+  | { type: 'LOAD_PROGRESS'; delta: number }
   | {
       type: 'LOADED';
       stems: LoadedStem[];
@@ -108,7 +108,10 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       };
     case 'LOAD_PROGRESS': {
       if (!state.loading) return state;
-      const next = Math.min(state.loading.loaded + 1, state.loading.displayNames.length);
+      const next = Math.min(
+        state.loading.loaded + action.delta,
+        state.loading.displayNames.length,
+      );
       return { ...state, loading: { ...state.loading, loaded: next } };
     }
     case 'LOADED':
@@ -672,14 +675,23 @@ export function usePlayer(): PlayerControls {
     // play() inside a user gesture, which would hang load() forever.
     await Promise.all(
       built.map(async (s, i) => {
-        const buf = await decodeStem(graph.ctx, input.sources[i].src);
+        // Each stem contributes a total of 1.0 to `loaded`. Streaming the body
+        // dispatches that 1.0 as byte-level fractions, so the bar climbs in
+        // real time instead of jumping a whole step per finished stem.
+        let reported = 0;
+        const buf = await decodeStem(graph.ctx, input.sources[i].src, (delta) => {
+          reported += delta;
+          dispatch({ type: 'LOAD_PROGRESS', delta });
+        });
         if (buf) {
           // Mutate in place — the array is local and not yet in state.
           built[i].audioBuffer = buf;
         } else {
           errored.push(s.name);
         }
-        dispatch({ type: 'LOAD_PROGRESS' });
+        // Top up to a full step if streaming reported nothing (no
+        // Content-Length / unreadable body) or rounding left us under 1.0.
+        if (reported < 1) dispatch({ type: 'LOAD_PROGRESS', delta: 1 - reported });
       }),
     );
 
@@ -1011,17 +1023,66 @@ function updateMediaSessionPosition(position: number, duration: number): void {
   }
 }
 
+// Smallest fraction-of-one-stem change worth a dispatch. Streaming a large
+// file yields hundreds of chunks; dispatching per chunk would thrash React.
+// Coalescing to ~1% steps keeps the bar smooth without a re-render storm.
+const PROGRESS_EPSILON = 0.01;
+
 async function decodeStem(
   ctx: AudioContext,
   url: string,
+  onProgress?: (deltaFraction: number) => void,
 ): Promise<AudioBuffer | null> {
   try {
     const res = await fetch(url, { credentials: 'include' });
     if (!res.ok) return null;
-    const buf = await res.arrayBuffer();
+    const total = Number(res.headers?.get('Content-Length')) || 0;
+    // Stream the body so the loading bar can track bytes in real time. Falls
+    // back to a single buffered read when we can't measure progress (no
+    // Content-Length, or no readable body), in which case the caller tops the
+    // stem up to a full step once decode finishes.
+    const buf =
+      onProgress && res.body && total > 0
+        ? await readBodyWithProgress(res.body, total, onProgress)
+        : await res.arrayBuffer();
     return await ctx.decodeAudioData(buf);
   } catch {
     return null;
   }
+}
+
+// Read a response body to completion, reporting download progress as a stream
+// of deltas — each a fraction of this one stem, summing to ~1.0 across the
+// whole file. Deltas below PROGRESS_EPSILON are accumulated and flushed once
+// they cross the threshold, so the caller dispatches at most ~100 times per
+// stem rather than once per network chunk.
+async function readBodyWithProgress(
+  body: ReadableStream<Uint8Array>,
+  total: number,
+  onProgress: (deltaFraction: number) => void,
+): Promise<ArrayBuffer> {
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  let pending = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    pending += value.length / total;
+    if (pending >= PROGRESS_EPSILON) {
+      onProgress(pending);
+      pending = 0;
+    }
+  }
+  if (pending > 0) onProgress(pending);
+  const merged = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return merged.buffer;
 }
 

@@ -6,6 +6,10 @@ export type Project = {
   stemCount: number;
   folderId: string | null;
   referenceStemId: string | null;
+  // Precomputed waveform peaks (wire string) for the reference stem, so the
+  // picker thumbnail renders without downloading and decoding the full audio.
+  // null when the reference stem predates peak storage or decode failed.
+  referenceStemPeaks: string | null;
   updatedAt: number;
   // Project length, in ms — max(stem.duration_ms). null when no stem has yet
   // been measured (rare during ingest).
@@ -30,6 +34,7 @@ export type ProjectSummary = {
   updated_at: number;
   stem_count: number;
   reference_stem_id: string | null;
+  reference_stem_peaks: string | null;
   total_duration_ms: number | null;
   comment_count: number;
 };
@@ -91,9 +96,11 @@ export type WaveformNormalization = 'per-track' | 'global';
 
 export type PlayerLoading = {
   // Display names (after common-prefix strip) and palette colors so the player
-  // can render skeleton tracks with the right shape while audio metadata is
-  // still being fetched. `loaded` increments as each stem's `loadedmetadata`
-  // (or error) resolves.
+  // can render skeleton tracks with the right shape while audio is still being
+  // fetched. `loaded` accumulates fractional byte-download progress: each stem
+  // contributes up to 1.0 as its body streams in, so `loaded / displayNames.length`
+  // is a real-time download fraction (it reaches `displayNames.length` when all
+  // stems finish).
   displayNames: string[];
   colors: string[];
   loaded: number;

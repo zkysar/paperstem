@@ -14,21 +14,22 @@ export function useSession() {
     setState((s) => ({ ...s, loading: true }));
     try {
       const res = await fetch('/api/me', { credentials: 'include' });
-      if (res.ok) {
-        const data = (await res.json()) as { user: User };
-        setState({ user: data.user, loading: false });
+      const body = (await res.json().catch(() => null)) as
+        | { user?: User | null; devLoginUrl?: string }
+        | null;
+      if (body?.user) {
+        setState({ user: body.user, loading: false });
         return;
       }
-      const body = (await res.json().catch(() => null)) as
-        | { devLoginUrl?: string }
-        | null;
       if (body?.devLoginUrl) {
         const devRes = await fetch(body.devLoginUrl, { credentials: 'include' });
         if (devRes.ok) {
           const retry = await fetch('/api/me', { credentials: 'include' });
-          if (retry.ok) {
-            const data = (await retry.json()) as { user: User };
-            setState({ user: data.user, loading: false });
+          const retryBody = (await retry.json().catch(() => null)) as
+            | { user?: User | null }
+            | null;
+          if (retryBody?.user) {
+            setState({ user: retryBody.user, loading: false });
             return;
           }
         }

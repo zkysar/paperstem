@@ -223,12 +223,26 @@ kbd {
 
 .empty-stage {
   text-align: center;
-  padding: 60px 16px;
+  padding: 60px 24px;
   color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 400px;
+  margin: 0 auto;
 }
-.empty-stage p { margin: 0; }
+.empty-stage-title {
+  margin: 0 0 10px;
+  font-size: var(--fs-xl);
+  font-weight: var(--fw-semi);
+  color: var(--ink);
+}
+.empty-stage-desc {
+  margin: 0 0 20px;
+  line-height: 1.5;
+  font-size: var(--fs-sm);
+}
 .empty-stage-cta {
-  margin-top: 12px;
   background: var(--ink); color: var(--paper);
   border: none; border-radius: 5px;
   padding: 10px 16px; font: inherit; font-size: var(--fs-md);
@@ -462,12 +476,17 @@ button.track-name {
   cursor: default;
 }
 button.track-name:disabled { cursor: default; }
-.track-name-editable { cursor: text; }
-.track-name-editable:hover {
-  text-decoration: underline;
-  text-decoration-style: dotted;
-  text-underline-offset: 3px;
+.track-name-editable { cursor: pointer; }
+.track-name-editable:hover { text-decoration: underline; text-underline-offset: 3px; }
+.rename-icon {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
 }
+.track-name-editable:hover .rename-icon { opacity: 0.5; }
 .track-name-input {
   font-family: var(--font-mono);
   font-size: var(--fs-md);
@@ -578,6 +597,37 @@ body.dragging-vertical .player * {
 }
 .track.tier-mid .pill {
   min-height: 22px;
+}
+
+/* Touch hit-area expansion for M/S pills.
+   The visual pill stays compact so it fits inside the track row at every tier;
+   the ::after pseudo-element silently extends the tappable zone to ≥44×44 pt
+   (Apple HIG / Android minimum) without disturbing layout.
+   Matches the same technique used on .playhead-handle::after and
+   .loop-handle::after elsewhere in this file. */
+@media (pointer: coarse) {
+  .pill.mute,
+  .pill.solo {
+    position: relative;
+  }
+  .pill.mute::after,
+  .pill.solo::after {
+    content: '';
+    position: absolute;
+    /* At tier-full (24 px pill) → 24 + 32 = 56 px; at tier-min (14 px) →
+       14 + 32 = 46 px.  Both clear the 44 pt threshold.  Horizontal
+       expansion is kept conservative on the right side so S's area doesn't
+       swamp the trash button more than necessary. */
+    inset: -16px -10px;
+  }
+  /* Extra breathing room between the S pill and the trash icon so a stray
+     thumb tap on S is less likely to land on the destructive action. */
+  .ms-pills {
+    gap: 8px;
+  }
+  .pill.trash {
+    margin-left: 4px;
+  }
 }
 
 .wave {
@@ -802,8 +852,18 @@ body.dragging-vertical .player * {
 .playhead {
   position: absolute;
   top: 0; bottom: 0;
-  width: 1px;
-  background: var(--accent);
+  width: 2px;
+  /* Dark line, not --accent: the waveform is accent-colored, so an accent
+     playhead disappears into it. Ink reads cleanly on top of the wave and
+     the cream background alike. The bottom of the line fades to transparent
+     so it tapers off below the tracks instead of ending in a hard, chopped
+     edge. */
+  background: linear-gradient(
+    to bottom,
+    var(--ink) 0,
+    var(--ink) calc(100% - 36px),
+    rgba(42, 39, 35, 0) 100%
+  );
   pointer-events: none;
   /* Above the ruler-row (z:4), the rail (z:8) and the ruler-rail-mask
      (z:9). The 1px line is kept out of the rail by Player.tsx, which
@@ -894,14 +954,24 @@ body.dragging-vertical .player * {
   .ah-avatar,
   .atb-overflow-wrap > button,
   .atb-share-wrap > button {
-    min-width: 40px;
-    min-height: 40px;
-    padding: 8px;
+    min-width: 44px;
+    min-height: 44px;
   }
   /* The icon glyphs themselves stay 16-18px; only hit areas grow. */
 
   .ah-hide-on-mobile {
     display: none !important;
+  }
+
+  /* Prevent iOS Safari auto-zoom: inputs focused below 16px trigger a
+     viewport zoom that yanks the layout and requires manual zoom-out. */
+  .fp-search,
+  .fp-name-input,
+  .track-name-input,
+  .ah-title-input,
+  .group-settings-rename-input,
+  .upload-field input {
+    font-size: 1rem;
   }
 }
 
@@ -922,7 +992,19 @@ body.dragging-vertical .player * {
   border-radius: 8px;
 }
 .login-card .brand { margin-bottom: 4px; }
-.login-card .brand-tag { margin-bottom: 24px; }
+.login-card .brand-tag { margin-bottom: 8px; }
+.login-tagline {
+  margin: 0 0 20px;
+  color: var(--ink-2);
+  font-size: var(--fs-lg);
+  line-height: 1.4;
+}
+.login-flow-note {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: var(--fs-md);
+  line-height: 1.4;
+}
 .login-hint {
   margin: 0 0 16px;
   padding: 10px 12px;
@@ -1249,6 +1331,19 @@ body.dragging-vertical .player * {
 .group-member-role-owner {
   background: var(--accent-tint);
   color: var(--accent);
+}
+.group-member-retry-btn {
+  margin-top: 6px;
+  font-size: var(--fs-sm);
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.group-member-retry-btn:hover {
+  opacity: 0.8;
 }
 .group-settings-leave {
   margin-top: 18px;
@@ -1815,6 +1910,7 @@ button.ah-title-name:disabled { cursor: default; }
 }
 .ah-iconbtn:hover { background: var(--rule-2); color: var(--ink); }
 .ah-iconbtn.active { background: var(--ink); color: var(--bg); }
+.ah-iconbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .ah-avatar-wrap { position: relative; }
 .ah-avatar {
@@ -2044,6 +2140,7 @@ body.env-non-prod[data-env="local"]::before {
   padding: 0; cursor: pointer;
 }
 .atb-btn:hover:not(:disabled) { background: var(--accent-tint); }
+.atb-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .atb-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .atb-btn.play.on,
 .atb-btn.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
@@ -2610,6 +2707,30 @@ body.env-non-prod[data-env="local"]::before {
   .fp-trash-btn { display: none; }
   .fp-kebab-btn { display: inline-flex; }
   .fp-cell-actions { align-self: center; }
+
+  /* Song filter rail: on desktop it wraps, but on a phone wrapping 15+ chips
+     buries the project list under several rows of pills. Collapse to a single
+     horizontally-scrollable strip so the list stays reachable at the top. */
+  .fp-song-rail {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .fp-song-rail::-webkit-scrollbar { display: none; }
+  .fp-song-chip,
+  .fp-song-chip-clear { flex-shrink: 0; }
+  /* Bigger finger targets, and keep drag-to-scroll from misfiring as a tap. */
+  .fp-song-chip { padding: 6px 12px; }
+  /* The active chip can scroll anywhere in the strip, so "Clear filter" (the
+     last child) would otherwise hide off the right edge — exactly when it's
+     needed. Pin it to the right edge of the scroll port; the left shadow masks
+     chips sliding under it. */
+  .fp-song-chip-clear {
+    position: sticky;
+    right: 0;
+    background: var(--paper);
+    box-shadow: -10px 0 8px -4px var(--paper);
+  }
 }
 .fp-upload-bottom { display: none; }
 @media (max-width: 720px) {
@@ -2645,6 +2766,23 @@ body.env-non-prod[data-env="local"]::before {
     padding: 4px 6px;
   }
   .track-rail .vol-row { display: none; }
+
+  /* When the rail is collapsed on mobile, show a compact name+M/S strip
+     stacked above each waveform instead of hiding it entirely. Stems stay
+     identifiable and mute/solo is one tap away; railWidth stays 0 so the
+     waveform continues to fill the full stage width. */
+  .player.rail-collapsed .track {
+    display: flex;
+    flex-direction: column;
+  }
+  .player.rail-collapsed .track-rail {
+    display: flex;
+    box-shadow: 0 1px 0 var(--rule-2);
+    padding: 3px 6px;
+  }
+  .player.rail-collapsed .track-rail .pill.trash {
+    display: none;
+  }
 }
 
 /* ===== CommentsFab ===== */
@@ -4306,6 +4444,35 @@ body.env-non-prod[data-env="local"]::before {
      it ends at the top of the fixed toolbar. */
   .app-shell {
     padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
+
+  /* Each toolbar slot — bare button or popover-trigger wrapper — takes an
+     equal share of the bar width so all items hit 44px+ without overflowing.
+     min-width: 0 lets flex shrink below the global 44px min-width when there
+     are many items; height is already guaranteed by the rule above. */
+  .app-toolbar > button.atb-btn,
+  .atb-share-wrap,
+  .atb-zoom-pop-wrap,
+  .atb-master-pop-wrap,
+  .atb-overflow-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .atb-share-wrap,
+  .atb-zoom-pop-wrap,
+  .atb-master-pop-wrap,
+  .atb-overflow-wrap {
+    display: flex;
+    align-items: stretch;
+  }
+
+  .atb-share-wrap > .atb-btn,
+  .atb-zoom-pop-wrap > .atb-btn,
+  .atb-master-pop-wrap > .atb-btn,
+  .atb-overflow-wrap > .atb-btn {
+    width: 100%;
+    min-width: 0;
   }
 }
 

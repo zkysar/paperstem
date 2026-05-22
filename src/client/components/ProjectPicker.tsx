@@ -61,6 +61,9 @@ export function ProjectPicker({
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const pickerRowsRef = useRef<Project[]>([]);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  // On mobile the song rail is a single horizontal scroll strip, so an active
+  // chip can sit off-screen. Pull it into view when the filter changes.
+  const activeChipRef = useRef<HTMLButtonElement>(null);
 
   // Reset highlight when search or tab changes so stale positions don't persist.
   useEffect(() => { setHighlightedIndex(-1); }, [search, tab]);
@@ -93,6 +96,12 @@ export function ProjectPicker({
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose, confirm]);
+
+  useEffect(() => {
+    if (!filterSongId) return;
+    // Optional-chained so jsdom (no scrollIntoView) doesn't throw in tests.
+    activeChipRef.current?.scrollIntoView?.({ inline: 'center', block: 'nearest' });
+  }, [filterSongId]);
 
   if (!open) return null;
 
@@ -216,6 +225,7 @@ export function ProjectPicker({
                   <button
                     type="button"
                     key={s.id}
+                    ref={isActive ? activeChipRef : undefined}
                     data-testid={`fp-song-chip-${s.id}`}
                     className={'fp-song-chip' + (isActive ? ' active' : '')}
                     aria-pressed={isActive}
@@ -560,7 +570,7 @@ function ProjectRow({
             onBlur={onCommitRename}
             onClick={(e) => e.stopPropagation()}
           />
-          <span className="fp-cell-thumb"><WaveformThumb stemId={p.referenceStemId} /></span>
+          <span className="fp-cell-thumb"><WaveformThumb stemId={p.referenceStemId} peaks={p.referenceStemPeaks} /></span>
           <span className="fp-cell-date fp-meta">{date}</span>
           <span className="fp-cell-duration fp-meta">{duration}</span>
           <span className="fp-cell-stems fp-meta">{p.stemCount}</span>
@@ -574,7 +584,7 @@ function ProjectRow({
           onClick={onSelect}
         >
           <span className="fp-cell-name fp-name">{p.title}</span>
-          <span className="fp-cell-thumb"><WaveformThumb stemId={p.referenceStemId} /></span>
+          <span className="fp-cell-thumb"><WaveformThumb stemId={p.referenceStemId} peaks={p.referenceStemPeaks} /></span>
           <span className="fp-cell-date fp-meta">{date}</span>
           <span className="fp-cell-duration fp-meta">{duration}</span>
           <span className="fp-cell-stems fp-meta">{p.stemCount}</span>

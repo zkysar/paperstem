@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Annotation } from '../../shared/types';
-import { buildShareUrl, type ShareState } from '../lib/share-url';
+import {
+  buildPublicShareUrl,
+  buildShareUrl,
+  type ShareState,
+} from '../lib/share-url';
 import { fmt } from '../lib/format';
 import { PublicLinkSection } from './PublicLinkSection';
 
@@ -26,12 +30,18 @@ type Props = {
    * Null when opened from the toolbar Share button.
    */
   focusedAnnotation: Annotation | null;
+  /**
+   * When set, the dialog is shown to a public (`/p/<token>`) viewer: the URL
+   * becomes a token link carrying the state in its hash, and the owner-only
+   * link-management section is hidden (the viewer isn't authenticated).
+   */
+  publicToken?: string;
   onClose(): void;
 };
 
 type Toggleable = 'time' | 'loop' | 'mix' | 'view' | 'comment';
 
-export function ShareDialog({ open, state, focusedAnnotation, onClose }: Props) {
+export function ShareDialog({ open, state, focusedAnnotation, publicToken, onClose }: Props) {
   const available = useMemo(() => availability(state, focusedAnnotation), [state, focusedAnnotation]);
 
   const [include, setInclude] = useState<Record<Toggleable, boolean>>(available);
@@ -69,10 +79,16 @@ export function ShareDialog({ open, state, focusedAnnotation, onClose }: Props) 
     focusedCommentId: include.comment ? state.focusedCommentId : undefined,
   }), [state, include]);
 
-  const url = useMemo(
-    () => buildShareUrl(effective, typeof window === 'undefined' ? 'https://paperstem.app/' : window.location.href),
-    [effective],
-  );
+  const url = useMemo(() => {
+    const origin =
+      typeof window === 'undefined' ? 'https://paperstem.app' : window.location.origin;
+    return publicToken
+      ? buildPublicShareUrl(publicToken, effective, origin)
+      : buildShareUrl(
+          effective,
+          typeof window === 'undefined' ? 'https://paperstem.app/' : window.location.href,
+        );
+  }, [effective, publicToken]);
 
   if (!open) return null;
 
@@ -159,7 +175,9 @@ export function ShareDialog({ open, state, focusedAnnotation, onClose }: Props) 
             <p className="share-dialog-error" role="alert">{error}</p>
           )}
 
-          {state.projectId && <PublicLinkSection projectId={state.projectId} />}
+          {!publicToken && state.projectId && (
+            <PublicLinkSection projectId={state.projectId} />
+          )}
         </div>
       </div>
     </div>

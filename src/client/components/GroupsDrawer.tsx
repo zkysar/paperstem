@@ -172,6 +172,8 @@ function GroupRow({
   onRenamed,
 }: GroupRowProps) {
   const [members, setMembers] = useState<BandMember[] | null>(null);
+  const [membersFetchFailed, setMembersFetchFailed] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -195,31 +197,43 @@ function GroupRow({
   // Lazy-load members the first time the row is expanded. Re-fetches if
   // the row is collapsed and re-expanded so role changes (someone promoted
   // / demoted in another tab) show up without a full drawer reopen.
+  // retryKey lets the user manually retry after a fetch failure.
   useEffect(() => {
     if (!isExpanded) return;
     let cancelled = false;
     setMembers(null);
     setError(null);
+    setMembersFetchFailed(false);
     fetch(`/api/bands/${encodeURIComponent(group.id)}`, {
       credentials: 'include',
     }).then(
       async (res) => {
         if (cancelled) return;
         if (!res.ok) {
-          setError(`HTTP ${res.status}`);
+          const msg =
+            res.status === 401
+              ? "You've been signed out — please sign in again."
+              : "Couldn't load members. Try again.";
+          setError(msg);
+          setMembersFetchFailed(true);
+          setMembers([]);
           return;
         }
         const body = (await res.json()) as GetBandResponse;
         setMembers(body.members);
       },
-      (err: Error) => {
-        if (!cancelled) setError(err.message);
+      () => {
+        if (!cancelled) {
+          setError("Couldn't load members. Try again.");
+          setMembersFetchFailed(true);
+          setMembers([]);
+        }
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [isExpanded, group.id]);
+  }, [isExpanded, group.id, retryKey]);
 
   // Reset transient form state when the row collapses so a half-typed
   // invite doesn't reappear next time.
@@ -236,6 +250,7 @@ function GroupRow({
       setRenameError(null);
       setRemoveConfirmId(null);
       setError(null);
+      setMembersFetchFailed(false);
     }
   }, [isExpanded]);
 
@@ -265,7 +280,9 @@ function GroupRow({
               ? 'Group names are limited to 80 characters.'
               : body.error === 'name_required'
                 ? 'A name is required.'
-                : `HTTP ${res.status}`;
+                : res.status === 401
+                  ? "You've been signed out — please sign in again."
+                  : 'Something went wrong. Please try again.';
         setRenameError(msg);
         return;
       }
@@ -291,7 +308,9 @@ function GroupRow({
         const msg =
           body.error === 'owner_cannot_be_removed'
             ? "You can't remove the owner of a group."
-            : `HTTP ${res.status}`;
+            : res.status === 401
+              ? "You've been signed out — please sign in again."
+              : 'Something went wrong. Please try again.';
         setError(msg);
         return;
       }
@@ -332,7 +351,9 @@ function GroupRow({
               ? "That doesn't look like a valid email."
               : body.error === 'forbidden'
                 ? 'Only the owner can invite new members.'
-                : `HTTP ${res.status}`;
+                : res.status === 401
+                  ? "You've been signed out — please sign in again."
+                  : 'Something went wrong. Please try again.';
         setInviteError(msg);
         return;
       }
@@ -379,7 +400,9 @@ function GroupRow({
               ? 'That person is no longer in this group — pick someone else.'
               : body.error === 'cannot_transfer_to_self'
                 ? "You can't transfer ownership to yourself."
-                : `HTTP ${res.status}`;
+                : res.status === 401
+                  ? "You've been signed out — please sign in again."
+                  : 'Something went wrong. Please try again.';
         setError(msg);
         return;
       }
@@ -404,7 +427,9 @@ function GroupRow({
         const msg =
           body.error === 'forbidden'
             ? 'Only the owner can delete a group.'
-            : `HTTP ${res.status}`;
+            : res.status === 401
+              ? "You've been signed out — please sign in again."
+              : 'Something went wrong. Please try again.';
         setError(msg);
         return;
       }
@@ -521,6 +546,10 @@ function GroupRow({
                   placeholder="email@example.com"
                   aria-label={`Invite email for ${group.name}`}
                   autoComplete="off"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
               </label>
               <button
@@ -548,6 +577,18 @@ function GroupRow({
           <h3 className="group-settings-section">Members</h3>
           {members === null ? (
             <p>Loading…</p>
+          ) : membersFetchFailed ? (
+            <button
+              type="button"
+              className="group-member-retry-btn"
+              onClick={() => {
+                setError(null);
+                setMembersFetchFailed(false);
+                setRetryKey((k) => k + 1);
+              }}
+            >
+              Try again
+            </button>
           ) : members.length === 0 ? (
             <p className="upload-hint">No members.</p>
           ) : (
@@ -682,7 +723,7 @@ function GroupRow({
                 <>
                   <p className="upload-hint groups-row-owner-note">
                     {ownerHasTransferCandidates
-                      ? "You're the owner. Deleting removes the group for everyone — to leave without taking the group down, transfer ownership above."
+                      ? "You're the owner. Deleting removes the group for everyone — to leave without taking the group down, click Leave group above to transfer ownership first."
                       : "You're the only member. Invite someone above and transfer ownership to them, or delete the group."}
                   </p>
                   <button
