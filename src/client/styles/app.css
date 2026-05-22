@@ -1900,6 +1900,7 @@ button.ah-title-name:disabled { cursor: default; }
 }
 .ah-iconbtn:hover { background: var(--rule-2); color: var(--ink); }
 .ah-iconbtn.active { background: var(--ink); color: var(--bg); }
+.ah-iconbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .ah-avatar-wrap { position: relative; }
 .ah-avatar {
@@ -2129,6 +2130,7 @@ body.env-non-prod[data-env="local"]::before {
   padding: 0; cursor: pointer;
 }
 .atb-btn:hover:not(:disabled) { background: var(--accent-tint); }
+.atb-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .atb-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .atb-btn.play.on,
 .atb-btn.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
