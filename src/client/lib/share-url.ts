@@ -215,6 +215,43 @@ export function buildShareUrl(state: ShareState, baseUrl: string): string {
   return `${base}/#${encodeShareUrl(state)}`;
 }
 
+/**
+ * Encode share state for a public `/p/<token>` link. Identical to
+ * `encodeShareUrl` minus the `p=` param — the token already identifies the
+ * project, so carrying a project id in the hash would be redundant (and would
+ * leak the internal id to external viewers). Returns an empty string when
+ * there's no extra state, so callers can emit a bare `/p/<token>` link.
+ */
+export function encodePublicShareFragment(state: ShareState): string {
+  // encodeShareUrl always emits `p=<id>` first; drop it.
+  return encodeShareUrl(state).replace(/^p=[^&]*(?:&|$)/, '');
+}
+
+/**
+ * Decode a public-link hash. The fragment carries no `p=` (see
+ * `encodePublicShareFragment`), so the project id is supplied from the token.
+ * Returns null when the fragment is empty — there's nothing to apply.
+ */
+export function decodePublicShareFragment(
+  fragment: string,
+  projectId: string,
+): ShareState | null {
+  const frag = (fragment.startsWith('#') ? fragment.slice(1) : fragment).trim();
+  if (!frag) return null;
+  return decodeShareUrl(`p=${encodeURIComponent(projectId)}&${frag}`);
+}
+
+/** Build a full public share URL (`<origin>/p/<token>#<state>`). */
+export function buildPublicShareUrl(
+  token: string,
+  state: ShareState,
+  origin: string,
+): string {
+  const base = `${origin.replace(/\/$/, '')}/p/${encodeURIComponent(token)}`;
+  const frag = encodePublicShareFragment(state);
+  return frag ? `${base}#${frag}` : base;
+}
+
 /** Human-readable list of what's in the share state beyond project + time. */
 export function describeShareCategories(
   state: ShareState,
