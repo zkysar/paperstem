@@ -866,24 +866,26 @@ body.dragging-vertical .player * {
   );
   pointer-events: none;
   /* Above the ruler-row (z:4), the rail (z:8) and the ruler-rail-mask
-     (z:9). The 1px line is kept out of the rail by Player.tsx, which
+     (z:9). The line is kept out of the rail by Player.tsx, which
      suppresses rendering when the playhead's screen position would fall
      inside the sticky rail's column. The high z-index is for the handle:
-     it extends 7px left of the line and would otherwise be clipped by
+     it extends 6px left of the line and would otherwise be clipped by
      the rail/mask when the playhead sits right at the rail edge (t=0). */
   z-index: 10;
 }
 /* Grabbable handle at the top of the playhead. Sits in the 22px ruler band.
-   Down-pointing pentagon centered on the 1px line. The ::after gives it a
-   generous invisible hit zone so it's easy to grab on touch and with a
-   sloppy mouse — same trick as .loop-handle. */
+   Down-pointing pentagon centered on the 2px line (14px wide → left: -6px so
+   the pentagon's tip lands on the line's center, not its left edge). Ink, to
+   match the line — an accent handle reads as detached from the dark cursor.
+   The ::after gives it a generous invisible hit zone so it's easy to grab on
+   touch and with a sloppy mouse — same trick as .loop-handle. */
 .playhead-handle {
   position: absolute;
   top: 0;
-  left: -7px;
+  left: -6px;
   width: 14px;
   height: 16px;
-  background: var(--accent);
+  background: var(--ink);
   clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%);
   pointer-events: auto;
   touch-action: none;
@@ -4069,8 +4071,12 @@ body.env-non-prod[data-env="local"]::before {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 1px;
-  background: var(--accent);
+  /* Match the main timeline playhead: 2px ink so the cursor reads as one
+     continuous line from the minimap strip down through the tracks. (No
+     bottom fade here — the strip is only 14px tall, so a fade would wash
+     the whole line out.) */
+  width: 2px;
+  background: var(--ink);
   pointer-events: none;
 }
 @media (max-width: 720px) {

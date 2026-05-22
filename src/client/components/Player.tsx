@@ -565,18 +565,19 @@ export function Player({
   }, [railWidth, viewport]);
   // Playhead uses the same linear t → x mapping as the loop region,
   // annotation markers, and minimap. Z-index (10) places it above the
-  // sticky rail (8), so the 1px line stays visible at t=0 even though
+  // sticky rail (8), so the line stays visible at t=0 even though
   // it overlaps the rail's right-edge box-shadow.
   //
   // Cap the position so the chevron handle pentagon (14px wide, centered on
-  // the 1px line via `left: -7px`) stays fully inside .viewport-inner at the
-  // right edge. Without this cap the handle's right half is clipped by
-  // .viewport's overflow-x: hidden and the cursor appears to "fall off the
-  // end of the song." HANDLE_HALF_WIDTH = 7 keeps the pentagon's right edge
-  // aligned with the wave column's right edge at maximum. t = 0 maps to
-  // railWidth (already visible), so no left-edge cap is needed.
-  const HANDLE_HALF_WIDTH = 7;
-  const maxPlayheadLeft = railWidth + Math.max(0, waveWidth - HANDLE_HALF_WIDTH);
+  // the 2px line via `left: -6px`, so its right edge sits 8px past the line's
+  // left edge) stays fully inside .viewport-inner at the right edge. Without
+  // this cap the handle's right half is clipped by .viewport's
+  // overflow-x: hidden and the cursor appears to "fall off the end of the
+  // song." HANDLE_RIGHT_EXTENT = 8 keeps the pentagon's right edge aligned
+  // with the wave column's right edge at maximum. t = 0 maps to railWidth
+  // (already visible), so no left-edge cap is needed.
+  const HANDLE_RIGHT_EXTENT = 8;
+  const maxPlayheadLeft = railWidth + Math.max(0, waveWidth - HANDLE_RIGHT_EXTENT);
   const playheadLeft = duration
     ? Math.min(
         maxPlayheadLeft,
