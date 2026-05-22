@@ -36,6 +36,11 @@ class FakeBufferSource {
   stop = () => {};
 }
 
+// Byte lengths handed to decodeAudioData, in call order. Lets a test assert
+// that the streaming read path concatenates chunks into a correctly-sized
+// buffer. Reset in beforeEach.
+const decodedByteLengths: number[] = [];
+
 class FakeAudioContext {
   currentTime = 0;
   destination = {} as unknown;
@@ -46,7 +51,8 @@ class FakeAudioContext {
   createBufferSource() {
     return new FakeBufferSource();
   }
-  decodeAudioData(_buf: ArrayBuffer): Promise<unknown> {
+  decodeAudioData(buf: ArrayBuffer): Promise<unknown> {
+    decodedByteLengths.push(buf.byteLength);
     return Promise.resolve({
       duration: 60,
       length: 60 * 44100,
@@ -99,6 +105,7 @@ describe('usePlayer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    decodedByteLengths.length = 0;
   });
 
   it('starts in an empty paused state', () => {
@@ -142,6 +149,47 @@ describe('usePlayer', () => {
     expect(result.current.state.duration).toBe(60);
     expect(result.current.state.stems[0].audioBuffer).not.toBeNull();
     expect(result.current.state.isPlaying).toBe(false);
+  });
+
+  it('load() streams the response body and concatenates chunks for decode', async () => {
+    // Three equal chunks behind a known Content-Length. The streaming read path
+    // must report byte-level progress and hand decodeAudioData a buffer of the
+    // full concatenated size. arrayBuffer() deliberately returns a wrong size
+    // so that, if the code fell back to the non-streaming path, the byte-length
+    // assertion below would fail — proving the stream path actually ran and its
+    // chunk-concatenation offset math is correct.
+    const chunks = [new Uint8Array(100), new Uint8Array(100), new Uint8Array(100)];
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+      let i = 0;
+      return {
+        ok: true,
+        headers: {
+          get: (n: string) => (n.toLowerCase() === 'content-length' ? '300' : null),
+        },
+        body: {
+          getReader: () => ({
+            read: async () =>
+              i < chunks.length
+                ? { done: false, value: chunks[i++] }
+                : { done: true, value: undefined },
+          }),
+        },
+        arrayBuffer: async () => new ArrayBuffer(8),
+      };
+    });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'p',
+        title: 't',
+        folderId: null,
+        sources: makeSources('only.mp3'),
+      });
+    });
+
+    expect(result.current.state.stems).toHaveLength(1);
+    expect(decodedByteLengths).toEqual([300]);
   });
 
   it('togglePlay() is a no-op when no stems are loaded', async () => {
