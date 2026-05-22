@@ -6,6 +6,7 @@ import {
   PEAK_BINS,
   encodePeaks,
   decodePeaks,
+  thumbPeaksFromWire,
 } from './peaks';
 
 function makeBuffer(samples: number[][], sampleRate = 44100): AudioBuffer {
@@ -140,5 +141,39 @@ describe('encodePeaks / decodePeaks (wire format)', () => {
     expect(decoded![0]).toBeCloseTo(0, 5);
     expect(decoded![1]).toBeCloseTo(0.5, 2);
     expect(decoded![2]).toBeCloseTo(1, 5);
+  });
+});
+
+describe('thumbPeaksFromWire', () => {
+  it('returns null for null/empty/legacy input', () => {
+    expect(thumbPeaksFromWire(null)).toBeNull();
+    expect(thumbPeaksFromWire(undefined)).toBeNull();
+    expect(thumbPeaksFromWire('')).toBeNull();
+    // Legacy bare CSV (v1) is rejected by decodePeaks.
+    expect(thumbPeaksFromWire('0,128,255')).toBeNull();
+  });
+
+  it('decodes and normalizes a short wire string', () => {
+    // Max of the input is 0.4 → after normalize the largest bin is 1.
+    const peaks = thumbPeaksFromWire(encodePeaks([0.1, 0.2, 0.4]));
+    expect(peaks).not.toBeNull();
+    expect(peaks!).toHaveLength(3);
+    expect(Math.max(...peaks!)).toBeCloseTo(1, 5);
+    expect(peaks![0]).toBeCloseTo(0.25, 1);
+  });
+
+  it('downsamples a high-resolution envelope to at most PEAK_BINS', () => {
+    const raw = new Array(2000).fill(0).map((_, i) => (i % 50) / 50);
+    const peaks = thumbPeaksFromWire(encodePeaks(raw));
+    expect(peaks).not.toBeNull();
+    expect(peaks!.length).toBe(PEAK_BINS);
+    // Downsample takes the max per bucket, so the loudest sample survives.
+    expect(Math.max(...peaks!)).toBeCloseTo(1, 5);
+  });
+
+  it('keeps the source length when shorter than PEAK_BINS', () => {
+    const raw = [0.2, 0.4, 0.6, 0.8, 1];
+    const peaks = thumbPeaksFromWire(encodePeaks(raw));
+    expect(peaks!).toHaveLength(raw.length);
   });
 });

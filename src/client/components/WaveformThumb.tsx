@@ -1,14 +1,25 @@
 import { useEffect, useRef, useState } from 'react';
-import { computePeaks, loadCachedPeaks, saveCachedPeaks } from '../lib/peaks';
+import {
+  computePeaks,
+  loadCachedPeaks,
+  saveCachedPeaks,
+  thumbPeaksFromWire,
+} from '../lib/peaks';
 import { acquire } from '../lib/concurrency';
 
 type Props = {
   stemId: string | null;
+  // Server-stored peaks (wire string) for this stem. When present, the
+  // thumbnail renders from these directly — no audio download or decode, which
+  // is what makes thumbnails reliable on mobile.
+  peaks?: string | null;
 };
 
-export function WaveformThumb({ stemId }: Props) {
-  const [peaks, setPeaks] = useState<number[] | null>(() =>
-    stemId ? loadCachedPeaks(stemId) : null,
+export function WaveformThumb({ stemId, peaks: wirePeaks }: Props) {
+  const [peaks, setPeaks] = useState<number[] | null>(
+    () =>
+      thumbPeaksFromWire(wirePeaks) ??
+      (stemId ? loadCachedPeaks(stemId) : null),
   );
   const [visible, setVisible] = useState(false);
   const wrapRef = useRef<HTMLSpanElement | null>(null);
@@ -38,6 +49,14 @@ export function WaveformThumb({ stemId }: Props) {
   }, [visible]);
 
   useEffect(() => {
+    // Prefer the server's precomputed peaks: instant, and no audio fetch/decode
+    // (the step that fails on mobile). Falls through to the decode path only
+    // for stems with no stored peaks.
+    const fromWire = thumbPeaksFromWire(wirePeaks);
+    if (fromWire) {
+      setPeaks(fromWire);
+      return;
+    }
     if (!stemId) {
       setPeaks(null);
       return;
@@ -92,7 +111,7 @@ export function WaveformThumb({ stemId }: Props) {
       cancelled = true;
       ac.abort();
     };
-  }, [stemId, visible]);
+  }, [stemId, visible, wirePeaks]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

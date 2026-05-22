@@ -1,7 +1,7 @@
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WaveformThumb } from './WaveformThumb';
-import { saveCachedPeaks } from '../lib/peaks';
+import { saveCachedPeaks, encodePeaks } from '../lib/peaks';
 
 type IOEntry = { isIntersecting: boolean };
 type IOCallback = (entries: IOEntry[]) => void;
@@ -80,6 +80,44 @@ describe('WaveformThumb', () => {
       fireVisible();
     });
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('renders a canvas synchronously from server peaks without fetching', () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new ArrayBuffer(8)),
+    );
+    render(
+      <WaveformThumb stemId="stem-wire" peaks={encodePeaks([0.2, 0.6, 1])} />,
+    );
+    expect(screen.getByTestId('fp-waveform')).not.toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('does not fetch audio even after becoming visible when server peaks exist', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new ArrayBuffer(8)),
+    );
+    render(
+      <WaveformThumb stemId="stem-wire-2" peaks={encodePeaks([0.5, 1, 0.5])} />,
+    );
+    await act(async () => {
+      fireVisible();
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(screen.getByTestId('fp-waveform')).not.toBeNull();
+  });
+
+  it('falls back to the decode path when server peaks are absent', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(new ArrayBuffer(8)),
+    );
+    render(<WaveformThumb stemId="stem-no-wire" peaks={null} />);
+    await act(async () => {
+      fireVisible();
+    });
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('renders a canvas synchronously when peaks are cached', () => {

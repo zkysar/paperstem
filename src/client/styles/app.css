@@ -2659,6 +2659,30 @@ body.env-non-prod[data-env="local"]::before {
   .fp-trash-btn { display: none; }
   .fp-kebab-btn { display: inline-flex; }
   .fp-cell-actions { align-self: center; }
+
+  /* Song filter rail: on desktop it wraps, but on a phone wrapping 15+ chips
+     buries the project list under several rows of pills. Collapse to a single
+     horizontally-scrollable strip so the list stays reachable at the top. */
+  .fp-song-rail {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .fp-song-rail::-webkit-scrollbar { display: none; }
+  .fp-song-chip,
+  .fp-song-chip-clear { flex-shrink: 0; }
+  /* Bigger finger targets, and keep drag-to-scroll from misfiring as a tap. */
+  .fp-song-chip { padding: 6px 12px; }
+  /* The active chip can scroll anywhere in the strip, so "Clear filter" (the
+     last child) would otherwise hide off the right edge — exactly when it's
+     needed. Pin it to the right edge of the scroll port; the left shadow masks
+     chips sliding under it. */
+  .fp-song-chip-clear {
+    position: sticky;
+    right: 0;
+    background: var(--paper);
+    box-shadow: -10px 0 8px -4px var(--paper);
+  }
 }
 .fp-upload-bottom { display: none; }
 @media (max-width: 720px) {
