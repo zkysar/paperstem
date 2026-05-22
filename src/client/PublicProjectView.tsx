@@ -255,9 +255,13 @@ export function PublicProjectView({ token }: { token: string }) {
         const membership = await probeMembership(detail.project.id);
         if (cancelled) return;
         if (membership.kind === 'signed-in-member') {
-          window.location.assign(
-            `/#p=${encodeURIComponent(detail.project.id)}`,
-          );
+          // Forward any shared view-state into the authenticated hash format
+          // (`#p=<id>&<frag>`) so the member lands on the same moment rather
+          // than a bare project. The public fragment carries no `p=`, so the
+          // injected project id wins in URLSearchParams either way.
+          const base = `/#p=${encodeURIComponent(detail.project.id)}`;
+          const frag = initialHashRef.current.replace(/^#/, '');
+          window.location.assign(frag ? `${base}&${frag}` : base);
           return;
         }
         setProbe(membership);
