@@ -546,6 +546,10 @@ function GroupRow({
                   placeholder="email@example.com"
                   aria-label={`Invite email for ${group.name}`}
                   autoComplete="off"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
               </label>
               <button
@@ -719,7 +723,7 @@ function GroupRow({
                 <>
                   <p className="upload-hint groups-row-owner-note">
                     {ownerHasTransferCandidates
-                      ? "You're the owner. Deleting removes the group for everyone — to leave without taking the group down, transfer ownership above."
+                      ? "You're the owner. Deleting removes the group for everyone — to leave without taking the group down, click Leave group above to transfer ownership first."
                       : "You're the only member. Invite someone above and transfer ownership to them, or delete the group."}
                   </p>
                   <button

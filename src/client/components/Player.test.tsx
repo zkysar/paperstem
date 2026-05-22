@@ -121,14 +121,19 @@ describe('Player', () => {
 
   it('shows the empty-stage prompt when no stems are loaded', () => {
     render(<Player {...defaultProps()} />);
-    expect(screen.getByText(/no project loaded/i)).not.toBeNull();
+    expect(screen.getByText(/no project open/i)).not.toBeNull();
+  });
+
+  it('shows a description of the app in the empty state', () => {
+    render(<Player {...defaultProps()} />);
+    expect(screen.getByText(/stem player for bands/i)).not.toBeNull();
   });
 
   it('shows a CTA button that wires to onOpenPicker', async () => {
     const user = userEvent.setup();
     const onOpenPicker = vi.fn();
     render(<Player {...defaultProps()} onOpenPicker={onOpenPicker} />);
-    await user.click(screen.getByRole('button', { name: /open the project picker/i }));
+    await user.click(screen.getByRole('button', { name: /open a project/i }));
     expect(onOpenPicker).toHaveBeenCalledOnce();
   });
 

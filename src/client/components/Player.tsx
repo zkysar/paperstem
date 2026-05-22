@@ -166,23 +166,31 @@ export function Player({
     }
   }, [sections.length]);
 
+  // Destructure setStageWidth so the effect dependency is the stable
+  // useCallback reference rather than the viewport object itself. Without
+  // this, useViewport() returns a new object on every App render, causing
+  // the ResizeObserver to be destroyed and recreated on every parent
+  // re-render (drawer open, mute toggle, etc.), which fires spurious
+  // initial callbacks and triggers extra Track re-renders that can race
+  // with WaveSurfer's internal rendering.
+  const { setStageWidth } = viewport;
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
     const ro = new ResizeObserver(() => {
       forceRender((n) => n + 1);
       const s = stageRef.current;
-      if (s) viewport.setStageWidth(s.getBoundingClientRect().width);
+      if (s) setStageWidth(s.getBoundingClientRect().width);
     });
     ro.observe(stage);
-    viewport.setStageWidth(stage.getBoundingClientRect().width);
+    setStageWidth(stage.getBoundingClientRect().width);
     // Also watch the ruler: when the tracks area gets a scrollbar (or loses
     // one), .stage's outer width is unchanged but the wave column inside it
     // shrinks, so overlay positions need to re-measure off the ruler's rect.
     const ruler = rulerRef.current;
     if (ruler) ro.observe(ruler);
     return () => ro.disconnect();
-  }, [viewport]);
+  }, [setStageWidth]);
   // ResizeObserver fires async after layout, so the first render under a new
   // `railCollapsed` className still uses pre-commit DOM. Re-measure
   // synchronously so the overlay snaps in place rather than drifting for one
@@ -750,13 +758,17 @@ export function Player({
               />
               {!stems.length && !loading && (
                 <div className="empty-stage">
-                  <p>No project loaded.</p>
+                  <p className="empty-stage-title">No project open</p>
+                  <p className="empty-stage-desc">
+                    Paperstem is a stem player for bands — load a project to play
+                    individual tracks, add timestamped comments, and collaborate.
+                  </p>
                   <button
                     type="button"
                     className="empty-stage-cta"
                     onClick={onOpenPicker}
                   >
-                    {isMobile ? 'Open the project picker' : 'Open the project picker (⌘K)'}
+                    {isMobile ? 'Open a project' : 'Open a project (⌘K)'}
                   </button>
                 </div>
               )}
