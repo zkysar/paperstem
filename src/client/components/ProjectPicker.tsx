@@ -59,6 +59,8 @@ export function ProjectPicker({
   const [search, setSearch] = useState('');
   const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const scrimRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   // On mobile the song rail is a single horizontal scroll strip, so an active
   // chip can sit off-screen. Pull it into view when the filter changes.
   const activeChipRef = useRef<HTMLButtonElement>(null);
@@ -98,6 +100,23 @@ export function ProjectPicker({
     activeChipRef.current?.scrollIntoView?.({ inline: 'center', block: 'nearest' });
   }, [filterSongId]);
 
+  // While the picker is open, mark everything outside the dialog as inert so
+  // keyboard users and screen readers cannot drift into the page behind it.
+  useEffect(() => {
+    if (!open) return;
+    const dialog = dialogRef.current;
+    const scrim = scrimRef.current;
+    if (!dialog) return;
+    const parent = dialog.parentElement;
+    if (!parent) return;
+    const toInert: Element[] = [];
+    for (const child of Array.from(parent.children)) {
+      if (child !== dialog && child !== scrim) toInert.push(child);
+    }
+    toInert.forEach(c => c.setAttribute('inert', ''));
+    return () => toInert.forEach(c => c.removeAttribute('inert'));
+  }, [open]);
+
   if (!open) return null;
 
   function onFolderPicked(e: React.ChangeEvent<HTMLInputElement>) {
@@ -117,15 +136,17 @@ export function ProjectPicker({
   return (
     <>
       <div
+        ref={scrimRef}
         className="projectpicker-scrim"
         data-testid="projectpicker-scrim"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="projectpicker" role="dialog" aria-modal="true" aria-label="Projects">
+      <div ref={dialogRef} className="projectpicker" role="dialog" aria-modal="true" aria-label="Projects">
         <div className="fp-header">
           <h2 className="fp-title">Projects</h2>
           <input
+            autoFocus
             type="search"
             className="fp-search"
             placeholder="Search projects"

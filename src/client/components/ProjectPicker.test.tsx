@@ -41,6 +41,42 @@ describe('ProjectPicker', () => {
     expect(screen.getByLabelText('Close picker')).not.toBeNull();
   });
 
+  it('moves focus to the search input when opened', () => {
+    render(<ProjectPicker {...baseProps} />);
+    expect(document.activeElement).toBe(screen.getByPlaceholderText('Search projects'));
+  });
+
+  it('marks sibling elements as inert while the picker is open', () => {
+    // The sibling must live inside the same React-managed container as the
+    // picker (a real sibling of the dialog in the DOM tree) — createRoot wipes
+    // any pre-existing children of a custom container before effects run.
+    render(
+      <>
+        <section data-testid="picker-sibling" />
+        <ProjectPicker {...baseProps} />
+      </>,
+    );
+    expect(screen.getByTestId('picker-sibling').hasAttribute('inert')).toBe(true);
+  });
+
+  it('removes inert from siblings when the picker closes', () => {
+    const { rerender } = render(
+      <>
+        <section data-testid="picker-sibling" />
+        <ProjectPicker {...baseProps} />
+      </>,
+    );
+    expect(screen.getByTestId('picker-sibling').hasAttribute('inert')).toBe(true);
+
+    rerender(
+      <>
+        <section data-testid="picker-sibling" />
+        <ProjectPicker {...baseProps} open={false} />
+      </>,
+    );
+    expect(screen.getByTestId('picker-sibling').hasAttribute('inert')).toBe(false);
+  });
+
   it('renders nothing when open is false', () => {
     render(<ProjectPicker {...baseProps} open={false} />);
     expect(screen.queryByText('Projects')).toBeNull();
