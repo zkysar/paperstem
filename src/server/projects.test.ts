@@ -176,6 +176,53 @@ describe('GET /api/projects', () => {
       folder_id: folderId,
     });
   });
+
+  it('returns the reference stem peaks (first stem by position) for thumbnails', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: projectId } = insertProject(bandId, 'Alpha', owner, 'p1', '2026-05-01');
+    // Reference stem is the lowest position; verify the payload carries that
+    // stem's peaks rather than another stem's.
+    const first = randomUUID();
+    dbMod.stmts.insertStem.run(
+      first, projectId, 'lead', 0, encodeId(`stem-${first}`), null, 1024, 'v2:0,128,255',
+    );
+    const second = randomUUID();
+    dbMod.stmts.insertStem.run(
+      second, projectId, 'bass', 1, encodeId(`stem-${second}`), null, 1024, 'v2:255,0,255',
+    );
+
+    const sid = createSession(owner);
+    const res = await app.fetch(
+      new Request(`http://x/api/projects?band_id=${bandId}`, {
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      projects: { reference_stem_id: string; reference_stem_peaks: string | null }[];
+    };
+    expect(body.projects[0].reference_stem_id).toBe(first);
+    expect(body.projects[0].reference_stem_peaks).toBe('v2:0,128,255');
+  });
+
+  it('returns null reference_stem_peaks when the reference stem has none', async () => {
+    const owner = createUser('owner@example.com');
+    const bandId = createBand('Alpha', owner);
+    const { id: projectId } = insertProject(bandId, 'Alpha', owner, 'p1', '2026-05-01');
+    insertStem(projectId, 'lead', 0);
+
+    const sid = createSession(owner);
+    const res = await app.fetch(
+      new Request(`http://x/api/projects?band_id=${bandId}`, {
+        headers: { cookie: cookieHeader(sid) },
+      }),
+    );
+    const body = (await res.json()) as {
+      projects: { reference_stem_peaks: string | null }[];
+    };
+    expect(body.projects[0].reference_stem_peaks).toBeNull();
+  });
 });
 
 describe('GET /api/projects/:id', () => {

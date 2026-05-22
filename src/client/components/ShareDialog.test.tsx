@@ -214,6 +214,29 @@ describe('ShareDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
+  it('in public mode emits a /p/<token> URL and hides the link-admin section', () => {
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { href: 'https://paperstem.app/p/pls_abc', origin: 'https://paperstem.app' },
+    });
+    render(
+      <ShareDialog
+        open
+        state={baseState}
+        focusedAnnotation={ann()}
+        publicToken="pls_abc"
+        onClose={vi.fn()}
+      />,
+    );
+    const url = (screen.getByLabelText('Share URL') as HTMLInputElement).value;
+    expect(url).toMatch(/^https:\/\/paperstem\.app\/p\/pls_abc#/);
+    expect(url).toContain('fc=a1');
+    // The internal project id must not leak into a public link.
+    expect(url).not.toMatch(/(^|[#&])p=/);
+    // Owner-only create/revoke UI is not shown to public viewers.
+    expect(screen.queryByTestId('public-link-section')).toBeNull();
+  });
+
   it('clicking the scrim closes; clicking the dialog body does not', () => {
     const onClose = vi.fn();
     const { container } = render(

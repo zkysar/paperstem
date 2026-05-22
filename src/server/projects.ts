@@ -80,6 +80,7 @@ export function handleListProjects(
     updated_at: p.updated_at,
     stem_count: p.stem_count,
     reference_stem_id: p.reference_stem_id,
+    reference_stem_peaks: p.reference_stem_peaks,
     total_duration_ms: p.total_duration_ms,
     comment_count: p.comment_count,
   }));

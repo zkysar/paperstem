@@ -58,7 +58,7 @@ export class AppHarness {
   ) {}
 
   /** Visit the SPA at `/`. The session cookie is established via the dev
-   *  auto-login path on first /api/me 401, so by the time `goto` returns
+   *  auto-login path when /api/me reports a null user, so by the time `goto` returns
    *  the user is authenticated and the ProjectPicker has opened. */
   async open(): Promise<void> {
     await this.page.goto(this.baseURL + '/');

@@ -1,8 +1,10 @@
 import { Buffer } from 'node:buffer';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { createWriteStream } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { parseArgs } from 'node:util';
 import { db } from '../src/server/db.js';
 import {
@@ -61,6 +63,16 @@ if (!Number.isFinite(CHANNELS) || (CHANNELS !== 1 && CHANNELS !== 2)) {
 
 const TARGET_EXT = CODEC === 'aac' ? '.m4a' : '.mp3';
 const TARGET_MIME = CODEC === 'aac' ? 'audio/mp4' : 'audio/mpeg';
+
+// Scratch files live on the audio volume, not the OS tmpdir: on the prod Fly
+// VM /tmp is RAM-backed, so a 59 MB temp input there would reproduce the very
+// OOM this script is meant to avoid. The volume is disk-backed and roomy.
+const AUDIO_ROOT = process.env.PAPERSTEM_AUDIO_ROOT?.trim();
+if (!AUDIO_ROOT) {
+  console.error('PAPERSTEM_AUDIO_ROOT is not set');
+  process.exit(1);
+}
+const SCRATCH_BASE = join(resolve(AUDIO_ROOT), '.backprocess-tmp');
 
 const header = COMMIT ? 'COMMIT' : 'DRY-RUN';
 console.log(
@@ -159,18 +171,17 @@ const stats: Stats = {
   bytesAfter: 0,
 };
 
-async function streamToBuffer(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  const reader = stream.getReader();
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) chunks.push(Buffer.from(value));
-  }
-  return Buffer.concat(chunks);
+async function streamToFile(
+  stream: ReadableStream<Uint8Array>,
+  destPath: string,
+): Promise<void> {
+  const rs = Readable.fromWeb(
+    stream as unknown as Parameters<typeof Readable.fromWeb>[0],
+  );
+  await pipeline(rs, createWriteStream(destPath));
 }
 
-function transcodeToFile(input: Buffer, outPath: string): Promise<void> {
+function transcodeToFile(inPath: string, outPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const codecArgs =
       CODEC === 'aac'
@@ -182,14 +193,14 @@ function transcodeToFile(input: Buffer, outPath: string): Promise<void> {
       'error',
       '-y',
       '-i',
-      'pipe:0',
+      inPath,
       '-vn',
       '-ac',
       String(CHANNELS),
       ...codecArgs,
       outPath,
     ];
-    const ff = spawn('ffmpeg', args, { stdio: ['pipe', 'ignore', 'pipe'] });
+    const ff = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
     const err: Buffer[] = [];
     ff.stderr.on('data', (c: Buffer) => err.push(c));
     ff.on('error', reject);
@@ -202,8 +213,6 @@ function transcodeToFile(input: Buffer, outPath: string): Promise<void> {
           ),
         );
     });
-    ff.stdin.on('error', reject);
-    ff.stdin.end(input);
   });
 }
 
@@ -251,16 +260,21 @@ for (const stem of candidates) {
   const label = `[${index}/${candidates.length}] ${stem.band_name} / ${stem.project_name} / ${stem.name}`;
   let scratch: string | null = null;
   try {
+    await mkdir(SCRATCH_BASE, { recursive: true });
+    scratch = await mkdtemp(join(SCRATCH_BASE, 'stem-'));
+
+    // Stream the source bytes to a temp file on the volume rather than into a
+    // single Buffer. A file input is also seekable, so source formats whose
+    // index sits at the end (e.g. .m4a moov atom) decode fine — a pipe can't.
+    const inPath = join(scratch, `in${currentExt(stem.file_id)}`);
     const { body } = await getFile(stem.file_id);
-    const original = await streamToBuffer(body);
-    const before = original.length;
+    await streamToFile(body, inPath);
+    const before = (await stat(inPath)).size;
     stats.bytesBefore += before;
 
-    scratch = await mkdtemp(join(tmpdir(), 'paperstem-backprocess-'));
     const outPath = join(scratch, `out${TARGET_EXT}`);
-    await transcodeToFile(original, outPath);
-    const encoded = await readFile(outPath);
-    const after = encoded.length;
+    await transcodeToFile(inPath, outPath);
+    const after = (await stat(outPath)).size;
     const savings = before - after;
 
     // Backfill duration_ms / peaks for stems that are missing them, BEFORE
@@ -323,6 +337,9 @@ for (const stem of candidates) {
         const renamed = await renameAndRetype(stem.file_id, newName, TARGET_MIME);
         activeFileId = renamed.id;
       }
+      // Read the compressed output only now, when we're about to persist it.
+      // It's the small side (64 kbps), and skipped stems never load it.
+      const encoded = await readFile(outPath);
       const res = await updateFile(activeFileId, TARGET_MIME, encoded);
       if (needsRename) {
         updateFileIdAndMeta.run(activeFileId, res.size, newDurationForUpdate, stem.id);
@@ -350,6 +367,10 @@ for (const stem of candidates) {
     if (scratch) await rm(scratch, { recursive: true, force: true }).catch(() => {});
   }
 }
+
+// Drop the scratch base so it doesn't linger as a stray folder under the
+// audio root (storage listings only hide _trash).
+await rm(SCRATCH_BASE, { recursive: true, force: true }).catch(() => {});
 
 const totalSavings = stats.bytesBefore - stats.bytesAfter;
 console.log('');

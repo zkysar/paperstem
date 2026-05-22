@@ -53,6 +53,38 @@ export function computePeaks(
   return out;
 }
 
+// Derive thumbnail peaks (normalized 0..1, ~PEAK_BINS wide) from the server's
+// stored wire string. The stored peaks are the high-resolution player envelope
+// (PLAYER_PEAK_BINS, raw amplitudes); downsample by taking the max per bucket
+// and normalize so the thumbnail matches the audio-decode path's output. This
+// lets the picker render a real waveform without downloading/decoding audio —
+// the slow, flaky step on mobile. Returns null when the stem has no stored
+// peaks so the caller can fall back to the decode path.
+export function thumbPeaksFromWire(raw: string | null | undefined): number[] | null {
+  if (!raw) return null;
+  const decoded = decodePeaks(raw);
+  if (!decoded || decoded.length === 0) return null;
+  const src = decoded;
+  const n = Math.min(PEAK_BINS, src.length);
+  const out = new Array<number>(n);
+  const per = src.length / n;
+  let peak = 0;
+  for (let i = 0; i < n; i++) {
+    const start = Math.floor(i * per);
+    const end = i === n - 1 ? src.length : Math.floor((i + 1) * per);
+    let max = 0;
+    for (let s = start; s < end; s++) {
+      if (src[s] > max) max = src[s];
+    }
+    out[i] = max;
+    if (max > peak) peak = max;
+  }
+  if (peak > 0) {
+    for (let i = 0; i < n; i++) out[i] /= peak;
+  }
+  return out;
+}
+
 export function loadCachedPeaks(stemId: string): number[] | null {
   try {
     const raw = localStorage.getItem(CACHE_PREFIX + stemId);

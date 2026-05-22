@@ -21,6 +21,9 @@ import { CommentsDrawer, type DraftSpec } from './components/CommentsDrawer';
 import { CommentsFab } from './components/CommentsFab';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Player } from './components/Player';
+import { ShareArrivalBanner } from './components/ShareArrivalBanner';
+import type { ShareArrivalCategory } from './components/ShareArrivalBanner';
+import { ShareDialog } from './components/ShareDialog';
 import { ShortcutsOverlay } from './components/ShortcutsOverlay';
 import {
   fetchPublicAnnotations,
@@ -47,6 +50,12 @@ import { buildUserColorMap, SELF_ANNOTATION_COLOR } from './lib/colors';
 import { downloadStemsAsZip } from './lib/download';
 import { decodePeaks } from './lib/peaks';
 import { stashReturnPath } from './lib/public-return';
+import { applyShareState } from './lib/apply-share-state';
+import {
+  decodePublicShareFragment,
+  snapshotShareState,
+  type ShareState,
+} from './lib/share-url';
 import { buildDocumentTitle } from './lib/document-title';
 
 // The /p/<token> page reuses the same AppHeader / AppToolbar / Player /
@@ -179,6 +188,22 @@ export function PublicProjectView({ token }: { token: string }) {
   // because we redirect to /#p=<id> instantly when we see it.
   const [probe, setProbe] = useState<MembershipProbe>({ kind: 'anonymous' });
 
+  // Share-link view-state. The URL hash (e.g. #t=83&fc=cmt&mix=…) is captured
+  // once on mount, decoded against this project once it loads, and applied to
+  // the player. `arrival` drives the banner; the dialog state powers the
+  // outgoing "share this moment" flow.
+  const initialHashRef = useRef<string>(
+    typeof window !== 'undefined' ? window.location.hash : '',
+  );
+  const pendingShareRef = useRef<ShareState | null>(null);
+  const arrivalAppliedRef = useRef(false);
+  const [arrival, setArrival] = useState<{
+    time: number | null;
+    categories: ShareArrivalCategory[];
+  } | null>(null);
+  const [shareState, setShareState] = useState<ShareState | null>(null);
+  const [shareAnnotation, setShareAnnotation] = useState<Annotation | null>(null);
+
   // Reflect the shared project in the tab/page title once it loads, instead
   // of leaving the static "Paperstem" from index.html.
   const publicProjectTitle =
@@ -230,14 +255,35 @@ export function PublicProjectView({ token }: { token: string }) {
         const membership = await probeMembership(detail.project.id);
         if (cancelled) return;
         if (membership.kind === 'signed-in-member') {
-          window.location.assign(
-            `/#p=${encodeURIComponent(detail.project.id)}`,
-          );
+          // Forward any shared view-state into the authenticated hash format
+          // (`#p=<id>&<frag>`) so the member lands on the same moment rather
+          // than a bare project. The public fragment carries no `p=`, so the
+          // injected project id wins in URLSearchParams either way.
+          const base = `/#p=${encodeURIComponent(detail.project.id)}`;
+          const frag = initialHashRef.current.replace(/^#/, '');
+          window.location.assign(frag ? `${base}&${frag}` : base);
           return;
         }
         setProbe(membership);
 
         setState({ kind: 'ready', detail });
+
+        // Decode any share-link state from the hash now that we know the
+        // project id (the token, not the hash, carries it). The drain effect
+        // below applies it once the player has decoded its stems.
+        const pending = decodePublicShareFragment(
+          initialHashRef.current,
+          detail.project.id,
+        );
+        if (pending) {
+          pendingShareRef.current = pending;
+          history.replaceState(
+            null,
+            '',
+            window.location.pathname + window.location.search,
+          );
+        }
+
         const sources: StemSource[] = detail.stems.map((s) => ({
           name: s.name,
           src: publicAudioUrl(token, s.id),
@@ -273,6 +319,42 @@ export function PublicProjectView({ token }: { token: string }) {
     };
   }, [token]);
 
+  // Drain the pending share state once the project's stems are decoded (mix
+  // matching needs them) and, if a view was shared, the stage is measured.
+  // Mirrors the authenticated app's arrival flow. Playback stays paused.
+  useEffect(() => {
+    if (arrivalAppliedRef.current) return;
+    const pending = pendingShareRef.current;
+    if (!pending) return;
+    if (player.state.projectId !== pending.projectId) return;
+    if (player.state.stems.length === 0) return;
+    if (
+      (pending.view || pending.trackHeight != null) &&
+      viewport.state.stageWidth === 0
+    ) {
+      return;
+    }
+    arrivalAppliedRef.current = true;
+    const result = applyShareState(pending, {
+      player,
+      viewport,
+      onFocusComment: (id) => setActiveCommentId(id),
+      onOpenDrawer: () => setDrawerOpen(true),
+    });
+    pendingShareRef.current = null;
+    const hasNonTrivial =
+      (result.time != null && result.time > 0) ||
+      result.appliedCategories.length > 0;
+    if (hasNonTrivial) {
+      setArrival({ time: result.time, categories: result.appliedCategories });
+    }
+  }, [player, viewport]);
+
+  // Dismiss the arrival banner once playback starts.
+  useEffect(() => {
+    if (arrival && player.state.isPlaying) setArrival(null);
+  }, [arrival, player.state.isPlaying]);
+
   const annotationsForPlayer = useMemo(
     () => annotations.map(toAnnotation),
     [annotations],
@@ -284,6 +366,56 @@ export function PublicProjectView({ token }: { token: string }) {
   const userColorMap = useMemo(
     () => buildUserColorMap(annotationsForPlayer.map((a) => a.user_id), ''),
     [annotationsForPlayer],
+  );
+
+  // Build a ShareState from the live player + UI so a viewer can hand the
+  // current moment (time, loop, mix, zoom, focused comment) to someone else
+  // as a /p/<token>#… link. The project id comes from the loaded player.
+  const buildSnapshot = useCallback(
+    (overrides?: { time?: number; focusedCommentId?: string }) => {
+      const projectId = player.state.projectId;
+      if (!projectId) return null;
+      return snapshotShareState(
+        {
+          projectId,
+          player: player.state,
+          currentTime: player.currentTime,
+          activeCommentId,
+          viewport: {
+            hZoom: viewport.state.hZoom,
+            trackHeight: viewport.state.trackHeight,
+            scrollLeft: viewport.state.scrollLeft,
+            stageWidth: viewport.state.stageWidth,
+            railWidth: viewport.state.railWidth,
+          },
+        },
+        overrides,
+      );
+    },
+    [player.state, player.currentTime, activeCommentId, viewport.state],
+  );
+
+  const handleOpenShare = useCallback(() => {
+    const snap = buildSnapshot();
+    if (!snap) return;
+    const focused = snap.focusedCommentId
+      ? annotationsForPlayer.find((a) => a.id === snap.focusedCommentId) ?? null
+      : null;
+    setShareState(snap);
+    setShareAnnotation(focused);
+  }, [buildSnapshot, annotationsForPlayer]);
+
+  const handleCopyCommentLink = useCallback(
+    (a: Annotation) => {
+      const snap = buildSnapshot({
+        time: a.start_ms / 1000,
+        focusedCommentId: a.id,
+      });
+      if (!snap) return;
+      setShareState(snap);
+      setShareAnnotation(a);
+    },
+    [buildSnapshot],
   );
 
   // Drawer / popover handlers (these don't mutate the server — they're
@@ -440,6 +572,17 @@ export function PublicProjectView({ token }: { token: string }) {
       {/* Page heading reflecting the shared project — the brand in AppHeader
           is a styled <span>, not a heading. */}
       <h1 className="sr-only">{detail.project.name}</h1>
+      {arrival && (
+        <ShareArrivalBanner
+          time={arrival.time}
+          categories={arrival.categories}
+          onPlay={() => {
+            setArrival(null);
+            void player.togglePlay();
+          }}
+          onDismiss={() => setArrival(null)}
+        />
+      )}
       {noAccessBanner && (
         <div className="public-signin-banner" role="status">
           You're signed in but don't have access to this project. Ask the
@@ -517,6 +660,7 @@ export function PublicProjectView({ token }: { token: string }) {
         onToggleRailCollapsed={() => undefined}
         viewport={viewport}
         onOpenShortcuts={() => setShortcutsOpen(true)}
+        onShare={handleOpenShare}
       />
       <div className="app-body">
         <div style={{ position: 'relative', minHeight: 0, minWidth: 0 }}>
@@ -583,7 +727,7 @@ export function PublicProjectView({ token }: { token: string }) {
                 onToggleStar={promptIgnoreArgs}
                 onSaveEdit={promptIgnoreArgs}
                 onDelete={promptIgnoreArgs}
-                onCopyLink={promptIgnoreArgs}
+                onCopyLink={handleCopyCommentLink}
                 replies={replies}
                 onLoadReplies={loadReplies}
                 onCreateReply={promptAsync}
@@ -624,7 +768,7 @@ export function PublicProjectView({ token }: { token: string }) {
                     onToggleStar={promptIgnoreArgs}
                     onSaveEdit={promptIgnoreArgs}
                     onDelete={promptIgnoreArgs}
-                    onCopyLink={promptIgnoreArgs}
+                    onCopyLink={() => handleCopyCommentLink(active)}
                     onClose={closePopovers}
                     selfUserId=""
                     selfDisplayName=""
@@ -699,6 +843,13 @@ export function PublicProjectView({ token }: { token: string }) {
       <ShortcutsOverlay
         open={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
+      />
+      <ShareDialog
+        open={shareState !== null}
+        state={shareState ?? { projectId: '' }}
+        focusedAnnotation={shareAnnotation}
+        publicToken={token}
+        onClose={() => setShareState(null)}
       />
     </div>
     </PresenceContext.Provider>
