@@ -6,6 +6,10 @@ export type Project = {
   stemCount: number;
   folderId: string | null;
   referenceStemId: string | null;
+  // Precomputed waveform peaks (wire string) for the reference stem, so the
+  // picker thumbnail renders without downloading and decoding the full audio.
+  // null when the reference stem predates peak storage or decode failed.
+  referenceStemPeaks: string | null;
   updatedAt: number;
   // Project length, in ms — max(stem.duration_ms). null when no stem has yet
   // been measured (rare during ingest).
@@ -30,6 +34,7 @@ export type ProjectSummary = {
   updated_at: number;
   stem_count: number;
   reference_stem_id: string | null;
+  reference_stem_peaks: string | null;
   total_duration_ms: number | null;
   comment_count: number;
 };

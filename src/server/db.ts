@@ -542,6 +542,7 @@ export const stmts = {
     ProjectRow & {
       stem_count: number;
       reference_stem_id: string | null;
+      reference_stem_peaks: string | null;
       total_duration_ms: number | null;
       comment_count: number;
     }
@@ -552,6 +553,9 @@ export const stmts = {
             (SELECT s.id FROM stems s
               WHERE s.project_id = p.id AND s.deleted_at IS NULL
               ORDER BY s.position LIMIT 1) AS reference_stem_id,
+            (SELECT s.peaks FROM stems s
+              WHERE s.project_id = p.id AND s.deleted_at IS NULL
+              ORDER BY s.position LIMIT 1) AS reference_stem_peaks,
             (SELECT MAX(s.duration_ms) FROM stems s
               WHERE s.project_id = p.id AND s.deleted_at IS NULL) AS total_duration_ms,
             (SELECT COUNT(*) FROM annotations a
