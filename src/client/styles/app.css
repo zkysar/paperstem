@@ -2378,6 +2378,12 @@ body.env-non-prod[data-env="local"]::before {
   background: var(--accent-tint-2);
   box-shadow: inset 3px 0 0 0 var(--accent);
 }
+/* Keyboard-navigation highlight: same visual weight as hover but driven by
+   ArrowUp/ArrowDown rather than the mouse. */
+.fp-row-data.fp-row-highlighted {
+  background: var(--accent-tint);
+  box-shadow: inset 3px 0 0 0 var(--accent);
+}
 .fp-row-main:focus-visible,
 .fp-sort-btn:focus-visible {
   outline: 2px solid var(--accent);

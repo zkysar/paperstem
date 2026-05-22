@@ -80,6 +80,8 @@ export function ShortcutsOverlay({ open, onClose, forceMac }: Props) {
       title: 'General',
       items: [
         { keys: <><kbd>{m}{plus}K</kbd></>, label: 'Open project picker' },
+        { keys: <><kbd>↑</kbd><kbd>↓</kbd></>, label: 'Navigate rows in project picker' },
+        { keys: k(['Enter']), label: 'Open highlighted project', note: 'or the only match if one result' },
         { keys: k(['C']), label: 'Add comment at playhead' },
         { keys: k(['M']), label: 'Add section (song marker) at playhead' },
         {
