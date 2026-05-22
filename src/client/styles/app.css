@@ -852,8 +852,18 @@ body.dragging-vertical .player * {
 .playhead {
   position: absolute;
   top: 0; bottom: 0;
-  width: 1px;
-  background: var(--accent);
+  width: 2px;
+  /* Dark line, not --accent: the waveform is accent-colored, so an accent
+     playhead disappears into it. Ink reads cleanly on top of the wave and
+     the cream background alike. The bottom of the line fades to transparent
+     so it tapers off below the tracks instead of ending in a hard, chopped
+     edge. */
+  background: linear-gradient(
+    to bottom,
+    var(--ink) 0,
+    var(--ink) calc(100% - 36px),
+    rgba(42, 39, 35, 0) 100%
+  );
   pointer-events: none;
   /* Above the ruler-row (z:4), the rail (z:8) and the ruler-rail-mask
      (z:9). The 1px line is kept out of the rail by Player.tsx, which
