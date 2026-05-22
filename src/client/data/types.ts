@@ -23,6 +23,9 @@ export type ProjectStem = {
   // Server-side waveform peaks (comma-separated 0..255 ints). When present,
   // WaveSurfer can render the waveform without decoding the audio.
   peaks: string | null;
+  // Stem length in ms (measured at ingest). Lets the player render the
+  // waveform + timeline from peaks before the audio finishes downloading.
+  durationMs: number | null;
 };
 
 export type ProjectSummary = {
@@ -84,6 +87,12 @@ export type LoadedStem = {
   // Pre-computed waveform peaks (0..1 floats). When present, WaveSurfer renders
   // without decoding the audio — eliminates the multi-second blank-lane gap.
   peaks: number[] | null;
+  // Stem length in seconds, known from server metadata before the audio is
+  // decoded. Lets WaveSurfer render from `peaks` and the timeline lay itself
+  // out while the audio downloads in the background; `audioBuffer.duration`
+  // supersedes it once decode finishes. Null when the server has no measured
+  // duration (rare — falls back to decoding the audio for the waveform).
+  metaDuration: number | null;
 };
 
 export type LoopRegion = {
@@ -95,14 +104,11 @@ export type LoopRegion = {
 export type WaveformNormalization = 'per-track' | 'global';
 
 export type PlayerLoading = {
-  // Display names (after common-prefix strip) and palette colors so the player
-  // can render skeleton tracks with the right shape while audio is still being
-  // fetched. `loaded` accumulates fractional byte-download progress: each stem
-  // contributes up to 1.0 as its body streams in, so `loaded / displayNames.length`
-  // is a real-time download fraction (it reaches `displayNames.length` when all
-  // stems finish).
-  displayNames: string[];
-  colors: string[];
+  // Number of stems being fetched/decoded — the denominator for `loaded`.
+  total: number;
+  // Accumulated fractional byte-download progress across all stems: each stem
+  // contributes up to 1.0 as its body streams in, so `loaded / total` is a
+  // real-time download fraction that reaches 1.0 when every stem finishes.
   loaded: number;
 };
 
@@ -133,6 +139,9 @@ export type StemSource = {
   serverId?: string | null;
   revoke?: () => void;
   peaks?: number[] | null;
+  // Stem length in ms from server metadata. Drives the waveform/timeline
+  // layout while the audio decodes in the background.
+  durationMs?: number | null;
 };
 
 export type LoadContext = {

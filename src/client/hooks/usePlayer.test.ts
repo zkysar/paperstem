@@ -678,3 +678,184 @@ describe('usePlayer Phase A — rAF / time-driven behaviors', () => {
     expect(result.current.currentTime).toBe(20);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Deferred audio load — the UI (waveform/sections/comments/timeline) renders
+// from precomputed peaks + server metadata immediately, while audio downloads
+// and decodes in the background. Only playback waits for the decode.
+//
+// These tests gate fetch() per project (keyed by a substring in the stem URL)
+// so we can both (a) observe the in-between state where stems exist but their
+// buffers don't yet, and (b) control the order in which two concurrent loads
+// finish — needed to exercise the stale-load guard.
+// ---------------------------------------------------------------------------
+describe('usePlayer — deferred audio load', () => {
+  let releasers: Record<string, () => void>;
+  let gates: Record<string, Promise<void>>;
+
+  function gate(key: string): void {
+    gates[key] = new Promise<void>((res) => {
+      releasers[key] = res;
+    });
+  }
+  function release(key: string): void {
+    releasers[key]?.();
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    releasers = {};
+    gates = {};
+    vi.stubGlobal('AudioContext', FakeAudioContext);
+    vi.stubGlobal('webkitAudioContext', FakeAudioContext);
+    // fetch resolves only once the gate for the project in its URL is released.
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      async (url: string) => {
+        const key = url.includes('/projA/')
+          ? 'projA'
+          : url.includes('/projB/')
+            ? 'projB'
+            : 'default';
+        if (gates[key]) await gates[key];
+        return { ok: true, arrayBuffer: async () => new ArrayBuffer(8) };
+      },
+    );
+  });
+
+  afterEach(() => {
+    // Drain any still-pending gates so dangling decodes settle.
+    for (const key of Object.keys(releasers)) release(key);
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) }),
+    );
+  });
+
+  function sourcesFor(proj: string, idPrefix: string) {
+    return [
+      { name: 'drums.mp3', src: `https://example.test/${proj}/drums.mp3`, serverId: `${idPrefix}0`, durationMs: 123_000 },
+      { name: 'bass.mp3', src: `https://example.test/${proj}/bass.mp3`, serverId: `${idPrefix}1`, durationMs: 90_000 },
+    ];
+  }
+
+  it('populates stems + duration from metadata before decode finishes, and gates play', async () => {
+    gate('projA');
+    const { result } = renderHook(() => usePlayer());
+    let loadDone!: Promise<void>;
+    await act(async () => {
+      loadDone = result.current.load({
+        projectId: 'projA',
+        title: 't',
+        folderId: null,
+        sources: sourcesFor('projA', 'sA-'),
+      });
+      // Flush the synchronous LOAD_START dispatch (fetch/decode stays gated).
+      await Promise.resolve();
+    });
+
+    // Stems render with no audio buffers yet; duration comes from the longest
+    // stem's metadata (123 s), and the loading indicator is active.
+    expect(result.current.state.stems).toHaveLength(2);
+    expect(result.current.state.duration).toBe(123);
+    expect(result.current.state.stems[0].audioBuffer).toBeNull();
+    expect(result.current.state.stems[0].metaDuration).toBe(123);
+    expect(result.current.state.loading).not.toBeNull();
+
+    // Play is a no-op while audio is still loading.
+    await act(async () => {
+      await result.current.togglePlay();
+    });
+    expect(result.current.state.isPlaying).toBe(false);
+
+    // Releasing the gate resolves load() → LOADED: buffers land, the loading
+    // indicator clears, and the decoded duration (60) supersedes the metadata.
+    await act(async () => {
+      release('projA');
+      await loadDone;
+    });
+    expect(result.current.state.loading).toBeNull();
+    expect(result.current.state.stems[0].audioBuffer).not.toBeNull();
+    expect(result.current.state.duration).toBe(60);
+  });
+
+  it('preserves a mute toggled during loading when the decode completes', async () => {
+    gate('projA');
+    const { result } = renderHook(() => usePlayer());
+    let loadDone!: Promise<void>;
+    await act(async () => {
+      loadDone = result.current.load({
+        projectId: 'projA',
+        title: 't',
+        folderId: null,
+        sources: sourcesFor('projA', 'sA-'),
+      });
+      await Promise.resolve();
+    });
+
+    // Mute the first stem while its audio is still downloading.
+    act(() => {
+      result.current.toggleMute(0);
+    });
+    expect(result.current.state.stems[0].userMuted).toBe(true);
+
+    // The buffer-merge at LOADED must not clobber that user choice.
+    await act(async () => {
+      release('projA');
+      await loadDone;
+    });
+    expect(result.current.state.stems[0].userMuted).toBe(true);
+    expect(result.current.state.stems[1].userMuted).toBe(false);
+    expect(result.current.state.stems[0].audioBuffer).not.toBeNull();
+  });
+
+  it('ignores a superseded load whose decode finishes after the user switched projects', async () => {
+    gate('projA');
+    gate('projB');
+    const { result } = renderHook(() => usePlayer());
+
+    // Open project A (slow — decode gated).
+    let doneA!: Promise<void>;
+    await act(async () => {
+      doneA = result.current.load({
+        projectId: 'projA',
+        title: 'A',
+        folderId: null,
+        sources: sourcesFor('projA', 'sA-'),
+      });
+      await Promise.resolve();
+    });
+    expect(result.current.state.projectId).toBe('projA');
+
+    // Switch to project B before A's audio arrives.
+    let doneB!: Promise<void>;
+    await act(async () => {
+      doneB = result.current.load({
+        projectId: 'projB',
+        title: 'B',
+        folderId: null,
+        sources: sourcesFor('projB', 'sB-'),
+      });
+      await Promise.resolve();
+    });
+    expect(result.current.state.projectId).toBe('projB');
+
+    // B finishes first and loads cleanly.
+    await act(async () => {
+      release('projB');
+      await doneB;
+    });
+    expect(result.current.state.projectId).toBe('projB');
+    expect(result.current.state.loading).toBeNull();
+    expect(result.current.state.stems.map((s) => s.serverId)).toEqual(['sB-0', 'sB-1']);
+
+    // A's decode lands late. Its stale LOADED must NOT overwrite B's stems,
+    // project metadata, or loading state.
+    await act(async () => {
+      release('projA');
+      await doneA;
+    });
+    expect(result.current.state.projectId).toBe('projB');
+    expect(result.current.state.stems.map((s) => s.serverId)).toEqual(['sB-0', 'sB-1']);
+    expect(result.current.state.loading).toBeNull();
+  });
+});

@@ -138,9 +138,17 @@ export function Track({
     setWaveLoading(true);
     // When we have pre-computed peaks, hand them to WaveSurfer and skip the
     // audio decode entirely — the waveform renders immediately. Duration must
-    // also be supplied; prefer the decoded AudioBuffer's duration since
-    // mobile Safari may never fire `loadedmetadata` on the muted <audio>.
-    const knownDuration = stem.audioBuffer?.duration ?? stem.audio.duration;
+    // also be supplied; prefer the decoded AudioBuffer's duration, then the
+    // server-supplied metadata duration (so the waveform renders during the
+    // background download, before any buffer exists), then the <audio>
+    // element's — mobile Safari may never fire `loadedmetadata` on the muted
+    // element.
+    const audioElDuration =
+      isFinite(stem.audio.duration) && stem.audio.duration > 0
+        ? stem.audio.duration
+        : null;
+    const knownDuration =
+      stem.audioBuffer?.duration ?? stem.metaDuration ?? audioElDuration ?? NaN;
     const usePrecomputed =
       stem.peaks !== null && stem.peaks.length > 0 && isFinite(knownDuration);
     try {

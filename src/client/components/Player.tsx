@@ -772,41 +772,6 @@ export function Player({
                   </button>
                 </div>
               )}
-              {!stems.length && loading && (
-                <>
-                  {loading.displayNames.map((name, i) => (
-                    <div className="track track-skeleton" key={`skel-${i}`} aria-hidden="true">
-                      <div className="track-rail">
-                        <span className="swatch" style={{ background: loading.colors[i] }} />
-                        <div className="track-info">
-                          <span className="track-name" title={name}>{name}</span>
-                        </div>
-                      </div>
-                      <div className="wave">
-                        <div className="clip wave-skel" />
-                      </div>
-                    </div>
-                  ))}
-                  <div className="player-loading-overlay" role="status" aria-live="polite">
-                    <div className="player-loading-card">
-                      <div className="player-loading-title">
-                        Loading {loading.displayNames.length} stem{loading.displayNames.length === 1 ? '' : 's'}
-                      </div>
-                      <div className="player-loading-progress">
-                        <div
-                          className="player-loading-bar"
-                          style={{
-                            width: `${(loading.loaded / Math.max(1, loading.displayNames.length)) * 100}%`,
-                          }}
-                        />
-                      </div>
-                      <div className="player-loading-count">
-                        {Math.round(loading.loaded)} / {loading.displayNames.length}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
               {stems.map((stem, i) => (
                 <Track
                   key={stem.serverId ?? `${stem.projectId ?? 'local'}-${stem.name}`}
@@ -888,6 +853,27 @@ export function Player({
             />
           </div>
         </div>
+        {loading && (
+          <>
+            {/* Announce once on appearance. The visible percentage updates on
+                every byte-progress tick; routing those through aria-live would
+                spam a screen reader with a stream of numbers, so the pill
+                itself is aria-hidden and this static node carries the status. */}
+            <span className="sr-only" role="status">Loading audio…</span>
+            <div className="audio-loading-pill" aria-hidden="true">
+              <span className="audio-loading-pill-spinner" />
+              <span className="audio-loading-pill-text">
+                Loading audio… {Math.round((loading.loaded / Math.max(1, loading.total)) * 100)}%
+              </span>
+              <span className="audio-loading-pill-track">
+                <span
+                  className="audio-loading-pill-fill"
+                  style={{ width: `${(loading.loaded / Math.max(1, loading.total)) * 100}%` }}
+                />
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       {annotationCreateMode && (

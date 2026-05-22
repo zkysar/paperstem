@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import type {
-  LoadContext,
   LoadedStem,
   PlayerState,
   StemSource,
@@ -36,17 +35,24 @@ const DND_PROBE_TIMEOUT_MS = 1500;
 type Action =
   | { type: 'TEARDOWN' }
   | {
+      // Stems are built and dispatched up front (audioBuffer still null) so the
+      // waveform, sections, comments, and timeline render from precomputed
+      // peaks + known duration immediately. Audio bytes download/decode in the
+      // background and land via LOADED.
       type: 'LOAD_START';
-      displayNames: string[];
-      colors: string[];
+      stems: LoadedStem[];
+      projectId: string | null;
+      title: string;
+      folderId: string | null;
+      total: number;
       status: string;
     }
   | { type: 'LOAD_PROGRESS'; delta: number }
   | {
+      // Decoded buffers, keyed so the reducer can merge them into the current
+      // stems without clobbering mute/solo/volume the user set during load.
       type: 'LOADED';
-      stems: LoadedStem[];
-      duration: number;
-      referenceIdx: number;
+      buffers: Array<{ serverId: string | null; buffer: AudioBuffer | null }>;
       projectId: string | null;
       title: string;
       folderId: string | null;
@@ -90,45 +96,60 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         waveformNormalization: state.waveformNormalization,
         masterVolume: state.masterVolume,
       };
-    case 'LOAD_START':
-      return {
-        ...state,
-        stems: [],
-        duration: 0,
-        referenceIdx: 0,
-        isPlaying: false,
-        loop: null,
-        loopArmed: false,
-        status: action.status,
-        loading: {
-          displayNames: action.displayNames,
-          colors: action.colors,
-          loaded: 0,
-        },
-      };
-    case 'LOAD_PROGRESS': {
-      if (!state.loading) return state;
-      const next = Math.min(
-        state.loading.loaded + action.delta,
-        state.loading.displayNames.length,
-      );
-      return { ...state, loading: { ...state.loading, loaded: next } };
-    }
-    case 'LOADED':
+    case 'LOAD_START': {
+      const { duration, referenceIdx } = durationAndReference(action.stems);
       return {
         ...state,
         projectId: action.projectId,
         title: action.title,
         folderId: action.folderId,
         stems: action.stems,
-        duration: action.duration,
-        referenceIdx: action.referenceIdx,
+        duration,
+        referenceIdx,
+        isPlaying: false,
+        loop: null,
+        loopArmed: false,
+        status: action.status,
+        loading: { total: action.total, loaded: 0 },
+      };
+    }
+    case 'LOAD_PROGRESS': {
+      if (!state.loading) return state;
+      const next = Math.min(state.loading.loaded + action.delta, state.loading.total);
+      return { ...state, loading: { ...state.loading, loaded: next } };
+    }
+    case 'LOADED': {
+      // Merge decoded buffers into the CURRENT stems (matched by serverId, or
+      // index for local-folder loads), so any mute/solo/volume the user set
+      // while audio was downloading survives. Replacing the array wholesale
+      // would revert those.
+      const byId = new Map<string, AudioBuffer | null>();
+      for (const b of action.buffers) {
+        if (b.serverId != null) byId.set(b.serverId, b.buffer);
+      }
+      const stems = state.stems.map((s, i) => {
+        const buf =
+          s.serverId != null && byId.has(s.serverId)
+            ? (byId.get(s.serverId) ?? null)
+            : (action.buffers[i]?.buffer ?? s.audioBuffer);
+        return buf === s.audioBuffer ? s : { ...s, audioBuffer: buf };
+      });
+      const { duration, referenceIdx } = durationAndReference(stems);
+      return {
+        ...state,
+        projectId: action.projectId,
+        title: action.title,
+        folderId: action.folderId,
+        stems,
+        duration,
+        referenceIdx,
         isPlaying: false,
         loop: null,
         loopArmed: false,
         status: action.status,
         loading: null,
       };
+    }
     case 'SET_PLAYING':
       return { ...state, isPlaying: action.isPlaying };
     case 'SET_LOOP':
@@ -192,8 +213,23 @@ function reducer(state: PlayerState, action: Action): PlayerState {
 }
 
 function stemDuration(s: LoadedStem): number {
+  // Decoded buffer is authoritative once available; before decode, fall back
+  // to the <audio> element's duration (rarely populated with preload=metadata)
+  // and finally the server-supplied metadata duration so the timeline can lay
+  // itself out during the background download.
   if (s.audioBuffer && isFinite(s.audioBuffer.duration)) return s.audioBuffer.duration;
-  return isFinite(s.audio.duration) ? s.audio.duration : 0;
+  if (isFinite(s.audio.duration) && s.audio.duration > 0) return s.audio.duration;
+  if (s.metaDuration != null && isFinite(s.metaDuration)) return s.metaDuration;
+  return 0;
+}
+
+function durationAndReference(stems: LoadedStem[]): {
+  duration: number;
+  referenceIdx: number;
+} {
+  const durations = stems.map(stemDuration);
+  const duration = durations.reduce((m, d) => Math.max(m, isFinite(d) ? d : 0), 0);
+  return { duration, referenceIdx: longestStemIdx(durations) };
 }
 
 function updateStem(state: PlayerState, idx: number, fn: (s: LoadedStem) => LoadedStem): PlayerState {
@@ -266,6 +302,13 @@ export function usePlayer(): PlayerControls {
   // Per-track GainNodes live on each LoadedStem.
   const audioCtxRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
+
+  // Generation counter for load(). Audio now decodes in the background, so a
+  // fast project switch can leave a previous load's decode still in flight.
+  // Each load() bumps this; the older invocation's progress + LOADED dispatches
+  // no-op once a newer load has started, so a stale decode can't clobber the
+  // new project's stems (wrong buffers) or prematurely clear its loading state.
+  const loadGenRef = useRef(0);
 
   // Generation counter for DND probes. Each togglePlay starts a fresh probe;
   // older probes' callbacks no-op so a fast tap-tap doesn't flap the banner.
@@ -598,6 +641,9 @@ export function usePlayer(): PlayerControls {
 
   // ---- API ----
   const load = useCallback<PlayerControls['load']>(async (input) => {
+    // Claim this load; a later load() bumps the generation so this one's
+    // background decode stops mutating shared state once it's superseded.
+    const myGen = ++loadGenRef.current;
     // Tear down current stems before building new ones.
     stopSources();
     const prev = stateRef.current.stems;
@@ -616,15 +662,6 @@ export function usePlayer(): PlayerControls {
       dispatch({ type: 'TEARDOWN' });
       return;
     }
-    const ctx: LoadContext = { projectId: input.projectId, title: input.title };
-    const displayNames = stripCommonPrefix(input.sources.map((it) => it.name));
-    const colors = input.sources.map((_, i) => PALETTE[i % PALETTE.length]);
-    dispatch({
-      type: 'LOAD_START',
-      displayNames,
-      colors,
-      status: `Loading ${input.sources.length} stem${input.sources.length === 1 ? '' : 's'}…`,
-    });
 
     const graph = ensureAudioGraph();
     if (!graph) {
@@ -636,6 +673,12 @@ export function usePlayer(): PlayerControls {
       });
       return;
     }
+
+    const displayNames = stripCommonPrefix(input.sources.map((it) => it.name));
+    // Build every stem synchronously, with audioBuffer still null. Dispatching
+    // these up front lets the waveform (from precomputed peaks), sections,
+    // comments, and timeline render immediately — sized by the server-supplied
+    // metaDuration — while the audio bytes download/decode in the background.
     const built: LoadedStem[] = input.sources.map((src, i) => {
       const audio = new Audio();
       // Web Audio drives all sound; the element only exists so WaveSurfer has a
@@ -645,7 +688,7 @@ export function usePlayer(): PlayerControls {
       audio.preload = 'metadata';
       audio.muted = true;
       audio.src = src.src;
-      const userVolume = loadVolume(ctx.projectId, src.name);
+      const userVolume = loadVolume(input.projectId, src.name);
       const gain = graph.ctx.createGain();
       gain.gain.value = volumeToGain(userVolume);
       gain.connect(graph.master);
@@ -658,21 +701,36 @@ export function usePlayer(): PlayerControls {
         userMuted: false,
         soloed: false,
         userVolume,
-        projectId: ctx.projectId,
+        projectId: input.projectId,
         serverId: src.serverId ?? null,
         revoke: src.revoke,
         gain,
         peaks: src.peaks ?? null,
+        metaDuration:
+          src.durationMs != null && isFinite(src.durationMs)
+            ? src.durationMs / 1000
+            : null,
       };
+    });
+
+    dispatch({
+      type: 'LOAD_START',
+      stems: built,
+      projectId: input.projectId,
+      title: input.title,
+      folderId: input.folderId,
+      total: input.sources.length,
+      status: `Loading ${input.sources.length} stem${input.sources.length === 1 ? '' : 's'}…`,
     });
 
     const errored: string[] = [];
 
     // Decode each stem's audio into an AudioBuffer; that's the only thing we
-    // need to play (and gives us a duration). The HTMLAudioElement is bound for
-    // WaveSurfer but we intentionally don't wait on its `loadedmetadata` — on
-    // mobile Safari, a muted <audio> often doesn't fire that event until a
-    // play() inside a user gesture, which would hang load() forever.
+    // need to play (and gives us an exact duration). The HTMLAudioElement is
+    // bound for WaveSurfer but we intentionally don't wait on its
+    // `loadedmetadata` — on mobile Safari, a muted <audio> often doesn't fire
+    // that event until a play() inside a user gesture, which would hang
+    // load() forever.
     await Promise.all(
       built.map(async (s, i) => {
         // Each stem contributes a total of 1.0 to `loaded`. Streaming the body
@@ -681,24 +739,33 @@ export function usePlayer(): PlayerControls {
         let reported = 0;
         const buf = await decodeStem(graph.ctx, input.sources[i].src, (delta) => {
           reported += delta;
-          dispatch({ type: 'LOAD_PROGRESS', delta });
+          // Drop progress from a superseded load so it can't drive the new
+          // project's loading bar.
+          if (loadGenRef.current === myGen) dispatch({ type: 'LOAD_PROGRESS', delta });
         });
         if (buf) {
-          // Mutate in place — the array is local and not yet in state.
+          // Mutate in place — the array is local; the reducer merges the
+          // buffers into the live stems by serverId at LOADED.
           built[i].audioBuffer = buf;
         } else {
           errored.push(s.name);
         }
         // Top up to a full step if streaming reported nothing (no
         // Content-Length / unreadable body) or rounding left us under 1.0.
-        if (reported < 1) dispatch({ type: 'LOAD_PROGRESS', delta: 1 - reported });
+        if (reported < 1 && loadGenRef.current === myGen) {
+          dispatch({ type: 'LOAD_PROGRESS', delta: 1 - reported });
+        }
       }),
     );
 
+    // A newer load() superseded this one while its audio was decoding — its
+    // LOAD_START already owns the player state. Bailing here prevents this
+    // stale decode from merging the wrong buffers into the new project's stems
+    // or clearing its loading indicator.
+    if (loadGenRef.current !== myGen) return;
+
     const durations = built.map((s) => stemDuration(s));
     const duration = durations.reduce((m, d) => Math.max(m, isFinite(d) ? d : 0), 0);
-    const referenceIdx = longestStemIdx(durations);
-
     const okCount = built.length - errored.length;
     let status = `${okCount} stem${okCount === 1 ? '' : 's'} loaded`;
     if (duration) status += ` · ${fmt(duration)}`;
@@ -706,9 +773,7 @@ export function usePlayer(): PlayerControls {
 
     dispatch({
       type: 'LOADED',
-      stems: built,
-      duration,
-      referenceIdx,
+      buffers: built.map((s) => ({ serverId: s.serverId, buffer: s.audioBuffer })),
       projectId: input.projectId,
       title: input.title,
       folderId: input.folderId,
@@ -733,6 +798,9 @@ export function usePlayer(): PlayerControls {
   const togglePlay = useCallback(() => {
     const s = stateRef.current;
     if (!s.stems.length) return;
+    // Audio is still downloading/decoding — the stems render (waveform,
+    // sections, comments are usable) but there are no buffers to schedule yet.
+    if (s.loading) return;
     if (s.isPlaying) {
       pause();
       return;

@@ -47,7 +47,12 @@ function detailToProject(detail: ProjectDetail, stems: StemSummary[]): Project {
     id: detail.id,
     title: detail.name,
     folder: '',
-    stems: stems.map((s) => ({ id: s.id, name: s.name, peaks: s.peaks })),
+    stems: stems.map((s) => ({
+      id: s.id,
+      name: s.name,
+      peaks: s.peaks,
+      durationMs: s.duration_ms,
+    })),
     stemCount: stems.length,
     folderId: detail.folder_id,
     referenceStemId: refId,

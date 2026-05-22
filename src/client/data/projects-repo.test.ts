@@ -111,8 +111,8 @@ describe('HttpProjectsRepo.getById', () => {
     expect(p.id).toBe('p1');
     expect(p.title).toBe('Project One');
     expect(p.stems).toEqual([
-      { id: 's1', name: 'drums' },
-      { id: 's2', name: 'bass' },
+      { id: 's1', name: 'drums', durationMs: null },
+      { id: 's2', name: 'bass', durationMs: null },
     ]);
     expect(p.folderId).toBe('drv');
   });
