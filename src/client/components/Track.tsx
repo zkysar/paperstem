@@ -235,6 +235,23 @@ export function Track({
     }
   }, [trackHeight]);
 
+  // Force a WaveSurfer repaint whenever the loading shimmer ends or the
+  // mute state changes. CSS opacity transitions (shimmer → visible, or
+  // muted 0.3 → 1) can trigger GPU layer promotion/demotion that leaves
+  // the canvas blank without WaveSurfer's internal resize path firing.
+  // Calling setOptions({ height }) is the lightest public API that makes
+  // WaveSurfer re-render from its stored decoded data.
+  useEffect(() => {
+    if (waveLoading) return;
+    const ws = wsRef.current;
+    if (!ws) return;
+    try {
+      ws.setOptions({ height: Math.max(8, trackHeight - 16) });
+    } catch {
+      // ignore
+    }
+  }, [waveLoading, effectiveMuted, trackHeight]);
+
   // Hide-and-fade across BIG container resizes (e.g., comments panel toggling
   // the rail-annotations column — a single ~300px jump). WaveSurfer auto-
   // redraws on resize; we hide synchronously so the snap isn't visible, then
