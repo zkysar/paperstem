@@ -74,32 +74,32 @@ afterEach(() => {
 });
 
 describe('handleMe', () => {
-  it('returns 401 with { error: "unauthenticated" } when no cookie is present', async () => {
+  it('returns 200 with { user: null } when no cookie is present', async () => {
     const res = await app.request('/api/me');
-    expect(res.status).toBe(401);
-    const body = (await res.json()) as { error: string; devLoginUrl?: string };
-    expect(body.error).toBe('unauthenticated');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { user: null; devLoginUrl?: string };
+    expect(body.user).toBeNull();
     expect(body.devLoginUrl).toBeUndefined();
   });
 
-  it('returns 401 with { error: "unauthenticated" } for an unknown session id', async () => {
+  it('returns 200 with { user: null } for an unknown session id', async () => {
     const res = await app.request('/api/me', {
       headers: { cookie: cookieHeader(randomUUID()) },
     });
-    expect(res.status).toBe(401);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe('unauthenticated');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { user: null };
+    expect(body.user).toBeNull();
   });
 
-  it('returns 401 with { error: "unauthenticated" } for an expired session', async () => {
+  it('returns 200 with { user: null } for an expired session', async () => {
     const userId = createUser('expired@example.com');
     const sid = createSession(userId, -1);
     const res = await app.request('/api/me', {
       headers: { cookie: cookieHeader(sid) },
     });
-    expect(res.status).toBe(401);
-    const body = (await res.json()) as { error: string };
-    expect(body.error).toBe('unauthenticated');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { user: null };
+    expect(body.user).toBeNull();
   });
 
   it('returns 200 with { user } for a valid session', async () => {
@@ -113,23 +113,23 @@ describe('handleMe', () => {
     expect(body.user).toMatchObject({ id: userId, email: 'me@example.com' });
   });
 
-  it('includes devLoginUrl in the 401 body when dev login is enabled', async () => {
+  it('includes devLoginUrl in the { user: null } body when dev login is enabled', async () => {
     process.env.PAPERSTEM_DEV_AUTO_LOGIN = 'dev@example.com';
     process.env.NODE_ENV = 'development';
     const res = await app.request('/api/me');
-    expect(res.status).toBe(401);
-    const body = (await res.json()) as { error: string; devLoginUrl?: string };
-    expect(body.error).toBe('unauthenticated');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { user: null; devLoginUrl?: string };
+    expect(body.user).toBeNull();
     expect(body.devLoginUrl).toBe('/api/auth/dev-login');
   });
 
-  it('omits devLoginUrl from the 401 body when NODE_ENV is production', async () => {
+  it('omits devLoginUrl from the { user: null } body when NODE_ENV is production', async () => {
     process.env.PAPERSTEM_DEV_AUTO_LOGIN = 'dev@example.com';
     process.env.NODE_ENV = 'production';
     const res = await app.request('/api/me');
-    expect(res.status).toBe(401);
-    const body = (await res.json()) as { error: string; devLoginUrl?: string };
-    expect(body.error).toBe('unauthenticated');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { user: null; devLoginUrl?: string };
+    expect(body.user).toBeNull();
     expect(body.devLoginUrl).toBeUndefined();
   });
 });

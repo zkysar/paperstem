@@ -74,8 +74,8 @@ export default async function globalSetup(): Promise<void> {
   child.unref();
 
   // The UI URL is up but Vite may still be optimizing deps and the API
-  // may not have completed dev-seed. Poll /api/me until it responds (200
-  // with a session, or 401 with devLoginUrl — either is fine).
+  // may not have completed dev-seed. Poll /api/me until it responds 200
+  // (a session, or a null user with devLoginUrl — either is fine).
   await waitForReady(url, 60_000);
 
   mkdirSync(dirname(STATE_FILE), { recursive: true });
@@ -96,8 +96,9 @@ async function waitForReady(baseURL: string, timeoutMs: number): Promise<void> {
         // configuring — we explicitly want JSON.
         headers: { accept: 'application/json' },
       });
-      // 200 (logged in) or 401 with devLoginUrl (auth gate ready) both mean
-      // the API is up and routing through Vite's proxy correctly.
+      // 200 means the API is up and routing through Vite's proxy correctly
+      // (the body is either a session user or a null user with devLoginUrl).
+      // 401 is tolerated for older builds during a rolling restart.
       if (res.status === 200 || res.status === 401) return;
     } catch (err) {
       lastErr = err;
