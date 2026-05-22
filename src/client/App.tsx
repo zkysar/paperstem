@@ -3,6 +3,7 @@ import { LoginScreen } from './auth/LoginScreen';
 import { useBands } from './auth/useBands';
 import { useSession } from './auth/useSession';
 import { consumeReturnPath } from './lib/public-return';
+import { buildDocumentTitle } from './lib/document-title';
 import { PENDING_SHARE_HASH_KEY, useShareLink } from './hooks/useShareLink';
 import { applyShareState } from './lib/apply-share-state';
 import {
@@ -98,15 +99,16 @@ export default function App() {
   useEffect(() => {
     const env = appInfo?.env;
     if (env && env !== 'prod') {
-      document.title = `[${env.toUpperCase()}] Paperstem`;
       document.body.classList.add('env-non-prod');
       document.body.dataset.env = env;
     } else {
-      document.title = 'Paperstem';
       document.body.classList.remove('env-non-prod');
       delete document.body.dataset.env;
     }
-  }, [appInfo?.env]);
+    // PaperstemApp owns the title once mounted (it knows the open project);
+    // here we only cover the pre-app states (loading, login screen).
+    if (!user) document.title = buildDocumentTitle(env);
+  }, [appInfo?.env, user]);
 
   // Magic-link login is a fresh server navigation that drops the fragment.
   // Stash it in sessionStorage before rendering LoginScreen so PaperstemApp
@@ -409,13 +411,16 @@ function PaperstemApp({
     prevActiveProjectIdRef.current = activeProjectId;
   }, [activeProjectId, player]);
 
-  // Keep document.title in sync with the active project name.
+  // Keep `document.title` in step with the open project. The SPA only swaps
+  // content (and the URL hash) on navigation, so without this the tab title
+  // and screen-reader page title stay stuck on the brand name.
+  // `player.state.title` is the em-dash placeholder when no project is loaded;
+  // treat that as "no project" so the tab title is the bare brand, not "— —".
+  const documentProjectTitle =
+    player.state.title && player.state.title !== '—' ? player.state.title : null;
   useEffect(() => {
-    const env = appInfo?.env;
-    const base = env && env !== 'prod' ? `[${env.toUpperCase()}] Paperstem` : 'Paperstem';
-    const title = player.state.title;
-    document.title = title && title !== '—' ? `${title} — ${base}` : base;
-  }, [player.state.title, appInfo?.env]);
+    document.title = buildDocumentTitle(appInfo?.env, documentProjectTitle);
+  }, [appInfo?.env, documentProjectTitle]);
 
   useKeyboard({
     player,
@@ -1613,7 +1618,7 @@ function PaperstemApp({
     <PresenceTracker projectId={activeProjectId} />
     <div className="app-shell">
       <div className="sr-only" aria-live="polite" aria-atomic="true">
-        {player.state.title && player.state.title !== '—' ? `Now viewing ${player.state.title}` : ''}
+        {documentProjectTitle ? `Now viewing ${documentProjectTitle}` : ''}
       </div>
       {arrival && (
         <ShareArrivalBanner
