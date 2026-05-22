@@ -4354,6 +4354,11 @@ body.env-non-prod[data-env="local"]::before {
   font-size: var(--fs-sm);
   color: var(--muted);
 }
+.share-dialog-public-includes {
+  margin: 0 0 10px;
+  font-size: var(--fs-sm);
+  color: var(--ink-2);
+}
 .share-dialog-public-list {
   list-style: none;
   margin: 0;

@@ -176,7 +176,7 @@ export function ShareDialog({ open, state, focusedAnnotation, publicToken, onClo
           )}
 
           {!publicToken && state.projectId && (
-            <PublicLinkSection projectId={state.projectId} />
+            <PublicLinkSection projectId={state.projectId} state={effective} />
           )}
         </div>
       </div>
