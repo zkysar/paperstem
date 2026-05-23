@@ -83,6 +83,18 @@ describe('selectWindow', () => {
     expect(sel.toFetch).toEqual([7, 4]);
   });
 
+  test('the current segment being decoded stays in needed but not toFetch', () => {
+    const sel = selectWindow(plan, 100, new Set([5]), { behindSec: 20, aheadSec: 40 });
+    expect(sel.needed).toContain(5);
+    expect(sel.toFetch).not.toContain(5);
+  });
+
+  test('toFetch is always a subset of needed', () => {
+    const sel = selectWindow(plan, 60, new Set([0, 9]), { behindSec: 20, aheadSec: 60 });
+    const neededSet = new Set(sel.needed);
+    expect(sel.toFetch.every((i) => neededSet.has(i))).toBe(true);
+  });
+
   test('evicts decoded segments outside the window', () => {
     const sel = selectWindow(plan, 100, new Set([0, 1, 5, 9]), { behindSec: 20, aheadSec: 40 });
     expect(sel.toEvict).toEqual([0, 1, 9]);
@@ -146,8 +158,8 @@ describe('mixFrontierSec', () => {
     expect(mixFrontierSec(plan, [new Set([0, 1, 2])], 0)).toBe(60);
   });
 
-  test('no active stems → 0 (nothing gates, caller decides)', () => {
-    expect(mixFrontierSec(plan, [], 0)).toBe(0);
+  test('no active stems (all muted) → full duration, plays freely', () => {
+    expect(mixFrontierSec(plan, [], 0)).toBe(100);
   });
 
   test('a stem with a gap at the playhead pins the frontier to its start', () => {

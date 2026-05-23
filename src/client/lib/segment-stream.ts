@@ -126,13 +126,15 @@ export function contiguousFrontierSec(
 // The mix can only play where every active stem is buffered, so the playable
 // frontier is the minimum of each active stem's contiguous frontier.
 // `perStemDecoded` should already exclude muted/un-soloed stems — they don't
-// gate playback.
+// gate playback. With no gating stems (everything muted), nothing constrains
+// playback, so the frontier is the whole duration: the silent mix plays freely
+// rather than stalling at 0.
 export function mixFrontierSec(
   plan: SegmentPlan,
   perStemDecoded: ReadonlyArray<ReadonlySet<number>>,
   fromIndex: number,
 ): number {
-  if (!perStemDecoded.length) return 0;
+  if (!perStemDecoded.length) return plan.durationSec;
   let min = Infinity;
   for (const decoded of perStemDecoded) {
     const f = contiguousFrontierSec(plan, decoded, fromIndex);
