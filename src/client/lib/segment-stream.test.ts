@@ -88,4 +88,12 @@ describe('decodeSegment', () => {
     expect(offline.createBuffer).toHaveBeenCalledWith(1, 33075, 44100);
     expect(buf).toBe(trimmed);
   });
+
+  it('rejects with a clear error when there are no complete MP3 frames', async () => {
+    // 16 zero bytes contain no valid MP3 frame; OfflineAudioContext should never be constructed.
+    const Ctor = vi.fn(function () { return {}; });
+    vi.stubGlobal('OfflineAudioContext', Ctor);
+    await expect(decodeSegment(new Uint8Array(16), { isFirst: true })).rejects.toThrow('no complete MP3 frame');
+    expect(Ctor).not.toHaveBeenCalled();
+  });
 });

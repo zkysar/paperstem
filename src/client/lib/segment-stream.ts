@@ -51,7 +51,9 @@ export async function fetchSegmentBytes(
     credentials: 'include',
     headers: { Range: `bytes=${fetchStart}-${byteEnd - 1}` },
   });
-  if (!res.ok && res.status !== 206) throw new Error(`segment fetch ${res.status}`);
+  // 206 (partial) is the expected Range status; 200 means the server ignored
+  // Range and returned the whole file (our server supports Range, so unexpected).
+  if (!res.ok) throw new Error(`segment fetch ${res.status}`);
   const bytes = new Uint8Array(await res.arrayBuffer());
   const cr = res.headers.get('content-range'); // "bytes a-z/total"
   const total = cr ? Number(cr.split('/')[1]) : bytes.length;
@@ -70,12 +72,16 @@ export async function decodeSegment(raw: Uint8Array, opts: DecodeOpts): Promise<
   const start = opts.isFirst ? 0 : firstFrameStart(raw);
   const end = lastCompleteFrameEnd(raw);
   const aligned = raw.subarray(start, end);
+  if (aligned.length === 0) {
+    throw new Error('decodeSegment: no complete MP3 frame in the given byte range');
+  }
   const rate = sampleRateOf(aligned) || 44100;
   const Ctor =
     (globalThis as any).OfflineAudioContext ?? (globalThis as any).webkitOfflineAudioContext;
   const off: OfflineAudioContext = new Ctor(1, 1, rate);
   // decodeAudioData detaches its input; pass a standalone ArrayBuffer copy.
   const decoded = await off.decodeAudioData(aligned.slice().buffer);
+  // opts.isFirst || short-circuits so that TS narrows the union before reading leadInSec.
   if (opts.isFirst || opts.leadInSec <= 0) return decoded;
 
   const drop = Math.min(decoded.length, Math.round(opts.leadInSec * decoded.sampleRate));
