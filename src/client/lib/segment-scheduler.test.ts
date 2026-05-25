@@ -24,6 +24,9 @@ describe('computeSegmentSchedule', () => {
     }
   });
   it('clamps a late-arriving future segment to now instead of the past', () => {
+    // NOTE: this clock is intentionally INCONSISTENT — a consistent anchor would give
+    // pNow=7, not 2. The future-branch clamp is unreachable in normal playback (see the
+    // defensive-clamp comment in segment-scheduler.ts); this test only guards that path.
     // segment [3,5), pNow=2 (playhead still before startSec).
     // anchor: ctxAtPlay=5, posAtPlay=0. nominalWhen = 5 + (3-0) = 8 < ctxNow=12 -> late arrival.
     // startSec=3 > pNow=2: future from playhead's perspective; offset=0.
