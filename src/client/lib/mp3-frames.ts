@@ -24,7 +24,12 @@ export function frameLength(b: Uint8Array, i: number): number {
   return Math.floor((144 * br) / sr) + pad;
 }
 
-/** Offset of the first valid frame header, skipping any ID3v2 tag or junk. */
+/**
+ * Offset of the first valid frame header, skipping any ID3v2 tag or junk.
+ * If no valid frame header is reachable (truncated/corrupt input), returns the
+ * post-ID3 scan start — NOT a guaranteed frame boundary. Callers must validate
+ * with `frameLength`/`sampleRateOf` (both return 0 there), as `isMp3` does.
+ */
 export function firstFrameStart(b: Uint8Array): number {
   let start = 0;
   // Skip an ID3v2 tag if present ("ID3" + version + flags + 4 syncsafe size bytes).
@@ -36,7 +41,7 @@ export function firstFrameStart(b: Uint8Array): number {
   for (let i = start; i + 4 <= b.length; i++) {
     if (frameLength(b, i) > 0) return i;
   }
-  return start;
+  return start; // no sync found; not a valid frame start (see doc above)
 }
 
 /** True if the buffer looks like an MP3 (a valid frame header is reachable). */

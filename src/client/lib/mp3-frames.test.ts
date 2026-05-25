@@ -5,7 +5,11 @@ import { isMp3, frameLength, lastCompleteFrameEnd, firstFrameStart, sampleRateOf
 
 // MPEG1 Layer III, 64 kbps, 44.1 kHz, no padding -> 4-byte header 0xFF 0xFB 0x50 0x00
 const HEADER_64K = [0xff, 0xfb, 0x50, 0x00]; // brIdx=5(64k), srIdx=0(44.1k), pad=0
-function frame(lenBytes: number, pad = 0): Uint8Array {
+// Build a single 64k/44.1k frame. The header ALWAYS encodes a 208-byte (+pad)
+// frame, so `lenBytes` must match what the header claims (208, or 209 when
+// padded) — it sets allocation only, not the encoded length. Passing a
+// mismatched length would forge an inconsistent frame.
+function frame(lenBytes = 208, pad = 0): Uint8Array {
   const b = new Uint8Array(lenBytes);
   b[0] = 0xff; b[1] = 0xfb; b[2] = 0x50 | (pad << 1); b[3] = 0x00;
   return b;
