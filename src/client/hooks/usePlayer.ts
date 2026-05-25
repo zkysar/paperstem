@@ -20,9 +20,35 @@ import {
 } from '../lib/audio';
 import { fmt, longestStemIdx } from '../lib/format';
 import { isAndroid, isIOS } from '../lib/platform';
+import { isMp3 } from '../lib/mp3-frames';
+import {
+  decodeSegment,
+  fetchSegmentBytes,
+  planSegments,
+  type PlannedSegment,
+} from '../lib/segment-stream';
+import { computeSegmentSchedule } from '../lib/segment-scheduler';
 
 const LOOP_TAIL = 0.005;
 const END_TAIL = 0.02;
+
+// First Range probe size. Large enough to cover an ID3 tag plus the whole first
+// ~20s segment of our 64 kbps re-encodes (~160 KB), so segment 0 usually
+// decodes from the probe bytes with no second fetch.
+const PROBE_BYTES = 256 * 1024;
+
+// One decoded MP3 segment. startSec/endSec are GAPLESS running times — the sum
+// of actual decoded durations of preceding segments, not nominal plan times —
+// so the scheduler joins segments without a click or drift at the seam.
+type DecodedSeg = { startSec: number; endSec: number; buffer: AudioBuffer };
+// Per-stem segment store: the stem's live gain node plus its decoded segments,
+// in time order.
+type StemSegments = { gain: GainNode; segments: DecodedSeg[] };
+
+// segmentsRef key: serverId when present, else a positional fallback so
+// local-folder loads (no serverId) still get a stable per-stem key.
+const stemKey = (serverId: string | null, idx: number): string =>
+  serverId ?? `idx:${idx}`;
 
 // Probe audio used to detect when iOS Focus / Do Not Disturb is suppressing
 // playback. Under DND, HTMLAudioElement.play() returns a promise that never
@@ -53,6 +79,19 @@ type Action =
       // Decoded buffers, keyed so the reducer can merge them into the current
       // stems without clobbering mute/solo/volume the user set during load.
       type: 'LOADED';
+      buffers: Array<{ serverId: string | null; buffer: AudioBuffer | null }>;
+      projectId: string | null;
+      title: string;
+      folderId: string | null;
+      status: string;
+    }
+  | {
+      // Every stem's HEAD is ready (MP3 stems have segment 0 decoded into
+      // segmentsRef; non-MP3 stems have their full audioBuffer here). Merges
+      // the non-MP3 buffers like LOADED and clears `loading` so togglePlay is
+      // unblocked — playback hasn't started yet, so resetting isPlaying/loop is
+      // safe. The remaining MP3 segments fill in the background after this.
+      type: 'HEADS_READY';
       buffers: Array<{ serverId: string | null; buffer: AudioBuffer | null }>;
       projectId: string | null;
       title: string;
@@ -125,22 +164,15 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       if (!state.loading) return state;
       return { ...state, loading: { ...state.loading, nudge: state.loading.nudge + 1 } };
     }
-    case 'LOADED': {
+    case 'LOADED':
+    case 'HEADS_READY': {
       // Merge decoded buffers into the CURRENT stems (matched by serverId, or
       // index for local-folder loads), so any mute/solo/volume the user set
       // while audio was downloading survives. Replacing the array wholesale
-      // would revert those.
-      const byId = new Map<string, AudioBuffer | null>();
-      for (const b of action.buffers) {
-        if (b.serverId != null) byId.set(b.serverId, b.buffer);
-      }
-      const stems = state.stems.map((s, i) => {
-        const buf =
-          s.serverId != null && byId.has(s.serverId)
-            ? (byId.get(s.serverId) ?? null)
-            : (action.buffers[i]?.buffer ?? s.audioBuffer);
-        return buf === s.audioBuffer ? s : { ...s, audioBuffer: buf };
-      });
+      // would revert those. HEADS_READY carries only non-MP3 (full-file) stems'
+      // buffers; MP3 stems play from segmentsRef and keep audioBuffer null, so
+      // their `buffer: null` entries leave the stem's existing buffer alone.
+      const stems = mergeBuffers(state.stems, action.buffers);
       const { duration, referenceIdx } = durationAndReference(stems);
       return {
         ...state,
@@ -150,6 +182,8 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         stems,
         duration,
         referenceIdx,
+        // Both actions land before playback starts (loading was set until now),
+        // so resetting transport state is safe.
         isPlaying: false,
         loop: null,
         loopArmed: false,
@@ -217,6 +251,27 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       return { ...state, stems: nextStems, referenceIdx };
     }
   }
+}
+
+function mergeBuffers(
+  stems: LoadedStem[],
+  buffers: Array<{ serverId: string | null; buffer: AudioBuffer | null }>,
+): LoadedStem[] {
+  const byId = new Map<string, AudioBuffer | null>();
+  for (const b of buffers) {
+    if (b.serverId != null) byId.set(b.serverId, b.buffer);
+  }
+  return stems.map((s, i) => {
+    const incoming =
+      s.serverId != null && byId.has(s.serverId)
+        ? byId.get(s.serverId)
+        : buffers[i]?.buffer;
+    // A null/undefined incoming buffer leaves the stem unchanged — that's how
+    // MP3 (segment-played) stems and errored stems pass through HEADS_READY
+    // without clobbering an existing buffer or forcing one they don't use.
+    const buf = incoming ?? s.audioBuffer;
+    return buf === s.audioBuffer ? s : { ...s, audioBuffer: buf };
+  });
 }
 
 function stemDuration(s: LoadedStem): number {
@@ -310,6 +365,14 @@ export function usePlayer(): PlayerControls {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
 
+  // Decoded MP3 segments per stem, OUTSIDE React state: a stem can fill in a
+  // dozen segments during a single playback session, and routing each through
+  // the reducer would re-render the whole player per segment for no UI benefit
+  // (Phase 1 renders no per-segment UI). Keyed by serverId (or `idx:N` for
+  // local-folder loads). Non-MP3 stems are absent here and play from their
+  // single audioBuffer instead. Cleared in load() teardown and on unmount.
+  const segmentsRef = useRef<Map<string, StemSegments>>(new Map());
+
   // Generation counter for load(). Audio now decodes in the background, so a
   // fast project switch can leave a previous load's decode still in flight.
   // Each load() bumps this; the older invocation's progress + LOADED dispatches
@@ -391,14 +454,72 @@ export function usePlayer(): PlayerControls {
     sourcesRef.current = null;
   }
 
+  // Schedule one already-decoded segment that arrived (or was seeked into)
+  // mid-playback. Synchronous (no await) so it stays inside the user-activation
+  // window when called from the play path. computeSegmentSchedule decides
+  // whether the segment is in the past (skip), straddling the playhead (start
+  // now at an offset), or in the future (start at its absolute ctx time).
+  function scheduleDecodedSegment(gain: GainNode, seg: DecodedSeg): void {
+    const ctx = audioCtxRef.current;
+    if (!ctx || !isPlayingInternalRef.current) return;
+    // pNow MUST be derived as posAtPlay + (ctxNow - ctxAtPlay) for the
+    // scheduler's future-segment math to hold — computeCurrentTime() does
+    // exactly that, so always use it here for late arrivals.
+    const pNow = computeCurrentTime();
+    const r = computeSegmentSchedule(
+      { startSec: seg.startSec, endSec: seg.endSec },
+      { ctxAtPlay: playStartCtxTimeRef.current, posAtPlay: playStartOffsetRef.current },
+      pNow,
+      ctx.currentTime,
+    );
+    if (r.skip) return;
+    const src = ctx.createBufferSource();
+    src.buffer = seg.buffer;
+    src.connect(gain);
+    src.start(r.when, r.offset);
+    (sourcesRef.current ??= []).push(src);
+  }
+
   function startSourcesAt(offset: number): boolean {
     const ctx = audioCtxRef.current;
     if (!ctx) return false;
     const stems = stateRef.current.stems;
     const startWhen = ctx.currentTime + 0.05; // 50ms lookahead
-    const sources: AudioBufferSourceNode[] = [];
-    for (const stem of stems) {
-      if (!stem.audioBuffer || !stem.gain) continue;
+    // Set the play anchor FIRST so scheduleDecodedSegment / computeSegmentSchedule
+    // (which derive segment timing from these refs) compute against the anchor
+    // we're starting from, not a stale one.
+    sourcesRef.current = [];
+    playStartCtxTimeRef.current = startWhen;
+    playStartOffsetRef.current = offset;
+    let pendingSegments = false;
+    for (let i = 0; i < stems.length; i++) {
+      const stem = stems[i];
+      if (!stem.gain) continue;
+      const entry = segmentsRef.current.get(stemKey(stem.serverId, i));
+      if (entry) {
+        // Segment-played (MP3) stem: schedule each decoded segment relative to
+        // the anchor. Pass `offset` as pNow because at play time the playhead
+        // sits exactly at posAtPlay (== offset). Any segment not yet decoded
+        // will be scheduled by the background fill via scheduleDecodedSegment.
+        pendingSegments = true;
+        for (const seg of entry.segments) {
+          const r = computeSegmentSchedule(
+            { startSec: seg.startSec, endSec: seg.endSec },
+            { ctxAtPlay: startWhen, posAtPlay: offset },
+            offset,
+            ctx.currentTime,
+          );
+          if (r.skip) continue;
+          const src = ctx.createBufferSource();
+          src.buffer = seg.buffer;
+          src.connect(stem.gain);
+          src.start(r.when, r.offset);
+          sourcesRef.current.push(src);
+        }
+        continue;
+      }
+      // Single-buffer (non-MP3 / full-file) stem: unchanged behavior.
+      if (!stem.audioBuffer) continue;
       const src = ctx.createBufferSource();
       src.buffer = stem.audioBuffer;
       src.connect(stem.gain);
@@ -414,12 +535,16 @@ export function usePlayer(): PlayerControls {
         continue;
       }
       src.start(startWhen, clampedOffset);
-      sources.push(src);
+      sourcesRef.current.push(src);
     }
-    if (!sources.length) return false;
-    sourcesRef.current = sources;
-    playStartCtxTimeRef.current = startWhen;
-    playStartOffsetRef.current = offset;
+    // Play if we scheduled anything OR any stem has segments still streaming in
+    // (segment 0 may be the only decoded one when play is hit immediately after
+    // head-start). Without the pendingSegments clause, play would bail when the
+    // current offset lands before segment 0 hasn't covered it yet.
+    if (!sourcesRef.current.length && !pendingSegments) {
+      sourcesRef.current = null;
+      return false;
+    }
     return true;
   }
 
@@ -490,6 +615,7 @@ export function usePlayer(): PlayerControls {
         pendingSeekRafRef.current = null;
       }
       stopSources();
+      segmentsRef.current.clear();
       const s = stateRef.current;
       for (const stem of s.stems) {
         try {
@@ -653,6 +779,9 @@ export function usePlayer(): PlayerControls {
     const myGen = ++loadGenRef.current;
     // Tear down current stems before building new ones.
     stopSources();
+    // Release the previous load's decoded segments so their AudioBuffers can be
+    // garbage-collected; the new load rebuilds this map from scratch.
+    segmentsRef.current.clear();
     const prev = stateRef.current.stems;
     for (const s of prev) {
       try {
@@ -731,60 +860,163 @@ export function usePlayer(): PlayerControls {
     });
 
     const errored: string[] = [];
+    // Per-stem fill plan, captured by the HEAD step and consumed by the
+    // background fill. Only MP3 stems with a multi-segment plan get an entry;
+    // non-MP3 / single-segment stems are absent (already fully decoded).
+    type FillPlan = { url: string; plan: PlannedSegment[]; bytesPerSec: number };
+    const fillPlans: Array<FillPlan | null> = built.map(() => null);
+    // Each stem owns a 1.0 budget in the loading bar. The head step spends a
+    // fraction of it; once HEADS_READY clears `loading`, the remaining fill
+    // progresses without a visible bar, so we keep this accounting simple —
+    // just enough that the bar moves and doesn't stick before play unblocks.
+    const HEAD_FRACTION = 0.5;
 
-    // Decode each stem's audio into an AudioBuffer; that's the only thing we
-    // need to play (and gives us an exact duration). The HTMLAudioElement is
-    // bound for WaveSurfer but we intentionally don't wait on its
-    // `loadedmetadata` — on mobile Safari, a muted <audio> often doesn't fire
-    // that event until a play() inside a user gesture, which would hang
-    // load() forever.
-    await Promise.all(
-      built.map(async (s, i) => {
-        // Each stem contributes a total of 1.0 to `loaded`. Streaming the body
-        // dispatches that 1.0 as byte-level fractions, so the bar climbs in
-        // real time instead of jumping a whole step per finished stem.
-        let reported = 0;
-        const buf = await decodeStem(graph.ctx, input.sources[i].src, (delta) => {
-          reported += delta;
-          // Drop progress from a superseded load so it can't drive the new
-          // project's loading bar.
-          if (loadGenRef.current === myGen) dispatch({ type: 'LOAD_PROGRESS', delta });
-        });
-        if (buf) {
-          // Mutate in place — the array is local; the reducer merges the
-          // buffers into the live stems by serverId at LOADED.
-          built[i].audioBuffer = buf;
-        } else {
+    const headSteps = built.map(async (s, i) => {
+      const url = input.sources[i].src;
+      const bumpHead = () => {
+        if (loadGenRef.current === myGen) {
+          dispatch({ type: 'LOAD_PROGRESS', delta: HEAD_FRACTION });
+        }
+      };
+      const finishStep = () => {
+        // Top the stem's budget up to a full 1.0 once its head is ready, so the
+        // bar reaches 100% by HEADS_READY even though the fill continues after.
+        if (loadGenRef.current === myGen) {
+          dispatch({ type: 'LOAD_PROGRESS', delta: 1 - HEAD_FRACTION });
+        }
+      };
+      // Full-file decode fallback (non-MP3, no metadata, or a failed probe).
+      // Behaves exactly as the pre-segment code did: decode the whole file into
+      // a single audioBuffer, no segmentsRef entry.
+      const fullDecode = async () => {
+        const buf = await decodeStem(graph.ctx, url, () => {});
+        if (buf) built[i].audioBuffer = buf;
+        else errored.push(s.name);
+      };
+
+      try {
+        const head = await fetchSegmentBytes(url, 0, PROBE_BYTES);
+        const metaDuration = built[i].metaDuration;
+        if (isMp3(head.bytes) && metaDuration != null && metaDuration > 0) {
+          const plan = planSegments(head.totalBytes, metaDuration);
+          if (plan.length === 0) {
+            await fullDecode();
+            finishStep();
+            return;
+          }
+          // Decode segment 0, reusing the probe bytes when they already cover it.
+          const seg0End = plan[0].byteEnd;
+          const raw0 =
+            head.bytes.length >= seg0End
+              ? head.bytes.subarray(0, seg0End)
+              : (await fetchSegmentBytes(url, 0, seg0End)).bytes;
+          const buf0 = await decodeSegment(raw0, { isFirst: true });
+          if (loadGenRef.current !== myGen) return;
+          const entry: StemSegments = {
+            gain: built[i].gain!,
+            segments: [{ startSec: 0, endSec: buf0.duration, buffer: buf0 }],
+          };
+          segmentsRef.current.set(stemKey(built[i].serverId, i), entry);
+          // MP3 stems play from segments, not the single buffer — leave
+          // audioBuffer null. Record the plan + a CBR bytes/sec for the fill.
+          fillPlans[i] = { url, plan, bytesPerSec: head.totalBytes / metaDuration };
+          bumpHead();
+          finishStep();
+          return;
+        }
+        // Probe succeeded but the stem isn't a segment-able MP3 — full decode.
+        bumpHead();
+        await fullDecode();
+        finishStep();
+      } catch {
+        // Probe (or segment-0 decode) failed — fall back to the full-file path.
+        // If that also fails, the stem is marked errored inside fullDecode.
+        try {
+          await fullDecode();
+        } catch {
           errored.push(s.name);
         }
-        // Top up to a full step if streaming reported nothing (no
-        // Content-Length / unreadable body) or rounding left us under 1.0.
-        if (reported < 1 && loadGenRef.current === myGen) {
-          dispatch({ type: 'LOAD_PROGRESS', delta: 1 - reported });
-        }
-      }),
-    );
+        finishStep();
+      }
+    });
 
-    // A newer load() superseded this one while its audio was decoding — its
-    // LOAD_START already owns the player state. Bailing here prevents this
-    // stale decode from merging the wrong buffers into the new project's stems
-    // or clearing its loading indicator.
+    await Promise.all(headSteps);
+
+    // A newer load() superseded this one while its heads were decoding — its
+    // LOAD_START already owns the player state. Bail before HEADS_READY so this
+    // stale load can't merge the wrong buffers or clear the new project's
+    // loading indicator.
     if (loadGenRef.current !== myGen) return;
 
-    const durations = built.map((s) => stemDuration(s));
-    const duration = durations.reduce((m, d) => Math.max(m, isFinite(d) ? d : 0), 0);
+    // Every stem is now playable from its head. Merge any non-MP3 full buffers,
+    // recompute duration, and clear `loading` so togglePlay is unblocked. For
+    // MP3 stems, stemDuration falls back to metaDuration (audioBuffer is null),
+    // so the timeline stays correctly sized until the fill lands.
+    const headDuration = built
+      .map((s) => stemDuration(s))
+      .reduce((m, d) => Math.max(m, isFinite(d) ? d : 0), 0);
     const okCount = built.length - errored.length;
-    let status = `${okCount} stem${okCount === 1 ? '' : 's'} loaded`;
-    if (duration) status += ` · ${fmt(duration)}`;
-    if (errored.length) status += ` · failed: ${errored.join(', ')}`;
+    let headStatus = `Buffering ${okCount} stem${okCount === 1 ? '' : 's'}`;
+    if (headDuration) headStatus += ` · ${fmt(headDuration)}`;
+    if (errored.length) headStatus += ` · failed: ${errored.join(', ')}`;
 
     dispatch({
-      type: 'LOADED',
+      type: 'HEADS_READY',
       buffers: built.map((s) => ({ serverId: s.serverId, buffer: s.audioBuffer })),
       projectId: input.projectId,
       title: input.title,
       folderId: input.folderId,
-      status,
+      status: headStatus,
+    });
+
+    // ---- Background fill (fire-and-forget) ----
+    // For each MP3 stem, fetch + decode segments 1..N sequentially. A segment
+    // decoded mid-playback is scheduled immediately so it joins the running
+    // playhead at the right absolute time. One bad segment stops that stem's
+    // fill (audio ends early at the last good segment) but never the others.
+    const fillStem = async (i: number): Promise<void> => {
+      const fp = fillPlans[i];
+      if (!fp) return;
+      const key = stemKey(built[i].serverId, i);
+      const entry = segmentsRef.current.get(key);
+      if (!entry) return;
+      for (let k = 1; k < fp.plan.length; k++) {
+        if (loadGenRef.current !== myGen) return;
+        const p = fp.plan[k];
+        try {
+          const { bytes } = await fetchSegmentBytes(fp.url, p.fetchStart, p.byteEnd);
+          if (loadGenRef.current !== myGen) return;
+          const buf = await decodeSegment(bytes, {
+            isFirst: false,
+            leadInSec: p.leadInBytes / fp.bytesPerSec,
+          });
+          if (loadGenRef.current !== myGen) return;
+          // Gapless timing: startSec is the running sum of ACTUAL decoded
+          // durations, not nominal plan times, so the seam has no drift.
+          const last = entry.segments[entry.segments.length - 1];
+          const startSec = last ? last.endSec : 0;
+          const seg: DecodedSeg = { startSec, endSec: startSec + buf.duration, buffer: buf };
+          entry.segments.push(seg);
+          // If we're already playing, schedule this just-arrived segment so it
+          // starts at its absolute ctx time relative to the play anchor.
+          if (isPlayingInternalRef.current) scheduleDecodedSegment(entry.gain, seg);
+        } catch {
+          // Stop this stem's fill; the rest of the stems keep filling.
+          return;
+        }
+      }
+    };
+
+    void Promise.all(built.map((_, i) => fillStem(i))).then(() => {
+      // All fills done (or stopped). Update the status line WITHOUT a LOADED
+      // dispatch — LOADED resets isPlaying/loop, and playback may be running.
+      if (loadGenRef.current !== myGen) return;
+      const durations = built.map((s) => stemDuration(s));
+      const duration = durations.reduce((m, d) => Math.max(m, isFinite(d) ? d : 0), 0);
+      let status = `${okCount} stem${okCount === 1 ? '' : 's'} loaded`;
+      if (duration) status += ` · ${fmt(duration)}`;
+      if (errored.length) status += ` · failed: ${errored.join(', ')}`;
+      dispatch({ type: 'SET_STATUS', status });
     });
   }, []);
 

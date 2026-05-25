@@ -893,3 +893,336 @@ describe('usePlayer — deferred audio load', () => {
     expect(result.current.state.loading).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Head-start MP3 loading + segment scheduling.
+//
+// A stem becomes playable from its first ~20s segment ("head") before the rest
+// of the file downloads. MP3 stems play from per-stem decoded segments
+// (segmentsRef) rather than a single audioBuffer; non-MP3 (WAV) stems keep the
+// existing full-file decode path.
+//
+// Harness shape:
+// - fetch is routed by the presence of a Range header. A Range request resolves
+//   via fetchSegmentBytes: it must expose `arrayBuffer()` AND a `headers.get`
+//   that returns a `content-range` carrying the total file size. A non-Range
+//   request is the full-file decode path (decodeStem): `arrayBuffer()` only.
+// - decodeSegment decodes inside an OfflineAudioContext we stub to a fake buffer
+//   of a fixed per-segment duration, so segment timing is deterministic.
+// - createBufferSource start() calls are counted on the captured AudioContext so
+//   we can assert a segment actually got scheduled.
+// ---------------------------------------------------------------------------
+describe('usePlayer — head-start MP3 loading', () => {
+  // One 64 kbps / 44.1 kHz MPEG-1 L3 frame is 208 bytes; the header
+  // 0xff 0xfb 0x50 0x00 is what isMp3()/the frame parser recognize.
+  const FRAME = 208;
+  function mp3Bytes(frames: number): Uint8Array {
+    const out = new Uint8Array(frames * FRAME);
+    for (let k = 0; k < frames; k++) {
+      const i = k * FRAME;
+      out[i] = 0xff;
+      out[i + 1] = 0xfb;
+      out[i + 2] = 0x50;
+      out[i + 3] = 0x00;
+    }
+    return out;
+  }
+  // A RIFF/WAVE header — isMp3() returns false, so the stem takes the full-file
+  // decode path.
+  function wavBytes(): Uint8Array {
+    return new Uint8Array([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x41, 0x56, 0x45]);
+  }
+
+  // Each decodeSegment call yields a buffer of this duration. With a 2-segment
+  // plan over a 40 s stem, segment 0 spans [0, SEG_SEC).
+  const SEG_SEC = 20;
+
+  // Stub OfflineAudioContext so decodeSegment returns a deterministic buffer.
+  // It must implement decodeAudioData (-> a fake buffer) and createBuffer (for
+  // the non-first lead-in trim path; our tests use leadInSec via real frames so
+  // the trim runs, but we return the same shape).
+  function installOfflineAudioContext() {
+    const fakeBuf = (duration: number) => ({
+      duration,
+      length: Math.round(duration * 44100),
+      numberOfChannels: 1,
+      sampleRate: 44100,
+      getChannelData: () => new Float32Array(Math.round(duration * 44100)),
+    });
+    class FakeOfflineAudioContext {
+      decodeAudioData() {
+        return Promise.resolve(fakeBuf(SEG_SEC));
+      }
+      createBuffer(_ch: number, length: number) {
+        return fakeBuf(length / 44100);
+      }
+    }
+    vi.stubGlobal('OfflineAudioContext', FakeOfflineAudioContext);
+    vi.stubGlobal('webkitOfflineAudioContext', FakeOfflineAudioContext);
+  }
+
+  // Build a Range-aware fetch mock. `bytesFor(url)` returns the full byte array
+  // for a stem; the mock slices it per Range request and reports the total via
+  // content-range. `onRangeFetch` lets a test observe/gate fill requests.
+  function installFetch(opts: {
+    bytesFor: (url: string) => Uint8Array;
+    onRangeFetch?: (url: string, start: number, endInclusive: number) => Promise<void> | void;
+  }) {
+    (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      async (url: string, init?: RequestInit) => {
+        const all = opts.bytesFor(url);
+        const range = (init?.headers as Record<string, string> | undefined)?.Range;
+        if (range) {
+          const m = /bytes=(\d+)-(\d+)/.exec(range)!;
+          const start = Number(m[1]);
+          const endInclusive = Number(m[2]);
+          if (opts.onRangeFetch) await opts.onRangeFetch(url, start, endInclusive);
+          const slice = all.subarray(start, Math.min(endInclusive + 1, all.length));
+          return {
+            ok: true,
+            status: 206,
+            headers: {
+              get: (n: string) =>
+                n.toLowerCase() === 'content-range'
+                  ? `bytes ${start}-${endInclusive}/${all.length}`
+                  : null,
+            },
+            arrayBuffer: async () => slice.slice().buffer,
+          };
+        }
+        // Non-Range (full-file decode path / decodeStem).
+        return {
+          ok: true,
+          headers: { get: () => null },
+          arrayBuffer: async () => all.slice().buffer,
+        };
+      },
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    vi.stubGlobal('AudioContext', CapturingAudioContext);
+    vi.stubGlobal('webkitAudioContext', CapturingAudioContext);
+    CapturingAudioContext.last = null;
+    installOfflineAudioContext();
+  });
+
+  afterEach(() => {
+    vi.stubGlobal('AudioContext', FakeAudioContext);
+    vi.stubGlobal('webkitAudioContext', FakeAudioContext);
+    vi.unstubAllGlobals();
+    // Re-stub the defaults the other describe blocks rely on.
+    vi.stubGlobal('AudioContext', FakeAudioContext);
+    vi.stubGlobal('webkitAudioContext', FakeAudioContext);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) })),
+    );
+  });
+
+  function mp3Source(name: string, idPrefix: string, durationMs: number) {
+    return { name, src: `https://example.test/${name}`, serverId: `${idPrefix}0`, durationMs };
+  }
+
+  it('becomes playable after the head segment, before the full download finishes', async () => {
+    // 40 s stem -> 2 segments. Gate segment-1 fetches so the background fill is
+    // demonstrably NOT done when we assert play works.
+    const total = mp3Bytes(40); // 8320 bytes; plan[0].byteEnd = floor(8320/2) = 4160
+    let segOneFetches = 0;
+    let releaseFill!: () => void;
+    const fillGate = new Promise<void>((res) => {
+      releaseFill = res;
+    });
+    installFetch({
+      bytesFor: () => total,
+      onRangeFetch: async (_url, start) => {
+        // start 0 is the head probe / segment 0; anything past it is the fill.
+        if (start > 0) {
+          segOneFetches++;
+          await fillGate;
+        }
+      },
+    });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'mp',
+        title: 't',
+        folderId: null,
+        sources: [mp3Source('drums.mp3', 'm-', 40_000)],
+      });
+    });
+
+    // HEADS_READY fired: loading cleared, head decoded, no full audioBuffer
+    // (MP3 stems play from segments).
+    expect(result.current.state.loading).toBeNull();
+    expect(result.current.state.stems).toHaveLength(1);
+    expect(result.current.state.stems[0].audioBuffer).toBeNull();
+    // The background fill has reached (and is blocked on) the second segment.
+    expect(segOneFetches).toBeGreaterThan(0);
+
+    // Play works off the head segment alone.
+    await act(async () => {
+      result.current.togglePlay();
+    });
+    expect(result.current.state.isPlaying).toBe(true);
+
+    // Let the gated fill drain so the test exits cleanly.
+    await act(async () => {
+      releaseFill();
+      await Promise.resolve();
+    });
+  });
+
+  it('schedules a late-arriving next segment while playing', async () => {
+    const total = mp3Bytes(40); // 2 segments
+    let releaseFill!: () => void;
+    const fillGate = new Promise<void>((res) => {
+      releaseFill = res;
+    });
+    let gateArmed = true;
+    installFetch({
+      bytesFor: () => total,
+      onRangeFetch: async (_url, start) => {
+        if (start > 0 && gateArmed) await fillGate;
+      },
+    });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'mp',
+        title: 't',
+        folderId: null,
+        sources: [mp3Source('drums.mp3', 'm-', 40_000)],
+      });
+    });
+
+    // Start playback with only segment 0 decoded.
+    await act(async () => {
+      result.current.togglePlay();
+    });
+    expect(result.current.state.isPlaying).toBe(true);
+
+    const ctx = CapturingAudioContext.last!;
+    // Reset after the initial play scheduled segment 0.
+    ctx.startCallCount = 0;
+
+    // Release the gate: segment 1 fetches + decodes and, because we're playing,
+    // gets scheduled via scheduleDecodedSegment -> createBufferSource().start().
+    gateArmed = false;
+    await act(async () => {
+      releaseFill();
+      // Two awaited hops inside fillStem (fetch, decode) before scheduling.
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(ctx.startCallCount).toBeGreaterThan(0);
+  });
+
+  it('seek into an already-decoded later segment schedules that segment', async () => {
+    // 60 s stem -> 3 segments. Use a realistically-sized file (~8000 B/s, like a
+    // 64 kbps re-encode) so the 2048 B lead-in trims a negligible slice and the
+    // gapless segment times stay close to [0,20],[20,40],[40,60]. A tiny
+    // synthetic file would make the lead-in dominate and shift segment 2 out of
+    // the seek target's range.
+    const total = mp3Bytes(2308); // ~480 KB ≈ 8000 B/s over 60 s
+    installFetch({ bytesFor: () => total });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'mp',
+        title: 't',
+        folderId: null,
+        sources: [mp3Source('drums.mp3', 'm-', 60_000)],
+      });
+    });
+    // Let the background fill finish decoding segments 1 and 2 (a real
+    // macrotask flush — the fill chains fetch+decode awaits per segment).
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    await act(async () => {
+      result.current.togglePlay();
+    });
+    const ctx = CapturingAudioContext.last!;
+    // togglePlay scheduled all three decoded segments; reset so the assertion
+    // below reflects only the post-seek scheduling.
+    expect(ctx.startCallCount).toBe(3);
+    ctx.startCallCount = 0;
+
+    // currentTime updates synchronously on seek (UI responsiveness), before the
+    // coalesced audio reschedule.
+    act(() => {
+      result.current.seek(45);
+    });
+    expect(result.current.currentTime).toBe(45);
+
+    // Flush the coalesced reschedule rAF: startSourcesAt(45) schedules only the
+    // segment(s) covering 45 onward. Segments 0 ([0,20]) and 1 ([20,~40]) end
+    // before 45 and are skipped; segment 2 ([~40,~60]) covers 45 and is
+    // scheduled — exactly one source.
+    act(() => {
+      flushRaf();
+    });
+    expect(ctx.startCallCount).toBe(1);
+  });
+
+  it('non-MP3 (WAV) stem uses the full-file decode path, not segments', async () => {
+    // Probe returns RIFF/WAVE bytes -> isMp3 false -> full-file decode via
+    // decodeStem, which uses the live AudioContext.decodeAudioData (duration 60).
+    installFetch({ bytesFor: () => wavBytes() });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'wp',
+        title: 't',
+        folderId: null,
+        sources: [mp3Source('vox.wav', 'w-', 30_000)],
+      });
+    });
+
+    expect(result.current.state.loading).toBeNull();
+    // Full-file path: audioBuffer populated, duration from decodeAudioData (60).
+    expect(result.current.state.stems[0].audioBuffer).not.toBeNull();
+    expect(result.current.state.duration).toBe(60);
+
+    // Play schedules exactly one source (the single buffer).
+    await act(async () => {
+      result.current.togglePlay();
+    });
+    const ctx = CapturingAudioContext.last!;
+    expect(result.current.state.isPlaying).toBe(true);
+    expect(ctx.startCallCount).toBe(1);
+  });
+
+  // flushRaf / rafQueue mirror the Phase A harness so seek's coalesced rAF and
+  // the rAF tick can be driven deterministically here too.
+  let rafQueue: Array<{ id: number; cb: FrameRequestCallback }> = [];
+  let rafIdCounter = 0;
+  function flushRaf(): void {
+    const batch = rafQueue.splice(0);
+    for (const entry of batch) entry.cb(0);
+  }
+  beforeEach(() => {
+    rafQueue = [];
+    rafIdCounter = 0;
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      const id = ++rafIdCounter;
+      rafQueue.push({ id, cb });
+      return id;
+    });
+    vi.stubGlobal('cancelAnimationFrame', (id: number) => {
+      const idx = rafQueue.findIndex((e) => e.id === id);
+      if (idx >= 0) rafQueue.splice(idx, 1);
+    });
+  });
+});
