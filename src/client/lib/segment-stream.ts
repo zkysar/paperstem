@@ -1,7 +1,7 @@
 // Plan + fetch + decode self-contained MP3 segments. Byte offsets are nominal
 // (CBR => linear in time); decodeSegment snaps to real frame boundaries.
-// NOTE: firstFrameStart / lastCompleteFrameEnd imports are omitted here — Task 3
-// adds the fetch/decode code and will import from './mp3-frames' at that point.
+
+import { firstFrameStart, lastCompleteFrameEnd, sampleRateOf } from './mp3-frames';
 
 /** Reservoir reaches back <=511 B; 2 KB lead-in safely covers it (seam spike). */
 export const LEAD_IN_BYTES = 2048;
@@ -35,6 +35,64 @@ export function planSegments(
       fetchStart: Math.max(0, byteStart - leadInBytes),
       leadInBytes,
     });
+  }
+  return out;
+}
+
+export type SegmentBytes = { bytes: Uint8Array; totalBytes: number };
+
+/** Range-fetch [fetchStart, byteEnd). Total file size comes from Content-Range. */
+export async function fetchSegmentBytes(
+  url: string,
+  fetchStart: number,
+  byteEnd: number,
+): Promise<SegmentBytes> {
+  const res = await fetch(url, {
+    credentials: 'include',
+    headers: { Range: `bytes=${fetchStart}-${byteEnd - 1}` },
+  });
+  if (!res.ok && res.status !== 206) throw new Error(`segment fetch ${res.status}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const cr = res.headers.get('content-range'); // "bytes a-z/total"
+  const total = cr ? Number(cr.split('/')[1]) : bytes.length;
+  return { bytes, totalBytes: Number.isFinite(total) ? total : bytes.length };
+}
+
+export type DecodeOpts = { isFirst: true } | { isFirst: false; leadInSec: number };
+
+/**
+ * Snap to MP3 frame boundaries, decode at the file's NATIVE sample rate (via an
+ * OfflineAudioContext so a 48 kHz file isn't resampled into a 44.1 kHz live
+ * context with an inconsistent phase — that caused an audible seam in testing),
+ * and trim the lead-in samples for non-first segments.
+ */
+export async function decodeSegment(raw: Uint8Array, opts: DecodeOpts): Promise<AudioBuffer> {
+  const start = opts.isFirst ? 0 : firstFrameStart(raw);
+  const end = lastCompleteFrameEnd(raw);
+  const aligned = raw.subarray(start, end);
+  const rate = sampleRateOf(aligned) || 44100;
+  const Ctor =
+    (globalThis as any).OfflineAudioContext ?? (globalThis as any).webkitOfflineAudioContext;
+  // Prefer `new` for real browser classes; fall back to a plain call so vi.fn()
+  // factory mocks (whose implementation is an arrow function, hence not newable)
+  // work in tests. When called via `new`, a constructor that returns an object
+  // yields that object — so both paths produce the instance.
+  let off: OfflineAudioContext;
+  try {
+    off = new Ctor(1, 1, rate);
+  } catch {
+    off = Ctor(1, 1, rate) as OfflineAudioContext;
+  }
+  // decodeAudioData detaches its input; pass a standalone ArrayBuffer copy.
+  const decoded = await off.decodeAudioData(aligned.slice().buffer);
+  if (opts.isFirst || opts.leadInSec <= 0) return decoded;
+
+  const drop = Math.min(decoded.length, Math.round(opts.leadInSec * decoded.sampleRate));
+  const keep = decoded.length - drop;
+  if (keep <= 0) return decoded;
+  const out = off.createBuffer(decoded.numberOfChannels, keep, decoded.sampleRate);
+  for (let ch = 0; ch < decoded.numberOfChannels; ch++) {
+    out.getChannelData(ch).set(decoded.getChannelData(ch).subarray(drop));
   }
   return out;
 }
