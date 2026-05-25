@@ -67,7 +67,7 @@ describe('decodeSegment', () => {
   it('decodes the first segment at the native sample rate and returns the full buffer', async () => {
     const decoded = { duration: 1.0, numberOfChannels: 1, length: 44100, sampleRate: 44100 };
     const offline = { decodeAudioData: vi.fn().mockResolvedValue(decoded), createBuffer: vi.fn() };
-    const Ctor = vi.fn(() => offline);
+    const Ctor = vi.fn(function () { return offline; });
     vi.stubGlobal('OfflineAudioContext', Ctor);
     const buf = await decodeSegment(fakeFrames(5), { isFirst: true });
     expect(Ctor).toHaveBeenCalledWith(1, 1, 44100); // native rate parsed from header
@@ -82,7 +82,7 @@ describe('decodeSegment', () => {
       getChannelData: () => new Float32Array(33075) };
     const offline = { decodeAudioData: vi.fn().mockResolvedValue(src),
       createBuffer: vi.fn().mockReturnValue(trimmed) };
-    vi.stubGlobal('OfflineAudioContext', vi.fn(() => offline));
+    vi.stubGlobal('OfflineAudioContext', vi.fn(function () { return offline; }));
     const buf = await decodeSegment(fakeFrames(20), { isFirst: false, leadInSec: 0.25 });
     // drop = round(0.25*44100)=11025; keep = 44100-11025 = 33075
     expect(offline.createBuffer).toHaveBeenCalledWith(1, 33075, 44100);

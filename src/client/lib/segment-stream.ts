@@ -73,16 +73,7 @@ export async function decodeSegment(raw: Uint8Array, opts: DecodeOpts): Promise<
   const rate = sampleRateOf(aligned) || 44100;
   const Ctor =
     (globalThis as any).OfflineAudioContext ?? (globalThis as any).webkitOfflineAudioContext;
-  // Prefer `new` for real browser classes; fall back to a plain call so vi.fn()
-  // factory mocks (whose implementation is an arrow function, hence not newable)
-  // work in tests. When called via `new`, a constructor that returns an object
-  // yields that object — so both paths produce the instance.
-  let off: OfflineAudioContext;
-  try {
-    off = new Ctor(1, 1, rate);
-  } catch {
-    off = Ctor(1, 1, rate) as OfflineAudioContext;
-  }
+  const off: OfflineAudioContext = new Ctor(1, 1, rate);
   // decodeAudioData detaches its input; pass a standalone ArrayBuffer copy.
   const decoded = await off.decodeAudioData(aligned.slice().buffer);
   if (opts.isFirst || opts.leadInSec <= 0) return decoded;
