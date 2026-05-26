@@ -64,7 +64,7 @@ type Action =
       // Stems are built and dispatched up front (audioBuffer still null) so the
       // waveform, sections, comments, and timeline render from precomputed
       // peaks + known duration immediately. Audio bytes download/decode in the
-      // background and land via LOADED.
+      // background and land via HEADS_READY.
       type: 'LOAD_START';
       stems: LoadedStem[];
       projectId: string | null;
@@ -76,21 +76,12 @@ type Action =
   | { type: 'LOAD_PROGRESS'; delta: number }
   | { type: 'NUDGE_LOADING' }
   | {
-      // Decoded buffers, keyed so the reducer can merge them into the current
-      // stems without clobbering mute/solo/volume the user set during load.
-      type: 'LOADED';
-      buffers: Array<{ serverId: string | null; buffer: AudioBuffer | null }>;
-      projectId: string | null;
-      title: string;
-      folderId: string | null;
-      status: string;
-    }
-  | {
       // Every stem's HEAD is ready (MP3 stems have segment 0 decoded into
       // segmentsRef; non-MP3 stems have their full audioBuffer here). Merges
-      // the non-MP3 buffers like LOADED and clears `loading` so togglePlay is
-      // unblocked — playback hasn't started yet, so resetting isPlaying/loop is
-      // safe. The remaining MP3 segments fill in the background after this.
+      // the non-MP3 buffers into the current stems and clears `loading` so
+      // togglePlay is unblocked — playback hasn't started yet, so resetting
+      // isPlaying/loop is safe. The remaining MP3 segments fill in the
+      // background after this.
       type: 'HEADS_READY';
       buffers: Array<{ serverId: string | null; buffer: AudioBuffer | null }>;
       projectId: string | null;
@@ -107,6 +98,11 @@ type Action =
   | { type: 'SET_VOLUME'; idx: number; vol: number }
   | { type: 'SET_MASTER_VOLUME'; vol: number }
   | { type: 'SET_STATUS'; status: string }
+  // Reconcile duration/referenceIdx from the summed actual decoded segment
+  // durations once the background fill completes. Touches ONLY duration +
+  // referenceIdx — never transport state (isPlaying/loop/loopArmed/status) or
+  // stems — because playback may already be running when it fires.
+  | { type: 'SET_DURATION'; duration: number; referenceIdx: number }
   | { type: 'SET_WAVEFORM_NORM'; mode: WaveformNormalization }
   | { type: 'SET_TITLE'; title: string }
   | { type: 'RENAME_STEM'; serverId: string; displayName: string }
@@ -164,7 +160,6 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       if (!state.loading) return state;
       return { ...state, loading: { ...state.loading, nudge: state.loading.nudge + 1 } };
     }
-    case 'LOADED':
     case 'HEADS_READY': {
       // Merge decoded buffers into the CURRENT stems (matched by serverId, or
       // index for local-folder loads), so any mute/solo/volume the user set
@@ -220,6 +215,8 @@ function reducer(state: PlayerState, action: Action): PlayerState {
       return { ...state, masterVolume: action.vol };
     case 'SET_STATUS':
       return { ...state, status: action.status };
+    case 'SET_DURATION':
+      return { ...state, duration: action.duration, referenceIdx: action.referenceIdx };
     case 'SET_WAVEFORM_NORM':
       return { ...state, waveformNormalization: action.mode };
     case 'SET_TITLE':
@@ -375,9 +372,10 @@ export function usePlayer(): PlayerControls {
 
   // Generation counter for load(). Audio now decodes in the background, so a
   // fast project switch can leave a previous load's decode still in flight.
-  // Each load() bumps this; the older invocation's progress + LOADED dispatches
-  // no-op once a newer load has started, so a stale decode can't clobber the
-  // new project's stems (wrong buffers) or prematurely clear its loading state.
+  // Each load() bumps this; the older invocation's progress + HEADS_READY
+  // dispatches no-op once a newer load has started, so a stale decode can't
+  // clobber the new project's stems (wrong buffers) or prematurely clear its
+  // loading state.
   const loadGenRef = useRef(0);
 
   // Generation counter for DND probes. Each togglePlay starts a fresh probe;
@@ -978,6 +976,11 @@ export function usePlayer(): PlayerControls {
       const fp = fillPlans[i];
       if (!fp) return;
       const key = stemKey(built[i].serverId, i);
+      // Capture the entry ONCE. If a newer load() supersedes this one it calls
+      // segmentsRef.clear(), so this captured reference becomes an orphaned
+      // object — subsequent push/schedule here mutate that dead object, never
+      // the live map. The per-await loadGenRef guards below also short-circuit
+      // before any push/schedule, so a superseded fill is doubly inert.
       const entry = segmentsRef.current.get(key);
       if (!entry) return;
       for (let k = 1; k < fp.plan.length; k++) {
@@ -1008,11 +1011,30 @@ export function usePlayer(): PlayerControls {
     };
 
     void Promise.all(built.map((_, i) => fillStem(i))).then(() => {
-      // All fills done (or stopped). Update the status line WITHOUT a LOADED
-      // dispatch — LOADED resets isPlaying/loop, and playback may be running.
+      // All fills done (or stopped). Reconcile duration from the SUMMED actual
+      // decoded segment durations, then update the status line — both WITHOUT a
+      // HEADS_READY dispatch, which resets isPlaying/loop and would clobber a
+      // playback session that may already be running.
       if (loadGenRef.current !== myGen) return;
-      const durations = built.map((s) => stemDuration(s));
-      const duration = durations.reduce((m, d) => Math.max(m, isFinite(d) ? d : 0), 0);
+      // The summed decoded duration is authoritative for MP3 stems: lead-in
+      // trimming + frame-snap rounding accumulate across segments, so the true
+      // audio length drifts from the server `metaDuration` (only an estimate
+      // used for the initial pre-decode timeline layout). For a segmented stem
+      // use its last segment's endSec; for a full-decode stem fall back to
+      // stemDuration. Take the max as the song duration and the argmax as the
+      // reference idx, consistent with durationAndReference.
+      const effective = built.map((s, i) => {
+        const entry = segmentsRef.current.get(stemKey(s.serverId, i));
+        if (entry) {
+          return entry.segments.length
+            ? entry.segments[entry.segments.length - 1].endSec
+            : 0;
+        }
+        return stemDuration(s);
+      });
+      const duration = effective.reduce((m, d) => Math.max(m, isFinite(d) ? d : 0), 0);
+      const referenceIdx = longestStemIdx(effective);
+      dispatch({ type: 'SET_DURATION', duration, referenceIdx });
       let status = `${okCount} stem${okCount === 1 ? '' : 's'} loaded`;
       if (duration) status += ` · ${fmt(duration)}`;
       if (errored.length) status += ` · failed: ${errored.join(', ')}`;
@@ -1243,7 +1265,8 @@ export function usePlayer(): PlayerControls {
   const removeStem = useCallback((serverId: string) => {
     const wasPlaying = isPlayingInternalRef.current;
     const at = computeCurrentTime();
-    const stem = stateRef.current.stems.find((s) => s.serverId === serverId);
+    const idx = stateRef.current.stems.findIndex((s) => s.serverId === serverId);
+    const stem = idx >= 0 ? stateRef.current.stems[idx] : undefined;
     if (stem) {
       try {
         stem.gain?.disconnect();
@@ -1251,6 +1274,11 @@ export function usePlayer(): PlayerControls {
       } catch {
         // ignore
       }
+      // Drop the removed stem's decoded segments so its AudioBuffers can be GC'd
+      // and a still-running background fill stops scheduling onto the now
+      // disconnected gain. removeStem is server-stems-only, so the key is the
+      // serverId (matching how startSourcesAt/load construct it).
+      segmentsRef.current.delete(stemKey(stem.serverId, idx));
     }
     stopSources();
     dispatch({ type: 'REMOVE_STEM', serverId });

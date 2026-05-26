@@ -1,7 +1,7 @@
 // First-pass tests for the usePlayer hook.
 //
-// usePlayer.ts is 726 lines and orchestrates Web Audio scheduling, decode,
-// drift correction, seek coalescing, loop wrap, mute/solo, and per-track gain.
+// usePlayer.ts orchestrates Web Audio scheduling, decode, drift correction,
+// seek coalescing, loop wrap, mute/solo, and per-track gain.
 // This file covers a focused subset of load-bearing state-machine behaviors —
 // it is NOT exhaustive. Follow-up coverage (rAF tick / loop wrap / end-of-song /
 // seek coalescing / cleanup-on-unmount / decode-failure / master-volume gain
@@ -767,7 +767,9 @@ describe('usePlayer — deferred audio load', () => {
     });
     expect(result.current.state.isPlaying).toBe(false);
 
-    // Releasing the gate resolves load() → LOADED: buffers land, the loading
+    // Releasing the gate resolves load() → HEADS_READY (full-file fallback
+    // path — the mock fetch returns no Content-Range, so the head probe can't
+    // segment and falls back to a full decode): buffers land, the loading
     // indicator clears, and the decoded duration (60) supersedes the metadata.
     await act(async () => {
       release('projA');
@@ -832,7 +834,7 @@ describe('usePlayer — deferred audio load', () => {
     });
     expect(result.current.state.stems[0].userMuted).toBe(true);
 
-    // The buffer-merge at LOADED must not clobber that user choice.
+    // The buffer-merge at HEADS_READY must not clobber that user choice.
     await act(async () => {
       release('projA');
       await loadDone;
@@ -882,8 +884,8 @@ describe('usePlayer — deferred audio load', () => {
     expect(result.current.state.loading).toBeNull();
     expect(result.current.state.stems.map((s) => s.serverId)).toEqual(['sB-0', 'sB-1']);
 
-    // A's decode lands late. Its stale LOADED must NOT overwrite B's stems,
-    // project metadata, or loading state.
+    // A's decode lands late (full-file fallback path). Its stale HEADS_READY
+    // must NOT overwrite B's stems, project metadata, or loading state.
     await act(async () => {
       release('projA');
       await doneA;
@@ -1201,6 +1203,309 @@ describe('usePlayer — head-start MP3 loading', () => {
     });
     const ctx = CapturingAudioContext.last!;
     expect(result.current.state.isPlaying).toBe(true);
+    expect(ctx.startCallCount).toBe(1);
+  });
+
+  it('reconciles duration to summed segment durations after fill', async () => {
+    // metaDuration 60 -> planSegments yields 3 segments. We force each decoded
+    // segment to 19 s (sum = 57), DIFFERENT from the 60 s server estimate, so
+    // the test proves the fill-complete handler reconciles state.duration to the
+    // summed decoded durations rather than leaving the metaDuration estimate.
+    // A custom OfflineAudioContext returns a fixed-duration buffer for both the
+    // raw decode AND the lead-in-trim createBuffer path, so trimming non-first
+    // segments still yields exactly 19 s regardless of the lead-in bytes.
+    const SEG = 19;
+    const fixedBuf = (duration: number) => ({
+      duration,
+      length: Math.round(duration * 44100),
+      numberOfChannels: 1,
+      sampleRate: 44100,
+      getChannelData: () => new Float32Array(Math.round(duration * 44100)),
+    });
+    class FixedOfflineAudioContext {
+      decodeAudioData() {
+        return Promise.resolve(fixedBuf(SEG));
+      }
+      // Ignore the requested length: a trimmed (non-first) segment must still
+      // report 19 s so all three segments sum to the asserted 57 s.
+      createBuffer() {
+        return fixedBuf(SEG);
+      }
+    }
+    vi.stubGlobal('OfflineAudioContext', FixedOfflineAudioContext);
+    vi.stubGlobal('webkitOfflineAudioContext', FixedOfflineAudioContext);
+
+    const total = mp3Bytes(2308); // ~480 KB over 60 s -> 3 segments
+    installFetch({ bytesFor: () => total });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'mp',
+        title: 't',
+        folderId: null,
+        sources: [mp3Source('drums.mp3', 'm-', 60_000)],
+      });
+    });
+
+    // Drain the background fill (chained fetch+decode awaits per segment) so the
+    // fill-complete handler runs and dispatches SET_DURATION. (act() flushes the
+    // ungated fill eagerly, so the reconcile may already have run by the time
+    // load() resolves; this extra flush makes the test robust regardless.)
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // 3 segments x 19 s = 57 s — the summed decoded durations supersede the
+    // 60 s server metaDuration estimate that initial layout used.
+    expect(result.current.state.duration).toBe(57);
+  });
+
+  it('removeStem prunes its segmentsRef entry', async () => {
+    // Two MP3 stems, fill fully drained, then remove the first stem. After
+    // removal, playing must schedule sources ONLY for the surviving stem — if
+    // the removed stem's segmentsRef entry leaked, its segments would still be
+    // scheduled. With 2 segments per 40 s stem, the survivor schedules 2.
+    const total = mp3Bytes(40); // 2 segments per stem
+    installFetch({ bytesFor: () => total });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'mp',
+        title: 't',
+        folderId: null,
+        sources: [
+          mp3Source('drums.mp3', 'a-', 40_000),
+          { name: 'bass.mp3', src: 'https://example.test/bass.mp3', serverId: 'b-0', durationMs: 40_000 },
+        ],
+      });
+    });
+    // Let both stems' fills complete so each has 2 decoded segments.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(result.current.state.stems).toHaveLength(2);
+
+    // Remove the first stem while paused.
+    act(() => {
+      result.current.removeStem('a-0');
+    });
+    expect(result.current.state.stems).toHaveLength(1);
+    expect(result.current.state.stems[0].serverId).toBe('b-0');
+
+    // Play: only the surviving stem's 2 segments should schedule. If the removed
+    // stem's segmentsRef entry had leaked, we'd see its segments scheduled too.
+    const ctx = CapturingAudioContext.last!;
+    ctx.startCallCount = 0;
+    await act(async () => {
+      result.current.togglePlay();
+    });
+    expect(result.current.state.isPlaying).toBe(true);
+    expect(ctx.startCallCount).toBe(2);
+  });
+
+  it('a superseded background fill does not push segments or schedule for the current project', async () => {
+    // Load project A with its fill gated mid-flight, start a new load() for
+    // project B, then release A's gate. A's late segments must NOT push into
+    // segmentsRef (its entry was cleared by B's load) and must NOT schedule
+    // sources for B. We assert by counting B's scheduled sources when playing:
+    // exactly B's own segments, with no extra sources from A's late arrivals.
+    const total = mp3Bytes(40); // 2 segments per stem
+    let releaseFillA!: () => void;
+    const fillGateA = new Promise<void>((res) => {
+      releaseFillA = res;
+    });
+    installFetch({
+      bytesFor: () => total,
+      onRangeFetch: async (url, start) => {
+        // Gate only project A's background fill (segment 1+), not B's.
+        if (start > 0 && url.includes('/projA/')) await fillGateA;
+      },
+    });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'projA',
+        title: 'A',
+        folderId: null,
+        sources: [{ name: 'd.mp3', src: 'https://example.test/projA/d.mp3', serverId: 'sA-0', durationMs: 40_000 }],
+      });
+    });
+    expect(result.current.state.projectId).toBe('projA');
+
+    // Switch to B (ungated) — its load() bumps loadGenRef and clears segmentsRef.
+    await act(async () => {
+      await result.current.load({
+        projectId: 'projB',
+        title: 'B',
+        folderId: null,
+        sources: [{ name: 'd.mp3', src: 'https://example.test/projB/d.mp3', serverId: 'sB-0', durationMs: 40_000 }],
+      });
+    });
+    // Drain B's fill so it has both segments.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(result.current.state.projectId).toBe('projB');
+    expect(result.current.state.stems.map((s) => s.serverId)).toEqual(['sB-0']);
+
+    // Now release A's stale fill. The gen guard must keep its late segment from
+    // pushing into the (B-owned) segmentsRef or scheduling onto B's graph.
+    await act(async () => {
+      releaseFillA();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // B is intact and plays exactly its own 2 segments — A contributed nothing.
+    const ctx = CapturingAudioContext.last!;
+    ctx.startCallCount = 0;
+    await act(async () => {
+      result.current.togglePlay();
+    });
+    expect(result.current.state.isPlaying).toBe(true);
+    expect(result.current.state.projectId).toBe('projB');
+    expect(ctx.startCallCount).toBe(2);
+  });
+
+  it('a per-segment fill failure stops that stem at the last good segment without affecting others', async () => {
+    // Two MP3 stems. Stem "a" decodes fine; stem "b"'s SECOND segment fetch
+    // rejects mid-fill. That stem's fill must stop at segment 0 (1 segment),
+    // while stem "a" fills fully (2 segments) and playback keeps working.
+    const total = mp3Bytes(40); // 2 segments per stem
+    installFetch({
+      bytesFor: () => total,
+      onRangeFetch: async (url, start) => {
+        // Reject only stem b's fill (segment 1+); the head probe (start 0) is fine.
+        if (start > 0 && url.includes('bass.mp3')) {
+          throw new Error('simulated segment fetch failure');
+        }
+      },
+    });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'mp',
+        title: 't',
+        folderId: null,
+        sources: [
+          mp3Source('drums.mp3', 'a-', 40_000),
+          { name: 'bass.mp3', src: 'https://example.test/bass.mp3', serverId: 'b-0', durationMs: 40_000 },
+        ],
+      });
+    });
+    // Drain fills: stem a -> 2 segments, stem b stops at 1 (segment-1 fetch rejects).
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // Player is healthy and both stems are present.
+    expect(result.current.state.stems).toHaveLength(2);
+
+    // Play: stem a schedules 2 segments, stem b schedules its 1 good segment = 3.
+    // (No unhandled rejection — the fill swallows the error and stops the stem.)
+    const ctx = CapturingAudioContext.last!;
+    ctx.startCallCount = 0;
+    await act(async () => {
+      result.current.togglePlay();
+    });
+    expect(result.current.state.isPlaying).toBe(true);
+    expect(ctx.startCallCount).toBe(3);
+  });
+
+  it('mixed MP3 + WAV project schedules segment sources and one full-file source', async () => {
+    // One MP3 stem (segment path, 2 segments over 40 s) and one WAV stem
+    // (full-file decode -> single buffer). Playing must schedule both branches
+    // of startSourcesAt: 2 segment sources + exactly 1 WAV buffer source = 3.
+    const mp3Total = mp3Bytes(40);
+    installFetch({
+      bytesFor: (url) => (url.includes('vox.wav') ? wavBytes() : mp3Total),
+    });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'mix',
+        title: 't',
+        folderId: null,
+        sources: [
+          mp3Source('drums.mp3', 'm-', 40_000),
+          { name: 'vox.wav', src: 'https://example.test/vox.wav', serverId: 'w-0', durationMs: 40_000 },
+        ],
+      });
+    });
+    // Drain the MP3 fill so its second segment decodes.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(result.current.state.stems).toHaveLength(2);
+    // The WAV stem decoded to a full buffer; the MP3 stem did not.
+    const wav = result.current.state.stems.find((s) => s.serverId === 'w-0')!;
+    const mp3 = result.current.state.stems.find((s) => s.serverId === 'm-0')!;
+    expect(wav.audioBuffer).not.toBeNull();
+    expect(mp3.audioBuffer).toBeNull();
+
+    const ctx = CapturingAudioContext.last!;
+    ctx.startCallCount = 0;
+    await act(async () => {
+      result.current.togglePlay();
+    });
+    expect(result.current.state.isPlaying).toBe(true);
+    // 2 MP3 segment sources + 1 WAV buffer source.
+    expect(ctx.startCallCount).toBe(3);
+  });
+
+  it('loop wrap reschedules only the segments covering the loop window', async () => {
+    // A segmented MP3 stem (3 segments over 60 s) with a loop region inside a
+    // single segment. Driving the rAF clock past loop.end triggers a wrap, which
+    // stopSources + startSourcesAt(loop.start) — rescheduling only the
+    // segment(s) covering [loop.start, ...). A loop fully inside segment 2
+    // ([~40,~60]) reschedules exactly that one segment.
+    const total = mp3Bytes(2308); // ~480 KB over 60 s -> 3 segments
+    installFetch({ bytesFor: () => total });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'mp',
+        title: 't',
+        folderId: null,
+        sources: [mp3Source('drums.mp3', 'm-', 60_000)],
+      });
+    });
+    // Drain the fill so all 3 segments are decoded.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    await act(async () => {
+      result.current.togglePlay();
+    });
+    expect(result.current.state.isPlaying).toBe(true);
+
+    // Loop [50, 55] sits inside segment 2 ([~40, ~60]).
+    act(() => {
+      result.current.setLoop(50, 55);
+    });
+
+    const ctx = CapturingAudioContext.last!;
+    // Reset after the initial play scheduled all decoded segments.
+    ctx.startCallCount = 0;
+
+    // playStartCtxTimeRef = 0.05; advance ctx.currentTime so computeCurrentTime
+    // crosses loop.end (55) in one tick: ctx.currentTime - 0.05 >= 54.995 (LOOP_TAIL).
+    ctx.currentTime = 56;
+    act(() => {
+      flushRaf();
+    });
+
+    // Wrapped to loop.start.
+    expect(result.current.currentTime).toBe(50);
+    expect(result.current.state.isPlaying).toBe(true);
+    // Only segment 2 covers offset 50 -> exactly one rescheduled source.
+    // Segments 0 ([0,~20]) and 1 ([~20,~40]) end before 50 and are skipped.
     expect(ctx.startCallCount).toBe(1);
   });
 
