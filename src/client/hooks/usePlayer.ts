@@ -1359,6 +1359,7 @@ export function usePlayer(): PlayerControls {
       // disconnected gain. removeStem is server-stems-only, so the key is the
       // serverId (matching how startSourcesAt/load construct it).
       segmentsRef.current.delete(stemKey(stem.serverId, idx));
+      fillCursorRef.current.delete(stemKey(stem.serverId, idx));
     }
     stopSources();
     dispatch({ type: 'REMOVE_STEM', serverId });
