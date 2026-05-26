@@ -1457,6 +1457,93 @@ describe('usePlayer — head-start MP3 loading', () => {
     expect(ctx.startCallCount).toBe(3);
   });
 
+  it('linear playback schedules segment k at the running actual-duration sum (anchor 0)', async () => {
+    // Three segments with DISTINCT decoded durations 19.9 / 19.8 / 19.95. Under
+    // the session-anchor model with anchor j=0, segment 0 sits at 0, and each
+    // later contiguous index accumulates the ACTUAL decoded durations of its
+    // predecessors. So segment 1 starts at 19.9 and segment 2 at 19.9+19.8=39.7
+    // (in play position). startSourcesAt sets startWhen = ctx.currentTime + 0.05
+    // and schedules future segments at startWhen + (startSec - offset); with
+    // offset 0 that is startWhen + startSec. We capture each createBufferSource
+    // start()'s `when` arg and assert segments 1 and 2 land at startWhen+19.9 and
+    // startWhen+39.7. This pins linear timing as actual-from-0 (Phase 1 parity).
+    const DURATIONS = [19.9, 19.8, 19.95];
+    let decodeCall = 0;
+    const fakeBuf = (duration: number) => ({
+      duration,
+      length: Math.round(duration * 44100),
+      numberOfChannels: 1,
+      sampleRate: 44100,
+      getChannelData: () => new Float32Array(Math.round(duration * 44100)),
+    });
+    class VaryingOfflineAudioContext {
+      decodeAudioData() {
+        // Segment k is decoded in plan order: head (k=0) first, then fill 1,2.
+        const d = DURATIONS[Math.min(decodeCall, DURATIONS.length - 1)];
+        decodeCall++;
+        return Promise.resolve(fakeBuf(d));
+      }
+      // The lead-in trim path (non-first segments) must preserve the per-segment
+      // duration, so return the same buffer the decode produced for this index.
+      createBuffer() {
+        const d = DURATIONS[Math.min(decodeCall - 1, DURATIONS.length - 1)];
+        return fakeBuf(d);
+      }
+    }
+    vi.stubGlobal('OfflineAudioContext', VaryingOfflineAudioContext);
+    vi.stubGlobal('webkitOfflineAudioContext', VaryingOfflineAudioContext);
+
+    const total = mp3Bytes(2308); // ~480 KB over 60 s -> 3 segments
+    installFetch({ bytesFor: () => total });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'mp',
+        title: 't',
+        folderId: null,
+        sources: [mp3Source('drums.mp3', 'm-', 60_000)],
+      });
+    });
+    // Drain the background fill so all 3 segments are decoded.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    const ctx = CapturingAudioContext.last!;
+    // Capture every start() `when` argument. createBufferSource is overridden on
+    // the instance so we observe the scheduling from the upcoming togglePlay.
+    const whenArgs: number[] = [];
+    const origCreate = ctx.createBufferSource.bind(ctx);
+    ctx.createBufferSource = () => {
+      const src = origCreate();
+      const origStart = src.start.bind(src);
+      src.start = (when?: number, offset?: number) => {
+        whenArgs.push(when ?? 0);
+        return origStart(when, offset);
+      };
+      return src;
+    };
+
+    await act(async () => {
+      result.current.togglePlay();
+    });
+    expect(result.current.state.isPlaying).toBe(true);
+
+    // startWhen = ctx.currentTime (0) + 0.05.
+    const startWhen = 0.05;
+    // Three segments scheduled, in index order.
+    expect(whenArgs).toHaveLength(3);
+    // Segment 0 starts now (straddles playhead at 0): when = ctx.currentTime +
+    // INSIDE_LOOKAHEAD (0.02), not the future-segment formula. Assert only that
+    // it's small/non-negative; the load-bearing claim is the seam timing below.
+    expect(whenArgs[0]).toBeGreaterThanOrEqual(0);
+    expect(whenArgs[0]).toBeLessThan(1);
+    // Segments 1 and 2 are future segments: when = startWhen + startSec.
+    expect(whenArgs[1]).toBeCloseTo(startWhen + 19.9, 5);
+    expect(whenArgs[2]).toBeCloseTo(startWhen + 39.7, 5);
+  });
+
   it('loop wrap reschedules only the segments covering the loop window', async () => {
     // A segmented MP3 stem (3 segments over 60 s) with a loop region inside a
     // single segment. Driving the rAF clock past loop.end triggers a wrap, which

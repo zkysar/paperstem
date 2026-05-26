@@ -22,12 +22,16 @@ import { fmt, longestStemIdx } from '../lib/format';
 import { isAndroid, isIOS } from '../lib/platform';
 import { isMp3 } from '../lib/mp3-frames';
 import {
+  DEFAULT_SEGMENT_SEC,
   decodeSegment,
   fetchSegmentBytes,
   planSegments,
   type PlannedSegment,
 } from '../lib/segment-stream';
 import { computeSegmentSchedule } from '../lib/segment-scheduler';
+import { sessionTimings, type SegTiming } from '../lib/segment-runs';
+
+const SEGMENT_SEC = DEFAULT_SEGMENT_SEC;
 
 const LOOP_TAIL = 0.005;
 const END_TAIL = 0.02;
@@ -37,13 +41,12 @@ const END_TAIL = 0.02;
 // decodes from the probe bytes with no second fetch.
 const PROBE_BYTES = 256 * 1024;
 
-// One decoded MP3 segment. startSec/endSec are GAPLESS running times — the sum
-// of actual decoded durations of preceding segments, not nominal plan times —
-// so the scheduler joins segments without a click or drift at the seam.
-type DecodedSeg = { startSec: number; endSec: number; buffer: AudioBuffer };
-// Per-stem segment store: the stem's live gain node plus its decoded segments,
-// in time order.
-type StemSegments = { gain: GainNode; segments: DecodedSeg[] };
+// Decoded segment keyed by plan index. startSec/endSec are NOT stored — they
+// are derived per play session from the session anchor (see segment-runs).
+type DecodedSeg = { buffer: AudioBuffer; duration: number };
+// Per-stem segment store: the stem's live gain node, its decoded segments keyed
+// by plan index, and the set of plan indices whose fetch/decode failed.
+type StemSegments = { gain: GainNode; segments: Map<number, DecodedSeg>; errored: Set<number> };
 
 // segmentsRef key: serverId when present, else a positional fallback so
 // local-folder loads (no serverId) still get a stable per-stem key.
@@ -370,6 +373,12 @@ export function usePlayer(): PlayerControls {
   // single audioBuffer instead. Cleared in load() teardown and on unmount.
   const segmentsRef = useRef<Map<string, StemSegments>>(new Map());
 
+  // Session anchor index for the current play/seek session: j = floor(offset /
+  // SEGMENT_SEC), set by startSourcesAt. A stem's segment index i >= j is placed
+  // at sessionTimings(j, durations, SEGMENT_SEC). scheduleDecodedSegment reads
+  // this so late-arriving segments time against the anchor we started from.
+  const playAnchorIndexRef = useRef(0);
+
   // Generation counter for load(). Audio now decodes in the background, so a
   // fast project switch can leave a previous load's decode still in flight.
   // Each load() bumps this; the older invocation's progress + HEADS_READY
@@ -452,28 +461,49 @@ export function usePlayer(): PlayerControls {
     sourcesRef.current = null;
   }
 
+  // Snapshot a stem's decoded-segment durations keyed by plan index.
+  function stemDurations(entry: StemSegments): Map<number, number> {
+    const m = new Map<number, number>();
+    for (const [idx, seg] of entry.segments) m.set(idx, seg.duration);
+    return m;
+  }
+  // Per-session timings for a stem's contiguous decoded run starting at the
+  // session anchor index. Index `anchorIdx` sits at anchorIdx*SEGMENT_SEC;
+  // later contiguous indices accumulate actual decoded durations. Stops at the
+  // first forward gap (a missing/errored index), so any segment behind a gap is
+  // absent — never scheduled into the running session.
+  function stemTimings(entry: StemSegments, anchorIdx: number): Map<number, SegTiming> {
+    return sessionTimings(anchorIdx, stemDurations(entry), SEGMENT_SEC);
+  }
+
   // Schedule one already-decoded segment that arrived (or was seeked into)
   // mid-playback. Synchronous (no await) so it stays inside the user-activation
   // window when called from the play path. computeSegmentSchedule decides
   // whether the segment is in the past (skip), straddling the playhead (start
   // now at an offset), or in the future (start at its absolute ctx time).
-  function scheduleDecodedSegment(gain: GainNode, seg: DecodedSeg): void {
+  function scheduleDecodedSegment(stemIdx: number, segIdx: number): void {
     const ctx = audioCtxRef.current;
     if (!ctx || !isPlayingInternalRef.current) return;
+    const stem = stateRef.current.stems[stemIdx];
+    const entry =
+      stem && stem.gain ? segmentsRef.current.get(stemKey(stem.serverId, stemIdx)) : undefined;
+    if (!entry || !stem.gain) return;
+    const t = stemTimings(entry, playAnchorIndexRef.current).get(segIdx);
+    if (!t) return; // not in the current schedulable contiguous run (behind a gap)
+    const seg = entry.segments.get(segIdx)!;
     // pNow MUST be derived as posAtPlay + (ctxNow - ctxAtPlay) for the
     // scheduler's future-segment math to hold — computeCurrentTime() does
     // exactly that, so always use it here for late arrivals.
-    const pNow = computeCurrentTime();
     const r = computeSegmentSchedule(
-      { startSec: seg.startSec, endSec: seg.endSec },
+      { startSec: t.startSec, endSec: t.endSec },
       { ctxAtPlay: playStartCtxTimeRef.current, posAtPlay: playStartOffsetRef.current },
-      pNow,
+      computeCurrentTime(),
       ctx.currentTime,
     );
     if (r.skip) return;
     const src = ctx.createBufferSource();
     src.buffer = seg.buffer;
-    src.connect(gain);
+    src.connect(stem.gain);
     src.start(r.when, r.offset);
     (sourcesRef.current ??= []).push(src);
   }
@@ -489,20 +519,26 @@ export function usePlayer(): PlayerControls {
     sourcesRef.current = [];
     playStartCtxTimeRef.current = startWhen;
     playStartOffsetRef.current = offset;
+    const anchorIdx = Math.floor(offset / SEGMENT_SEC);
+    playAnchorIndexRef.current = anchorIdx;
     let pendingSegments = false;
     for (let i = 0; i < stems.length; i++) {
       const stem = stems[i];
       if (!stem.gain) continue;
       const entry = segmentsRef.current.get(stemKey(stem.serverId, i));
       if (entry) {
-        // Segment-played (MP3) stem: schedule each decoded segment relative to
-        // the anchor. Pass `offset` as pNow because at play time the playhead
-        // sits exactly at posAtPlay (== offset). Any segment not yet decoded
-        // will be scheduled by the background fill via scheduleDecodedSegment.
+        // Segment-played (MP3) stem: schedule each decoded segment in the
+        // contiguous run anchored at this session's anchor index. Index
+        // anchorIdx sits at anchorIdx*SEGMENT_SEC; later indices accumulate
+        // actual durations. Pass `offset` as pNow because at play time the
+        // playhead sits exactly at posAtPlay (== offset). Segments not yet
+        // decoded fill in later via scheduleDecodedSegment.
         pendingSegments = true;
-        for (const seg of entry.segments) {
+        const timings = stemTimings(entry, anchorIdx);
+        for (const [idx, t] of timings) {
+          const seg = entry.segments.get(idx)!;
           const r = computeSegmentSchedule(
-            { startSec: seg.startSec, endSec: seg.endSec },
+            { startSec: t.startSec, endSec: t.endSec },
             { ctxAtPlay: startWhen, posAtPlay: offset },
             offset,
             ctx.currentTime,
@@ -912,8 +948,10 @@ export function usePlayer(): PlayerControls {
           if (loadGenRef.current !== myGen) return;
           const entry: StemSegments = {
             gain: built[i].gain!,
-            segments: [{ startSec: 0, endSec: buf0.duration, buffer: buf0 }],
+            segments: new Map(),
+            errored: new Set(),
           };
+          entry.segments.set(0, { buffer: buf0, duration: buf0.duration });
           segmentsRef.current.set(stemKey(built[i].serverId, i), entry);
           // MP3 stems play from segments, not the single buffer — leave
           // audioBuffer null. Record the plan + a CBR bytes/sec for the fill.
@@ -994,17 +1032,16 @@ export function usePlayer(): PlayerControls {
             leadInSec: p.leadInBytes / fp.bytesPerSec,
           });
           if (loadGenRef.current !== myGen) return;
-          // Gapless timing: startSec is the running sum of ACTUAL decoded
-          // durations, not nominal plan times, so the seam has no drift.
-          const last = entry.segments[entry.segments.length - 1];
-          const startSec = last ? last.endSec : 0;
-          const seg: DecodedSeg = { startSec, endSec: startSec + buf.duration, buffer: buf };
-          entry.segments.push(seg);
+          // Store by plan index; per-session timing is derived in stemTimings
+          // from the session anchor, not stored here.
+          entry.segments.set(k, { buffer: buf, duration: buf.duration });
           // If we're already playing, schedule this just-arrived segment so it
           // starts at its absolute ctx time relative to the play anchor.
-          if (isPlayingInternalRef.current) scheduleDecodedSegment(entry.gain, seg);
+          if (isPlayingInternalRef.current) scheduleDecodedSegment(i, k);
         } catch {
-          // Stop this stem's fill; the rest of the stems keep filling.
+          // Mark this index errored and stop this stem's fill; the rest of the
+          // stems keep filling.
+          entry.errored.add(k);
           return;
         }
       }
@@ -1026,9 +1063,11 @@ export function usePlayer(): PlayerControls {
       const effective = built.map((s, i) => {
         const entry = segmentsRef.current.get(stemKey(s.serverId, i));
         if (entry) {
-          return entry.segments.length
-            ? entry.segments[entry.segments.length - 1].endSec
-            : 0;
+          // A segmented stem's length = sum of actual durations over its
+          // contiguous prefix from index 0; stops at the first gap.
+          let total = 0;
+          for (let k = 0; entry.segments.has(k); k++) total += entry.segments.get(k)!.duration;
+          return total;
         }
         return stemDuration(s);
       });
