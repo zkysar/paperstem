@@ -17,6 +17,11 @@ type SortDir = 'asc' | 'desc';
 
 type Tab = 'recent' | 'all' | 'trash';
 
+// How many "Filter by song" starter chips to show when the search box is
+// empty — enough to advertise the feature, few enough to stay on one line
+// even with a large catalog. Typing reveals the rest.
+const STARTER_SONG_LIMIT = 6;
+
 type Props = {
   open: boolean;
   loading: boolean;
@@ -60,27 +65,70 @@ export function ProjectPicker({
   const [confirm, setConfirm] = useState<{ id: string; name: string } | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const pickerRowsRef = useRef<Project[]>([]);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const scrimRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  // On mobile the song rail is a single horizontal scroll strip, so an active
-  // chip can sit off-screen. Pull it into view when the filter changes.
-  const activeChipRef = useRef<HTMLButtonElement>(null);
 
   // Reset highlight when search or tab changes so stale positions don't persist.
   useEffect(() => { setHighlightedIndex(-1); }, [search, tab]);
 
-  // Set of project IDs that contain the active song filter. When no
-  // filter is set, the original projects pass through untouched.
-  const filteredProjects = useMemo<Project[]>(() => {
-    if (!filterSongId) return projects;
-    const allowed = new Set(
-      songUsage
-        .filter((u) => u.song_id === filterSongId)
-        .map((u) => u.project_id),
+  const query = search.trim().toLowerCase();
+
+  // Songs whose name matches the current query. These are offered as "Filter
+  // by song" chip suggestions below the search box — a suggestion to narrow,
+  // distinct from the project rows. Picking one promotes it to the active
+  // facet; it does not, by itself, fold song matches into the row list.
+  const matchingSongs = useMemo<Song[]>(() => {
+    if (!query) return [];
+    return bandSongs.filter(
+      (s) => s.use_count > 0 && s.name.toLowerCase().includes(query),
     );
-    return projects.filter((p) => allowed.has(p.id));
-  }, [projects, songUsage, filterSongId]);
+  }, [bandSongs, query]);
+
+  const activeSong = filterSongId
+    ? bandSongs.find((s) => s.id === filterSongId) ?? null
+    : null;
+
+  // Chips shown in the filter bar. While typing: the songs that match. When
+  // the box is empty: a short starter set of the most-used songs, so the
+  // feature stays visible without dumping the whole catalog. The active song
+  // is never offered as a chip — the pill already represents it.
+  const songChips = useMemo<Song[]>(() => {
+    const pool = query
+      ? matchingSongs
+      : [...bandSongs]
+          .filter((s) => s.use_count > 0)
+          .sort((a, b) => b.use_count - a.use_count || a.name.localeCompare(b.name))
+          .slice(0, STARTER_SONG_LIMIT);
+    return pool.filter((s) => s.id !== filterSongId);
+  }, [query, matchingSongs, bandSongs, filterSongId]);
+
+  const isFiltered = Boolean(query || filterSongId);
+  const clearFilters = () => {
+    setSearch('');
+    onSetFilterSongId(null);
+    searchInputRef.current?.focus();
+  };
+
+  // Orthogonal facets: the text query narrows project rows by title, the song
+  // pill narrows by usage, and the two combine with AND. Songs are reached
+  // through the chip facet, not by matching song names into the row list.
+  const filteredProjects = useMemo<Project[]>(() => {
+    let result = projects;
+    if (filterSongId) {
+      const allowed = new Set(
+        songUsage
+          .filter((u) => u.song_id === filterSongId)
+          .map((u) => u.project_id),
+      );
+      result = result.filter((p) => allowed.has(p.id));
+    }
+    if (query) {
+      result = result.filter((p) => p.title.toLowerCase().includes(query));
+    }
+    return result;
+  }, [projects, songUsage, filterSongId, query]);
 
   useEffect(() => {
     if (!open) return;
@@ -98,12 +146,6 @@ export function ProjectPicker({
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose, confirm]);
-
-  useEffect(() => {
-    if (!filterSongId) return;
-    // Optional-chained so jsdom (no scrollIntoView) doesn't throw in tests.
-    activeChipRef.current?.scrollIntoView?.({ inline: 'center', block: 'nearest' });
-  }, [filterSongId]);
 
   // While the picker is open, mark everything outside the dialog as inert so
   // keyboard users and screen readers cannot drift into the page behind it.
@@ -151,11 +193,11 @@ export function ProjectPicker({
         <div className="fp-header">
           <h2 className="fp-title">Projects</h2>
           <input
+            ref={searchInputRef}
             autoFocus
             type="search"
             className="fp-search"
             placeholder="Search projects"
-            autoFocus
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => {
@@ -235,46 +277,63 @@ export function ProjectPicker({
           {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
           multiple hidden onChange={onFolderPicked}
         />
-        {tab !== 'trash' && bandSongs.length > 0 && (
-          <div className="fp-song-rail" role="toolbar" aria-label="Filter by song">
-            <span className="fp-song-rail-label">Songs</span>
-            {bandSongs
-              .filter((s) => s.use_count > 0)
-              .map((s) => {
-                const isActive = filterSongId === s.id;
-                return (
-                  <button
-                    type="button"
-                    key={s.id}
-                    ref={isActive ? activeChipRef : undefined}
-                    data-testid={`fp-song-chip-${s.id}`}
-                    className={'fp-song-chip' + (isActive ? ' active' : '')}
-                    aria-pressed={isActive}
-                    onClick={() =>
-                      onSetFilterSongId(isActive ? null : s.id)
-                    }
-                  >
-                    <span
-                      className="fp-song-chip-swatch"
-                      style={{ background: colorForSong(s.id) }}
-                      aria-hidden="true"
-                    />
-                    <span>{s.name}</span>
-                    <span className="fp-song-chip-count">
-                      {s.use_count}
-                    </span>
-                  </button>
-                );
-              })}
-            {filterSongId && (
+        {tab !== 'trash' && (activeSong || songChips.length > 0) && (
+          <div className="fp-song-bar" role="group" aria-label="Filter by song">
+            {/* The eyebrow labels the suggestion chips; when only the active
+                pill shows it's redundant (the pill is self-describing). */}
+            {songChips.length > 0 && (
+              <span className="fp-song-bar-label">Filter by song</span>
+            )}
+            {activeSong && (
               <button
                 type="button"
-                className="fp-song-chip-clear"
-                onClick={() => onSetFilterSongId(null)}
+                className="fp-song-active"
+                data-testid={`fp-song-active-${activeSong.id}`}
+                aria-label={`Clear song filter: ${activeSong.name}`}
+                onClick={clearFilters}
               >
-                Clear filter
+                <span
+                  className="fp-song-chip-swatch"
+                  style={{ background: colorForSong(activeSong.id) }}
+                  aria-hidden="true"
+                />
+                <span>{activeSong.name}</span>
+                <X size={12} strokeWidth={2.5} aria-hidden="true" />
               </button>
             )}
+            {songChips.map((s) => (
+              <button
+                type="button"
+                key={s.id}
+                data-testid={`fp-song-chip-${s.id}`}
+                className="fp-song-chip"
+                aria-label={`Filter by song: ${s.name}`}
+                onClick={() => {
+                  onSetFilterSongId(s.id);
+                  setSearch('');
+                  // The clicked chip unmounts (it becomes the active pill), so
+                  // return focus to the search box rather than losing it to body.
+                  searchInputRef.current?.focus();
+                }}
+              >
+                <span
+                  className="fp-song-chip-swatch"
+                  style={{ background: colorForSong(s.id) }}
+                  aria-hidden="true"
+                />
+                <span>{s.name}</span>
+                {s.use_count > 1 && (
+                  <span className="fp-song-chip-count">{s.use_count}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+        {tab !== 'trash' && (
+          <div className="sr-only" role="status" aria-live="polite">
+            {isFiltered
+              ? `${filteredProjects.length} ${filteredProjects.length === 1 ? 'project matches' : 'projects match'}`
+              : ''}
           </div>
         )}
         {tab === 'trash' ? (
@@ -287,11 +346,14 @@ export function ProjectPicker({
           />
         ) : (
           <ProjectPickerBody
-            tab={tab} search={search}
             loading={loading} loadError={loadError}
             projects={filteredProjects} activeProjectId={activeProjectId}
             currentUserId={currentUserId}
             showUpload={showUpload}
+            isFiltered={isFiltered}
+            searchText={query}
+            songSuggestionCount={query ? songChips.length : 0}
+            onClearFilters={clearFilters}
             onSelect={onSelect}
             onNewProjectClick={() => folderInputRef.current?.click()}
             onRetry={onRetry}
@@ -355,18 +417,21 @@ export function ProjectPicker({
 }
 
 function ProjectPickerBody({
-  search, projects, activeProjectId, currentUserId, loading, loadError, showUpload,
+  projects, activeProjectId, currentUserId, loading, loadError, showUpload,
+  isFiltered, searchText, songSuggestionCount, onClearFilters,
   onSelect, onNewProjectClick, onRetry, onRenameProject, onRequestDelete,
   highlightedIndex, rowsRef,
 }: {
-  tab: Tab;
-  search: string;
   loading: boolean;
   loadError: string | null;
   projects: Project[];
   activeProjectId: string | null;
   currentUserId: string | null | undefined;
   showUpload: boolean;
+  isFiltered: boolean;
+  searchText: string;
+  songSuggestionCount: number;
+  onClearFilters(): void;
   onSelect(id: string): void;
   onNewProjectClick(): void;
   onRetry(): void;
@@ -432,6 +497,31 @@ function ProjectPickerBody({
   }
   if (projects.length === 0) {
     rowsRef.current = [];
+    // A filtered-to-empty list is a different situation from a truly empty
+    // band — don't tell someone with projects to go create their first one.
+    if (isFiltered) {
+      // If the typed text matches no project title but DOES match a song,
+      // point at the chips above (which preserve their intent) rather than
+      // only offering to throw the query away.
+      const pointToSongs = searchText.length > 0 && songSuggestionCount > 0;
+      return (
+        <div className="fp-body fp-state">
+          <p className="fp-state-msg">
+            {pointToSongs
+              ? `No project titled “${searchText}”.`
+              : 'No projects match your search.'}
+          </p>
+          {pointToSongs && (
+            <p className="fp-state-secondary">
+              Pick a song above to filter by it instead.
+            </p>
+          )}
+          <button type="button" className="fp-state-action" onClick={onClearFilters}>
+            Clear search
+          </button>
+        </div>
+      );
+    }
     return (
       <div className="fp-body fp-state">
         <p className="fp-state-msg">No projects yet.</p>
@@ -448,12 +538,7 @@ function ProjectPickerBody({
     );
   }
 
-  const filtered = projects.filter((p) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    return p.title.toLowerCase().includes(q);
-  });
-  const rows = sortProjects(filtered, sort);
+  const rows = sortProjects(projects, sort);
   // Keep the parent's ref in sync so Arrow/Enter handlers resolve the right project.
   rowsRef.current = rows;
 

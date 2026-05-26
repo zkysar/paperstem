@@ -424,24 +424,50 @@ describe('ProjectPicker', () => {
     expect(onLoadTrash).toHaveBeenCalled();
   });
 
-  it('renders one song chip per band song with use_count > 0', () => {
+  it('shows starter song chips when empty and narrows them as you type', async () => {
+    const user = userEvent.setup();
     render(
       <ProjectPicker
         {...baseProps}
         bandSongs={[
           { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 4 },
           { id: 's-2', band_id: 'b', name: 'Solo Idea', created_at: 0, use_count: 1 },
-          // use_count = 0 — kept off the chip rail (catalog ghost)
-          { id: 's-3', band_id: 'b', name: 'Abandoned', created_at: 0, use_count: 0 },
+          // use_count = 0 — a catalog ghost, never offered as a filter
+          { id: 's-3', band_id: 'b', name: 'Heartless', created_at: 0, use_count: 0 },
         ]}
       />,
     );
-    expect(screen.queryByText('Heart Sounds')).not.toBeNull();
-    expect(screen.queryByText('Solo Idea')).not.toBeNull();
-    expect(screen.queryByText('Abandoned')).toBeNull();
+    // Empty query → used songs are offered as starter chips so the feature
+    // stays visible; the ghost (use_count 0) is never offered.
+    expect(screen.queryByTestId('fp-song-chip-s-1')).not.toBeNull();
+    expect(screen.queryByTestId('fp-song-chip-s-2')).not.toBeNull();
+    expect(screen.queryByTestId('fp-song-chip-s-3')).toBeNull();
+    // Typing narrows the chips to name matches (and still excludes the ghost).
+    await user.type(screen.getByPlaceholderText('Search projects'), 'heart');
+    expect(screen.queryByTestId('fp-song-chip-s-1')).not.toBeNull();
+    expect(screen.queryByTestId('fp-song-chip-s-2')).toBeNull();
+    expect(screen.queryByTestId('fp-song-chip-s-3')).toBeNull();
   });
 
-  it('clicking a chip calls onSetFilterSongId with the song id', async () => {
+  it('caps the starter chips and hides the "1" count noise', () => {
+    const bandSongs = Array.from({ length: 9 }, (_, i) => ({
+      id: `s-${i}`,
+      band_id: 'b',
+      // Letter names (no digits) so the count-badge assertion isn't fooled.
+      name: `Song ${String.fromCharCode(65 + i)}`,
+      created_at: 0,
+      // s-0 is used twice (count shows), the rest once (count hidden).
+      use_count: i === 0 ? 2 : 1,
+    }));
+    render(<ProjectPicker {...baseProps} bandSongs={bandSongs} />);
+    // Only 6 starter chips render even though 9 songs are in use.
+    expect(screen.getAllByTestId(/^fp-song-chip-/).length).toBe(6);
+    // The use_count == 1 chips show no count badge; the count == 2 one does.
+    expect(screen.getByTestId('fp-song-chip-s-0').textContent).toContain('2');
+    expect(screen.getByTestId('fp-song-chip-s-1').textContent).toBe('Song B');
+  });
+
+  it('clicking a song chip applies the filter and clears the search', async () => {
     const user = userEvent.setup();
     const onSetFilterSongId = vi.fn();
     render(
@@ -453,11 +479,14 @@ describe('ProjectPicker', () => {
         onSetFilterSongId={onSetFilterSongId}
       />,
     );
+    const input = screen.getByPlaceholderText('Search projects');
+    await user.type(input, 'heart');
     await user.click(screen.getByTestId('fp-song-chip-s-1'));
     expect(onSetFilterSongId).toHaveBeenCalledWith('s-1');
+    expect((input as HTMLInputElement).value).toBe('');
   });
 
-  it('clicking the active chip clears the filter', async () => {
+  it('shows an active-filter pill that clears the filter when clicked', async () => {
     const user = userEvent.setup();
     const onSetFilterSongId = vi.fn();
     render(
@@ -470,11 +499,13 @@ describe('ProjectPicker', () => {
         onSetFilterSongId={onSetFilterSongId}
       />,
     );
-    await user.click(screen.getByTestId('fp-song-chip-s-1'));
+    const pill = screen.getByTestId('fp-song-active-s-1');
+    expect(pill).not.toBeNull();
+    await user.click(pill);
     expect(onSetFilterSongId).toHaveBeenCalledWith(null);
   });
 
-  it('filters the project list when a chip is active', () => {
+  it('filters the project list when a song filter is active', () => {
     const rows: Project[] = [
       { id: 'p1', title: 'Alpha', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
       { id: 'p2', title: 'Bravo', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
@@ -500,17 +531,70 @@ describe('ProjectPicker', () => {
     expect(screen.queryByText('Charlie')).not.toBeNull();
   });
 
-  it('"Clear filter" link appears when a chip is active', () => {
+  it('text query narrows rows by title only; songs are a separate facet', async () => {
+    const user = userEvent.setup();
+    const onSetFilterSongId = vi.fn();
+    const rows: Project[] = [
+      { id: 'p1', title: 'Tuesday jam', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+      { id: 'p2', title: 'Wednesday jam', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+    ];
     render(
       <ProjectPicker
         {...baseProps}
-        filterSongId="s-1"
+        projects={rows}
         bandSongs={[
-          { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 2 },
+          { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 1 },
         ]}
+        songUsage={[{ project_id: 'p1', song_id: 's-1' }]}
+        onSetFilterSongId={onSetFilterSongId}
       />,
     );
-    expect(screen.getByText(/clear filter/i)).not.toBeNull();
+    // "heart" matches no project TITLE, so no rows surface by song name —
+    // songs are reached through the chip facet, not row matching.
+    await user.type(screen.getByPlaceholderText('Search projects'), 'heart');
+    expect(screen.queryByText('Tuesday jam')).toBeNull();
+    expect(screen.queryByText('Wednesday jam')).toBeNull();
+    // Instead the matching song is offered as a "Filter by song" suggestion.
+    await user.click(screen.getByTestId('fp-song-chip-s-1'));
+    expect(onSetFilterSongId).toHaveBeenCalledWith('s-1');
+  });
+
+  it('shows a distinct empty-state when a search matches no projects', async () => {
+    const user = userEvent.setup();
+    const rows: Project[] = [
+      { id: 'p1', title: 'Tuesday jam', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+    ];
+    render(<ProjectPicker {...baseProps} projects={rows} />);
+    await user.type(screen.getByPlaceholderText('Search projects'), 'zzz');
+    // Not the "first project" CTA — the band already has projects.
+    expect(screen.queryByText(/No projects yet/i)).toBeNull();
+    expect(screen.getByText(/No projects match your search/i)).not.toBeNull();
+    // Clearing restores the full list.
+    await user.click(screen.getByRole('button', { name: /clear search/i }));
+    expect(screen.queryByText('Tuesday jam')).not.toBeNull();
+  });
+
+  it('points at the song chips when the query matches a song but no title', async () => {
+    const user = userEvent.setup();
+    const rows: Project[] = [
+      { id: 'p1', title: 'Tuesday jam', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+    ];
+    render(
+      <ProjectPicker
+        {...baseProps}
+        projects={rows}
+        bandSongs={[
+          { id: 's-1', band_id: 'b', name: 'Island in the Sun', created_at: 0, use_count: 1 },
+        ]}
+        songUsage={[{ project_id: 'p1', song_id: 's-1' }]}
+      />,
+    );
+    // "island" matches no project title, but matches the song.
+    await user.type(screen.getByPlaceholderText('Search projects'), 'island');
+    expect(screen.getByText(/No project titled/i)).not.toBeNull();
+    expect(screen.getByText(/Pick a song above/i)).not.toBeNull();
+    // The matching song chip is right there to act on.
+    expect(screen.queryByTestId('fp-song-chip-s-1')).not.toBeNull();
   });
 
   it('ArrowDown highlights the first row', async () => {
