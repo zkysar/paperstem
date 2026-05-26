@@ -2741,9 +2741,14 @@ body.env-non-prod[data-env="local"]::before {
   .fp-cell-actions { align-self: center; }
 
   /* Bigger finger targets for the song chips and the active-filter pill —
-     clearing the filter is the most important tap, so it gets the same bump. */
+     clearing the filter is the most important tap, so it gets the same bump.
+     Bump the label up from 10px too — song names are hard to read at micro
+     size on a phone. */
   .fp-song-chip,
-  .fp-song-active { padding: 6px 12px; }
+  .fp-song-active {
+    padding: 6px 12px;
+    font-size: var(--fs-sm);
+  }
 }
 .fp-upload-bottom { display: none; }
 @media (max-width: 720px) {

@@ -574,6 +574,29 @@ describe('ProjectPicker', () => {
     expect(screen.queryByText('Tuesday jam')).not.toBeNull();
   });
 
+  it('points at the song chips when the query matches a song but no title', async () => {
+    const user = userEvent.setup();
+    const rows: Project[] = [
+      { id: 'p1', title: 'Tuesday jam', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
+    ];
+    render(
+      <ProjectPicker
+        {...baseProps}
+        projects={rows}
+        bandSongs={[
+          { id: 's-1', band_id: 'b', name: 'Island in the Sun', created_at: 0, use_count: 1 },
+        ]}
+        songUsage={[{ project_id: 'p1', song_id: 's-1' }]}
+      />,
+    );
+    // "island" matches no project title, but matches the song.
+    await user.type(screen.getByPlaceholderText('Search projects'), 'island');
+    expect(screen.getByText(/No project titled/i)).not.toBeNull();
+    expect(screen.getByText(/Pick a song above/i)).not.toBeNull();
+    // The matching song chip is right there to act on.
+    expect(screen.queryByTestId('fp-song-chip-s-1')).not.toBeNull();
+  });
+
   it('ArrowDown highlights the first row', async () => {
     const user = userEvent.setup();
     render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);

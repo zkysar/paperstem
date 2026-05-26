@@ -279,7 +279,11 @@ export function ProjectPicker({
         />
         {tab !== 'trash' && (activeSong || songChips.length > 0) && (
           <div className="fp-song-bar" role="group" aria-label="Filter by song">
-            <span className="fp-song-bar-label">Filter by song</span>
+            {/* The eyebrow labels the suggestion chips; when only the active
+                pill shows it's redundant (the pill is self-describing). */}
+            {songChips.length > 0 && (
+              <span className="fp-song-bar-label">Filter by song</span>
+            )}
             {activeSong && (
               <button
                 type="button"
@@ -303,6 +307,7 @@ export function ProjectPicker({
                 key={s.id}
                 data-testid={`fp-song-chip-${s.id}`}
                 className="fp-song-chip"
+                aria-label={`Filter by song: ${s.name}`}
                 onClick={() => {
                   onSetFilterSongId(s.id);
                   setSearch('');
@@ -346,6 +351,8 @@ export function ProjectPicker({
             currentUserId={currentUserId}
             showUpload={showUpload}
             isFiltered={isFiltered}
+            searchText={query}
+            songSuggestionCount={query ? songChips.length : 0}
             onClearFilters={clearFilters}
             onSelect={onSelect}
             onNewProjectClick={() => folderInputRef.current?.click()}
@@ -411,7 +418,7 @@ export function ProjectPicker({
 
 function ProjectPickerBody({
   projects, activeProjectId, currentUserId, loading, loadError, showUpload,
-  isFiltered, onClearFilters,
+  isFiltered, searchText, songSuggestionCount, onClearFilters,
   onSelect, onNewProjectClick, onRetry, onRenameProject, onRequestDelete,
   highlightedIndex, rowsRef,
 }: {
@@ -422,6 +429,8 @@ function ProjectPickerBody({
   currentUserId: string | null | undefined;
   showUpload: boolean;
   isFiltered: boolean;
+  searchText: string;
+  songSuggestionCount: number;
   onClearFilters(): void;
   onSelect(id: string): void;
   onNewProjectClick(): void;
@@ -491,9 +500,22 @@ function ProjectPickerBody({
     // A filtered-to-empty list is a different situation from a truly empty
     // band — don't tell someone with projects to go create their first one.
     if (isFiltered) {
+      // If the typed text matches no project title but DOES match a song,
+      // point at the chips above (which preserve their intent) rather than
+      // only offering to throw the query away.
+      const pointToSongs = searchText.length > 0 && songSuggestionCount > 0;
       return (
         <div className="fp-body fp-state">
-          <p className="fp-state-msg">No projects match your search.</p>
+          <p className="fp-state-msg">
+            {pointToSongs
+              ? `No project titled “${searchText}”.`
+              : 'No projects match your search.'}
+          </p>
+          {pointToSongs && (
+            <p className="fp-state-secondary">
+              Pick a song above to filter by it instead.
+            </p>
+          )}
           <button type="button" className="fp-state-action" onClick={onClearFilters}>
             Clear search
           </button>
