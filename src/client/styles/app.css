@@ -2740,29 +2740,10 @@ body.env-non-prod[data-env="local"]::before {
   .fp-kebab-btn { display: inline-flex; }
   .fp-cell-actions { align-self: center; }
 
-  /* Song filter rail: on desktop it wraps, but on a phone wrapping 15+ chips
-     buries the project list under several rows of pills. Collapse to a single
-     horizontally-scrollable strip so the list stays reachable at the top. */
-  .fp-song-rail {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-  .fp-song-rail::-webkit-scrollbar { display: none; }
+  /* Bigger finger targets for the song chips and the active-filter pill —
+     clearing the filter is the most important tap, so it gets the same bump. */
   .fp-song-chip,
-  .fp-song-chip-clear { flex-shrink: 0; }
-  /* Bigger finger targets, and keep drag-to-scroll from misfiring as a tap. */
-  .fp-song-chip { padding: 6px 12px; }
-  /* The active chip can scroll anywhere in the strip, so "Clear filter" (the
-     last child) would otherwise hide off the right edge — exactly when it's
-     needed. Pin it to the right edge of the scroll port; the left shadow masks
-     chips sliding under it. */
-  .fp-song-chip-clear {
-    position: sticky;
-    right: 0;
-    background: var(--paper);
-    box-shadow: -10px 0 8px -4px var(--paper);
-  }
+  .fp-song-active { padding: 6px 12px; }
 }
 .fp-upload-bottom { display: none; }
 @media (max-width: 720px) {
@@ -5138,18 +5119,21 @@ body.env-non-prod[data-env="local"]::before {
 }
 .song-toast-undo:hover { background: var(--paper); color: var(--ink); }
 
-/* ---- ProjectPicker song chip-rail ------------------------------------ */
+/* ---- ProjectPicker song filter bar ----------------------------------- */
 
-.fp-song-rail {
+/* Surfaces contextually beneath the search box: an active-filter pill and/or
+   "Filter by song" chips for songs whose name matches the query. Wraps on a
+   single short line — it carries a handful of matches, never the full catalog,
+   so no horizontal-scroll treatment is needed on mobile. */
+.fp-song-bar {
   display: flex;
   gap: 6px;
   padding: 6px 12px;
   border-bottom: 1px solid var(--rule);
-  overflow-x: auto;
   align-items: center;
   flex-wrap: wrap;
 }
-.fp-song-rail-label {
+.fp-song-bar-label {
   font-size: var(--fs-2xs);
   color: var(--muted);
   text-transform: uppercase;
@@ -5170,11 +5154,20 @@ body.env-non-prod[data-env="local"]::before {
   gap: 4px;
 }
 .fp-song-chip:hover { background: var(--accent-tint); }
-.fp-song-chip.active {
+.fp-song-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: var(--accent);
   color: var(--paper);
-  border-color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: var(--fs-2xs);
+  cursor: pointer;
+  white-space: nowrap;
 }
+.fp-song-active:hover { opacity: 0.9; }
 .fp-song-chip-swatch {
   width: 8px;
   height: 8px;
@@ -5185,16 +5178,6 @@ body.env-non-prod[data-env="local"]::before {
   font-size: 10px;
   opacity: 0.7;
 }
-.fp-song-chip-clear {
-  background: transparent;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: var(--fs-2xs);
-  text-decoration: underline;
-  padding: 3px 6px;
-}
-.fp-song-chip-clear:hover { color: var(--ink); }
 
 /* iOS Safari auto-zooms when a focused form control has computed
    font-size < 16px. Lock everything to 16px on phones so focusing a
