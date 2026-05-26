@@ -43,7 +43,7 @@ describe('ProjectPicker', () => {
 
   it('moves focus to the search input when opened', () => {
     render(<ProjectPicker {...baseProps} />);
-    expect(document.activeElement).toBe(screen.getByPlaceholderText('Search projects or songs'));
+    expect(document.activeElement).toBe(screen.getByPlaceholderText('Search projects'));
   });
 
   it('marks sibling elements as inert while the picker is open', () => {
@@ -178,7 +178,7 @@ describe('ProjectPicker', () => {
   it('filters by search query (title)', async () => {
     const user = userEvent.setup();
     render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
-    await user.type(screen.getByPlaceholderText('Search projects or songs'), '04-28');
+    await user.type(screen.getByPlaceholderText('Search projects'), '04-28');
     expect(screen.getByText('Project 2026-04-28')).not.toBeNull();
     expect(screen.queryByText('Project 2026-04-21')).toBeNull();
   });
@@ -443,7 +443,7 @@ describe('ProjectPicker', () => {
     expect(screen.queryByTestId('fp-song-chip-s-2')).not.toBeNull();
     expect(screen.queryByTestId('fp-song-chip-s-3')).toBeNull();
     // Typing narrows the chips to name matches (and still excludes the ghost).
-    await user.type(screen.getByPlaceholderText('Search projects or songs'), 'heart');
+    await user.type(screen.getByPlaceholderText('Search projects'), 'heart');
     expect(screen.queryByTestId('fp-song-chip-s-1')).not.toBeNull();
     expect(screen.queryByTestId('fp-song-chip-s-2')).toBeNull();
     expect(screen.queryByTestId('fp-song-chip-s-3')).toBeNull();
@@ -479,7 +479,7 @@ describe('ProjectPicker', () => {
         onSetFilterSongId={onSetFilterSongId}
       />,
     );
-    const input = screen.getByPlaceholderText('Search projects or songs');
+    const input = screen.getByPlaceholderText('Search projects');
     await user.type(input, 'heart');
     await user.click(screen.getByTestId('fp-song-chip-s-1'));
     expect(onSetFilterSongId).toHaveBeenCalledWith('s-1');
@@ -531,8 +531,9 @@ describe('ProjectPicker', () => {
     expect(screen.queryByText('Charlie')).not.toBeNull();
   });
 
-  it('search matches a project by the name of a song used in it', async () => {
+  it('text query narrows rows by title only; songs are a separate facet', async () => {
     const user = userEvent.setup();
+    const onSetFilterSongId = vi.fn();
     const rows: Project[] = [
       { id: 'p1', title: 'Tuesday jam', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
       { id: 'p2', title: 'Wednesday jam', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
@@ -545,12 +546,17 @@ describe('ProjectPicker', () => {
           { id: 's-1', band_id: 'b', name: 'Heart Sounds', created_at: 0, use_count: 1 },
         ]}
         songUsage={[{ project_id: 'p1', song_id: 's-1' }]}
+        onSetFilterSongId={onSetFilterSongId}
       />,
     );
-    // "heart" matches neither title, but p1 contains the song "Heart Sounds".
-    await user.type(screen.getByPlaceholderText('Search projects or songs'), 'heart');
-    expect(screen.queryByText('Tuesday jam')).not.toBeNull();
+    // "heart" matches no project TITLE, so no rows surface by song name —
+    // songs are reached through the chip facet, not row matching.
+    await user.type(screen.getByPlaceholderText('Search projects'), 'heart');
+    expect(screen.queryByText('Tuesday jam')).toBeNull();
     expect(screen.queryByText('Wednesday jam')).toBeNull();
+    // Instead the matching song is offered as a "Filter by song" suggestion.
+    await user.click(screen.getByTestId('fp-song-chip-s-1'));
+    expect(onSetFilterSongId).toHaveBeenCalledWith('s-1');
   });
 
   it('shows a distinct empty-state when a search matches no projects', async () => {
@@ -559,7 +565,7 @@ describe('ProjectPicker', () => {
       { id: 'p1', title: 'Tuesday jam', folder: '', stems: [], stemCount: 0, folderId: null, referenceStemId: null },
     ];
     render(<ProjectPicker {...baseProps} projects={rows} />);
-    await user.type(screen.getByPlaceholderText('Search projects or songs'), 'zzz');
+    await user.type(screen.getByPlaceholderText('Search projects'), 'zzz');
     // Not the "first project" CTA — the band already has projects.
     expect(screen.queryByText(/No projects yet/i)).toBeNull();
     expect(screen.getByText(/No projects match your search/i)).not.toBeNull();
@@ -607,7 +613,7 @@ describe('ProjectPicker', () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();
     render(<ProjectPicker {...baseProps} projects={fixtureProjects} onSelect={onSelect} />);
-    await user.type(screen.getByPlaceholderText('Search projects or songs'), '04-28');
+    await user.type(screen.getByPlaceholderText('Search projects'), '04-28');
     // Only p1 visible — Enter without ArrowDown should select it.
     await user.keyboard('{Enter}');
     expect(onSelect).toHaveBeenCalledWith('p1');
@@ -626,7 +632,7 @@ describe('ProjectPicker', () => {
     render(<ProjectPicker {...baseProps} projects={fixtureProjects} />);
     await user.keyboard('{ArrowDown}{ArrowDown}');
     // Changing the search text should clear the highlight index
-    await user.type(screen.getByPlaceholderText('Search projects or songs'), '2026');
+    await user.type(screen.getByPlaceholderText('Search projects'), '2026');
     const rows = screen.getAllByTestId(/^fp-row-/);
     rows.forEach((r) => expect(r.className).not.toContain('fp-row-highlighted'));
   });

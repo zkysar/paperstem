@@ -75,9 +75,10 @@ export function ProjectPicker({
 
   const query = search.trim().toLowerCase();
 
-  // Songs whose name matches the current query. Drives the contextual
-  // "Filter by song" chips below the search box — empty when not searching,
-  // so the picker no longer carries a permanent rail of every song.
+  // Songs whose name matches the current query. These are offered as "Filter
+  // by song" chip suggestions below the search box — a suggestion to narrow,
+  // distinct from the project rows. Picking one promotes it to the active
+  // facet; it does not, by itself, fold song matches into the row list.
   const matchingSongs = useMemo<Song[]>(() => {
     if (!query) return [];
     return bandSongs.filter(
@@ -110,9 +111,9 @@ export function ProjectPicker({
     searchInputRef.current?.focus();
   };
 
-  // Project list after the active song-chip filter and the text query. The
-  // query matches a project by title OR by the name of any song used in it,
-  // so typing a song name surfaces the practices that contain it.
+  // Orthogonal facets: the text query narrows project rows by title, the song
+  // pill narrows by usage, and the two combine with AND. Songs are reached
+  // through the chip facet, not by matching song names into the row list.
   const filteredProjects = useMemo<Project[]>(() => {
     let result = projects;
     if (filterSongId) {
@@ -124,18 +125,10 @@ export function ProjectPicker({
       result = result.filter((p) => allowed.has(p.id));
     }
     if (query) {
-      const songMatchIds = new Set(matchingSongs.map((s) => s.id));
-      const songProjectIds = new Set(
-        songUsage
-          .filter((u) => songMatchIds.has(u.song_id))
-          .map((u) => u.project_id),
-      );
-      result = result.filter(
-        (p) => p.title.toLowerCase().includes(query) || songProjectIds.has(p.id),
-      );
+      result = result.filter((p) => p.title.toLowerCase().includes(query));
     }
     return result;
-  }, [projects, songUsage, filterSongId, query, matchingSongs]);
+  }, [projects, songUsage, filterSongId, query]);
 
   useEffect(() => {
     if (!open) return;
@@ -204,7 +197,7 @@ export function ProjectPicker({
             autoFocus
             type="search"
             className="fp-search"
-            placeholder="Search projects or songs"
+            placeholder="Search projects"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => {
