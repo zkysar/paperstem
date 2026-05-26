@@ -267,6 +267,11 @@ function PaperstemApp({
   const [songUsage, setSongUsage] = useState<SongUsageRow[]>([]);
   const [sectionCreateMode, setSectionCreateMode] = useState(false);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  // Bumped when a project is opened focused on a filtered song. The Player
+  // reads it to reveal the (otherwise collapsed) section lane on mobile so
+  // the focused song's labelled pill is visible — on desktop the playhead
+  // already drives the active-section name chip, so the bump is a no-op there.
+  const [laneRevealNonce, setLaneRevealNonce] = useState(0);
   // The popover state covers both "create at clicked position" and
   // "edit existing section". `section: null` means create.
   const [sectionPopover, setSectionPopover] = useState<{
@@ -1115,6 +1120,7 @@ function PaperstemApp({
     if (!target) return;
     player.seek(target.start_ms / 1000);
     setActiveSectionId(target.id);
+    setLaneRevealNonce((n) => n + 1);
   }, [player, sections, activeProjectId]);
 
   // Auto-dismiss the arrival banner once playback starts (either via the
@@ -1787,6 +1793,7 @@ function PaperstemApp({
               sections={sections}
               songUseCounts={songUseCounts}
               activeSectionId={activeSectionId}
+              revealLaneNonce={laneRevealNonce}
               sectionCreateMode={sectionCreateMode}
               onSectionSelected={handleSectionSelected}
               onSectionCreated={handleSectionCreatedAtClick}
