@@ -29,7 +29,15 @@ import {
   type PlannedSegment,
 } from '../lib/segment-stream';
 import { computeSegmentSchedule } from '../lib/segment-scheduler';
-import { nextFillIndex, sessionTimings, type SegTiming } from '../lib/segment-runs';
+import {
+  coversTime,
+  isCovered,
+  nextFillIndex,
+  sessionTimings,
+  type CoverageStem,
+  type SegTiming,
+  type StemSource as CoverageStemSource,
+} from '../lib/segment-runs';
 
 const SEGMENT_SEC = DEFAULT_SEGMENT_SEC;
 
@@ -93,6 +101,7 @@ type Action =
       status: string;
     }
   | { type: 'SET_PLAYING'; isPlaying: boolean }
+  | { type: 'SET_BUFFERING'; buffering: boolean }
   | { type: 'SET_LOOP'; start: number | null; end: number | null }
   | { type: 'SET_LOOP_ENABLED'; enabled: boolean }
   | { type: 'SET_LOOP_ARMED'; armed: boolean }
@@ -119,6 +128,7 @@ const initialState: PlayerState = {
   duration: 0,
   referenceIdx: 0,
   isPlaying: false,
+  buffering: false,
   loop: null,
   loopArmed: false,
   status: '',
@@ -146,6 +156,7 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         duration,
         referenceIdx,
         isPlaying: false,
+        buffering: false,
         loop: null,
         loopArmed: false,
         status: action.status,
@@ -183,6 +194,7 @@ function reducer(state: PlayerState, action: Action): PlayerState {
         // Both actions land before playback starts (loading was set until now),
         // so resetting transport state is safe.
         isPlaying: false,
+        buffering: false,
         loop: null,
         loopArmed: false,
         status: action.status,
@@ -191,6 +203,8 @@ function reducer(state: PlayerState, action: Action): PlayerState {
     }
     case 'SET_PLAYING':
       return { ...state, isPlaying: action.isPlaying };
+    case 'SET_BUFFERING':
+      return { ...state, buffering: action.buffering };
     case 'SET_LOOP':
       if (action.start == null || action.end == null) {
         return { ...state, loop: null };
@@ -359,6 +373,11 @@ export function usePlayer(): PlayerControls {
   // it only fires when playback CROSSES loop.end, not when an explicit seek
   // jumps past it. Updated in seek() and after wraps too.
   const lastTRef = useRef(0);
+  // Frozen playhead position while buffering. The wall clock keeps advancing
+  // during a stall, so the rAF tick / computeCurrentTime read this instead so
+  // the cursor holds at the frontier (or seek target) until the covering
+  // segment arrives and playback resumes from exactly here.
+  const stallPosRef = useRef(0);
 
   // Web Audio graph: a single AudioContext + master gain shared across loads.
   // Per-track GainNodes live on each LoadedStem.
@@ -445,6 +464,10 @@ export function usePlayer(): PlayerControls {
   }
 
   function computeCurrentTime(): number {
+    // While buffering the wall clock keeps ticking but no audio is scheduled;
+    // return the frozen stall position so pause()/MediaSession/anything reading
+    // position sees the held cursor, not a phantom-advancing time.
+    if (stateRef.current.buffering) return stallPosRef.current;
     if (!isPlayingInternalRef.current) return pausedOffsetRef.current;
     const ctx = audioCtxRef.current;
     if (!ctx) return pausedOffsetRef.current;
@@ -484,6 +507,37 @@ export function usePlayer(): PlayerControls {
   // absent — never scheduled into the running session.
   function stemTimings(entry: StemSegments, anchorIdx: number): Map<number, SegTiming> {
     return sessionTimings(anchorIdx, stemDurations(entry), SEGMENT_SEC);
+  }
+
+  // Is position `p` covered for every stem that would actually sound there?
+  // Builds a CoverageStem per stem from live state + segmentsRef and delegates
+  // the solo/mute-aware gate to isCovered. A segmented (MP3) stem with no
+  // decoded segments is treated as errored (excluded from the gate); one with
+  // decoded segments contributes its coversTime result anchored at floor(p).
+  // A full-file (non-MP3) stem holds its whole buffer, so it never gates. Read
+  // every frame, so mute/solo changes take effect on the next tick — that's how
+  // muting an unbuffered stem mid-stall resumes for free.
+  function isPositionCovered(p: number): boolean {
+    const stems = stateRef.current.stems;
+    const anchorIdx = Math.floor(p / SEGMENT_SEC);
+    const cov: CoverageStem[] = stems.map((stem, i) => {
+      const entry = stem.gain ? segmentsRef.current.get(stemKey(stem.serverId, i)) : undefined;
+      let source: CoverageStemSource;
+      if (entry) {
+        if (entry.segments.size === 0) {
+          source = { kind: 'errored' };
+        } else {
+          const timings = sessionTimings(anchorIdx, stemDurations(entry), SEGMENT_SEC);
+          source = { kind: 'segments', coveredAtP: coversTime(timings, p) };
+        }
+      } else if (stem.audioBuffer) {
+        source = { kind: 'buffer', durationSec: stem.audioBuffer.duration };
+      } else {
+        source = { kind: 'errored' };
+      }
+      return { userMuted: stem.userMuted, soloed: stem.soloed, source };
+    });
+    return isCovered(p, cov);
   }
 
   // Schedule one already-decoded segment that arrived (or was seeked into)
@@ -618,31 +672,59 @@ export function usePlayer(): PlayerControls {
     const tick = () => {
       const s = stateRef.current;
       if (isPlayingInternalRef.current && s.stems.length) {
-        const t = Math.min(s.duration, computeCurrentTime());
-        const prevT = lastTRef.current;
-        setCurrentTime(t);
-        if (shouldLoopWrap(t, prevT, s.loop, LOOP_TAIL)) {
-          // Internal seek (cheap — just reschedules sources).
-          const target = s.loop!.start;
-          pausedOffsetRef.current = target;
-          lastTRef.current = target;
-          setCurrentTime(target);
-          stopSources();
-          startSourcesAt(target);
-        } else if (shouldEndPlayback(t, s.duration, END_TAIL)) {
-          stopSources();
-          pausedOffsetRef.current = 0;
-          lastTRef.current = 0;
-          setCurrentTime(0);
-          isPlayingInternalRef.current = false;
-          dispatch({ type: 'SET_PLAYING', isPlaying: false });
+        if (s.buffering) {
+          // Stalled: hold the cursor at the frozen position and watch for the
+          // covering segment to arrive. On resume, reset lastTRef to stallPos
+          // FIRST so the loop-wrap check (next frame) doesn't see a jump across
+          // loop.end, then reschedule sources from stallPos.
+          setCurrentTime(Math.min(s.duration, stallPosRef.current));
+          if (isPositionCovered(stallPosRef.current)) {
+            dispatch({ type: 'SET_BUFFERING', buffering: false });
+            stateRef.current = { ...stateRef.current, buffering: false };
+            lastTRef.current = stallPosRef.current;
+            startSourcesAt(stallPosRef.current);
+          }
         } else {
-          lastTRef.current = t;
-        }
-        const now = performance.now();
-        if (now - lastPositionUpdateRef.current > 250) {
-          lastPositionUpdateRef.current = now;
-          updateMediaSessionPosition(t, s.duration);
+          const t = Math.min(s.duration, computeCurrentTime());
+          if (!isPositionCovered(t)) {
+            // The playhead reached an undecoded region (fill fell behind).
+            // Freeze here, stop the silent sources, and enter buffering. The
+            // loop-wrap and end-of-song checks below are intentionally in the
+            // else branch, so a stall near a stem's end or across loop.end can't
+            // spuriously fire while we wait.
+            stallPosRef.current = t;
+            pausedOffsetRef.current = t;
+            stopSources();
+            setCurrentTime(t);
+            dispatch({ type: 'SET_BUFFERING', buffering: true });
+            stateRef.current = { ...stateRef.current, buffering: true };
+          } else {
+            const prevT = lastTRef.current;
+            setCurrentTime(t);
+            if (shouldLoopWrap(t, prevT, s.loop, LOOP_TAIL)) {
+              // Internal seek (cheap — just reschedules sources).
+              const target = s.loop!.start;
+              pausedOffsetRef.current = target;
+              lastTRef.current = target;
+              setCurrentTime(target);
+              stopSources();
+              startSourcesAt(target);
+            } else if (shouldEndPlayback(t, s.duration, END_TAIL)) {
+              stopSources();
+              pausedOffsetRef.current = 0;
+              lastTRef.current = 0;
+              setCurrentTime(0);
+              isPlayingInternalRef.current = false;
+              dispatch({ type: 'SET_PLAYING', isPlaying: false });
+            } else {
+              lastTRef.current = t;
+            }
+            const now = performance.now();
+            if (now - lastPositionUpdateRef.current > 250) {
+              lastPositionUpdateRef.current = now;
+              updateMediaSessionPosition(t, s.duration);
+            }
+          }
         }
       }
       raf = requestAnimationFrame(tick);
@@ -1122,6 +1204,11 @@ export function usePlayer(): PlayerControls {
     dispatch({ type: 'SET_PLAYING', isPlaying: false });
     stateRef.current = { ...stateRef.current, isPlaying: false };
     isPlayingInternalRef.current = false;
+    // Pausing out of a stall clears buffering: pausedOffsetRef already captured
+    // the frozen stallPos (computeCurrentTime returns it while buffering), so a
+    // later resume starts from the held position, not a phantom wall-clock one.
+    dispatch({ type: 'SET_BUFFERING', buffering: false });
+    stateRef.current = { ...stateRef.current, buffering: false };
     updateMediaSessionPosition(pausedOffsetRef.current, stateRef.current.duration);
   }, []);
 
@@ -1262,8 +1349,28 @@ export function usePlayer(): PlayerControls {
       if (segmentsRef.current.has(key)) fillCursorRef.current.set(key, j);
     }
     if (!isPlayingInternalRef.current) {
-      // Paused: nothing scheduled, no need to coalesce.
+      // Paused: nothing scheduled, no need to coalesce — and no stall (a stall
+      // only exists while sources are running and could underrun).
       return;
+    }
+    // Detect a seek into an undecoded region synchronously, BEFORE the coalesced
+    // reschedule, so we never schedule silent sources and then race the rAF to
+    // catch the gap. Freeze at the target and enter buffering; the rAF resumes
+    // when the covering segment arrives.
+    if (!isPositionCovered(clamped)) {
+      stallPosRef.current = clamped;
+      pausedOffsetRef.current = clamped;
+      stopSources();
+      dispatch({ type: 'SET_BUFFERING', buffering: true });
+      stateRef.current = { ...stateRef.current, buffering: true };
+      return;
+    }
+    // Covered now — if we were stalled from a prior seek, clear it so the rAF
+    // tick takes the normal (non-buffering) path and the coalesced reschedule
+    // below actually starts sources.
+    if (stateRef.current.buffering) {
+      dispatch({ type: 'SET_BUFFERING', buffering: false });
+      stateRef.current = { ...stateRef.current, buffering: false };
     }
     pendingSeekTargetRef.current = clamped;
     if (pendingSeekRafRef.current != null) return;
