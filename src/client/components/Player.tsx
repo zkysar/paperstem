@@ -61,6 +61,9 @@ type Props = {
   sections: Section[];
   songUseCounts: Map<string, number>;
   activeSectionId: string | null;
+  // Incremented by App when a project is opened focused on a song. Reveals
+  // the collapsed section lane on mobile so the focused pill's label shows.
+  revealLaneNonce?: number;
   sectionCreateMode: boolean;
   onSectionSelected(section: Section): void;
   onPatchSection(id: string, input: { start_ms: number }): Promise<void>;
@@ -98,6 +101,7 @@ export function Player({
   sections,
   songUseCounts,
   activeSectionId,
+  revealLaneNonce,
   sectionCreateMode,
   onSectionSelected,
   onPatchSection,
@@ -179,6 +183,15 @@ export function Player({
       setLaneTappedOpen(false);
     }
   }, [sections.length]);
+
+  // Opening a project focused on a filtered song reveals the lane so the
+  // focused pill's label is legible. Only matters on mobile — laneExpanded
+  // ignores laneTappedOpen on desktop, where the active-section chip already
+  // names the section. The existing outside-pointerdown handler collapses it.
+  useEffect(() => {
+    if (!revealLaneNonce || !isMobile) return;
+    setLaneTappedOpen(true);
+  }, [revealLaneNonce, isMobile]);
 
   // Destructure setStageWidth so the effect dependency is the stable
   // useCallback reference rather than the viewport object itself. Without

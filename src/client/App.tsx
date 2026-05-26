@@ -6,6 +6,7 @@ import { consumeReturnPath } from './lib/public-return';
 import { buildDocumentTitle } from './lib/document-title';
 import { PENDING_SHARE_HASH_KEY, useShareLink } from './hooks/useShareLink';
 import { applyShareState } from './lib/apply-share-state';
+import { pickSongFocusSection } from './lib/focus-section';
 import {
   ShareArrivalBanner,
   type ShareArrivalCategory,
@@ -157,6 +158,10 @@ function PaperstemApp({
   const isMobile = useIsMobile();
   const shareLink = useShareLink();
   const pendingShareStateRef = useRef(shareLink.initial);
+  // When a project is opened from the picker while a song filter is active,
+  // stash the song id here so the load-drain effect can seek + highlight that
+  // song's section once the project finishes loading.
+  const pendingFocusSongIdRef = useRef<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [showZoomHint, setShowZoomHint] = useState<boolean>(() => {
@@ -262,6 +267,11 @@ function PaperstemApp({
   const [songUsage, setSongUsage] = useState<SongUsageRow[]>([]);
   const [sectionCreateMode, setSectionCreateMode] = useState(false);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  // Bumped when a project is opened focused on a filtered song. The Player
+  // reads it to reveal the (otherwise collapsed) section lane on mobile so
+  // the focused song's labelled pill is visible — on desktop the playhead
+  // already drives the active-section name chip, so the bump is a no-op there.
+  const [laneRevealNonce, setLaneRevealNonce] = useState(0);
   // The popover state covers both "create at clicked position" and
   // "edit existing section". `section: null` means create.
   const [sectionPopover, setSectionPopover] = useState<{
@@ -1093,6 +1103,28 @@ function PaperstemApp({
     }
   }, [player, openDrawer, viewport]);
 
+  // Opening a project from the picker while a song filter is active should
+  // land the listener on that song. Wait until the project is loaded enough
+  // to act on: its stems are present, its duration is known (otherwise
+  // player.seek would clamp the target to 0 — duration is 0 until the
+  // server's durationMs metadata or a decoded buffer lands), and its
+  // sections have been fetched. Then seek the playhead to the song's
+  // earliest section and highlight it. Cleared after the first attempt so a
+  // later reload-in-place can't re-trigger it.
+  useEffect(() => {
+    const songId = pendingFocusSongIdRef.current;
+    if (!songId || !activeProjectId) return;
+    if (player.state.projectId !== activeProjectId) return;
+    if (player.state.stems.length === 0 || player.state.duration === 0) return;
+    if (sections.length === 0 || sections[0].project_id !== activeProjectId) return;
+    pendingFocusSongIdRef.current = null;
+    const target = pickSongFocusSection(sections, songId);
+    if (!target) return;
+    player.seek(target.start_ms / 1000);
+    setActiveSectionId(target.id);
+    setLaneRevealNonce((n) => n + 1);
+  }, [player, sections, activeProjectId]);
+
   // Auto-dismiss the arrival banner once playback starts (either via the
   // banner's ▶ Listen button or any manual play).
   useEffect(() => {
@@ -1172,8 +1204,9 @@ function PaperstemApp({
   );
 
   const selectProject = useCallback(
-    async (id: string) => {
+    async (id: string, focusSongId?: string | null) => {
       if (!repo) return;
+      pendingFocusSongIdRef.current = focusSongId ?? null;
       setActiveProjectId(id);
       setDraftFiles([]);
       await loadProject(id, { resetUiState: true });
@@ -1762,6 +1795,7 @@ function PaperstemApp({
               sections={sections}
               songUseCounts={songUseCounts}
               activeSectionId={activeSectionId}
+              revealLaneNonce={laneRevealNonce}
               sectionCreateMode={sectionCreateMode}
               onSectionSelected={handleSectionSelected}
               onSectionCreated={handleSectionCreatedAtClick}
@@ -1947,7 +1981,7 @@ function PaperstemApp({
         onSetFilterSongId={setFilterSongId}
         onClose={closePicker}
         onSelect={(id) => {
-          void selectProject(id);
+          void selectProject(id, filterSongId);
           closePicker();
         }}
         onLoadFolder={(files, folderName) => {
