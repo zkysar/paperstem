@@ -1104,16 +1104,18 @@ function PaperstemApp({
   }, [player, openDrawer, viewport]);
 
   // Opening a project from the picker while a song filter is active should
-  // land the listener on that song. Wait until the project is fully loaded
-  // (stems decoded so seek won't clamp, and sections fetched for this
-  // project), then seek the playhead to the song's earliest section and
-  // highlight it. Cleared after the first attempt so a later reload can't
-  // re-trigger it.
+  // land the listener on that song. Wait until the project is loaded enough
+  // to act on: its stems are present, its duration is known (otherwise
+  // player.seek would clamp the target to 0 — duration is 0 until the
+  // server's durationMs metadata or a decoded buffer lands), and its
+  // sections have been fetched. Then seek the playhead to the song's
+  // earliest section and highlight it. Cleared after the first attempt so a
+  // later reload-in-place can't re-trigger it.
   useEffect(() => {
     const songId = pendingFocusSongIdRef.current;
     if (!songId || !activeProjectId) return;
     if (player.state.projectId !== activeProjectId) return;
-    if (player.state.stems.length === 0) return;
+    if (player.state.stems.length === 0 || player.state.duration === 0) return;
     if (sections.length === 0 || sections[0].project_id !== activeProjectId) return;
     pendingFocusSongIdRef.current = null;
     const target = pickSongFocusSection(sections, songId);
