@@ -75,7 +75,7 @@ describe('isCovered', () => {
       { userMuted: false, soloed: false, source: seg(false) },
     ])).toBe(true);
   });
-  it('full-decode (buffer) stem is covered while p < its duration, excluded past its end', () => {
+  it('full-decode (buffer) stem never gates the stall, at any position', () => {
     expect(isCovered(10, [{ userMuted: false, soloed: false, source: buf(30) }])).toBe(true);
     expect(isCovered(40, [{ userMuted: false, soloed: false, source: buf(30) }])).toBe(true);
   });

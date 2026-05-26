@@ -59,7 +59,10 @@ export function isCovered(p: number, stems: CoverageStem[]): boolean {
     if (s.source.kind === 'errored') continue;
     const sounding = anySolo ? s.soloed : !s.userMuted;
     if (!sounding) continue;
-    if (s.source.kind === 'buffer') continue; // full file decoded → never blocks
+    // A full-decode (non-MP3) stem holds its whole file once present, so it can
+    // never cause a buffering stall — it never gates, regardless of position.
+    // `durationSec` is carried for call-site clarity / future use, not read here.
+    if (s.source.kind === 'buffer') continue;
     if (!s.source.coveredAtP) return false;
   }
   return true;
