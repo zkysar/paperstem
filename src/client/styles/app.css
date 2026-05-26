@@ -5127,22 +5127,47 @@ body.env-non-prod[data-env="local"]::before {
 /* ---- ProjectPicker song filter bar ----------------------------------- */
 
 /* Surfaces contextually beneath the search box: an active-filter pill and/or
-   "Filter by song" chips for songs whose name matches the query. Wraps on a
-   single short line — it carries a handful of matches, never the full catalog,
-   so no horizontal-scroll treatment is needed on mobile. */
+   "Filter by song" chips. The bar is a pinned label plus a single-row,
+   horizontally-scrolling chip track, so it stays exactly one line tall no
+   matter how many songs match — the chips never wrap down and shove the
+   project list below the fold (worst on narrow phones). */
 .fp-song-bar {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   padding: 6px 12px;
   border-bottom: 1px solid var(--rule);
   align-items: center;
-  flex-wrap: wrap;
 }
 .fp-song-bar-label {
   font-size: var(--fs-2xs);
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+/* Chips live on one non-wrapping line that scrolls sideways, so the bar's
+   height is fixed at a single row no matter how many songs there are. */
+.fp-song-scroll {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  /* leave room below the chips for the scrollbar without clipping focus rings */
+  padding-bottom: 2px;
+}
+.fp-song-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.fp-song-scroll::-webkit-scrollbar-thumb {
+  background: var(--rule);
+  border-radius: 2px;
+}
+.fp-song-chip,
+.fp-song-active {
   flex-shrink: 0;
 }
 .fp-song-chip {
