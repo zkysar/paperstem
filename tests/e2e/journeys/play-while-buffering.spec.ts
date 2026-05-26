@@ -63,16 +63,18 @@ test.describe('Journey: play a seeded project while it buffers in the background
       .poll(async () => seconds(await timeText()), { timeout: 8_000 })
       .toBeGreaterThan(0);
 
-    // Monotonic advance over a short window: sample, wait, sample again, and
-    // assert it moved forward. Kept well under the ~5s clip length so we never
-    // race the end-of-song wrap that would zero currentTime.
+    // Monotonic advance: poll until the displayed second exceeds t1. A fixed
+    // sub-second window (sample / waitForTimeout / sample) is NOT safe here —
+    // .atb-time renders whole seconds, so two reads ~700ms apart can land in
+    // the same integer second while the playhead genuinely advances (this raced
+    // and failed in CI: "2s → 2s"). Polling is resolution-robust and still
+    // fails on a real freeze (it times out). t1 ≈ 1s at this point (the poll
+    // above resolves the moment the readout ticks to 0:01), so reaching t1 + 1
+    // lands ~2s in — well before the ~5s clip's end-of-song reset.
     const t1 = seconds(await timeText());
-    await page.waitForTimeout(700);
-    const t2 = seconds(await timeText());
-    expect(
-      t2,
-      `playhead did not advance: ${t1}s → ${t2}s while playing`,
-    ).toBeGreaterThan(t1);
+    await expect
+      .poll(async () => seconds(await timeText()), { timeout: 6_000 })
+      .toBeGreaterThan(t1);
 
     // Pause so later teardown / consoleIssues assertion doesn't race the rAF.
     await page.keyboard.press('Space');
