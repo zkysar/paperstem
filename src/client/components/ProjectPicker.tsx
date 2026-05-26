@@ -280,53 +280,59 @@ export function ProjectPicker({
         {tab !== 'trash' && (activeSong || songChips.length > 0) && (
           <div className="fp-song-bar" role="group" aria-label="Filter by song">
             {/* The eyebrow labels the suggestion chips; when only the active
-                pill shows it's redundant (the pill is self-describing). */}
+                pill shows it's redundant (the pill is self-describing). It
+                stays pinned outside the scroll region so it never scrolls off. */}
             {songChips.length > 0 && (
               <span className="fp-song-bar-label">Filter by song</span>
             )}
-            {activeSong && (
-              <button
-                type="button"
-                className="fp-song-active"
-                data-testid={`fp-song-active-${activeSong.id}`}
-                aria-label={`Clear song filter: ${activeSong.name}`}
-                onClick={clearFilters}
-              >
-                <span
-                  className="fp-song-chip-swatch"
-                  style={{ background: colorForSong(activeSong.id) }}
-                  aria-hidden="true"
-                />
-                <span>{activeSong.name}</span>
-                <X size={12} strokeWidth={2.5} aria-hidden="true" />
-              </button>
-            )}
-            {songChips.map((s) => (
-              <button
-                type="button"
-                key={s.id}
-                data-testid={`fp-song-chip-${s.id}`}
-                className="fp-song-chip"
-                aria-label={`Filter by song: ${s.name}`}
-                onClick={() => {
-                  onSetFilterSongId(s.id);
-                  setSearch('');
-                  // The clicked chip unmounts (it becomes the active pill), so
-                  // return focus to the search box rather than losing it to body.
-                  searchInputRef.current?.focus();
-                }}
-              >
-                <span
-                  className="fp-song-chip-swatch"
-                  style={{ background: colorForSong(s.id) }}
-                  aria-hidden="true"
-                />
-                <span>{s.name}</span>
-                {s.use_count > 1 && (
-                  <span className="fp-song-chip-count">{s.use_count}</span>
-                )}
-              </button>
-            ))}
+            {/* Single non-wrapping row: the bar is height-bounded to one line
+                and overflowing chips scroll sideways, instead of wrapping
+                downward and shoving the project list below the fold. */}
+            <div className="fp-song-scroll" data-testid="fp-song-scroll">
+              {activeSong && (
+                <button
+                  type="button"
+                  className="fp-song-active"
+                  data-testid={`fp-song-active-${activeSong.id}`}
+                  aria-label={`Clear song filter: ${activeSong.name}`}
+                  onClick={clearFilters}
+                >
+                  <span
+                    className="fp-song-chip-swatch"
+                    style={{ background: colorForSong(activeSong.id) }}
+                    aria-hidden="true"
+                  />
+                  <span>{activeSong.name}</span>
+                  <X size={12} strokeWidth={2.5} aria-hidden="true" />
+                </button>
+              )}
+              {songChips.map((s) => (
+                <button
+                  type="button"
+                  key={s.id}
+                  data-testid={`fp-song-chip-${s.id}`}
+                  className="fp-song-chip"
+                  aria-label={`Filter by song: ${s.name}`}
+                  onClick={() => {
+                    onSetFilterSongId(s.id);
+                    setSearch('');
+                    // The clicked chip unmounts (it becomes the active pill), so
+                    // return focus to the search box rather than losing it to body.
+                    searchInputRef.current?.focus();
+                  }}
+                >
+                  <span
+                    className="fp-song-chip-swatch"
+                    style={{ background: colorForSong(s.id) }}
+                    aria-hidden="true"
+                  />
+                  <span>{s.name}</span>
+                  {s.use_count > 1 && (
+                    <span className="fp-song-chip-count">{s.use_count}</span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         )}
         {tab !== 'trash' && (

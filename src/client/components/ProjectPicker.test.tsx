@@ -467,6 +467,19 @@ describe('ProjectPicker', () => {
     expect(screen.getByTestId('fp-song-chip-s-1').textContent).toBe('Song B');
   });
 
+  it('renders the chips inside the single-row scroll container, not the wrapping bar', () => {
+    const bandSongs = Array.from({ length: 6 }, (_, i) => ({
+      id: `s-${i}`, band_id: 'b', name: `Song ${String.fromCharCode(65 + i)}`,
+      created_at: 0, use_count: 1,
+    }));
+    render(<ProjectPicker {...baseProps} bandSongs={bandSongs} />);
+    const scroll = screen.getByTestId('fp-song-scroll');
+    // The chips live in the horizontal-scroll row so the bar can't grow taller
+    // than one line; the pinned label stays outside it.
+    expect(scroll.querySelectorAll('[data-testid^="fp-song-chip-"]').length).toBe(6);
+    expect(scroll.querySelector('.fp-song-bar-label')).toBeNull();
+  });
+
   it('clicking a song chip applies the filter and clears the search', async () => {
     const user = userEvent.setup();
     const onSetFilterSongId = vi.fn();
