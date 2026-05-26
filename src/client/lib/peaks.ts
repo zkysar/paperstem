@@ -9,8 +9,18 @@
 // were pre-normalized per stem, which silently no-op'd the toggle); decodePeaks
 // rejects v1 so the loader treats those stems as having no precomputed peaks
 // and the Track backfill recomputes raw peaks and rewrites as v2.
+//
+// The player waveform wants per-bin max amplitude (peak-accurate transients).
+// The tiny thumbnail wants the opposite: each ~110 bar spans seconds of audio,
+// so per-bin max saturates a loud/limited master to a flat "sausage" — every
+// window contains a near-full-scale transient. The thumbnail paths therefore
+// use an RMS (loudness-energy) envelope instead, which reveals where a track is
+// dense vs. sparse and renders as a real waveform. See computePeaks' `mode`
+// option and thumbPeaksFromWire.
 
-const CACHE_PREFIX = 'paperstem:peaks:v1:';
+// Bumped v1 -> v2 when the thumbnail switched from max-pool to RMS pooling, so
+// returning users discard max-pooled envelopes cached by the old decode path.
+const CACHE_PREFIX = 'paperstem:peaks:v2:';
 const WIRE_V2_PREFIX = 'v2:';
 export const PEAK_BINS = 110;
 export const PLAYER_PEAK_BINS = 2000;
@@ -18,9 +28,9 @@ export const PLAYER_PEAK_BINS = 2000;
 export function computePeaks(
   buffer: AudioBuffer,
   bins: number = PEAK_BINS,
-  options: { normalize?: boolean } = {},
+  options: { normalize?: boolean; mode?: 'peak' | 'rms' } = {},
 ): number[] {
-  const { normalize = true } = options;
+  const { normalize = true, mode = 'peak' } = options;
   const channels: Float32Array[] = [];
   for (let c = 0; c < buffer.numberOfChannels; c++) {
     channels.push(buffer.getChannelData(c));
@@ -34,14 +44,27 @@ export function computePeaks(
   for (let i = 0; i < bins; i++) {
     const start = i * samplesPerBin;
     const end = i === bins - 1 ? length : Math.min(length, start + samplesPerBin);
-    let max = 0;
-    for (let s = start; s < end; s++) {
-      for (const ch of channels) {
-        const v = Math.abs(ch[s]);
-        if (v > max) max = v;
+    if (mode === 'rms') {
+      let sumSq = 0;
+      let count = 0;
+      for (let s = start; s < end; s++) {
+        for (const ch of channels) {
+          const v = ch[s];
+          sumSq += v * v;
+          count++;
+        }
       }
+      out[i] = count > 0 ? Math.sqrt(sumSq / count) : 0;
+    } else {
+      let max = 0;
+      for (let s = start; s < end; s++) {
+        for (const ch of channels) {
+          const v = Math.abs(ch[s]);
+          if (v > max) max = v;
+        }
+      }
+      out[i] = max;
     }
-    out[i] = max;
   }
   if (normalize) {
     let peak = 0;
@@ -55,11 +78,15 @@ export function computePeaks(
 
 // Derive thumbnail peaks (normalized 0..1, ~PEAK_BINS wide) from the server's
 // stored wire string. The stored peaks are the high-resolution player envelope
-// (PLAYER_PEAK_BINS, raw amplitudes); downsample by taking the max per bucket
-// and normalize so the thumbnail matches the audio-decode path's output. This
-// lets the picker render a real waveform without downloading/decoding audio —
-// the slow, flaky step on mobile. Returns null when the stem has no stored
-// peaks so the caller can fall back to the decode path.
+// (PLAYER_PEAK_BINS, raw per-bin max amplitudes); downsample to the thumbnail
+// width by taking the RMS per bucket, then normalize. RMS (not max) is what
+// keeps a loud master from collapsing into a flat block: each thumbnail bar
+// spans seconds of audio, so max-pooling grabs the single loudest transient in
+// every bucket and saturates them all. RMS instead reflects how much energy a
+// bucket holds, so dense and sparse sections render at visibly different
+// heights. This lets the picker show a real waveform without downloading or
+// decoding audio — the slow, flaky step on mobile. Returns null when the stem
+// has no stored peaks so the caller can fall back to the decode path.
 export function thumbPeaksFromWire(raw: string | null | undefined): number[] | null {
   if (!raw) return null;
   const decoded = decodePeaks(raw);
@@ -72,12 +99,15 @@ export function thumbPeaksFromWire(raw: string | null | undefined): number[] | n
   for (let i = 0; i < n; i++) {
     const start = Math.floor(i * per);
     const end = i === n - 1 ? src.length : Math.floor((i + 1) * per);
-    let max = 0;
+    let sumSq = 0;
+    let count = 0;
     for (let s = start; s < end; s++) {
-      if (src[s] > max) max = src[s];
+      sumSq += src[s] * src[s];
+      count++;
     }
-    out[i] = max;
-    if (max > peak) peak = max;
+    const rms = count > 0 ? Math.sqrt(sumSq / count) : 0;
+    out[i] = rms;
+    if (rms > peak) peak = rms;
   }
   if (peak > 0) {
     for (let i = 0; i < n; i++) out[i] /= peak;

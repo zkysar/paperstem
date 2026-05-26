@@ -66,6 +66,21 @@ describe('computePeaks', () => {
     expect(max).toBeCloseTo(0.4, 5);
     expect(Math.min(...peaks)).toBeCloseTo(0.25, 5);
   });
+
+  it('weights sustained energy over lone spikes with mode "rms"', () => {
+    // Bin 0 is near-silent but for one full-scale sample; bin 1 is a steady
+    // half-scale tone. The default peak mode ranks bin 0 highest (its lone
+    // spike); RMS ranks bin 1 highest (it carries far more energy). This is the
+    // difference that stops a loud master's thumbnail from saturating.
+    const spike = new Array(100).fill(0);
+    spike[0] = 1;
+    const sustained = new Array(100).fill(0.5);
+    const samples = [...spike, ...sustained];
+    const peak = computePeaks(makeBuffer([samples]), 2);
+    expect(peak[0]).toBeGreaterThan(peak[1]);
+    const rms = computePeaks(makeBuffer([samples]), 2, { mode: 'rms' });
+    expect(rms[1]).toBeGreaterThan(rms[0]);
+  });
 });
 
 describe('peaks cache', () => {
@@ -97,7 +112,7 @@ describe('peaks cache', () => {
   });
 
   it('returns null on malformed stored data', () => {
-    localStorage.setItem('paperstem:peaks:v1:bad', 'not,a,number');
+    localStorage.setItem('paperstem:peaks:v2:bad', 'not,a,number');
     expect(loadCachedPeaks('bad')).toBeNull();
   });
 });
@@ -167,8 +182,24 @@ describe('thumbPeaksFromWire', () => {
     const peaks = thumbPeaksFromWire(encodePeaks(raw));
     expect(peaks).not.toBeNull();
     expect(peaks!.length).toBe(PEAK_BINS);
-    // Downsample takes the max per bucket, so the loudest sample survives.
+    // The result is normalized, so the loudest bucket is always 1.
     expect(Math.max(...peaks!)).toBeCloseTo(1, 5);
+  });
+
+  it('reveals loudness density that max-pooling would flatten into a sausage', () => {
+    // Both halves peak at full scale, so the old max-pooling rendered every
+    // bucket at 1.0 (the "sausage"). The first half is sparse (one spike per
+    // window) and the second is dense (a spike every other sample), so the RMS
+    // envelope must render the first half visibly shorter than the second.
+    const raw = new Array(2000).fill(0);
+    for (let i = 0; i < 2000; i++) {
+      raw[i] = i < 1000 ? (i % 18 === 0 ? 1 : 0) : i % 2 === 0 ? 1 : 0;
+    }
+    const peaks = thumbPeaksFromWire(encodePeaks(raw))!;
+    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+    const sparseAvg = avg(peaks.slice(5, 45));
+    const denseAvg = avg(peaks.slice(65, 105));
+    expect(denseAvg).toBeGreaterThan(sparseAvg * 1.5);
   });
 
   it('keeps the source length when shorter than PEAK_BINS', () => {
