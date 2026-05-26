@@ -92,6 +92,7 @@ vi.stubGlobal(
 
 // Import AFTER the globals are stubbed.
 import { usePlayer } from './usePlayer';
+import { planSegments } from '../lib/segment-stream';
 
 function makeSources(...names: string[]) {
   return names.map((name, i) => ({
@@ -1594,6 +1595,142 @@ describe('usePlayer — head-start MP3 loading', () => {
     // Only segment 2 covers offset 50 -> exactly one rescheduled source.
     // Segments 0 ([0,~20]) and 1 ([~20,~40]) end before 50 and are skipped.
     expect(ctx.startCallCount).toBe(1);
+  });
+
+  it('seek repositions the fill cursor to the segment under the playhead and fetches it next', async () => {
+    // 120 s stem -> 6 plan segments. Gate every background-fill fetch (start>0)
+    // so the loop is parked on segment 1 (the first fill index) and NOTHING past
+    // it has been requested. While that fetch is in flight we seek to 70 s
+    // (j = floor(70/20) = 3), which repositions the cursor. Releasing the gate
+    // lets the parked segment-1 fetch complete; the loop's NEXT iteration reads
+    // the moved cursor and fetches plan[3] — not plan[2] as a fixed 1,2,3 crawl
+    // would. We assert on the ORDER of fetchStart values requested.
+    const total = mp3Bytes(2308 * 2); // ~960 KB over 120 s -> 6 segments
+    const plan = planSegments(total.length, 120);
+    expect(plan).toHaveLength(6);
+
+    const fetchStarts: number[] = [];
+    let releaseFirstFill!: () => void;
+    const firstFillGate = new Promise<void>((res) => {
+      releaseFirstFill = res;
+    });
+    let gatedOnce = false;
+    installFetch({
+      bytesFor: () => total,
+      onRangeFetch: async (_url, start) => {
+        if (start > 0) {
+          fetchStarts.push(start);
+          // Park ONLY the first fill fetch; once released the loop runs free.
+          if (!gatedOnce) {
+            gatedOnce = true;
+            await firstFillGate;
+          }
+        }
+      },
+    });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'mp',
+        title: 't',
+        folderId: null,
+        sources: [mp3Source('drums.mp3', 'm-', 120_000)],
+      });
+    });
+
+    // Head is ready; the fill has issued (and is parked on) segment 1's fetch.
+    expect(result.current.state.loading).toBeNull();
+    expect(fetchStarts).toEqual([plan[1].fetchStart]);
+
+    // Start playback off the head, then seek to 70 s -> j=3.
+    await act(async () => {
+      result.current.togglePlay();
+    });
+    expect(result.current.state.isPlaying).toBe(true);
+    act(() => {
+      result.current.seek(70);
+    });
+    expect(result.current.currentTime).toBe(70);
+
+    // Release the parked segment-1 fetch and drain the now-free fill loop.
+    await act(async () => {
+      releaseFirstFill();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // The NEXT new fetch after the (in-flight) segment 1 is plan[3] — the seek
+    // target — proving the cursor moved. A fixed 1,2,3 crawl would fetch plan[2].
+    expect(fetchStarts[0]).toBe(plan[1].fetchStart);
+    expect(fetchStarts[1]).toBe(plan[3].fetchStart);
+  });
+
+  it('fill backfills earlier gaps after reaching the end, and terminates', async () => {
+    // 120 s stem -> 6 plan segments. Seek to j=4 BEFORE the fill begins (gate the
+    // first fill fetch), so when the loop runs it starts at cursor 4. It should
+    // fetch 4,5 forward, then backfill 1,2,3, then terminate (segment 0 is the
+    // decoded head). No duplicate fetch, no hang.
+    const total = mp3Bytes(2308 * 2); // 6 segments
+    const plan = planSegments(total.length, 120);
+    expect(plan).toHaveLength(6);
+    // Map a requested fetchStart back to its plan index for a readable assertion.
+    const indexOfStart = (start: number) =>
+      plan.findIndex((p) => p.fetchStart === start);
+
+    const fetchedIndices: number[] = [];
+    let releaseFirstFill!: () => void;
+    const firstFillGate = new Promise<void>((res) => {
+      releaseFirstFill = res;
+    });
+    let gatedOnce = false;
+    installFetch({
+      bytesFor: () => total,
+      onRangeFetch: async (_url, start) => {
+        if (start > 0) {
+          fetchedIndices.push(indexOfStart(start));
+          if (!gatedOnce) {
+            gatedOnce = true;
+            await firstFillGate;
+          }
+        }
+      },
+    });
+
+    const { result } = renderHook(() => usePlayer());
+    await act(async () => {
+      await result.current.load({
+        projectId: 'mp',
+        title: 't',
+        folderId: null,
+        sources: [mp3Source('drums.mp3', 'm-', 120_000)],
+      });
+    });
+
+    // Play, then seek to j=4 while the first fill fetch is parked.
+    await act(async () => {
+      result.current.togglePlay();
+    });
+    act(() => {
+      result.current.seek(4 * 20); // 80 s -> j=4
+    });
+
+    // Release the parked fetch and let the loop run to completion.
+    await act(async () => {
+      releaseFirstFill();
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // The first parked fetch was segment 1 (issued before the seek moved the
+    // cursor); every subsequent fetch follows the moved cursor: 4,5 forward then
+    // 2,3 backfill (1 already fetched). All five non-head indices, each once.
+    expect(fetchedIndices[0]).toBe(1);
+    const afterPark = fetchedIndices.slice(1);
+    expect(afterPark).toEqual([4, 5, 2, 3]);
+    // No duplicate fetch across the whole run.
+    expect(new Set(fetchedIndices).size).toBe(fetchedIndices.length);
+    // Loop terminated: all six segments (0 head + 1..5 fetched) accounted for,
+    // so nextFillIndex returned null and the fill resolved without hanging.
+    expect(new Set([0, ...fetchedIndices])).toEqual(new Set([0, 1, 2, 3, 4, 5]));
   });
 
   // flushRaf / rafQueue mirror the Phase A harness so seek's coalesced rAF and

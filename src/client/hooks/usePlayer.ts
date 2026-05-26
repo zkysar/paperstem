@@ -29,7 +29,7 @@ import {
   type PlannedSegment,
 } from '../lib/segment-stream';
 import { computeSegmentSchedule } from '../lib/segment-scheduler';
-import { sessionTimings, type SegTiming } from '../lib/segment-runs';
+import { nextFillIndex, sessionTimings, type SegTiming } from '../lib/segment-runs';
 
 const SEGMENT_SEC = DEFAULT_SEGMENT_SEC;
 
@@ -373,6 +373,16 @@ export function usePlayer(): PlayerControls {
   // single audioBuffer instead. Cleared in load() teardown and on unmount.
   const segmentsRef = useRef<Map<string, StemSegments>>(new Map());
 
+  // Per-stem background-fill cursor (key = stemKey). The single long-lived fill
+  // loop for a stem reads this each iteration to choose the next segment to
+  // fetch: forward from the cursor, then backfilling earlier gaps (see
+  // nextFillIndex). A seek repositions every stem's cursor to the segment under
+  // the new playhead so the loop prioritizes audible bytes instead of finishing
+  // the in-order crawl first. No-seek playback leaves the cursor at its initial
+  // 1, so the loop walks 1,2,3,… exactly as before. Cleared alongside
+  // segmentsRef in load() teardown and unmount cleanup.
+  const fillCursorRef = useRef<Map<string, number>>(new Map());
+
   // Session anchor index for the current play/seek session: j = floor(offset /
   // SEGMENT_SEC), set by startSourcesAt. A stem's segment index i >= j is placed
   // at sessionTimings(j, durations, SEGMENT_SEC). scheduleDecodedSegment reads
@@ -650,6 +660,7 @@ export function usePlayer(): PlayerControls {
       }
       stopSources();
       segmentsRef.current.clear();
+      fillCursorRef.current.clear();
       const s = stateRef.current;
       for (const stem of s.stems) {
         try {
@@ -816,6 +827,7 @@ export function usePlayer(): PlayerControls {
     // Release the previous load's decoded segments so their AudioBuffers can be
     // garbage-collected; the new load rebuilds this map from scratch.
     segmentsRef.current.clear();
+    fillCursorRef.current.clear();
     const prev = stateRef.current.stems;
     for (const s of prev) {
       try {
@@ -952,7 +964,11 @@ export function usePlayer(): PlayerControls {
             errored: new Set(),
           };
           entry.segments.set(0, { buffer: buf0, duration: buf0.duration });
-          segmentsRef.current.set(stemKey(built[i].serverId, i), entry);
+          const key = stemKey(built[i].serverId, i);
+          segmentsRef.current.set(key, entry);
+          // Segment 0 is the decoded head, so the fill starts at index 1. A seek
+          // moves this cursor; the long-lived fill loop reads it each iteration.
+          fillCursorRef.current.set(key, 1);
           // MP3 stems play from segments, not the single buffer — leave
           // audioBuffer null. Record the plan + a CBR bytes/sec for the fill.
           fillPlans[i] = { url, plan, bytesPerSec: head.totalBytes / metaDuration };
@@ -1006,10 +1022,15 @@ export function usePlayer(): PlayerControls {
     });
 
     // ---- Background fill (fire-and-forget) ----
-    // For each MP3 stem, fetch + decode segments 1..N sequentially. A segment
+    // ONE long-lived loop per MP3 stem. Each iteration recomputes the next index
+    // to fetch from the stem's live cursor (nextFillIndex: forward from cursor,
+    // then backfill earlier gaps), so a seek that moves the cursor reroutes this
+    // same loop to the seek target next — no new loop is spawned. A segment
     // decoded mid-playback is scheduled immediately so it joins the running
-    // playhead at the right absolute time. One bad segment stops that stem's
-    // fill (audio ends early at the last good segment) but never the others.
+    // playhead at the right absolute time. A bad segment is recorded in
+    // entry.errored (so nextFillIndex skips it and the loop never re-picks it),
+    // and the loop continues with the remaining gaps; one bad segment never
+    // stalls the stem's other segments or the other stems.
     const fillStem = async (i: number): Promise<void> => {
       const fp = fillPlans[i];
       if (!fp) return;
@@ -1021,8 +1042,17 @@ export function usePlayer(): PlayerControls {
       // before any push/schedule, so a superseded fill is doubly inert.
       const entry = segmentsRef.current.get(key);
       if (!entry) return;
-      for (let k = 1; k < fp.plan.length; k++) {
+      const count = fp.plan.length;
+      for (;;) {
         if (loadGenRef.current !== myGen) return;
+        // Recompute decoded from the live keys each iteration so an
+        // already-decoded index (including the seek target if it landed first)
+        // is never re-fetched. The undecoded∖errored set strictly shrinks every
+        // successful or failed fetch, so the loop is guaranteed to terminate.
+        const decoded = new Set(entry.segments.keys());
+        const cursor = fillCursorRef.current.get(key) ?? 1;
+        const k = nextFillIndex(decoded, entry.errored, cursor, count);
+        if (k == null) return; // all indices decoded or errored — done.
         const p = fp.plan[k];
         try {
           const { bytes } = await fetchSegmentBytes(fp.url, p.fetchStart, p.byteEnd);
@@ -1039,10 +1069,10 @@ export function usePlayer(): PlayerControls {
           // starts at its absolute ctx time relative to the play anchor.
           if (isPlayingInternalRef.current) scheduleDecodedSegment(i, k);
         } catch {
-          // Mark this index errored and stop this stem's fill; the rest of the
-          // stems keep filling.
+          // Record the failure and KEEP GOING. nextFillIndex excludes errored
+          // indices, so this index is never re-picked and the loop can't spin;
+          // the remaining gaps still fill (unlike the old per-stem abort).
           entry.errored.add(k);
-          return;
         }
       }
     };
@@ -1220,6 +1250,17 @@ export function usePlayer(): PlayerControls {
     lastTRef.current = clamped;
     setCurrentTime(clamped);
     updateMediaSessionPosition(clamped, s.duration);
+    // Reposition every MP3 stem's background-fill cursor to the segment under
+    // the new playhead, so the long-lived fill loop fetches the seek target next
+    // instead of finishing its in-order crawl. nextFillIndex bounds j by each
+    // stem's own segment count, so a j past a shorter stem's end simply yields
+    // that stem's backfill order — harmless. This only moves the cursor; the
+    // existing coalesced reschedule below is unchanged.
+    const j = Math.floor(clamped / SEGMENT_SEC);
+    for (const [i, stem] of stateRef.current.stems.entries()) {
+      const key = stemKey(stem.serverId, i);
+      if (segmentsRef.current.has(key)) fillCursorRef.current.set(key, j);
+    }
     if (!isPlayingInternalRef.current) {
       // Paused: nothing scheduled, no need to coalesce.
       return;
