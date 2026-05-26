@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   computePeaks,
   loadCachedPeaks,
+  PEAK_BINS,
   saveCachedPeaks,
   thumbPeaksFromWire,
 } from '../lib/peaks';
@@ -96,7 +97,7 @@ export function WaveformThumb({ stemId, peaks: wirePeaks }: Props) {
         ctx = new Ctor();
         const audio = await ctx.decodeAudioData(buf);
         if (cancelled) return;
-        const next = computePeaks(audio);
+        const next = computePeaks(audio, PEAK_BINS, { mode: 'rms' });
         saveCachedPeaks(stemId, next);
         setPeaks(next);
       } catch {
