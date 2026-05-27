@@ -519,6 +519,13 @@ export function usePlayer(): PlayerControls {
   // muting an unbuffered stem mid-stall resumes for free.
   function isPositionCovered(p: number): boolean {
     const stems = stateRef.current.stems;
+    // Known, bounded approximation: anchorIdx is recomputed from p each frame
+    // (floor(p / SEGMENT_SEC)) rather than read from the session's
+    // playAnchorIndexRef. With sub-nominal decoded segment durations this can
+    // let coverage stay true up to ~one segment-boundary's worth of drift
+    // (≤~100ms) past the true audio end, so a stall fires one frame (~16ms)
+    // into the gap rather than exactly at it. Acceptable for now; anchoring to
+    // playAnchorIndexRef would be tighter. Not a bug.
     const anchorIdx = Math.floor(p / SEGMENT_SEC);
     const cov: CoverageStem[] = stems.map((stem, i) => {
       const entry = stem.gain ? segmentsRef.current.get(stemKey(stem.serverId, i)) : undefined;
@@ -547,7 +554,10 @@ export function usePlayer(): PlayerControls {
   // now at an offset), or in the future (start at its absolute ctx time).
   function scheduleDecodedSegment(stemIdx: number, segIdx: number): void {
     const ctx = audioCtxRef.current;
-    if (!ctx || !isPlayingInternalRef.current) return;
+    // Never schedule while buffering: the resume path reschedules from stallPos
+    // anyway, and a source started here would be orphaned by that reschedule
+    // (it calls startSourcesAt, which resets sourcesRef without stopSources).
+    if (!ctx || !isPlayingInternalRef.current || stateRef.current.buffering) return;
     const stem = stateRef.current.stems[stemIdx];
     const entry =
       stem && stem.gain ? segmentsRef.current.get(stemKey(stem.serverId, stemIdx)) : undefined;
@@ -1361,6 +1371,11 @@ export function usePlayer(): PlayerControls {
       stallPosRef.current = clamped;
       pausedOffsetRef.current = clamped;
       stopSources();
+      // Belt-and-suspenders: a prior covered seek may have queued a coalesced
+      // reschedule rAF whose target is now stale. The rAF callback bails on
+      // buffering (the real guard), but null the target too so it can't
+      // schedule against the old position if anything reorders.
+      pendingSeekTargetRef.current = null;
       dispatch({ type: 'SET_BUFFERING', buffering: true });
       stateRef.current = { ...stateRef.current, buffering: true };
       return;
@@ -1375,7 +1390,14 @@ export function usePlayer(): PlayerControls {
     pendingSeekTargetRef.current = clamped;
     if (pendingSeekRafRef.current != null) return;
     pendingSeekRafRef.current = requestAnimationFrame(() => {
+      // A later UNCOVERED seek may have entered buffering after this rAF was
+      // queued. Scheduling here would orphan sources during the stall (the
+      // resume branch reschedules from stallPos without stopSources first), so
+      // bail before touching the graph — the buffering branch owns resume.
+      // Clear the handle first so a later covered seek can queue a fresh
+      // reschedule (the coalescing guard keys off this being non-null).
       pendingSeekRafRef.current = null;
+      if (stateRef.current.buffering) return;
       const target = pendingSeekTargetRef.current;
       pendingSeekTargetRef.current = null;
       if (target == null) return;
@@ -1471,7 +1493,12 @@ export function usePlayer(): PlayerControls {
     stopSources();
     dispatch({ type: 'REMOVE_STEM', serverId });
     // Reschedule remaining stems so the removed source actually stops.
-    if (wasPlaying) {
+    // While buffering, don't reschedule here — the rAF buffering branch owns
+    // resume and re-checks coverage each frame. Scheduling sources now would
+    // get orphaned by that branch's startSourcesAt(stallPos) (no stopSources
+    // first). Removing the uncovered stem can itself make stallPos covered, so
+    // the branch resumes cleanly next frame.
+    if (wasPlaying && !stateRef.current.buffering) {
       // Defer to next tick so the dispatch has been applied to stateRef.
       queueMicrotask(() => {
         startSourcesAt(at);
