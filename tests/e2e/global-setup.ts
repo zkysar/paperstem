@@ -24,6 +24,11 @@ export default async function globalSetup(): Promise<void> {
     DATABASE_PATH: join(tmp, 'test.sqlite'),
     PAPERSTEM_AUDIO_ROOT: join(tmp, 'audio'),
     PAPERSTEM_DEV_AUTO_LOGIN: 'e2e@paperstem.local',
+    // Seed a second "Long sample project" with a single 60s (multi-segment)
+    // stem so the seek-into-unbuffered journey has something to seek past the
+    // head segment of. The dev-seed MP3s are ~5s (single segment). See
+    // src/server/auth/dev-seed.ts + tests/e2e/journeys/seek-buffering.spec.ts.
+    PAPERSTEM_DEV_SEED_LONG_STEM: join(__dirname, 'fixtures', 'long-tone.mp3'),
     // The snapshot/backup scheduler is wall-clock driven and irrelevant to
     // UI journeys. Disable it so it doesn't spam logs or fire timers.
     PAPERSTEM_DISABLE_SCHEDULER: '1',

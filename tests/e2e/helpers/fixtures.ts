@@ -70,11 +70,20 @@ export class AppHarness {
       .waitFor({ state: 'visible', timeout: 30_000 });
   }
 
-  /** Pick the dev-seeded project. The seed creates exactly one project
-   *  named "Sample project" with three stems. We click the row's main
-   *  button; the row's data-testid is fp-row-<id>. */
+  /** Pick the dev-seeded project. The seed creates a project named
+   *  "Sample project" with three stems. We click the row's main button. */
   async openSampleProject(): Promise<void> {
-    const row = this.page.getByRole('button', { name: /^Sample project/ });
+    await this.openProjectNamed('Sample project');
+  }
+
+  /** Open a seeded project by (prefix-matched) name from the ProjectPicker,
+   *  then wait until the player has mounted and at least one stem reports a
+   *  non-zero duration. Used by openSampleProject and by journeys that target
+   *  the seeded "Long sample project". */
+  async openProjectNamed(name: string): Promise<void> {
+    const row = this.page.getByRole('button', {
+      name: new RegExp('^' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    });
     await row.first().click();
     // .stage exists once the player has mounted; duration becomes non-zero
     // once at least one stem has finished its metadata load. The toolbar
