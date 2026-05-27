@@ -125,10 +125,10 @@ test.describe('Journey: seek into un-decoded audio shows Buffering then resumes'
     await expect(page.getByRole('status').filter({ hasText: 'Buffering…' })).toBeVisible();
 
     // Cursor holds: the frozen position sits at ~the seek target and does not
-    // advance while buffering. Sample twice with a real gap; the displayed
-    // second must not climb. (This is the inverse of the resume poll — here we
-    // assert NON-advance, so a short fixed wait is correct: if the cursor were
-    // running it would tick past the seek second within ~1s.)
+    // advance while buffering. A stalled cursor is frozen at stallPos, so the
+    // displayed second is constant — it must NOT climb at all. (Asserting
+    // `<= held1`, not `held1 + 1`: allowing +1 leaves a dead zone where a cursor
+    // advancing at 1s/s would still pass. A genuine freeze stays exactly equal.)
     const held1 = leftSeconds(await timeText());
     expect(held1).toBeGreaterThanOrEqual(SEEK_SECONDS - 2);
     await page.waitForTimeout(1_200);
@@ -136,7 +136,7 @@ test.describe('Journey: seek into un-decoded audio shows Buffering then resumes'
     expect(
       held2,
       `cursor advanced while buffering (${held1}s → ${held2}s) — stall not holding`,
-    ).toBeLessThanOrEqual(held1 + 1);
+    ).toBeLessThanOrEqual(held1);
 
     // The held request must actually have been the seek-target segment — guards
     // against the test passing because nothing was ever held (e.g. byte math
