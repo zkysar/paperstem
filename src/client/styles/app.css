@@ -680,6 +680,12 @@ body.dragging-vertical .player * {
   animation: fp-shimmer 1.4s infinite;
 }
 .clip.loading > * { opacity: 0; }
+/* Ease the waveform canvas in when the loading class clears (peaks quantized
+   or audio decoded), rather than snapping from the shimmer to a solid wave. */
+.clip > * { transition: opacity 200ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .clip > * { transition: none; }
+}
 
 /* ===== Background audio-load progress pill =====
    Shown over the stage while stem audio downloads/decodes. The waveform
@@ -1838,6 +1844,27 @@ body.dragging-vertical .player * {
 }
 .annotation-marker.region.hovered {
   opacity: 0.8;
+}
+
+/* Entrance fade so comment markers and section segments ease in when their
+   data + duration resolve on load, instead of popping. The from-only keyframe
+   animates from 0 up to each element's own resting opacity (point=1,
+   region=0.55, ribbon-seg=base), so we don't have to hardcode end values.
+   Scoped to `.player.content-entering` — a window App opens for one animation
+   length right after a project's comments/sections commit — so the fade runs
+   on load and project-switch but NOT on the frequent remounts that would
+   otherwise replay it: the section lane swaps ribbon↔pills on hover-expand,
+   and the markers-visibility toggle unmounts/remounts all markers. */
+@keyframes fp-fade-in {
+  from { opacity: 0; }
+}
+.player.content-entering .annotation-marker,
+.player.content-entering .section-ribbon-seg {
+  animation: fp-fade-in 200ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .player.content-entering .annotation-marker,
+  .player.content-entering .section-ribbon-seg { animation: none; }
 }
 
 /* ===== AppHeader ===== */

@@ -845,6 +845,45 @@ describe('usePlayer — deferred audio load', () => {
     expect(result.current.state.stems[0].audioBuffer).not.toBeNull();
   });
 
+  it('adopts duration from loadedmetadata before the decode finishes when no durationMs was sent', async () => {
+    gate('projA');
+    const { result } = renderHook(() => usePlayer());
+    let loadDone!: Promise<void>;
+    await act(async () => {
+      loadDone = result.current.load({
+        projectId: 'projA',
+        title: 't',
+        folderId: null,
+        // No durationMs → metaDuration null → the timeline has no duration
+        // until either the <audio> metadata or the decode supplies one.
+        sources: [
+          { name: 'drums.mp3', src: 'https://example.test/projA/drums.mp3', serverId: 'sA-0' },
+          { name: 'bass.mp3', src: 'https://example.test/projA/bass.mp3', serverId: 'sA-1' },
+        ],
+      });
+      await Promise.resolve();
+    });
+    expect(result.current.state.duration).toBe(0);
+
+    // The element parses its header and fires loadedmetadata with a duration
+    // long before the gated Web Audio decode resolves — that should drive the
+    // timeline layout early instead of waiting for decode.
+    await act(async () => {
+      const audio = result.current.state.stems[0].audio;
+      Object.defineProperty(audio, 'duration', { value: 42, configurable: true });
+      audio.dispatchEvent(new Event('loadedmetadata'));
+      await Promise.resolve();
+    });
+    expect(result.current.state.duration).toBe(42);
+
+    // The decoded buffer (60 s from FakeAudioContext) still supersedes once it lands.
+    await act(async () => {
+      release('projA');
+      await loadDone;
+    });
+    expect(result.current.state.duration).toBe(60);
+  });
+
   it('ignores a superseded load whose decode finishes after the user switched projects', async () => {
     gate('projA');
     gate('projB');

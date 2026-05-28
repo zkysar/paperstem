@@ -106,6 +106,7 @@ function defaultProps() {
     onSectionCreated: vi.fn(),
     onToggleSectionCreate: vi.fn(),
     railCollapsed: false,
+    contentEntering: false,
     canMutate: true,
     onToggleAnnotationCreate: vi.fn(),
     onOpenPicker: vi.fn(),

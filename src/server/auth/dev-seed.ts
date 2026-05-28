@@ -37,6 +37,21 @@ function seedAssetsDir(): string {
   return fileURLToPath(new URL('../../../assets/dev-seed/', import.meta.url));
 }
 
+type SeedPeaks = Record<string, { peaks: string; durationMs: number }>;
+
+// Precomputed peaks + duration for the sample stems (generated from the MP3s
+// in this folder). Attaching these mirrors a real upload — which sends both —
+// so the dev seed loads with an instant waveform and a stable timeline rather
+// than everything snapping in once the background decode finishes.
+function loadSeedPeaks(assetsDir: string): SeedPeaks {
+  try {
+    const raw = readFileSync(assetsDir + 'peaks.json', 'utf8');
+    return JSON.parse(raw) as SeedPeaks;
+  } catch {
+    return {};
+  }
+}
+
 export async function seedDevBandIfNeeded(): Promise<void> {
   if (!isDevLoginEnabled()) return;
 
@@ -208,6 +223,8 @@ async function seedSampleProject(
     (await findFolderByName(SEED_PROJECT_NAME, bandFolderId)) ??
     (await createFolder(SEED_PROJECT_NAME, bandFolderId));
 
+  const seedPeaks = loadSeedPeaks(assetsDir);
+
   const projectId = randomUUID();
   stmts.insertProject.run(
     projectId,
@@ -230,15 +247,16 @@ async function seedSampleProject(
       'audio/mpeg',
       body,
     );
+    const precomputed = seedPeaks[stem.name] ?? null;
     stmts.insertStem.run(
       randomUUID(),
       projectId,
       stem.name,
       i,
       uploaded.id,
-      null,
+      precomputed?.durationMs ?? null,
       uploaded.size,
-      null,
+      precomputed?.peaks ?? null,
     );
   }
 
