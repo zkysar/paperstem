@@ -125,6 +125,7 @@ export function Player({
     loop,
     loopArmed,
     loading,
+    buffering,
     waveformNormalization,
   } = state;
 
@@ -881,34 +882,38 @@ export function Player({
             />
           </div>
         </div>
-        {loading && (
+        {(loading || buffering) && (
           <>
             {/* Announce once on appearance. The visible percentage updates on
                 every byte-progress tick; routing those through aria-live would
                 spam a screen reader with a stream of numbers, so the pill
                 itself is aria-hidden and this static node carries the status. */}
-            <span className="sr-only" role="status">Loading audio…</span>
-            {loadNudged && (
+            <span className="sr-only" role="status">{loading ? 'Loading audio…' : 'Buffering…'}</span>
+            {loadNudged && loading && (
               <span className="sr-only" role="alert">
                 Still loading audio — playback will start automatically when it's ready.
               </span>
             )}
             <div
-              className={'audio-loading-pill' + (loadNudged ? ' is-nudged' : '')}
+              className={'audio-loading-pill' + (loadNudged && loading ? ' is-nudged' : '')}
               aria-hidden="true"
             >
               <span className="audio-loading-pill-spinner" />
               <span className="audio-loading-pill-text">
-                {loadNudged
-                  ? 'Hang tight — still loading audio'
-                  : `Loading audio… ${Math.round((loading.loaded / Math.max(1, loading.total)) * 100)}%`}
+                {loading
+                  ? (loadNudged
+                      ? 'Hang tight — still loading audio'
+                      : `Loading audio… ${Math.round((loading.loaded / Math.max(1, loading.total)) * 100)}%`)
+                  : 'Buffering…'}
               </span>
-              <span className="audio-loading-pill-track">
-                <span
-                  className="audio-loading-pill-fill"
-                  style={{ width: `${(loading.loaded / Math.max(1, loading.total)) * 100}%` }}
-                />
-              </span>
+              {loading && (
+                <span className="audio-loading-pill-track">
+                  <span
+                    className="audio-loading-pill-fill"
+                    style={{ width: `${(loading.loaded / Math.max(1, loading.total)) * 100}%` }}
+                  />
+                </span>
+              )}
             </div>
           </>
         )}

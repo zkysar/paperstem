@@ -13,6 +13,7 @@ const baseProps = {
   hasProject: true,
   isPlaying: false,
   audioLoading: false,
+  audioBuffering: false,
   loopEnabled: false,
   waveformNormalization: 'per-track' as const,
   masterVolume: 50,
@@ -66,6 +67,54 @@ describe('AppToolbar', () => {
     expect(play.getAttribute('title')).toBe('Preparing audio…');
     await userEvent.click(play);
     expect(onTogglePlay).toHaveBeenCalledTimes(1);
+  });
+
+  it('buffering: button gets is-buffering class, renders spinner, is NOT aria-disabled', async () => {
+    const onTogglePlay = vi.fn();
+    render(<AppToolbar {...baseProps} audioLoading={false} audioBuffering={true} isPlaying={true} onTogglePlay={onTogglePlay} />);
+    // aria-label changes to the buffering copy
+    const play = screen.getByLabelText('Buffering — click to pause') as HTMLButtonElement;
+    expect(play).not.toBeNull();
+    // Has the is-buffering class
+    expect(play.className).toContain('is-buffering');
+    // Does NOT have is-loading class (that is for audioLoading)
+    expect(play.className).not.toContain('is-loading');
+    // Fully enabled — NOT aria-disabled
+    expect(play.disabled).toBe(false);
+    expect(play.getAttribute('aria-disabled')).toBeNull();
+    // Spinner rendered (LoaderCircle has the atb-spin class)
+    expect(play.querySelector('.atb-spin')).not.toBeNull();
+    // Clicking still fires the handler (user can bail out)
+    await userEvent.click(play);
+    expect(onTogglePlay).toHaveBeenCalledTimes(1);
+  });
+
+  it('buffering: no Pause/Play icon — only spinner', () => {
+    render(<AppToolbar {...baseProps} audioLoading={false} audioBuffering={true} isPlaying={true} />);
+    const play = screen.getByLabelText('Buffering — click to pause');
+    // Spinner present; no SVG with fill="currentColor" (Pause/Play icons use fill)
+    const filledSvgs = play.querySelectorAll('svg[fill="currentColor"]');
+    expect(filledSvgs.length).toBe(0);
+  });
+
+  it('audioLoading wins over audioBuffering when both are true', () => {
+    render(<AppToolbar {...baseProps} audioLoading={true} audioBuffering={true} />);
+    // When loading wins, aria-label stays "Play" (loading takes precedence over buffering)
+    const play = screen.getByLabelText('Play') as HTMLButtonElement;
+    expect(play.className).toContain('is-loading');
+    expect(play.className).not.toContain('is-buffering');
+    // loading path sets aria-disabled
+    expect(play.getAttribute('aria-disabled')).toBe('true');
+  });
+
+  it('neither loading nor buffering: normal Play/Pause icon, no spinner', () => {
+    render(<AppToolbar {...baseProps} audioLoading={false} audioBuffering={false} isPlaying={false} />);
+    const play = screen.getByLabelText('Play') as HTMLButtonElement;
+    expect(play.className).not.toContain('is-loading');
+    expect(play.className).not.toContain('is-buffering');
+    expect(play.querySelector('.atb-spin')).toBeNull();
+    // Play icon present (fill="currentColor")
+    expect(play.querySelector('svg[fill="currentColor"]')).not.toBeNull();
   });
 
   it('no longer renders the Download button (moved to header)', () => {

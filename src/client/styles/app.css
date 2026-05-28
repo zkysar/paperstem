@@ -753,11 +753,15 @@ body.dragging-vertical .player * {
     z-index: 950;
   }
 }
-/* Spinner shown in the transport Play button while audio decodes — a
-   touch-visible cue for why Play is unavailable (tooltips don't fire on
-   touch). The button stays clickable so a tap is acknowledged. */
+/* Spinner shown in the transport Play button while audio decodes or buffers.
+   Touch-visible cue for why the icon has changed (tooltips don't fire on
+   touch). The button stays clickable in both states so a tap is acknowledged
+   (loading: tap flashes the pill; buffering: tap pauses/bails out). */
 .atb-spin { animation: fp-spin 0.8s linear infinite; }
 .atb-btn.play.is-loading { opacity: 0.55; cursor: progress; }
+/* Buffering: same dimmed opacity as loading but cursor stays pointer — the
+   button is still actionable (user can click to pause/bail out of a stall). */
+.atb-btn.play.is-buffering { opacity: 0.55; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .audio-loading-pill-spinner { animation: none; }
   .atb-spin { animation: none; }

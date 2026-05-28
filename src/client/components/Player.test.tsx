@@ -16,7 +16,9 @@ function makePlayerState(overrides: Partial<PlayerState> = {}): PlayerState {
     duration: 0,
     referenceIdx: 0,
     isPlaying: false,
+    buffering: false,
     loop: null,
+    loopArmed: false,
     status: '',
     loading: null,
     waveformNormalization: 'per-track',
@@ -191,5 +193,37 @@ describe('Player', () => {
     );
     await user.click(screen.getByRole('button', { name: /cancel/i }));
     expect(onToggleSectionCreate).toHaveBeenCalledOnce();
+  });
+
+  describe('buffering pill', () => {
+    it('shows "Buffering…" pill text and sr-only status when buffering and not loading', () => {
+      const player = makePlayer({
+        state: makePlayerState({ buffering: true, loading: null }),
+      });
+      render(<Player {...defaultProps()} player={player} />);
+      expect(screen.getByRole('status').textContent).toBe('Buffering…');
+      expect(screen.getByText('Buffering…', { selector: '.audio-loading-pill-text' })).not.toBeNull();
+    });
+
+    it('loading text takes precedence over buffering when both are active', () => {
+      const player = makePlayer({
+        state: makePlayerState({
+          buffering: true,
+          loading: { total: 2, loaded: 1, nudge: 0 },
+        }),
+      });
+      render(<Player {...defaultProps()} player={player} />);
+      expect(screen.getByRole('status').textContent).toBe('Loading audio…');
+      expect(screen.queryByText('Buffering…')).toBeNull();
+    });
+
+    it('shows no pill when both loading and buffering are falsy', () => {
+      const player = makePlayer({
+        state: makePlayerState({ buffering: false, loading: null }),
+      });
+      render(<Player {...defaultProps()} player={player} />);
+      expect(screen.queryByRole('status')).toBeNull();
+      expect(document.querySelector('.audio-loading-pill')).toBeNull();
+    });
   });
 });

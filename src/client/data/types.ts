@@ -124,6 +124,12 @@ export type PlayerState = {
   duration: number;
   referenceIdx: number;
   isPlaying: boolean;
+  // True while playback has reached a position whose audio isn't decoded yet
+  // (seek-ahead into an undecoded region, or the background fill falling behind
+  // the playhead). The cursor freezes and the UI shows "Buffering…"; the rAF
+  // tick auto-resumes once the covering segment arrives. Always false while
+  // paused (nothing is scheduled to underrun).
+  buffering: boolean;
   loop: LoopRegion | null;
   // True when the user has turned looping on but no region exists yet.
   // The next ruler drag will create one; clicking the loop toggle again

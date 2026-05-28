@@ -8,6 +8,12 @@ import { isDevLoginEnabled } from './dev-login.js';
 
 const DEFAULT_BAND_NAME = 'Dev Band';
 const SEED_PROJECT_NAME = 'Sample project';
+// Opt-in second project with one long (multi-segment) stem. Off by default so
+// the normal dev experience stays the 3-stem "Sample project"; the e2e suite
+// sets PAPERSTEM_DEV_SEED_LONG_STEM to a 60s MP3 so the seek-into-unbuffered
+// journey has a stem long enough to seek past the head segment. See
+// tests/e2e/journeys/seek-buffering.spec.ts.
+const LONG_PROJECT_NAME = 'Long sample project';
 const SEED_STEMS: { name: string; file: string }[] = [
   { name: 'drums', file: 'drums.mp3' },
   { name: 'bass', file: 'bass.mp3' },
@@ -63,6 +69,7 @@ export async function seedDevBandIfNeeded(): Promise<void> {
 
   await seedSampleProject(bandId, bandFolder.id, user.id, nowSec);
   await seedSongCatalog(bandId, bandFolder.id, user.id, nowSec);
+  await seedLongStemProjectIfRequested(bandId, bandFolder.id, user.id, nowSec);
 }
 
 // Create a handful of catalog songs and a dedicated demo project whose
@@ -113,6 +120,74 @@ async function seedSongCatalog(
 
   console.log(
     `[dev-seed] seeded ${songIds.length} songs + '${SEED_SETLIST_NAME}' project (${projectId})`,
+  );
+}
+
+/**
+ * When PAPERSTEM_DEV_SEED_LONG_STEM points at an MP3, seed a second project
+ * containing exactly that one (long) stem. Used by the e2e suite to get a stem
+ * with multiple ~20s segments — the dev-seed MP3s are ~5s (single segment), too
+ * short to seek into an undecoded region. Single-stem on purpose: it keeps the
+ * route interception in the journey unambiguous (one stem = one audio id).
+ */
+async function seedLongStemProjectIfRequested(
+  bandId: string,
+  bandFolderId: string,
+  userId: string,
+  nowSec: number,
+): Promise<void> {
+  const longStemPath = process.env.PAPERSTEM_DEV_SEED_LONG_STEM?.trim();
+  if (!longStemPath) return;
+  if (!existsSync(longStemPath)) {
+    console.log(
+      `[dev-seed] PAPERSTEM_DEV_SEED_LONG_STEM=${longStemPath} not found, skipping long project`,
+    );
+    return;
+  }
+
+  const projectFolder =
+    (await findFolderByName(LONG_PROJECT_NAME, bandFolderId)) ??
+    (await createFolder(LONG_PROJECT_NAME, bandFolderId));
+
+  const projectId = randomUUID();
+  stmts.insertProject.run(
+    projectId,
+    bandId,
+    LONG_PROJECT_NAME,
+    null,
+    projectFolder.id,
+    null,
+    nowSec,
+    userId,
+    nowSec,
+  );
+
+  const body = readFileSync(longStemPath);
+  const uploaded = await uploadFile(
+    projectFolder.id,
+    'long-tone.mp3',
+    'audio/mpeg',
+    body,
+  );
+  // duration_ms MUST be set: the client only segments a stem when it knows the
+  // duration up front (usePlayer.ts: `metaDuration != null && > 0` gates
+  // planSegments). Without it the stem takes the full-file decode path — one
+  // buffer, no per-segment Range fetches — and the seek-into-unbuffered stall
+  // can't happen. The fixture is a 60s clip.
+  const LONG_STEM_DURATION_MS = 60_000;
+  stmts.insertStem.run(
+    randomUUID(),
+    projectId,
+    'long tone',
+    0,
+    uploaded.id,
+    LONG_STEM_DURATION_MS,
+    uploaded.size,
+    null,
+  );
+
+  console.log(
+    `[dev-seed] seeded project '${LONG_PROJECT_NAME}' (${projectId}) with 1 long stem from ${longStemPath}`,
   );
 }
 
