@@ -124,6 +124,14 @@ test.describe('Journey: seek into un-decoded audio shows Buffering then resumes'
     // The sr-only status node also carries "Buffering…".
     await expect(page.getByRole('status').filter({ hasText: 'Buffering…' })).toBeVisible();
 
+    // Play button reflects buffering: icon swaps to spinner, button stays enabled.
+    // This is the regression guard — if the is-buffering class ever silently
+    // reverts, the Pause icon would glow orange while the pill says "Buffering…".
+    // Use a CSS locator: during buffering aria-label changes to "Buffering — click
+    // to pause", so the earlier getByRole('Play') locator no longer matches.
+    const playBtnByClass = page.locator('button.atb-btn.play');
+    await expect(playBtnByClass).toHaveClass(/\bis-buffering\b/, { timeout: 5_000 });
+    await expect(playBtnByClass).not.toHaveAttribute('aria-disabled');
     // Cursor holds: the frozen position sits at ~the seek target and does not
     // advance while buffering. A stalled cursor is frozen at stallPos, so the
     // displayed second is constant — it must NOT climb at all. (Asserting
@@ -152,6 +160,8 @@ test.describe('Journey: seek into un-decoded audio shows Buffering then resumes'
     await expect(page.locator('.audio-loading-pill')).toHaveCount(0, {
       timeout: 15_000,
     });
+    // is-buffering clears when the pill disappears.
+    await expect(playBtnByClass).not.toHaveClass(/\bis-buffering\b/);
     // Poll the readout until the left-side seconds climb past the seek point.
     // Poll (not a fixed sub-second sample): .atb-time renders whole seconds, so
     // two reads close together can land in the same integer second while the

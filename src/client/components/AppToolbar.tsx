@@ -26,6 +26,12 @@ type Props = {
   // comments) is interactive, but playback can't start yet, so the play
   // button is disabled with an explanatory tooltip.
   audioLoading: boolean;
+  /**
+   * Playback has started but stalled waiting for a not-yet-decoded segment
+   * (buffering state). The button stays clickable so the user can bail out
+   * of a long stall — do NOT aria-disable for this state.
+   */
+  audioBuffering?: boolean;
   loopEnabled: boolean;
   /**
    * The loop button has been clicked but no region has been dragged out yet,
@@ -70,7 +76,7 @@ type Props = {
 
 export function AppToolbar(props: Props) {
   const {
-    hasProject, isPlaying, audioLoading, loopEnabled, loopArmed = false,
+    hasProject, isPlaying, audioLoading, audioBuffering = false, loopEnabled, loopArmed = false,
     waveformNormalization, masterVolume, currentTime, duration,
     annotationCreateMode, canCreateAnnotations,
     sectionCreateMode, canCreateSections,
@@ -92,19 +98,23 @@ export function AppToolbar(props: Props) {
         disabled={!hasProject}
         onClick={() => onSeek(0)}><SkipBack size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" /></button>
       <button type="button"
-        className={'atb-btn play' + (isPlaying ? ' on' : '') + (audioLoading ? ' is-loading' : '')}
-        aria-label="Play"
+        className={'atb-btn play' + (isPlaying ? ' on' : '') + (audioLoading ? ' is-loading' : '') + (!audioLoading && audioBuffering ? ' is-buffering' : '')}
+        aria-label={!audioLoading && audioBuffering ? 'Buffering — click to pause' : 'Play'}
         title={audioLoading
           ? 'Preparing audio…'
-          : isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+          : audioBuffering
+            ? 'Buffering… click to pause'
+            : isPlaying ? 'Pause (Space)' : 'Play (Space)'}
         // While audio loads the button stays clickable (so a tap/click is
         // acknowledged — tooltips don't fire on touch) but reads as disabled
         // to assistive tech. onTogglePlay no-ops playback and flashes the
         // loading indicator instead. Truly disabled only with no project.
+        // While buffering the button stays fully enabled — user may want to
+        // pause/bail out of a long stall.
         disabled={!hasProject}
         aria-disabled={audioLoading || undefined}
         onClick={onTogglePlay}>
-        {audioLoading
+        {audioLoading || audioBuffering
           ? <LoaderCircle className="atb-spin" size={16} strokeWidth={2} aria-hidden="true" />
           : isPlaying
             ? <Pause size={16} strokeWidth={2} fill="currentColor" aria-hidden="true" />
